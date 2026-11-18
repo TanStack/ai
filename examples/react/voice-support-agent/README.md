@@ -2,7 +2,7 @@
 
 A phone support agent for TanStack AI. Talk into your microphone, and the agent answers from the docs. Point a Twilio number at it to take real calls.
 
-Each hop of the call, listen, think, and speak, runs on OpenAI, Gemini, or Grok. Pick a provider per hop on the page and paste your own keys in the key dialog, or put keys in `.env.local`.
+Each hop of the call, listen, think, and speak, runs on OpenAI, Gemini, or Grok, and listen and speak can also run on ElevenLabs. Pick a provider per hop on the page and paste your own keys in the key dialog, or put keys in `.env.local`.
 
 ## Run it
 
@@ -18,7 +18,7 @@ Characters live in `src/server/characters.ts`: helpful, startup founder, frightf
 
 ## Take a phone call
 
-1. Run `ngrok http 3100` and copy the `https` host.
+1. Run `ngrok http 3100` and copy the `https` host. The `/twilio` socket has no login. Anyone with that host can place calls on your keys, so keep it private and stop the tunnel when you are done.
 2. In Twilio, set the number's voice webhook to return this TwiML:
 
 ```xml

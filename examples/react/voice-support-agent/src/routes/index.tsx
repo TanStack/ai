@@ -132,7 +132,7 @@ function CallPage() {
   const [captions, setCaptions] = useState<Array<Caption>>([])
   const [error, setError] = useState('')
   const [inCall, setInCall] = useState(false)
-  const [character, setCharacter] = useState<CharacterName>('helpful')
+  const [character, setCharacter] = useState<CharacterName>('perky')
   const [choice, setChoice] = useState<Choice>(DEFAULT_CHOICE)
   const hangUp = useRef<(() => void) | null>(null)
   const [keysOpen, setKeysOpen] = useState(false)

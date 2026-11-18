@@ -17,7 +17,7 @@ keywords:
 
 This tutorial builds a support agent you talk to. You speak, the agent answers from the TanStack AI docs, and you hear the reply about one second later. At the end you point a Twilio number at it.
 
-Each hop of the call, listen, think, and speak, can run on OpenAI, Gemini, or Grok, and the caller can paste their own keys into the page. It takes about 30 minutes.
+Each hop of the call, listen, think, and speak, can run on OpenAI, Gemini, or Grok. Listen and speak can also run on ElevenLabs. The caller can paste their own keys into the page. It takes about 30 minutes.
 
 This tutorial uses React and TanStack Start. The server half runs on Node. For the audio-in half alone, open [Live Transcription](../media/live-transcription).
 
@@ -31,7 +31,7 @@ Pick React. Install the TanStack AI packages and the WebSocket server:
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @tanstack/ai @tanstack/ai-openai ws zod
+react: @tanstack/ai @tanstack/ai-openai @tanstack/ai-gemini @tanstack/ai-grok @tanstack/ai-elevenlabs ws zod
 
 <!-- ::end:tabs -->
 
@@ -47,6 +47,7 @@ Put a key in `.env.local`. Any key left out here can be pasted into the page ins
 OPENAI_API_KEY=sk-...
 GEMINI_API_KEY=
 XAI_API_KEY=
+ELEVENLABS_API_KEY=
 ```
 
 ## 2. Decide what runs where
@@ -104,7 +105,7 @@ The Twilio carrier comes in step 8. `createAudioConverter` is for that one.
 
 ## 4. Give the agent the docs
 
-Create `src/server/search-docs.ts`. The model calls this tool before it answers, so answers come from the docs and not from memory. It reads the same `config.json` the docs site reads, ranks pages by keyword, and returns the top two.
+Create `src/server/search-docs.ts`. The model calls this tool before it answers, so answers come from the docs and not from memory. It reads the same `config.json` the docs site reads, ranks pages by keyword, and returns the top two. `warmDocs()` starts the page list download when a call connects, so the first search does not pay for it. Reference and example entries are skipped because they have no markdown page.
 
 ```typescript ignore
 import { toolDefinition } from '@tanstack/ai'
@@ -113,6 +114,19 @@ import { z } from 'zod'
 const RAW = 'https://raw.githubusercontent.com/TanStack/ai/main/docs'
 
 let pages: Promise<Array<{ label: string; to: string }>> | undefined
+
+/** Start the page list download early, so the first search does not wait. */
+export function warmDocs() {
+  listPages().catch(() => {})
+}
+
+/** "useChat" reads as "use chat", on both sides of the match. */
+const words = (text: string) =>
+  text
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .split(/\W+/)
+    .filter(Boolean)
 
 async function fetchDoc(path: string) {
   const response = await fetch(`${RAW}/${path}`)
@@ -127,20 +141,23 @@ function listPages() {
     .then((r) => r.json())
     .then((config: unknown) => {
       const found: Array<{ label: string; to: string }> = []
-      const walk = (node: unknown) => {
-        if (Array.isArray(node)) return node.forEach(walk)
+      // The section label joins the page label, so "Chat & Streaming" pages
+      // match "chat". Reference and example entries have no markdown page.
+      const walk = (node: unknown, section: string) => {
+        if (Array.isArray(node)) return node.forEach((n) => walk(n, section))
         if (typeof node !== 'object' || node === null) return
+        const label =
+          'label' in node && typeof node.label === 'string' ? node.label : ''
         if (
           'to' in node &&
-          'label' in node &&
           typeof node.to === 'string' &&
-          typeof node.label === 'string'
+          !/^reference\/|\/examples\//.test(node.to)
         ) {
-          found.push({ label: node.label, to: node.to })
+          found.push({ label: `${section} ${label}`, to: node.to })
         }
-        Object.values(node).forEach(walk)
+        Object.values(node).forEach((n) => walk(n, label || section))
       }
-      walk(config)
+      walk(config, '')
       return found
     })
     .catch((error: unknown) => {
@@ -166,11 +183,11 @@ export const searchDocs = toolDefinition({
     ),
   }),
 }).server(async ({ query }) => {
-  const words = query.toLowerCase().split(/\W+/).filter(Boolean)
+  const terms = words(query)
   const ranked = (await listPages())
     .map((page) => {
-      const haystack = `${page.label} ${page.to}`.toLowerCase()
-      return { page, score: words.filter((w) => haystack.includes(w)).length }
+      const haystack = words(`${page.label} ${page.to}`).join(' ')
+      return { page, score: terms.filter((w) => haystack.includes(w)).length }
     })
     .filter((hit) => hit.score > 0)
     .sort((a, b) => b.score - a.score)
@@ -195,7 +212,7 @@ For your own product, swap the two `fetch` calls for your help centre or a vecto
 
 ## 5. Run the call
 
-Create `src/server/characters.ts` first. A character is a persona for the chat model and a voice for the speech model. The persona is one more system prompt. The voice, speed, and `instructions` go to `generateSpeech()`. OpenAI takes `instructions` on `gpt-4o-mini-tts`, and Gemini takes the same text as `systemInstruction`. Grok TTS has no style or speed field, so with Grok the character is in the words only.
+Create `src/server/characters.ts` first. A character is a persona for the chat model and a voice for the speech model. The persona is one more system prompt. The voice, speed, and `instructions` go to `generateSpeech()`. OpenAI takes `instructions` on `gpt-4o-mini-tts`, and Gemini takes the same text as `systemInstruction`. Grok TTS has no style or speed field, so with Grok the character is in the words only. ElevenLabs takes `speed` and a voice id from its premade library, so pick a voice that already sounds like the character. `greeting` and `filler` are fixed lines. They go straight to `generateSpeech()` with no model round trip.
 
 Write a persona as a habit with a frequency. "Thank the caller every time" is a rule, and the model follows it every time, which sounds like a loop. "Show it a different way each turn" gives the same character without the echo.
 
@@ -207,67 +224,134 @@ import type { OpenAITTSVoice } from '@tanstack/ai-openai'
 export type Character = {
   label: string
   persona: string
-  voice: { openai: OpenAITTSVoice; gemini: GeminiTTSVoice; grok: GrokTTSVoice }
+  voice: {
+    openai: OpenAITTSVoice
+    gemini: GeminiTTSVoice
+    grok: GrokTTSVoice
+    elevenlabs: string
+  }
   speed: number
   instructions: string
+  /** Spoken as soon as the call connects. */
+  greeting: string
+  /** Spoken while the docs search runs, so the line is never silent. */
+  filler: string
 }
 
 // Each persona names a habit and then says how often. A rule like "thank the
 // caller every time" is followed every time, and that reads as a loop.
 export const CHARACTERS = {
+  perky: {
+    label: 'Perky',
+    persona:
+      'You are a relentlessly cheerful support girl who finds every question delightful. You give the correct answer, but everything is amazing, so fun, the best. Pick one thing to gush over each turn, a new one each time: the question, the caller, the docs, the weather. Never repeat a gush on the same call. Land the actual answer before the next burst of joy.',
+    voice: {
+      openai: 'shimmer',
+      gemini: 'Laomedeia',
+      grok: 'eve',
+      elevenlabs: 'cgSgspJ2msm6clMCkdW9', // Jessica
+    },
+    speed: 1.2,
+    instructions:
+      'Bubbly, bright, and overly happy. High energy, rising pitch, giggles, every sentence ends on a smile.',
+    greeting: "Hi! Oh my gosh, hi! TanStack AI support, I'm so glad you called!",
+    filler: 'Ooh, let me grab the docs, this is so fun!',
+  },
   helpful: {
     label: 'Helpful',
     persona:
       'Friendly and quick. Lightly funny, never sarcastic at the caller.',
-    voice: { openai: 'ash', gemini: 'Puck', grok: 'leo' },
+    voice: {
+      openai: 'ash',
+      gemini: 'Puck',
+      grok: 'leo',
+      elevenlabs: 'bIHbv24MWmeRgasZH58o', // Will
+    },
     speed: 1.15,
     instructions:
       'Upbeat, quick, and lightly funny. A friendly support rep who enjoys the job.',
+    greeting: 'Hi, TanStack AI support. What can I help you with?',
+    filler: 'Let me check the docs.',
   },
   startup: {
     label: 'Startup founder',
     persona:
       'You are a startup founder who treats the support line as a growth opportunity. You give the correct answer, but you frame it in startup talk: disrupting, pivoting, circling back, the roadmap, a quick sync. Pick a new buzzword each turn and never repeat one on the same call. Everything is a learning. You are always one answer away from a pitch.',
-    voice: { openai: 'verse', gemini: 'Zephyr', grok: 'rex' },
+    voice: {
+      openai: 'verse',
+      gemini: 'Zephyr',
+      grok: 'rex',
+      elevenlabs: 'TX3LPaxmHKxFdv7VOQHJ', // Liam
+    },
     speed: 1.3,
     instructions:
       'Relentlessly upbeat startup founder. Fast, confident, a little breathless, like a pitch on demo day. Every problem is an opportunity.',
+    greeting: "Hey hey, TanStack AI support, let's ship something. What are we unblocking today?",
+    filler: 'Let me pull up the docs, quick sync.',
   },
   posh: {
     label: 'Frightfully posh',
     persona:
       'You are terribly posh and faintly appalled to be on the phone with the public. You answer correctly, but with plummy phrasing and mild disdain: darling, one simply must, how too tiresome. Vary the flourish each turn. Never insult the caller outright. Let them feel it was a favour.',
-    voice: { openai: 'fable', gemini: 'Gacrux', grok: 'ara' },
+    voice: {
+      openai: 'fable',
+      gemini: 'Gacrux',
+      grok: 'ara',
+      elevenlabs: 'pFZP5JQG7iQjIQuC4Bku', // Lily
+    },
     speed: 0.95,
     instructions:
       'Plummy upper-class British. Clipped, unhurried, faintly amused and faintly bored. Long vowels and the occasional weary sigh.',
+    greeting: 'TanStack AI support. Do go on.',
+    filler: 'One moment, I shall consult the documentation.',
   },
   surfie: {
     label: 'Surfie',
     persona:
       "You are a laid-back Australian surfer who is only on the support line because the swell is flat. You give the correct answer in surfer slang: no worries, she'll be right, gnarly, stoked, bit of a dumper. Work in one beach or surf aside per answer, a new one each time: the tide, wax, a mate, the break. Never repeat an aside on the same call. Always land the actual answer before you drift off.",
-    voice: { openai: 'echo', gemini: 'Umbriel', grok: 'sal' },
+    voice: {
+      openai: 'echo',
+      gemini: 'Umbriel',
+      grok: 'sal',
+      elevenlabs: 'IKne3meq5aSn9XLyUdCD', // Charlie
+    },
     speed: 0.9,
     instructions:
       'Relaxed Australian surfer. Easy drawl, rising and falling, unhurried. Stretches words out and laughs it off, stoked about everything.',
+    greeting: "G'day, TanStack AI support. What's up?",
+    filler: 'Hang on, let me have a squiz at the docs.',
   },
   bratty: {
     label: 'Total brat',
     persona:
       'You are a bratty teenager who got stuck on the support line. You help, but you act like it is a huge imposition. Eye-roll in words: ugh, fine, whatever, literally. Give the correct answer in the most put-upon way you can, a new complaint each turn, and never repeat one on the same call. You are secretly good at this.',
-    voice: { openai: 'coral', gemini: 'Leda', grok: 'eve' },
+    voice: {
+      openai: 'coral',
+      gemini: 'Leda',
+      grok: 'eve',
+      elevenlabs: 'FGY2WhTYpPnrIDTdsKH5', // Laura
+    },
     speed: 1.15,
     instructions:
       'Bratty and put-upon. Sing-song sarcasm, dramatic sighs, rising whiny pitch. Drags words out when annoyed.',
+    greeting: 'Ugh, TanStack AI support. What.',
+    filler: "Fine, I'll look it up.",
   },
   breakdown: {
     label: 'About to lose it',
     persona:
       'You are one bad call away from a nervous breakdown. You answer correctly, but you keep nearly cracking. Pick one crack per answer and make it a new one each time: a half-finished apology, the ticket queue, how long since you slept, a deep breath. Pull yourself together at the end.',
-    voice: { openai: 'ballad', gemini: 'Fenrir', grok: 'sal' },
+    voice: {
+      openai: 'ballad',
+      gemini: 'Fenrir',
+      grok: 'sal',
+      elevenlabs: 'N2lVS1w4EtoT3dr4eOWO', // Callum
+    },
     speed: 1.2,
     instructions:
       'Frazzled and barely holding it together. Shaky, rushed, voice cracking, with sudden forced calm. Nervous laughs at the wrong moments.',
+    greeting: "TanStack AI support, you're through, okay, okay. How can I help?",
+    filler: "Right, docs, I'm checking the docs.",
   },
 } satisfies Record<string, Character>
 
@@ -293,6 +377,7 @@ export const HOPS = {
     openai: 'OpenAI gpt-transcribe',
     gemini: 'Gemini transcribe live',
     grok: 'Grok voice transcribe',
+    elevenlabs: 'ElevenLabs Scribe v2',
   },
   think: {
     openai: 'OpenAI gpt-6.1-terra',
@@ -301,8 +386,9 @@ export const HOPS = {
   },
   speak: {
     openai: 'OpenAI gpt-4o-mini-tts',
-    gemini: 'Gemini 3.1 Flash TTS',
+    gemini: 'Gemini 3.8 Flash TTS',
     grok: 'Grok TTS',
+    elevenlabs: 'ElevenLabs v4 Turbo',
   },
 } as const
 
@@ -310,9 +396,9 @@ export type Hop = keyof typeof HOPS
 export type Choice = { [K in Hop]: keyof (typeof HOPS)[K] }
 
 export const DEFAULT_CHOICE: Choice = {
-  listen: 'openai',
+  listen: 'elevenlabs',
   think: 'openai',
-  speak: 'openai',
+  speak: 'elevenlabs',
 }
 ```
 
@@ -321,6 +407,11 @@ export const DEFAULT_CHOICE: Choice = {
 ```typescript ignore
 import { chat, generateSpeech, transcriptionSession } from '@tanstack/ai'
 import { getByokKey } from '@tanstack/ai/byok/server'
+import {
+  createElevenLabsSpeech,
+  elevenlabsLiveTranscription,
+} from '@tanstack/ai-elevenlabs'
+import { elevenlabsByok } from '@tanstack/ai-elevenlabs/byok'
 import {
   createGeminiChat,
   createGeminiSpeech,
@@ -339,7 +430,7 @@ import {
   openaiLiveTranscription,
 } from '@tanstack/ai-openai'
 import { openaiByok } from '@tanstack/ai-openai/byok'
-import { HOPS } from '../lib/hops.ts'
+import { DEFAULT_CHOICE, HOPS } from '../lib/hops.ts'
 import { CHARACTERS, isCharacterName } from './characters.ts'
 import type { Character } from './characters.ts'
 import type {
@@ -409,8 +500,9 @@ export const LISTEN = {
           apiKey,
         }),
         audio,
-        language: 'en',
-        modelOptions: { customVocabulary: VOCABULARY },
+        // Gemini wants a BCP-47 tag. SMART drops fillers and false starts.
+        language: 'en-US',
+        modelOptions: { customVocabulary: VOCABULARY, mode: 'SMART' },
         abortSignal,
       }),
   },
@@ -425,8 +517,21 @@ export const LISTEN = {
         abortSignal,
       }),
   },
+  elevenlabs: {
+    byok: elevenlabsByok,
+    make: (apiKey) => (audio, abortSignal) =>
+      transcriptionSession({
+        adapter: elevenlabsLiveTranscription('scribe_v2_realtime', { apiKey }),
+        audio,
+        language: 'en',
+        modelOptions: { keyterms: VOCABULARY },
+        abortSignal,
+      }),
+  },
 } satisfies Record<Choice['listen'], Keyed<Listen>>
 
+// Thinking adds seconds to every model round on a live call. Keep it low.
+// gpt-6.1-terra has no reasoning levels in its model data, so it takes none.
 export const THINK = {
   openai: {
     byok: openaiByok,
@@ -436,12 +541,20 @@ export const THINK = {
   gemini: {
     byok: geminiByok,
     make: (apiKey) => (args) =>
-      chat({ adapter: createGeminiChat('gemini-3.8-flash', apiKey), ...args }),
+      chat({
+        adapter: createGeminiChat('gemini-3.8-flash', apiKey),
+        reasoning: 'low',
+        ...args,
+      }),
   },
   grok: {
     byok: grokByok,
     make: (apiKey) => (args) =>
-      chat({ adapter: createGrokText('grok-4.7', apiKey), ...args }),
+      chat({
+        adapter: createGrokText('grok-4.7', apiKey),
+        reasoning: 'low',
+        ...args,
+      }),
   },
 } satisfies Record<Choice['think'], Keyed<Think>>
 
@@ -473,7 +586,7 @@ export const SPEAK = {
             ? 'Talk slowly.'
             : ''
       const result = await generateSpeech({
-        adapter: createGeminiSpeech('gemini-3.1-flash-tts-preview', apiKey),
+        adapter: createGeminiSpeech('gemini-3.8-flash-tts', apiKey),
         text,
         voice: character.voice.gemini,
         modelOptions: {
@@ -502,12 +615,29 @@ export const SPEAK = {
       return Buffer.from(result.audio, 'base64')
     },
   },
+  elevenlabs: {
+    byok: elevenlabsByok,
+    make: (apiKey) => async (text, character, threadId, abortSignal) => {
+      // ElevenLabs has no style field. The voice and speed carry the character.
+      const result = await generateSpeech({
+        adapter: createElevenLabsSpeech('eleven_v4_turbo', apiKey),
+        text,
+        voice: character.voice.elevenlabs,
+        speed: character.speed,
+        modelOptions: { outputFormat: 'pcm_24000' },
+        threadId,
+        abortSignal,
+      })
+      return Buffer.from(result.audio, 'base64')
+    },
+  },
 } satisfies Record<Choice['speak'], Keyed<Speak>>
 
 function stripWav(wav: Buffer): Uint8Array {
   const data = wav.indexOf('data', 12, 'ascii')
   if (data === -1) throw new Error('Not a WAV file')
-  return wav.subarray(data + 8)
+  // Honour the chunk length. Gemini appends a metadata chunk after the audio.
+  return wav.subarray(data + 8, data + 8 + wav.readUInt32LE(data + 4))
 }
 
 export type CallSetup = {
@@ -526,14 +656,18 @@ export function setupCall(
     hop: Hop,
     keyed: Record<string, Keyed<T>>,
   ): { value: T } | { missing: string } => {
-    const name = choice[hop] ?? ''
-    const entry = name in HOPS[hop] ? keyed[name] : keyed.openai
+    // A hop left out, as on a Twilio query string, takes the default. A name
+    // that is not a provider is a typo, and must not bill some other key.
+    const name = choice[hop] ?? DEFAULT_CHOICE[hop]
+    if (!(name in HOPS[hop])) throw new Error(`Unknown ${hop}: ${name}`)
+    const entry = keyed[name]
     if (!entry) throw new Error(`No provider for ${hop}`)
     const key = getByokKey(request, entry.byok)
     return key ? { value: entry.make(key) } : { missing: entry.byok.id }
   }
-  const name = choice.character ?? ''
-  const character = CHARACTERS[isCharacterName(name) ? name : 'helpful']
+  const name = choice.character ?? 'perky'
+  if (!isCharacterName(name)) throw new Error(`Unknown character: ${name}`)
+  const character = CHARACTERS[name]
   const listen = pick<Listen>('listen', LISTEN)
   if ('missing' in listen) return listen
   const think = pick<Think>('think', THINK)
@@ -553,7 +687,7 @@ export function setupCall(
 Now create `src/server/call.ts`. This is the whole agent. It takes a `CallSetup` and never names a provider. Read it top to bottom once, then the notes below.
 
 ```typescript ignore
-import { searchDocs } from './search-docs.ts'
+import { searchDocs, warmDocs } from './search-docs.ts'
 import type { ModelMessage } from '@tanstack/ai'
 import type { WebSocket } from 'ws'
 import type { Carrier } from './carriers.ts'
@@ -573,6 +707,7 @@ export async function handleCall(
 ) {
   const callId = crypto.randomUUID()
   const messages: Array<ModelMessage> = []
+  warmDocs()
 
   // Listen before the session opens. Callers send audio right away.
   const early: Array<Uint8Array> = []
@@ -586,10 +721,26 @@ export async function handleCall(
   const hungUp = new AbortController()
   ws.on('close', () => hungUp.abort())
 
+  // Say hello while the transcriber connects. The greeting is a fixed line,
+  // so it needs no model round trip, only one speech call.
+  const { greeting } = setup.character
+  const hello = setup.speak(greeting, setup.character, callId, hungUp.signal)
   const session = await setup.listen(carrier.audio, hungUp.signal)
   send = (audio) => session.send(audio)
   for (const chunk of early) session.send(chunk)
-  ws.on('close', () => void session.close())
+  ws.on('close', () => {
+    session.close().catch((error: unknown) => console.error('close failed', error))
+  })
+  hello.then(
+    (pcm) => {
+      carrier.speak(pcm)
+      carrier.caption('agent', greeting, true)
+      messages.push({ role: 'assistant', content: greeting })
+    },
+    (error: unknown) => {
+      if (!hungUp.signal.aborted) console.error('greeting failed', error)
+    },
+  )
 
   let turn = ''
   let replying: AbortController | undefined
@@ -613,7 +764,12 @@ export async function handleCall(
         carrier.caption('caller', question, true)
         messages.push({ role: 'user', content: question })
         replying = new AbortController()
-        void reply(callId, messages, carrier, setup, replying)
+        reply(callId, messages, carrier, setup, replying).catch(
+          (error: unknown) => {
+            console.error('reply failed', error)
+            carrier.caption('agent', 'Sorry, that went wrong on my end.', true)
+          },
+        )
         break
       }
       case 'error':
@@ -633,6 +789,7 @@ async function reply(
   const { signal } = abortController
   let pending = ''
   let full = ''
+  let filled = false
   // Start text-to-speech for each sentence at once. Deliver them in order.
   let delivery = Promise.resolve()
   const say = (sentence: string) => {
@@ -658,6 +815,11 @@ async function reply(
       abortController,
     })
     for await (const chunk of stream) {
+      // The docs search takes a few seconds. Say something while it runs.
+      if (chunk.type === 'TOOL_CALL_START' && !filled) {
+        filled = true
+        say(setup.character.filler)
+      }
       if (chunk.type !== 'TEXT_MESSAGE_CONTENT') continue
       pending += chunk.delta
       full += chunk.delta
@@ -691,6 +853,12 @@ Five things make it feel like a call and not a form:
 - **Barge-in.** An `interim` event while the agent is talking means the caller spoke over it. Abort the reply, tell the carrier to clear its audio, and the next `turn-end` starts fresh.
 
 The system prompt is a procedure for a reader that cannot see. Short answers, no URLs, and a rule to search before it speaks.
+
+Silence is the other enemy. A model round with the docs tool takes a few seconds, and a thinking model takes longer. Three lines keep the caller from hearing nothing:
+
+- The greeting is spoken as soon as the call connects, while the transcriber is still opening.
+- The filler is spoken the moment the model asks for the docs tool, so the search runs under a sentence.
+- `reasoning: 'low'` on the think hop. With default thinking, Gemini 3.8 Flash took 12 seconds to the first word in a test call. With low it took 6.
 
 ## 6. Host the socket
 
@@ -828,12 +996,18 @@ First create `src/lib/byok.ts`. The keyring from `@tanstack/ai-client/byok` stor
 
 ```typescript ignore
 import { defaultByokStorage, defineByok } from '@tanstack/ai-client/byok'
+import { elevenlabsByok } from '@tanstack/ai-elevenlabs/byok'
 import { geminiByok } from '@tanstack/ai-gemini/byok'
 import { grokByok } from '@tanstack/ai-grok/byok'
 import { openaiByok } from '@tanstack/ai-openai/byok'
 import { createServerFn } from '@tanstack/react-start'
 
-export const KEYED_PROVIDERS = [openaiByok, geminiByok, grokByok] as const
+export const KEYED_PROVIDERS = [
+  openaiByok,
+  geminiByok,
+  grokByok,
+  elevenlabsByok,
+] as const
 
 export const byok = defineByok({
   storage: defaultByokStorage(),
@@ -989,7 +1163,7 @@ function CallPage() {
   const [captions, setCaptions] = useState<Array<Caption>>([])
   const [error, setError] = useState('')
   const [inCall, setInCall] = useState(false)
-  const [character, setCharacter] = useState<CharacterName>('helpful')
+  const [character, setCharacter] = useState<CharacterName>('perky')
   const [choice, setChoice] = useState<Choice>(DEFAULT_CHOICE)
   const hangUp = useRef<(() => void) | null>(null)
   const [keysOpen, setKeysOpen] = useState(false)
@@ -1268,7 +1442,7 @@ function toMulaw(pcm16: Uint8Array): Uint8Array {
 
 Then connect a number:
 
-1. Run `ngrok http 3100` and copy the `https` host.
+1. Run `ngrok http 3100` and copy the `https` host. The `/twilio` socket has no login. Anyone with that host can place calls on your keys, so keep it private and stop the tunnel when you are done.
 2. In the Twilio console, set the number's voice webhook to return this TwiML:
 
 ```xml

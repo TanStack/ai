@@ -1,4 +1,4 @@
-import { searchDocs } from './search-docs.ts'
+import { searchDocs, warmDocs } from './search-docs.ts'
 import type { ModelMessage } from '@tanstack/ai'
 import type { WebSocket } from 'ws'
 import type { Carrier } from './carriers.ts'
@@ -28,6 +28,7 @@ export async function handleCall(
 ) {
   const callId = crypto.randomUUID()
   const messages: Array<ModelMessage> = []
+  warmDocs()
 
   // Listen before the session opens. Callers send audio right away.
   const early: Array<Uint8Array> = []
@@ -41,10 +42,28 @@ export async function handleCall(
   const hungUp = new AbortController()
   ws.on('close', () => hungUp.abort())
 
+  // Say hello while the transcriber connects. The greeting is a fixed line,
+  // so it needs no model round trip, only one speech call.
+  const { greeting } = setup.character
+  const hello = setup.speak(greeting, setup.character, callId, hungUp.signal)
   const session = await setup.listen(carrier.audio, hungUp.signal)
   send = (audio) => session.send(audio)
   for (const chunk of early) session.send(chunk)
-  ws.on('close', () => void session.close())
+  ws.on('close', () => {
+    session
+      .close()
+      .catch((error: unknown) => console.error('close failed', error))
+  })
+  hello.then(
+    (pcm) => {
+      carrier.speak(pcm)
+      carrier.caption('agent', greeting, true)
+      messages.push({ role: 'assistant', content: greeting })
+    },
+    (error: unknown) => {
+      if (!hungUp.signal.aborted) console.error('greeting failed', error)
+    },
+  )
 
   let turn = ''
   let replying: AbortController | undefined
@@ -68,7 +87,12 @@ export async function handleCall(
         carrier.caption('caller', question, true)
         messages.push({ role: 'user', content: question })
         replying = new AbortController()
-        void reply(callId, messages, carrier, setup, replying)
+        reply(callId, messages, carrier, setup, replying).catch(
+          (error: unknown) => {
+            console.error('reply failed', error)
+            carrier.caption('agent', 'Sorry, that went wrong on my end.', true)
+          },
+        )
         break
       }
       case 'error':
@@ -88,6 +112,7 @@ async function reply(
   const { signal } = abortController
   let pending = ''
   let full = ''
+  let filled = false
   // Start text-to-speech for each sentence at once. Deliver them in order.
   let delivery = Promise.resolve()
   const say = (sentence: string) => {
@@ -113,6 +138,11 @@ async function reply(
       abortController,
     })
     for await (const chunk of stream) {
+      // The docs search takes a few seconds. Say something while it runs.
+      if (chunk.type === 'TOOL_CALL_START' && !filled) {
+        filled = true
+        say(setup.character.filler)
+      }
       if (chunk.type !== 'TEXT_MESSAGE_CONTENT') continue
       pending += chunk.delta
       full += chunk.delta

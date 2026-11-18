@@ -1,10 +1,16 @@
 import { defaultByokStorage, defineByok } from '@tanstack/ai-client/byok'
+import { elevenlabsByok } from '@tanstack/ai-elevenlabs/byok'
 import { geminiByok } from '@tanstack/ai-gemini/byok'
 import { grokByok } from '@tanstack/ai-grok/byok'
 import { openaiByok } from '@tanstack/ai-openai/byok'
 import { createServerFn } from '@tanstack/react-start'
 
-export const KEYED_PROVIDERS = [openaiByok, geminiByok, grokByok] as const
+export const KEYED_PROVIDERS = [
+  openaiByok,
+  geminiByok,
+  grokByok,
+  elevenlabsByok,
+] as const
 
 /** Keys stay in the browser and ride on the first socket frame of a call. */
 export const byok = defineByok({

@@ -900,7 +900,7 @@
           "label": "Text-to-Speech",
           "to": "media/text-to-speech",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-05"
         },
         {
           "label": "Transcription",
@@ -922,7 +922,8 @@
         {
           "label": "Live Transcription: Advanced",
           "to": "media/live-transcription-advanced",
-          "addedAt": "2026-11-02"
+          "addedAt": "2026-11-02",
+          "updatedAt": "2026-11-05"
         },
         {
           "label": "Voice Creation",
@@ -1619,7 +1620,7 @@
           "label": "Debug Logging",
           "to": "advanced/debug-logging",
           "addedAt": "2026-04-22",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-05"
         },
         {
           "label": "Multimodal Content",
@@ -1726,13 +1727,13 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-05"
         },
         {
           "label": "Google Gemini: Advanced",
           "to": "adapters/gemini-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-10-25"
+          "updatedAt": "2026-11-05"
         },
         {
           "label": "Google Vertex AI",

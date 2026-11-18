@@ -1,6 +1,11 @@
 import { chat, generateSpeech, transcriptionSession } from '@tanstack/ai'
 import { getByokKey } from '@tanstack/ai/byok/server'
 import {
+  createElevenLabsSpeech,
+  elevenlabsLiveTranscription,
+} from '@tanstack/ai-elevenlabs'
+import { elevenlabsByok } from '@tanstack/ai-elevenlabs/byok'
+import {
   createGeminiChat,
   createGeminiSpeech,
   geminiLiveTranscription,
@@ -18,7 +23,7 @@ import {
   openaiLiveTranscription,
 } from '@tanstack/ai-openai'
 import { openaiByok } from '@tanstack/ai-openai/byok'
-import { HOPS } from '../lib/hops.ts'
+import { DEFAULT_CHOICE, HOPS } from '../lib/hops.ts'
 import { CHARACTERS, isCharacterName } from './characters.ts'
 import type { Character } from './characters.ts'
 import type {
@@ -92,8 +97,9 @@ export const LISTEN = {
           apiKey,
         }),
         audio,
-        language: 'en',
-        modelOptions: { customVocabulary: VOCABULARY },
+        // Gemini wants a BCP-47 tag. SMART drops fillers and false starts.
+        language: 'en-US',
+        modelOptions: { customVocabulary: VOCABULARY, mode: 'SMART' },
         abortSignal,
       }),
   },
@@ -108,8 +114,21 @@ export const LISTEN = {
         abortSignal,
       }),
   },
+  elevenlabs: {
+    byok: elevenlabsByok,
+    make: (apiKey) => (audio, abortSignal) =>
+      transcriptionSession({
+        adapter: elevenlabsLiveTranscription('scribe_v2_realtime', { apiKey }),
+        audio,
+        language: 'en',
+        modelOptions: { keyterms: VOCABULARY },
+        abortSignal,
+      }),
+  },
 } satisfies Record<Choice['listen'], Keyed<Listen>>
 
+// Thinking adds seconds to every model round on a live call. Keep it low.
+// gpt-6.1-terra has no reasoning levels in its model data, so it takes none.
 export const THINK = {
   openai: {
     byok: openaiByok,
@@ -119,12 +138,20 @@ export const THINK = {
   gemini: {
     byok: geminiByok,
     make: (apiKey) => (args) =>
-      chat({ adapter: createGeminiChat('gemini-3.8-flash', apiKey), ...args }),
+      chat({
+        adapter: createGeminiChat('gemini-3.8-flash', apiKey),
+        reasoning: 'low',
+        ...args,
+      }),
   },
   grok: {
     byok: grokByok,
     make: (apiKey) => (args) =>
-      chat({ adapter: createGrokText('grok-4.7', apiKey), ...args }),
+      chat({
+        adapter: createGrokText('grok-4.7', apiKey),
+        reasoning: 'low',
+        ...args,
+      }),
   },
 } satisfies Record<Choice['think'], Keyed<Think>>
 
@@ -156,7 +183,7 @@ export const SPEAK = {
             ? 'Talk slowly.'
             : ''
       const result = await generateSpeech({
-        adapter: createGeminiSpeech('gemini-3.1-flash-tts-preview', apiKey),
+        adapter: createGeminiSpeech('gemini-3.8-flash-tts', apiKey),
         text,
         voice: character.voice.gemini,
         modelOptions: {
@@ -185,13 +212,30 @@ export const SPEAK = {
       return Buffer.from(result.audio, 'base64')
     },
   },
+  elevenlabs: {
+    byok: elevenlabsByok,
+    make: (apiKey) => async (text, character, threadId, abortSignal) => {
+      // ElevenLabs has no style field. The voice and speed carry the character.
+      const result = await generateSpeech({
+        adapter: createElevenLabsSpeech('eleven_v4_turbo', apiKey),
+        text,
+        voice: character.voice.elevenlabs,
+        speed: character.speed,
+        modelOptions: { outputFormat: 'pcm_24000' },
+        threadId,
+        abortSignal,
+      })
+      return Buffer.from(result.audio, 'base64')
+    },
+  },
 } satisfies Record<Choice['speak'], Keyed<Speak>>
 
-/** The PCM after a RIFF/WAV header. The data chunk is the last one. */
+/** The PCM inside a RIFF/WAV file. */
 function stripWav(wav: Buffer): Uint8Array {
   const data = wav.indexOf('data', 12, 'ascii')
   if (data === -1) throw new Error('Not a WAV file')
-  return wav.subarray(data + 8)
+  // Honour the chunk length. Gemini appends a metadata chunk after the audio.
+  return wav.subarray(data + 8, data + 8 + wav.readUInt32LE(data + 4))
 }
 
 export type CallSetup = {
@@ -216,14 +260,18 @@ export function setupCall(
     hop: Hop,
     keyed: Record<string, Keyed<T>>,
   ): { value: T } | { missing: string } => {
-    const name = choice[hop] ?? ''
-    const entry = name in HOPS[hop] ? keyed[name] : keyed.openai
+    // A hop left out, as on a Twilio query string, takes the default. A name
+    // that is not a provider is a typo, and must not bill some other key.
+    const name = choice[hop] ?? DEFAULT_CHOICE[hop]
+    if (!(name in HOPS[hop])) throw new Error(`Unknown ${hop}: ${name}`)
+    const entry = keyed[name]
     if (!entry) throw new Error(`No provider for ${hop}`)
     const key = getByokKey(request, entry.byok)
     return key ? { value: entry.make(key) } : { missing: entry.byok.id }
   }
-  const name = choice.character ?? ''
-  const character = CHARACTERS[isCharacterName(name) ? name : 'helpful']
+  const name = choice.character ?? 'perky'
+  if (!isCharacterName(name)) throw new Error(`Unknown character: ${name}`)
+  const character = CHARACTERS[name]
   const listen = pick<Listen>('listen', LISTEN)
   if ('missing' in listen) return listen
   const think = pick<Think>('think', THINK)

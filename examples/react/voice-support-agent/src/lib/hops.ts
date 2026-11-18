@@ -8,6 +8,7 @@ export const HOPS = {
     openai: 'OpenAI gpt-transcribe',
     gemini: 'Gemini transcribe live',
     grok: 'Grok voice transcribe',
+    elevenlabs: 'ElevenLabs Scribe v2',
   },
   think: {
     openai: 'OpenAI gpt-6.1-terra',
@@ -16,8 +17,9 @@ export const HOPS = {
   },
   speak: {
     openai: 'OpenAI gpt-4o-mini-tts',
-    gemini: 'Gemini 3.1 Flash TTS',
+    gemini: 'Gemini 3.8 Flash TTS',
     grok: 'Grok TTS',
+    elevenlabs: 'ElevenLabs v4 Turbo',
   },
 } as const
 
@@ -25,7 +27,7 @@ export type Hop = keyof typeof HOPS
 export type Choice = { [K in Hop]: keyof (typeof HOPS)[K] }
 
 export const DEFAULT_CHOICE: Choice = {
-  listen: 'openai',
+  listen: 'elevenlabs',
   think: 'openai',
-  speak: 'openai',
+  speak: 'elevenlabs',
 }

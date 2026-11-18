@@ -11,6 +11,7 @@
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
+    "@tanstack/ai-elevenlabs": "workspace:*",
     "@tanstack/ai-gemini": "workspace:*",
     "@tanstack/ai-grok": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
