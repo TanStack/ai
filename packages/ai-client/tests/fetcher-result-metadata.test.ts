@@ -67,6 +67,43 @@ describe('ChatClient fetcher: tool result metadata', () => {
       },
     ])
   })
+
+  it('strips nested subagent tool result metadata before the fetcher', async () => {
+    const assistantWithChildToolResult: UIMessage = {
+      id: 'assistant-1',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'subagent',
+          subagent: {
+            id: 'child-1',
+            name: 'researcher',
+            status: 'finished',
+            messages: [assistantWithToolResult],
+          },
+        },
+      ],
+    }
+    const fetcher = vi.fn<ChatFetcher>(async function* () {
+      yield* createTextChunks('ok', 'msg-2')
+    })
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      fetcher,
+      initialMessages: [assistantWithChildToolResult],
+    })
+
+    await client.sendMessage('next')
+
+    const child = fetcher.mock.calls[0]?.[0].messages?.[0]?.parts[0]
+    expect(child?.type).toBe('subagent')
+    if (child?.type !== 'subagent') throw new Error('expected subagent part')
+    expect(JSON.stringify(child.subagent.messages)).not.toContain('example.com')
+    expect(JSON.stringify(child.subagent.messages)).toContain(
+      '"toolResultOutcome":"denied"',
+    )
+    expect(JSON.stringify(client.getMessages())).toContain('example.com')
+  })
 })
 
 const toolRow: ModelMessage = {

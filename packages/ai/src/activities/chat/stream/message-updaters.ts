@@ -9,6 +9,7 @@ import { isRedactedThinkingId } from '../../../utilities/reasoning-encrypted-val
 import {
   mergeMetadata,
   tanstackMetadata,
+  tanstackOnlyMetadata,
 } from '../../../utilities/merge-metadata'
 import { parsePartialJSON } from './json-parser'
 import type {
@@ -175,9 +176,21 @@ export function updateToolResultPart(
       resultPartIndex >= 0
         ? (parts[resultPartIndex] as ToolResultPart)
         : undefined
-    // Preserve existing metadata when a later result update does not include
-    // metadata, and merge partial metadata (including metadata.tanstack).
-    let mergedMetadata = mergeMetadata(existingResultPart?.metadata, metadata)
+    // A new result replaces app keys. The reserved tanstack key still merges.
+    // An update that omits metadata keeps the existing bag (streaming).
+    let mergedMetadata =
+      metadata === undefined
+        ? existingResultPart?.metadata
+        : mergeMetadata(
+            tanstackOnlyMetadata(existingResultPart?.metadata),
+            metadata,
+          )
+    if (
+      mergedMetadata !== undefined &&
+      Object.keys(mergedMetadata).length === 0
+    ) {
+      mergedMetadata = undefined
+    }
     const hasIncomingToolResultOutcome =
       tanstackMetadata({ metadata })?.toolResultOutcome !== undefined
 

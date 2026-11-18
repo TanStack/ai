@@ -204,8 +204,9 @@ describe('a second tool result', () => {
     processor.processChunk(ev.toolEnd('tc-1'))
     processor.processChunk(toolResultChunk(fullMetadata))
     processor.processChunk(toolResultChunk(undefined))
-    const call = toolCallPart(processor.getMessages()[0]!)
-    expect(call).not.toHaveProperty('resultMetadata')
+    const message = processor.getMessages()[0]!
+    expect(toolCallPart(message)).not.toHaveProperty('resultMetadata')
+    expect(toolResultPart(message)?.metadata).not.toHaveProperty('sources')
   })
 
   it('replaces the old resultMetadata on reload, also when it has none', () => {

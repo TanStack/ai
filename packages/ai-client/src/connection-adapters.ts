@@ -1521,6 +1521,15 @@ function withoutAppResultMetadata(messages: Array<UIMessage>) {
     ...message,
     parts: message.parts.map((part) => {
       if (part.type === 'tool-result') return withReservedMetadataOnly(part)
+      if (part.type === 'subagent') {
+        return {
+          ...part,
+          subagent: {
+            ...part.subagent,
+            messages: withoutAppResultMetadata(part.subagent.messages),
+          },
+        }
+      }
       if (part.type !== 'tool-call') return part
       const { resultMetadata: _ignored, ...rest } = part
       return rest

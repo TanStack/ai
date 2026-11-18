@@ -2678,7 +2678,7 @@ export class StreamProcessor {
       resultState,
       resultState === 'error' ? toolResultErrorText(output) : undefined,
       toolResultOutcome,
-      chunk.metadata,
+      chunk.metadata ?? {},
     )
     this.emitMessagesChange()
   }

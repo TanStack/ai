@@ -3232,6 +3232,10 @@ export class ChatClient<
           runEventContext,
         )
       } catch (error: any) {
+        // A sync throw (for example setResultMetadata) runs before
+        // observeInterruptState hydrates a client_tool interrupt. Yield so
+        // the chunk handler can register it first.
+        await Promise.resolve()
         await this.addToolResultForClientTool(
           {
             toolCallId: args.toolCallId,
