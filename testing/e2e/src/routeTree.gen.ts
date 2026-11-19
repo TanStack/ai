@@ -42,12 +42,14 @@ import { Route as JsonTransportRouteImport } from './routes/json-transport'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
 import { Route as MessageHistoryPagingRouteImport } from './routes/message-history-paging'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
+import { Route as MotionTestRouteImport } from './routes/motion-test'
 import { Route as PersistenceDurabilityRouteImport } from './routes/persistence-durability'
 import { Route as SolidReactiveChatRouteImport } from './routes/solid-reactive-chat'
 import { Route as SubagentsTestRouteImport } from './routes/subagents-test'
 import { Route as SubagentsUiTestRouteImport } from './routes/subagents-ui-test'
 import { Route as TextFirstToolRouteImport } from './routes/text-first-tool'
 import { Route as ToolFirstTextRouteImport } from './routes/tool-first-text'
+import { Route as ToolResultMetadataRouteImport } from './routes/tool-result-metadata'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as UseChatHiddenViewRouteImport } from './routes/use-chat-hidden-view'
 import { Route as WebMcpPageToolsRouteImport } from './routes/web-mcp-page-tools'
@@ -55,6 +57,7 @@ import { Route as WebMcpToolsRouteImport } from './routes/web-mcp-tools'
 import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
+import { Route as Api3dModelRouteImport } from './routes/api.3d-model'
 import { Route as ApiActivityTestRouteImport } from './routes/api.activity-test'
 import { Route as ApiAdapterInputModalitiesRouteImport } from './routes/api.adapter-input-modalities'
 import { Route as ApiAiSdkClientRouteImport } from './routes/api.ai-sdk-client'
@@ -153,6 +156,7 @@ import { Route as ApiMcpMetaServerRouteImport } from './routes/api.mcp-meta-serv
 import { Route as ApiMcpNoTasksServerRouteImport } from './routes/api.mcp-no-tasks-server'
 import { Route as ApiMcpPolicyTestRouteImport } from './routes/api.mcp-policy-test'
 import { Route as ApiMcpRequestMetaWireRouteImport } from './routes/api.mcp-request-meta-wire'
+import { Route as ApiMcpResultMetaWireRouteImport } from './routes/api.mcp-result-meta-wire'
 import { Route as ApiMcpServerRouteImport } from './routes/api.mcp-server'
 import { Route as ApiMcpStatusTestRouteImport } from './routes/api.mcp-status-test'
 import { Route as ApiMcpTaskErrorsRouteImport } from './routes/api.mcp-task-errors'
@@ -167,6 +171,7 @@ import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-t
 import { Route as ApiMistralStrictToolNullWireRouteImport } from './routes/api.mistral-strict-tool-null-wire'
 import { Route as ApiMistralTruncatedToolCallRouteImport } from './routes/api.mistral-truncated-tool-call'
 import { Route as ApiMoonshotUsageDetailsRouteImport } from './routes/api.moonshot-usage-details'
+import { Route as ApiMotionRouteImport } from './routes/api.motion'
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
 import { Route as ApiNeonWireRouteImport } from './routes/api.neon-wire'
 import { Route as ApiNonStreamingRunErrorRouteImport } from './routes/api.non-streaming-run-error'
@@ -213,6 +218,7 @@ import { Route as ApiTextFirstToolWireRouteImport } from './routes/api.text-firs
 import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-call-lifecycle-wire'
 import { Route as ApiToolChoiceWireRouteImport } from './routes/api.tool-choice-wire'
 import { Route as ApiToolFirstTextWireRouteImport } from './routes/api.tool-first-text-wire'
+import { Route as ApiToolResultMetadataRouteImport } from './routes/api.tool-result-metadata'
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
@@ -404,6 +410,11 @@ const MiddlewareTestRoute = MiddlewareTestRouteImport.update({
   path: '/middleware-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MotionTestRoute = MotionTestRouteImport.update({
+  id: '/motion-test',
+  path: '/motion-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PersistenceDurabilityRoute = PersistenceDurabilityRouteImport.update({
   id: '/persistence-durability',
   path: '/persistence-durability',
@@ -432,6 +443,11 @@ const TextFirstToolRoute = TextFirstToolRouteImport.update({
 const ToolFirstTextRoute = ToolFirstTextRouteImport.update({
   id: '/tool-first-text',
   path: '/tool-first-text',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ToolResultMetadataRoute = ToolResultMetadataRouteImport.update({
+  id: '/tool-result-metadata',
+  path: '/tool-result-metadata',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ToolsTestRoute = ToolsTestRouteImport.update({
@@ -467,6 +483,11 @@ const ProviderIndexRoute = ProviderIndexRouteImport.update({
 const ProviderFeatureRoute = ProviderFeatureRouteImport.update({
   id: '/$provider/$feature',
   path: '/$provider/$feature',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Api3dModelRoute = Api3dModelRouteImport.update({
+  id: '/api/3d-model',
+  path: '/api/3d-model',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiActivityTestRoute = ApiActivityTestRouteImport.update({
@@ -984,6 +1005,11 @@ const ApiMcpRequestMetaWireRoute = ApiMcpRequestMetaWireRouteImport.update({
   path: '/api/mcp-request-meta-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpResultMetaWireRoute = ApiMcpResultMetaWireRouteImport.update({
+  id: '/api/mcp-result-meta-wire',
+  path: '/api/mcp-result-meta-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpServerRoute = ApiMcpServerRouteImport.update({
   id: '/api/mcp-server',
   path: '/api/mcp-server',
@@ -1055,6 +1081,11 @@ const ApiMistralTruncatedToolCallRoute =
 const ApiMoonshotUsageDetailsRoute = ApiMoonshotUsageDetailsRouteImport.update({
   id: '/api/moonshot-usage-details',
   path: '/api/moonshot-usage-details',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMotionRoute = ApiMotionRouteImport.update({
+  id: '/api/motion',
+  path: '/api/motion',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMultimodalToolResultWireRoute =
@@ -1308,6 +1339,11 @@ const ApiToolFirstTextWireRoute = ApiToolFirstTextWireRouteImport.update({
   path: '/api/tool-first-text-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiToolResultMetadataRoute = ApiToolResultMetadataRouteImport.update({
+  id: '/api/tool-result-metadata',
+  path: '/api/tool-result-metadata',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiToolsTestRoute = ApiToolsTestRouteImport.update({
   id: '/api/tools-test',
   path: '/api/tools-test',
@@ -1456,18 +1492,21 @@ export interface FileRoutesByFullPath {
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
+  '/motion-test': typeof MotionTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
   '/subagents-ui-test': typeof SubagentsUiTestRoute
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
+  '/tool-result-metadata': typeof ToolResultMetadataRoute
   '/tools-test': typeof ToolsTestRoute
   '/use-chat-hidden-view': typeof UseChatHiddenViewRoute
   '/web-mcp-page-tools': typeof WebMcpPageToolsRoute
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/3d-model': typeof Api3dModelRoute
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/ai-sdk-client': typeof ApiAiSdkClientRoute
@@ -1566,6 +1605,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
   '/api/mcp-policy-test': typeof ApiMcpPolicyTestRoute
   '/api/mcp-request-meta-wire': typeof ApiMcpRequestMetaWireRoute
+  '/api/mcp-result-meta-wire': typeof ApiMcpResultMetaWireRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
@@ -1580,6 +1620,7 @@ export interface FileRoutesByFullPath {
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/mistral-truncated-tool-call': typeof ApiMistralTruncatedToolCallRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
+  '/api/motion': typeof ApiMotionRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
@@ -1626,6 +1667,7 @@ export interface FileRoutesByFullPath {
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tool-choice-wire': typeof ApiToolChoiceWireRoute
   '/api/tool-first-text-wire': typeof ApiToolFirstTextWireRoute
+  '/api/tool-result-metadata': typeof ApiToolResultMetadataRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
@@ -1684,18 +1726,21 @@ export interface FileRoutesByTo {
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
+  '/motion-test': typeof MotionTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
   '/subagents-ui-test': typeof SubagentsUiTestRoute
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
+  '/tool-result-metadata': typeof ToolResultMetadataRoute
   '/tools-test': typeof ToolsTestRoute
   '/use-chat-hidden-view': typeof UseChatHiddenViewRoute
   '/web-mcp-page-tools': typeof WebMcpPageToolsRoute
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/3d-model': typeof Api3dModelRoute
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/ai-sdk-client': typeof ApiAiSdkClientRoute
@@ -1794,6 +1839,7 @@ export interface FileRoutesByTo {
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
   '/api/mcp-policy-test': typeof ApiMcpPolicyTestRoute
   '/api/mcp-request-meta-wire': typeof ApiMcpRequestMetaWireRoute
+  '/api/mcp-result-meta-wire': typeof ApiMcpResultMetaWireRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
@@ -1808,6 +1854,7 @@ export interface FileRoutesByTo {
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/mistral-truncated-tool-call': typeof ApiMistralTruncatedToolCallRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
+  '/api/motion': typeof ApiMotionRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
@@ -1854,6 +1901,7 @@ export interface FileRoutesByTo {
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tool-choice-wire': typeof ApiToolChoiceWireRoute
   '/api/tool-first-text-wire': typeof ApiToolFirstTextWireRoute
+  '/api/tool-result-metadata': typeof ApiToolResultMetadataRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
@@ -1913,18 +1961,21 @@ export interface FileRoutesById {
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
+  '/motion-test': typeof MotionTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
   '/subagents-ui-test': typeof SubagentsUiTestRoute
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
+  '/tool-result-metadata': typeof ToolResultMetadataRoute
   '/tools-test': typeof ToolsTestRoute
   '/use-chat-hidden-view': typeof UseChatHiddenViewRoute
   '/web-mcp-page-tools': typeof WebMcpPageToolsRoute
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/3d-model': typeof Api3dModelRoute
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/ai-sdk-client': typeof ApiAiSdkClientRoute
@@ -2023,6 +2074,7 @@ export interface FileRoutesById {
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
   '/api/mcp-policy-test': typeof ApiMcpPolicyTestRoute
   '/api/mcp-request-meta-wire': typeof ApiMcpRequestMetaWireRoute
+  '/api/mcp-result-meta-wire': typeof ApiMcpResultMetaWireRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
@@ -2037,6 +2089,7 @@ export interface FileRoutesById {
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/mistral-truncated-tool-call': typeof ApiMistralTruncatedToolCallRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
+  '/api/motion': typeof ApiMotionRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
@@ -2083,6 +2136,7 @@ export interface FileRoutesById {
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tool-choice-wire': typeof ApiToolChoiceWireRoute
   '/api/tool-first-text-wire': typeof ApiToolFirstTextWireRoute
+  '/api/tool-result-metadata': typeof ApiToolResultMetadataRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
@@ -2143,18 +2197,21 @@ export interface FileRouteTypes {
     | '/markdown-cjk'
     | '/message-history-paging'
     | '/middleware-test'
+    | '/motion-test'
     | '/persistence-durability'
     | '/solid-reactive-chat'
     | '/subagents-test'
     | '/subagents-ui-test'
     | '/text-first-tool'
     | '/tool-first-text'
+    | '/tool-result-metadata'
     | '/tools-test'
     | '/use-chat-hidden-view'
     | '/web-mcp-page-tools'
     | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
+    | '/api/3d-model'
     | '/api/activity-test'
     | '/api/adapter-input-modalities'
     | '/api/ai-sdk-client'
@@ -2253,6 +2310,7 @@ export interface FileRouteTypes {
     | '/api/mcp-no-tasks-server'
     | '/api/mcp-policy-test'
     | '/api/mcp-request-meta-wire'
+    | '/api/mcp-result-meta-wire'
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
@@ -2267,6 +2325,7 @@ export interface FileRouteTypes {
     | '/api/mistral-strict-tool-null-wire'
     | '/api/mistral-truncated-tool-call'
     | '/api/moonshot-usage-details'
+    | '/api/motion'
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
     | '/api/non-streaming-run-error'
@@ -2313,6 +2372,7 @@ export interface FileRouteTypes {
     | '/api/tool-call-lifecycle-wire'
     | '/api/tool-choice-wire'
     | '/api/tool-first-text-wire'
+    | '/api/tool-result-metadata'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
@@ -2371,18 +2431,21 @@ export interface FileRouteTypes {
     | '/markdown-cjk'
     | '/message-history-paging'
     | '/middleware-test'
+    | '/motion-test'
     | '/persistence-durability'
     | '/solid-reactive-chat'
     | '/subagents-test'
     | '/subagents-ui-test'
     | '/text-first-tool'
     | '/tool-first-text'
+    | '/tool-result-metadata'
     | '/tools-test'
     | '/use-chat-hidden-view'
     | '/web-mcp-page-tools'
     | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
+    | '/api/3d-model'
     | '/api/activity-test'
     | '/api/adapter-input-modalities'
     | '/api/ai-sdk-client'
@@ -2481,6 +2544,7 @@ export interface FileRouteTypes {
     | '/api/mcp-no-tasks-server'
     | '/api/mcp-policy-test'
     | '/api/mcp-request-meta-wire'
+    | '/api/mcp-result-meta-wire'
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
@@ -2495,6 +2559,7 @@ export interface FileRouteTypes {
     | '/api/mistral-strict-tool-null-wire'
     | '/api/mistral-truncated-tool-call'
     | '/api/moonshot-usage-details'
+    | '/api/motion'
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
     | '/api/non-streaming-run-error'
@@ -2541,6 +2606,7 @@ export interface FileRouteTypes {
     | '/api/tool-call-lifecycle-wire'
     | '/api/tool-choice-wire'
     | '/api/tool-first-text-wire'
+    | '/api/tool-result-metadata'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
@@ -2599,18 +2665,21 @@ export interface FileRouteTypes {
     | '/markdown-cjk'
     | '/message-history-paging'
     | '/middleware-test'
+    | '/motion-test'
     | '/persistence-durability'
     | '/solid-reactive-chat'
     | '/subagents-test'
     | '/subagents-ui-test'
     | '/text-first-tool'
     | '/tool-first-text'
+    | '/tool-result-metadata'
     | '/tools-test'
     | '/use-chat-hidden-view'
     | '/web-mcp-page-tools'
     | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
+    | '/api/3d-model'
     | '/api/activity-test'
     | '/api/adapter-input-modalities'
     | '/api/ai-sdk-client'
@@ -2709,6 +2778,7 @@ export interface FileRouteTypes {
     | '/api/mcp-no-tasks-server'
     | '/api/mcp-policy-test'
     | '/api/mcp-request-meta-wire'
+    | '/api/mcp-result-meta-wire'
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
@@ -2723,6 +2793,7 @@ export interface FileRouteTypes {
     | '/api/mistral-strict-tool-null-wire'
     | '/api/mistral-truncated-tool-call'
     | '/api/moonshot-usage-details'
+    | '/api/motion'
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
     | '/api/non-streaming-run-error'
@@ -2769,6 +2840,7 @@ export interface FileRouteTypes {
     | '/api/tool-call-lifecycle-wire'
     | '/api/tool-choice-wire'
     | '/api/tool-first-text-wire'
+    | '/api/tool-result-metadata'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
@@ -2828,18 +2900,21 @@ export interface RootRouteChildren {
   MarkdownCjkRoute: typeof MarkdownCjkRoute
   MessageHistoryPagingRoute: typeof MessageHistoryPagingRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
+  MotionTestRoute: typeof MotionTestRoute
   PersistenceDurabilityRoute: typeof PersistenceDurabilityRoute
   SolidReactiveChatRoute: typeof SolidReactiveChatRoute
   SubagentsTestRoute: typeof SubagentsTestRoute
   SubagentsUiTestRoute: typeof SubagentsUiTestRoute
   TextFirstToolRoute: typeof TextFirstToolRoute
   ToolFirstTextRoute: typeof ToolFirstTextRoute
+  ToolResultMetadataRoute: typeof ToolResultMetadataRoute
   ToolsTestRoute: typeof ToolsTestRoute
   UseChatHiddenViewRoute: typeof UseChatHiddenViewRoute
   WebMcpPageToolsRoute: typeof WebMcpPageToolsRoute
   WebMcpToolsRoute: typeof WebMcpToolsRoute
   WebsocketAdapterRoute: typeof WebsocketAdapterRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
+  Api3dModelRoute: typeof Api3dModelRoute
   ApiActivityTestRoute: typeof ApiActivityTestRoute
   ApiAdapterInputModalitiesRoute: typeof ApiAdapterInputModalitiesRoute
   ApiAiSdkClientRoute: typeof ApiAiSdkClientRoute
@@ -2938,6 +3013,7 @@ export interface RootRouteChildren {
   ApiMcpNoTasksServerRoute: typeof ApiMcpNoTasksServerRoute
   ApiMcpPolicyTestRoute: typeof ApiMcpPolicyTestRoute
   ApiMcpRequestMetaWireRoute: typeof ApiMcpRequestMetaWireRoute
+  ApiMcpResultMetaWireRoute: typeof ApiMcpResultMetaWireRoute
   ApiMcpServerRoute: typeof ApiMcpServerRoute
   ApiMcpStatusTestRoute: typeof ApiMcpStatusTestRoute
   ApiMcpTaskErrorsRoute: typeof ApiMcpTaskErrorsRoute
@@ -2952,6 +3028,7 @@ export interface RootRouteChildren {
   ApiMistralStrictToolNullWireRoute: typeof ApiMistralStrictToolNullWireRoute
   ApiMistralTruncatedToolCallRoute: typeof ApiMistralTruncatedToolCallRoute
   ApiMoonshotUsageDetailsRoute: typeof ApiMoonshotUsageDetailsRoute
+  ApiMotionRoute: typeof ApiMotionRoute
   ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
   ApiNeonWireRoute: typeof ApiNeonWireRoute
   ApiNonStreamingRunErrorRoute: typeof ApiNonStreamingRunErrorRoute
@@ -2998,6 +3075,7 @@ export interface RootRouteChildren {
   ApiToolCallLifecycleWireRoute: typeof ApiToolCallLifecycleWireRoute
   ApiToolChoiceWireRoute: typeof ApiToolChoiceWireRoute
   ApiToolFirstTextWireRoute: typeof ApiToolFirstTextWireRoute
+  ApiToolResultMetadataRoute: typeof ApiToolResultMetadataRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
   ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
   ApiTtsRoute: typeof ApiTtsRouteWithChildren
@@ -3251,6 +3329,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MiddlewareTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/motion-test': {
+      id: '/motion-test'
+      path: '/motion-test'
+      fullPath: '/motion-test'
+      preLoaderRoute: typeof MotionTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/persistence-durability': {
       id: '/persistence-durability'
       path: '/persistence-durability'
@@ -3291,6 +3376,13 @@ declare module '@tanstack/react-router' {
       path: '/tool-first-text'
       fullPath: '/tool-first-text'
       preLoaderRoute: typeof ToolFirstTextRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tool-result-metadata': {
+      id: '/tool-result-metadata'
+      path: '/tool-result-metadata'
+      fullPath: '/tool-result-metadata'
+      preLoaderRoute: typeof ToolResultMetadataRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tools-test': {
@@ -3340,6 +3432,13 @@ declare module '@tanstack/react-router' {
       path: '/$provider/$feature'
       fullPath: '/$provider/$feature'
       preLoaderRoute: typeof ProviderFeatureRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/3d-model': {
+      id: '/api/3d-model'
+      path: '/api/3d-model'
+      fullPath: '/api/3d-model'
+      preLoaderRoute: typeof Api3dModelRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/activity-test': {
@@ -4028,6 +4127,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpRequestMetaWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-result-meta-wire': {
+      id: '/api/mcp-result-meta-wire'
+      path: '/api/mcp-result-meta-wire'
+      fullPath: '/api/mcp-result-meta-wire'
+      preLoaderRoute: typeof ApiMcpResultMetaWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-server': {
       id: '/api/mcp-server'
       path: '/api/mcp-server'
@@ -4124,6 +4230,13 @@ declare module '@tanstack/react-router' {
       path: '/api/moonshot-usage-details'
       fullPath: '/api/moonshot-usage-details'
       preLoaderRoute: typeof ApiMoonshotUsageDetailsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/motion': {
+      id: '/api/motion'
+      path: '/api/motion'
+      fullPath: '/api/motion'
+      preLoaderRoute: typeof ApiMotionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/multimodal-tool-result-wire': {
@@ -4448,6 +4561,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiToolFirstTextWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tool-result-metadata': {
+      id: '/api/tool-result-metadata'
+      path: '/api/tool-result-metadata'
+      fullPath: '/api/tool-result-metadata'
+      preLoaderRoute: typeof ApiToolResultMetadataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/tools-test': {
       id: '/api/tools-test'
       path: '/api/tools-test'
@@ -4697,18 +4817,21 @@ const rootRouteChildren: RootRouteChildren = {
   MarkdownCjkRoute: MarkdownCjkRoute,
   MessageHistoryPagingRoute: MessageHistoryPagingRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
+  MotionTestRoute: MotionTestRoute,
   PersistenceDurabilityRoute: PersistenceDurabilityRoute,
   SolidReactiveChatRoute: SolidReactiveChatRoute,
   SubagentsTestRoute: SubagentsTestRoute,
   SubagentsUiTestRoute: SubagentsUiTestRoute,
   TextFirstToolRoute: TextFirstToolRoute,
   ToolFirstTextRoute: ToolFirstTextRoute,
+  ToolResultMetadataRoute: ToolResultMetadataRoute,
   ToolsTestRoute: ToolsTestRoute,
   UseChatHiddenViewRoute: UseChatHiddenViewRoute,
   WebMcpPageToolsRoute: WebMcpPageToolsRoute,
   WebMcpToolsRoute: WebMcpToolsRoute,
   WebsocketAdapterRoute: WebsocketAdapterRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
+  Api3dModelRoute: Api3dModelRoute,
   ApiActivityTestRoute: ApiActivityTestRoute,
   ApiAdapterInputModalitiesRoute: ApiAdapterInputModalitiesRoute,
   ApiAiSdkClientRoute: ApiAiSdkClientRoute,
@@ -4812,6 +4935,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpNoTasksServerRoute: ApiMcpNoTasksServerRoute,
   ApiMcpPolicyTestRoute: ApiMcpPolicyTestRoute,
   ApiMcpRequestMetaWireRoute: ApiMcpRequestMetaWireRoute,
+  ApiMcpResultMetaWireRoute: ApiMcpResultMetaWireRoute,
   ApiMcpServerRoute: ApiMcpServerRoute,
   ApiMcpStatusTestRoute: ApiMcpStatusTestRoute,
   ApiMcpTaskErrorsRoute: ApiMcpTaskErrorsRoute,
@@ -4826,6 +4950,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMistralStrictToolNullWireRoute: ApiMistralStrictToolNullWireRoute,
   ApiMistralTruncatedToolCallRoute: ApiMistralTruncatedToolCallRoute,
   ApiMoonshotUsageDetailsRoute: ApiMoonshotUsageDetailsRoute,
+  ApiMotionRoute: ApiMotionRoute,
   ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,
   ApiNeonWireRoute: ApiNeonWireRoute,
   ApiNonStreamingRunErrorRoute: ApiNonStreamingRunErrorRoute,
@@ -4873,6 +4998,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiToolCallLifecycleWireRoute: ApiToolCallLifecycleWireRoute,
   ApiToolChoiceWireRoute: ApiToolChoiceWireRoute,
   ApiToolFirstTextWireRoute: ApiToolFirstTextWireRoute,
+  ApiToolResultMetadataRoute: ApiToolResultMetadataRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,
   ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,
   ApiTtsRoute: ApiTtsRouteWithChildren,

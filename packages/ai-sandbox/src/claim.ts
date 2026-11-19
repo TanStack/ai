@@ -97,6 +97,20 @@ export function runDriverLockKey(runId: string): string {
   return `run-driver:${runId}`
 }
 
+/**
+ * Run ids whose driver claim is held in THIS process.
+ *
+ * `InMemoryLockStore.withLock` waits forever if the holder calls it again, so
+ * a chat that is already inside {@link withRunClaim} must not take the claim
+ * a second time. A different process has its own set and its own lock.
+ */
+const locallyHeldDriverClaims = new Set<string>()
+
+/** True when this process already holds `runId`'s driver claim. */
+export function runDriverClaimHeldLocally(runId: string): boolean {
+  return locallyHeldDriverClaims.has(runId)
+}
+
 /** The claim was never acquired, so the caller must not drive the run. */
 export class RunClaimNotAcquiredError extends Error {
   constructor(
@@ -185,7 +199,45 @@ export async function withRunClaim<T>(
       runId,
       epoch,
     })
-    return fn({ runId, epoch, signal })
+    const claim: RunClaim = { runId, epoch, signal }
+    locallyHeldDriverClaims.add(runId)
+    try {
+      return await fn(claim)
+    } finally {
+      locallyHeldDriverClaims.delete(runId)
+    }
+  })
+}
+
+/**
+ * Hold the driver claim until `release` runs.
+ *
+ * The fresh producer uses this. Its delivery sink keeps appending after a
+ * client disconnect, and that sink does not take the claim. A takeover that
+ * only waits for a quiet log will start a second writer during a tool call
+ * that appends nothing for longer than {@link DEFAULT_FENCE_QUIET_MS}.
+ */
+export function holdRunDriverClaim(
+  options: WithRunClaimOptions,
+): Promise<() => void> {
+  let release = (): void => {}
+  const acquired = new Promise<void>((resolve, reject) => {
+    void withRunClaim(options, () => {
+      return new Promise<void>((done) => {
+        let released = false
+        release = () => {
+          if (released) return
+          released = true
+          done()
+        }
+        resolve()
+      })
+    }).catch((error: unknown) => {
+      reject(error)
+    })
+  })
+  return acquired.then(() => () => {
+    release()
   })
 }
 

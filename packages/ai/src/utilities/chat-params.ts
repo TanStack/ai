@@ -1,4 +1,5 @@
 import { AGUIError } from '@ag-ui/core'
+import { tanstackOnlyMetadata } from './merge-metadata'
 import type {
   Context as AGUIContext,
   Message as AGUIMessage,
@@ -124,7 +125,18 @@ function validateMessage(value: unknown, index: number): AGUIMessage {
   // Hard cut: inbound `parts` from old clients are dropped. Content,
   // toolCalls, and metadata stay on the record. Copy so we do not mutate
   // the caller's message object.
-  return dropInboundParts(value)
+  return dropClientResultMetadata(dropInboundParts(value))
+}
+
+/**
+ * The server owns tool result metadata. A client cannot set it, so app keys on
+ * an inbound tool row are not trusted: keep only the reserved `tanstack` key.
+ */
+function dropClientResultMetadata(message: AGUIMessage): AGUIMessage {
+  if (message.role !== 'tool' || !('metadata' in message)) return message
+  const { metadata, ...rest } = message
+  const tanstackOnly = tanstackOnlyMetadata(metadata)
+  return tanstackOnly ? { ...rest, metadata: tanstackOnly } : rest
 }
 
 function dropInboundParts(

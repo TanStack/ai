@@ -13,13 +13,13 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "Quick Start",
           "to": "getting-started/quick-start",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "Quick Start: React Native",
@@ -63,6 +63,11 @@
           "to": "tutorials/generate-image",
           "addedAt": "2026-09-17",
           "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Game Asset Pipeline",
+          "to": "tutorials/game-asset-pipeline",
+          "addedAt": "2026-11-18"
         },
         {
           "label": "Streaming Structured Table",
@@ -109,6 +114,11 @@
           "label": "Effect Chat",
           "to": "tutorials/effect-chat",
           "addedAt": "2026-11-06"
+        },
+        {
+          "label": "Generate Motion",
+          "to": "tutorials/generate-motion",
+          "addedAt": "2026-11-19"
         }
       ]
     },
@@ -125,6 +135,11 @@
           "label": "Generate Image",
           "to": "framework/react/examples/generate-image",
           "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Game Asset Pipeline",
+          "to": "framework/react/examples/game-asset-pipeline",
+          "addedAt": "2026-11-18"
         },
         {
           "label": "Streaming Structured Table",
@@ -165,6 +180,11 @@
           "label": "Effect Chat",
           "to": "framework/react/examples/effect-chat",
           "addedAt": "2026-11-06"
+        },
+        {
+          "label": "Generate Motion",
+          "to": "framework/react/examples/generate-motion",
+          "addedAt": "2026-11-19"
         }
       ]
     },
@@ -354,13 +374,18 @@
           "label": "Server Tools",
           "to": "tools/server-tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-18"
         },
         {
           "label": "Server Tools: Advanced",
           "to": "tools/server-tools-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-09"
+        },
+        {
+          "label": "Tool Result Metadata",
+          "to": "tools/tool-result-metadata",
+          "addedAt": "2026-11-18"
         },
         {
           "label": "Client Tools",
@@ -426,7 +451,7 @@
           "label": "Middleware: Advanced",
           "to": "advanced/middleware-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-11-11"
+          "updatedAt": "2026-11-18"
         },
         {
           "label": "Built-in Middleware",
@@ -444,7 +469,7 @@
           "label": "OpenTelemetry",
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "Compaction",
@@ -636,7 +661,7 @@
           "label": "Managed MCP with chat()",
           "to": "tools/mcp-managed",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-11-09"
+          "updatedAt": "2026-11-18"
         },
         {
           "label": "Manual MCP",
@@ -853,7 +878,7 @@
           "label": "Build a Chat Adapter",
           "to": "persistence/build-your-own-chat-adapter",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-18"
         },
         {
           "label": "Build a Generation Adapter",
@@ -871,7 +896,7 @@
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-18"
         },
         {
           "label": "How Persistence Works",
@@ -888,7 +913,7 @@
           "label": "Generations",
           "to": "media/generations",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "Realtime Voice Chat",
@@ -967,10 +992,26 @@
           "updatedAt": "2026-10-22"
         },
         {
+          "label": "Motion Generation",
+          "to": "media/motion-generation",
+          "addedAt": "2026-11-19",
+          "updatedAt": "2026-11-19"
+        },
+        {
+          "label": "3D Model Generation",
+          "to": "media/3d-model-generation",
+          "addedAt": "2026-11-18"
+        },
+        {
+          "label": "3D Model Generation: Advanced",
+          "to": "media/3d-model-generation-advanced",
+          "addedAt": "2026-11-18"
+        },
+        {
           "label": "Generation Hooks",
           "to": "media/generation-hooks",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-18"
         }
       ],
       "tab": "guides"
@@ -1519,7 +1560,8 @@
         {
           "label": "Takeover Internals",
           "to": "sandbox/takeover-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "Reaping & Retention",
@@ -1817,7 +1859,7 @@
           "label": "fal.ai",
           "to": "adapters/fal",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "Reactor",
@@ -1830,6 +1872,11 @@
           "to": "adapters/worldlabs",
           "addedAt": "2026-09-14",
           "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Uthana",
+          "to": "adapters/uthana",
+          "addedAt": "2026-11-19"
         },
         {
           "label": "OpenRouter Adapter",

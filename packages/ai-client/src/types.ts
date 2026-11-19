@@ -13,6 +13,7 @@ import type {
   InterruptDefinition,
   InferToolInput,
   InferToolOutput,
+  InferToolResultMetadata,
   InputSchemaOf,
   Interrupt,
   InterruptBinding,
@@ -552,6 +553,7 @@ type ToolCallPartForNamedTool<T extends { name: string }> = {
   input?: InferToolInput<T>
   state: ToolCallState
   output?: InferToolOutput<T>
+  resultMetadata?: InferToolResultMetadata<T>
 }
 
 /**
@@ -570,6 +572,8 @@ type ToolCallPartForTool<T> = T extends AnyClientTool
       state: ToolCallState
       /** Tool execution output (for client tools or after approval) */
       output?: InferToolOutput<T>
+      /** App data the server tool set with `setResultMetadata` (typed from resultMetadataSchema) */
+      resultMetadata?: InferToolResultMetadata<T>
     } & (NonNullable<T['needsApproval']> extends true
       ? {
           /**
@@ -609,6 +613,7 @@ type UntypedToolCallPart = {
     approved?: boolean
   }
   output?: any
+  resultMetadata?: unknown
 }
 
 /**

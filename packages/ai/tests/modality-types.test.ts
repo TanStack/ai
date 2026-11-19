@@ -13,7 +13,9 @@ import type {
   DefaultMessageMetadataByModality,
   DocumentPart,
   ImagePart,
+  MediaPromptFor,
   Modality,
+  Model3DPart,
   TextPart,
   VideoPart,
 } from '../src/types'
@@ -344,6 +346,45 @@ describe('Multimodal Type Constraints', () => {
         role: 'assistant'
         content: null
       }>().toExtend<TextImageMessage>()
+    })
+  })
+
+  describe('MediaPromptFor with model3d parts', () => {
+    // A per-model input-modality map, the same shape adapters declare.
+    type ModelInputModalities = {
+      'image-model': readonly ['image']
+      'mesh-model': readonly ['image', 'model3d']
+    }
+    type PromptFor<TModel extends keyof ModelInputModalities> = MediaPromptFor<
+      ModelInputModalities[TModel][number]
+    >
+
+    const mesh: Model3DPart = {
+      type: 'model3d',
+      source: { type: 'url', value: 'https://example.com/chair.glb' },
+    }
+
+    function imageModelPrompt(prompt: PromptFor<'image-model'>) {
+      return prompt
+    }
+
+    function meshModelPrompt(prompt: PromptFor<'mesh-model'>) {
+      return prompt
+    }
+
+    it('should NOT allow a model3d part for a model that lists only image', () => {
+      // @ts-expect-error - 'image-model' does not list 'model3d'
+      imageModelPrompt([mesh])
+      expectTypeOf<Array<Model3DPart>>().not.toExtend<
+        PromptFor<'image-model'>
+      >()
+    })
+
+    it('should allow a model3d part for a model that lists model3d', () => {
+      meshModelPrompt([{ type: 'text', content: 'retopology' }, mesh])
+      expectTypeOf<Array<TextPart | Model3DPart>>().toExtend<
+        PromptFor<'mesh-model'>
+      >()
     })
   })
 })

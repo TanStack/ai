@@ -2,6 +2,7 @@ import {
   convertSchemaToJsonSchema,
   validateWithStandardSchema,
 } from '@tanstack/ai/client'
+import { rejectClientResultMetadata } from './chat-client'
 import type { AnyClientTool } from '@tanstack/ai/client'
 import type {
   ClientContextOptionFromTools,
@@ -184,6 +185,7 @@ export async function registerWebMCPTools<
           abortSignal: executionOptions?.signal,
           context: options.context,
           emitCustomEvent() {},
+          setResultMetadata: rejectClientResultMetadata,
         })
         return validateSchemaValue(outputSchema, output)
       },
