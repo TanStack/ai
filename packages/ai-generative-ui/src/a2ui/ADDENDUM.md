@@ -19,11 +19,11 @@ from, the mapping table below reflects the shipped prop names, not the sketch.
 Draft 0.1 defines four layers: Driver (§7) → node graph (§5) → transport binding
 (§4.1) → host renderer (§9). A2UI touches only the middle two:
 
-- **New transport binding (§4.1):** *A2UI operations.* A stream of A2UI v0.9
+- **New transport binding (§4.1):** _A2UI operations._ A stream of A2UI v0.9
   operations (`createSurface`, `updateComponents`, `updateDataModel`,
   `deleteSurface`), carried over AG-UI or as a tool-result container
   (`{ "a2ui_operations": [...] }`). A host claims this binding independently.
-- **New driver class (§7):** an *A2UI adapter driver* (`A2uiSurfaceStore`). Not
+- **New driver class (§7):** an _A2UI adapter driver_ (`A2uiSurfaceStore`). Not
   a `UIDriver` — it does not answer a `UIRequest` with a graph. It is a stateful
   translator: it consumes operations and maintains one graph document per
   `surfaceId`, emitting a new revision whenever the surface's component set or
@@ -81,7 +81,7 @@ marks them:
 - **`title` (required §5.1):** the first heading, else the first text line, else
   `A2UI surface <id>`. Always present, so the graph needs no validator repair.
 - **`provenance`:** `{ driver: "a2ui", sourceId: <surfaceId>, context: {
-  catalogId } }`. This required extending `GraphProvenance` with the `a2ui`
+catalogId } }`. This required extending `GraphProvenance` with the `a2ui`
   driver and a `context` field (types, JSON schema, and the validator's bounded
   repair, which now preserves both instead of repairing the driver to `"live"`).
 
@@ -97,23 +97,23 @@ table. Unmapped components degrade per §9.3: with children → `Stack`; without
 Prop names target the **shipped host renderer**, which is where the spec-sketch
 spike drifted:
 
-| A2UI | OGUI | Shipped mapping notes |
-|---|---|---|
-| `Column` | `Stack` | vertical sequence |
-| `Row` | `Columns` | `count` = clamp(children, 2..4); >4 children chunk into a `Stack` of `Columns` |
-| `Card` | `Section` | child preserved |
-| `List` | `List` | **host `List` is a leaf keyed on `items`** — text children flatten to `items[]`; non-text children degrade the List to a `Stack` (diagnostic) |
-| `Tabs` | `Tabs` | **`tabs: [{ id, label }]`** from `tabItems`; each panel child tagged `props.tabId` (the renderer filters on it) |
-| `Text` | `Text` | **prop is `content`** (not `text`); `usageHint` h1–h5 → `heading`, caption → `caption`, else `body` |
-| `Image` | `Image` | **prop is `src`**; A2UI carries no alt — synthesised empty + diagnostic (host closes §9.4) |
-| `Button` | `Button` | label from child Text; `variant` → `tone` (clamped to the host enum); `action` → `on.click` **object form** `{ intent, payload }` so context reaches §8 |
-| `TextField` | `TextInput` / `NumberInput` | by `textFieldType`; `value` binding → `bind.value`; `validationRegexp` → `validation.pattern` |
-| `CheckBox` | `Checkbox` | label |
-| `ChoicePicker` | `Select` | options; host `Select` is single-select — `multipleSelection` emits a diagnostic |
-| `Slider` | `Slider` | `minValue`/`maxValue` → `min`/`max` |
-| `DateTimeInput` | `TextInput` | §6 defers date pickers; diagnostic |
-| `Divider`, `Icon` | — (dropped) | no catalog equivalent; diagnostic |
-| `Modal` | `Section` | flattened inline; diagnostic |
+| A2UI              | OGUI                        | Shipped mapping notes                                                                                                                                   |
+| ----------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Column`          | `Stack`                     | vertical sequence                                                                                                                                       |
+| `Row`             | `Columns`                   | `count` = clamp(children, 2..4); >4 children chunk into a `Stack` of `Columns`                                                                          |
+| `Card`            | `Section`                   | child preserved                                                                                                                                         |
+| `List`            | `List`                      | **host `List` is a leaf keyed on `items`** — text children flatten to `items[]`; non-text children degrade the List to a `Stack` (diagnostic)           |
+| `Tabs`            | `Tabs`                      | **`tabs: [{ id, label }]`** from `tabItems`; each panel child tagged `props.tabId` (the renderer filters on it)                                         |
+| `Text`            | `Text`                      | **prop is `content`** (not `text`); `usageHint` h1–h5 → `heading`, caption → `caption`, else `body`                                                     |
+| `Image`           | `Image`                     | **prop is `src`**; A2UI carries no alt — synthesised empty + diagnostic (host closes §9.4)                                                              |
+| `Button`          | `Button`                    | label from child Text; `variant` → `tone` (clamped to the host enum); `action` → `on.click` **object form** `{ intent, payload }` so context reaches §8 |
+| `TextField`       | `TextInput` / `NumberInput` | by `textFieldType`; `value` binding → `bind.value`; `validationRegexp` → `validation.pattern`                                                           |
+| `CheckBox`        | `Checkbox`                  | label                                                                                                                                                   |
+| `ChoicePicker`    | `Select`                    | options; host `Select` is single-select — `multipleSelection` emits a diagnostic                                                                        |
+| `Slider`          | `Slider`                    | `minValue`/`maxValue` → `min`/`max`                                                                                                                     |
+| `DateTimeInput`   | `TextInput`                 | §6 defers date pickers; diagnostic                                                                                                                      |
+| `Divider`, `Icon` | — (dropped)                 | no catalog equivalent; diagnostic                                                                                                                       |
+| `Modal`           | `Section`                   | flattened inline; diagnostic                                                                                                                            |
 
 Custom-catalog (CopilotKit BYOC) widgets ship in the profile as the worked
 example of the override hook: `DataTable` → `Table`, `Metric` → `Metric`
@@ -128,9 +128,9 @@ graph with compute bindings **cannot be exported to A2UI losslessly**.
 ## A4. Actions back (§8)
 
 A2UI `action: { event: { name, context } }` → the node's `on.click`. The
-adapter's `classifyA2uiAction` *suggests* a class: **Submit** by default,
+adapter's `classifyA2uiAction` _suggests_ a class: **Submit** by default,
 **Action** for world-changing verbs (`book`, `pay`, `delete`, …) so hosts route
-them through approval. *Suggested* — §8 keeps the approval model with the host;
+them through approval. _Suggested_ — §8 keeps the approval model with the host;
 the helper never downgrades. **Local** never applies: an A2UI event always
 leaves the renderer.
 
@@ -140,14 +140,14 @@ Fixture-tested, no live model: (1) flight card — bindings resolved, zero leake
 `{ path }`, validates with no repairs; (2) progressive dashboard — a new
 revision per data patch; (3) shape discipline; (4) degradation; (5) lifecycle /
 buffering; (6) intent classification; (7) **dual-encoding** — the spend
-dashboard authored natively *and* as A2UI ops renders through the same renderer
+dashboard authored natively _and_ as A2UI ops renders through the same renderer
 and produces structurally-equal trees modulo synthesised fields. (7) is the test
 that makes "parallel mechanism" a claim instead of a slogan.
 
 ## A6. What this does not do
 
 - No outbound (OGUI → A2UI) export — compute and `Scene` make it lossy.
-- No A2UI *generation*: no `generate_a2ui` tool, no dynamic-schema sub-agent.
+- No A2UI _generation_: no `generate_a2ui` tool, no dynamic-schema sub-agent.
   Agents that already speak A2UI can be rendered; our drivers keep our format.
 - No persistence: surfaces stay ephemeral, as A2UI intends. A translated graph
   can still be pinned in the artifact store, at which point it is a graph with
