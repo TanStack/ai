@@ -38,6 +38,10 @@ export interface SandboxInstanceStore {
    * Return the record for `key`, or `null` if none exists.
    *
    * INVARIANT: missing keys return `null` (never throw).
+   *
+   * INVARIANT: return the fields as they were stored. An optional field that
+   * was not stored is absent from the result (not `undefined`, not `null`).
+   * Records of other keys never show up.
    */
   get: (key: string) => Promise<SandboxInstanceRecord | null>
   /**
@@ -47,6 +51,9 @@ export interface SandboxInstanceStore {
    * `latestRunId`) MUST clear any previously stored values. Do not merge with
    * the prior row — a create-without-snapshot path must not leave a stale
    * snapshot id.
+   *
+   * INVARIANT: the last write wins. No compare-and-swap is needed. Only the
+   * record of `record.key` changes.
    */
   upsert: (record: SandboxInstanceRecord) => Promise<void>
   /**

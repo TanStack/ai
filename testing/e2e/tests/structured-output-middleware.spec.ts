@@ -94,7 +94,6 @@ test.describe('Structured Output × Middleware Coverage', () => {
     await page.goto(
       buildHarnessUrl(testId, aimockPort, 'anthropic', 'claude-3-7-sonnet'),
     )
-    await page.waitForTimeout(2000)
 
     await page.locator('#mw-scenario-select').selectOption('structured-output')
     await page.locator('#mw-mode-select').selectOption('phase-recorder')
@@ -130,7 +129,6 @@ test.describe('Structured Output × Middleware Coverage', () => {
     // request, no `structuredOutput` phase. This pins the new contract
     // introduced in #605.
     await page.goto(buildHarnessUrl(testId, aimockPort, 'openai'))
-    await page.waitForTimeout(2000)
 
     await page.locator('#mw-scenario-select').selectOption('structured-output')
     await page.locator('#mw-mode-select').selectOption('phase-recorder')
@@ -167,7 +165,6 @@ test.describe('Structured Output × Middleware Coverage', () => {
     aimockPort,
   }) => {
     await page.goto(buildHarnessUrl(testId, aimockPort))
-    await page.waitForTimeout(2000)
 
     await page
       .locator('#mw-scenario-select')

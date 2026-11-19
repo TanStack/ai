@@ -116,6 +116,8 @@ describe('gemini multimodal tool result', () => {
     expect(fr.parts).toEqual([
       { inlineData: { data: 'AAAA', mimeType: 'image/png' } },
     ])
+    // Not beside the functionResponse as well, which sends the image twice.
+    expect(contents.at(-1).parts).toEqual([{ functionResponse: fr }])
   })
 
   it('handles url-sourced media in tool results via fileData', async () => {

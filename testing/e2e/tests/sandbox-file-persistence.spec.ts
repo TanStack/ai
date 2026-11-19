@@ -68,4 +68,25 @@ test.describe('sandbox portable file snapshots', () => {
       },
     })
   })
+
+  test('keeps the files of a failed run for the next run', async ({
+    request,
+  }) => {
+    const response = await request.post(
+      '/api/sandbox-file-persistence?mode=error',
+    )
+
+    expect(response.ok()).toBe(true)
+    await expect(response.json()).resolves.toEqual({
+      runErrors: ['model failed'],
+      // Run 2 got a new, empty sandbox, so the file came from the checkpoint.
+      sandboxesCreated: 2,
+      errorCheckpoint: {
+        id: 'checkpoint-fail',
+        sourceRunId: 'fail',
+        files: ['draft.txt'],
+      },
+      restoredFile: 'draft',
+    })
+  })
 })

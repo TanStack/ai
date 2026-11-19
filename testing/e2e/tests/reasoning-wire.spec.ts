@@ -43,6 +43,16 @@ test.describe('chat({ reasoning }) — wire format', () => {
     })
   })
 
+  test('openai-compatible sends reasoning_effort from the reasoning option', async ({
+    request,
+    testId,
+  }) => {
+    const { bodies, text } = await run(request, 'openai-compatible', testId)
+    expect(bodies[0]?.['model']).toBe('deepseek-reasoner')
+    expect(bodies[0]?.['reasoning_effort']).toBe('medium')
+    expect(text).toContain('Fender Stratocaster')
+  })
+
   test('anthropic sends budget thinking for a budget model', async ({
     request,
     testId,

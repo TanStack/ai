@@ -2,7 +2,8 @@
 // the Gemini Developer API with an API key. Same URL, headers, body, retries,
 // response shape (`steps`, `output_text`, ...), and error fields.
 import { createHttpClient, parseSSE } from '@tanstack/ai-utils/http'
-import type { HttpOptions, Interactions } from '@google/genai'
+import type { Interactions } from '@google/genai'
+import type { ClientHttpOptions } from './api'
 
 type Interaction = Interactions.Interaction
 type InteractionSSEEvent = Interactions.InteractionSSEEvent
@@ -192,11 +193,12 @@ async function* readEvents(response: Response, signal?: AbortSignal | null) {
  */
 export function createInteractions(client: {
   apiKey: string
-  httpOptions: HttpOptions
+  httpOptions: ClientHttpOptions
 }) {
   const { apiKey, httpOptions } = client
   const http = createHttpClient({
     baseURL: (httpOptions.baseUrl ?? '').replace(/\/+$/, ''),
+    fetch: httpOptions.fetch,
     // The SDK sends its own default headers here, not `httpOptions.headers`.
     headers: {
       'Content-Type': 'application/json',

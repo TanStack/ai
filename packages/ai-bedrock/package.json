@@ -1,8 +1,8 @@
 {
   "name": "@tanstack/ai-bedrock",
-  "version": "1.2.0",
+  "version": "1.4.0",
   "type": "module",
-  "description": "Amazon Bedrock adapter for TanStack AI — OpenAI-compatible chat, responses, tools, and reasoning.",
+  "description": "Amazon Bedrock adapter for TanStack AI with chat, tools, reasoning, embeddings, and reranking.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -56,8 +56,8 @@
     "@aws-sdk/credential-providers": "^3.1057.0",
     "@smithy/signature-v4": "^5.4.5",
     "@smithy/types": "^4.14.2",
-    "@vitest/coverage-v8": "4.1.10",
-    "vite": "^8.2.1"
+    "@vitest/coverage-v8": "4.1.12",
+    "vite": "^8.3.8"
   },
   "peerDependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1057.0",

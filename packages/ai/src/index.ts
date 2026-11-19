@@ -172,6 +172,7 @@ export {
   cloneAndDeepFreezeJson,
   digestInterruptJson,
 } from './interrupt-serialization'
+export { stableJson } from './utilities/stable-json'
 export {
   INTERRUPT_BINDING_METADATA_KEY,
   InterruptResumeValidationError,
@@ -189,6 +190,8 @@ export {
 // MCP chat option types
 export type {
   MCPToolSource,
+  MCPRequestMeta,
+  MCPRequestMetaInput,
   ChatMCPOptions,
   MCPConnectionPolicy,
 } from './activities/chat/mcp/types'

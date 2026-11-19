@@ -182,9 +182,9 @@ export class CloudflareTextAdapter<
  * @example
  * ```typescript
  * // Inside a Worker
- * const adapter = createCloudflareText('@cf/zai-org/glm-5.3-flash', { binding: env.AI })
+ * const adapter = createCloudflareText('@cf/deepseek-ai/deepseek-v4.1-flash-1017', { binding: env.AI })
  * // Anywhere, over REST
- * const adapter = createCloudflareText('@cf/zai-org/glm-5.3-flash', { accountId, apiKey })
+ * const adapter = createCloudflareText('@cf/deepseek-ai/deepseek-v4.1-flash-1017', { accountId, apiKey })
  * ```
  */
 export function createCloudflareText<TModel extends CloudflareTextModel>(

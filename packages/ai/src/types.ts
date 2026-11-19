@@ -541,6 +541,10 @@ export interface ToolResultPart {
 export interface ThinkingPart {
   type: 'thinking'
   content: string
+  /**
+   * @deprecated Never set. The processor keeps its reasoning-step key
+   * internally, so stored and reloaded parts are the same as live ones.
+   */
   stepId?: string
   /**
    * The provider's opaque reasoning artefact, sent back unchanged: an
@@ -710,12 +714,19 @@ export interface TanStackMessageMetadata {
    * stopped at the output limit, so its tool calls are not complete.
    */
   finishReason?: TanStackRunMetadata['finishReason']
+  /** See `TanStackRunMetadata.loopStopped`. Set on the last assistant message of the run. */
+  loopStopped?: boolean
   /**
    * The provider's answer items of this assistant message, in order, for a
    * same-model replay. The OpenAI Responses adapter keeps each output
    * message item's `id` and `phase` (`commentary` or `final_answer`).
    */
-  responseItems?: Array<{ id: string; phase?: string }>
+  responseItems?: Array<{
+    id: string
+    phase?: string
+    /** UTF-16 text length, retaining item boundaries when adjacent text is merged. */
+    textLength?: number
+  }>
   /**
    * The model call of this assistant message sent a reasoning item. The
    * OpenAI Responses adapter sets it. A replay that lost that reasoning item
@@ -744,6 +755,12 @@ export interface TanStackMessageMetadata {
   }
   /** Outcome of a cancelled or denied tool result; when present, the UI state is `error`. */
   toolResultOutcome?: ToolResultOutcome
+  /**
+   * `'text'` on a tool result whose tool returned a string. Its content is
+   * then that string, not JSON, so a reader keeps `'42'` as `'42'`. A result
+   * without it is JSON text, or plain text that does not parse.
+   */
+  toolResultKind?: 'text'
   structuredOutput?: {
     status?: 'streaming' | 'complete' | 'error'
     partial?: unknown
@@ -773,6 +790,14 @@ export interface TanStackRunMetadata {
   /** See `TanStackMessageMetadata.reasoningItem`. */
   reasoningItem?: boolean
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
+  /**
+   * `true` on the last `RUN_FINISHED` of a run that the agent loop stopped
+   * before the model was done: `agentLoopStrategy` (for example
+   * `maxIterations`) or a middleware `onShouldContinue` returned `false`
+   * while tool results waited for the next model call. `finishReason` stays
+   * the reason of the last model call.
+   */
+  loopStopped?: boolean
   /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
   usage?: TokenUsageLeftover
   interruptErrors?: ReadonlyArray<InterruptSubmissionError>
@@ -1576,6 +1601,17 @@ export interface TextCompactOptions {
   wrapFetch?: FetchWrapper
   /** The system prompts of the chat call. */
   systemPrompts?: Array<SystemPrompt>
+  /**
+   * The tools of the chat call. The provider reads the definitions.
+   * The compaction call does not run a tool.
+   */
+  tools?: Array<AnyTool>
+  /** Provider model options of the chat call, including `max_tokens`. */
+  modelOptions?: Record<string, unknown>
+  /** How hard the model thinks on the chat call. */
+  reasoning?: ReasoningRequest
+  /** Report the token usage of the compaction call. */
+  addUsage?: (usage: TokenUsage) => void
 }
 
 // ============================================================================

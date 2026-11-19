@@ -46,14 +46,6 @@ import type {
   UnionToIntersection,
 } from '../runtime-context-types'
 
-function safeJsonParse(value: string): unknown {
-  try {
-    return JSON.parse(value)
-  } catch {
-    return value
-  }
-}
-
 /** Marks the synthetic tool that runs a subagent. */
 export const SUBAGENT_TOOL = Symbol.for('tanstack.ai.subagentTool')
 
@@ -643,19 +635,24 @@ async function* executeWithEventPolling<T>(
   pendingEvents: Array<CustomEvent | StreamChunk>,
 ): AsyncGenerator<CustomEvent | StreamChunk, T, void> {
   // Use an object to track mutable state across the async boundary
-  const state = { done: false, result: undefined as T }
-  const executionWithFlag = executionPromise.then((r) => {
+  const state = { done: false, wake: () => {} }
+  const settle = () => {
     state.done = true
-    state.result = r
-    return r
-  })
+    state.wake()
+  }
+  // Subscribe once. Racing the execution on every poll would add a reaction
+  // to it each time, and keep them all until the tool settles.
+  void executionPromise.then(settle, settle)
 
   while (!state.done) {
     // Wait for either the execution to complete or a short timeout
-    await Promise.race([
-      executionWithFlag,
-      new Promise((resolve) => setTimeout(resolve, 10)),
-    ])
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, 10)
+      state.wake = () => {
+        clearTimeout(timer)
+        resolve()
+      }
+    })
 
     // Flush any pending events
     let event: CustomEvent | StreamChunk | undefined
@@ -670,7 +667,7 @@ async function* executeWithEventPolling<T>(
     yield event
   }
 
-  return state.result
+  return await executionPromise
 }
 
 /**
@@ -742,11 +739,7 @@ async function applyToolCallDecision(
   }
 
   if (decision.type === 'skip') {
-    // One parsed value: the hook sees the same value that is pushed.
-    const skipResult =
-      typeof decision.result === 'string'
-        ? safeJsonParse(decision.result)
-        : (decision.result ?? null)
+    const skipResult = decision.result ?? null
     await pushResultAndRunAfterHook(
       results,
       { toolCallId: toolCall.id, toolName, result: skipResult, duration: 0 },
@@ -866,8 +859,9 @@ export async function* executeServerTool<TContext = unknown>(
       result = parseWithStandardSchema(tool.outputSchema, result)
     }
 
-    const finalResult =
-      typeof result === 'string' ? safeJsonParse(result) : (result ?? null)
+    // A string result stays a string, so a tool whose schema says string
+    // keeps `'42'` as `'42'`.
+    const finalResult = result ?? null
 
     await pushResultAndRunAfterHook(
       results,
@@ -973,14 +967,13 @@ async function buildClientToolResult(
       result = validation.data
     }
 
-    const parsed =
-      typeof result === 'string' ? safeJsonParse(result) : (result ?? null)
+    const output = result ?? null
     return {
       toolCallId,
       toolName,
-      result: parsed,
+      result: output,
       input,
-      output: parsed,
+      output,
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Validation failed'

@@ -2843,7 +2843,7 @@ describe('chat() middleware', () => {
       expect(chunks.length).toBeGreaterThan(0)
     })
 
-    it('should still parse valid JSON string results', async () => {
+    it('keeps a JSON-text string result as a string', async () => {
       const afterResults: Array<unknown> = []
       const tool = serverTool('getData', () => '{"value":42}')
 
@@ -2876,8 +2876,8 @@ describe('chat() middleware', () => {
       })
       await collectChunks(stream as AsyncIterable<StreamChunk>)
 
-      // Valid JSON string results are parsed into objects
-      expect(afterResults[0]).toEqual({ value: 42 })
+      // The tool returned a string, so the hook sees that string.
+      expect(afterResults[0]).toBe('{"value":42}')
     })
   })
 

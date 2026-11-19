@@ -71,6 +71,9 @@ export function usesVertexAI(options: GoogleGenAIOptions) {
   return flag?.toLowerCase() === 'true'
 }
 
+/** `HttpOptions` plus `fetch`, which the SDK 2.10.0 types do not have. */
+export type ClientHttpOptions = HttpOptions & { fetch?: typeof fetch }
+
 // Port of `ApiClient.patchHttpOptions`: an object value is merged one level
 // deep, any other defined value replaces the old one.
 function patchHttpOptions(base: HttpOptions, patch: HttpOptions) {
@@ -172,7 +175,7 @@ export function createApiClient(options: GoogleGenAIOptions) {
   const { apiKey } = options
   const baseUrl =
     options.httpOptions?.baseUrl ?? readEnv('GOOGLE_GEMINI_BASE_URL')
-  const clientHttpOptions = patchHttpOptions(
+  const clientHttpOptions: ClientHttpOptions = patchHttpOptions(
     {
       apiVersion: options.apiVersion ?? 'v1beta',
       baseUrl: DEFAULT_BASE_URL,
@@ -185,12 +188,15 @@ export function createApiClient(options: GoogleGenAIOptions) {
   // `retryOptions`, with the p-retry backoff (1 s, 2 s, 4 s, ...).
   const apiCall = async (url: string, init: RequestInit) => {
     const { retryOptions } = clientHttpOptions
-    if (!retryOptions) return fetch(url, init)
+    // ponytail: the client fetch only. Add a per-call fetch when a caller
+    // needs one.
+    const fetchFn = clientHttpOptions.fetch ?? fetch
+    if (!retryOptions) return fetchFn(url, init)
     const retries = (retryOptions.attempts ?? 5) - 1
     for (let attempt = 0; ; attempt++) {
       let error: unknown
       try {
-        const response = await fetch(url, init)
+        const response = await fetchFn(url, init)
         if (response.ok) return response
         if (!RETRY_STATUS_CODES.includes(response.status)) {
           throw new Error(

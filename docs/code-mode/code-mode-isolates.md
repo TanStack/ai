@@ -240,14 +240,14 @@ The `worker_loader` binding works with `wrangler dev` on the Workers Free plan. 
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @tanstack/ai-isolate-daytona @daytona/sdk
-vue: @tanstack/ai-isolate-daytona @daytona/sdk
-solid: @tanstack/ai-isolate-daytona @daytona/sdk
-svelte: @tanstack/ai-isolate-daytona @daytona/sdk
-preact: @tanstack/ai-isolate-daytona @daytona/sdk
-angular: @tanstack/ai-isolate-daytona @daytona/sdk
-vanilla: @tanstack/ai-isolate-daytona @daytona/sdk
-octane: @tanstack/ai-isolate-daytona @daytona/sdk
+react: @tanstack/ai-isolate-daytona @daytona/sdk@^0.231.1
+vue: @tanstack/ai-isolate-daytona @daytona/sdk@^0.231.1
+solid: @tanstack/ai-isolate-daytona @daytona/sdk@^0.231.1
+svelte: @tanstack/ai-isolate-daytona @daytona/sdk@^0.231.1
+preact: @tanstack/ai-isolate-daytona @daytona/sdk@^0.231.1
+angular: @tanstack/ai-isolate-daytona @daytona/sdk@^0.231.1
+vanilla: @tanstack/ai-isolate-daytona @daytona/sdk@^0.231.1
+octane: @tanstack/ai-isolate-daytona @daytona/sdk@^0.231.1
 
 <!-- ::end:tabs -->
 

@@ -238,7 +238,18 @@ export async function POST(request: Request) {
 - An adapter with no `compact` method uses `strategy`.
 - When `compact` fails, `strategy` runs in its place.
 
-The OpenAI Responses adapters have `compact`. See [Native compaction](../adapters/openai-advanced#native-compaction). For what happens on each kind of failure, see [Native compaction failures](./compaction-advanced#native-compaction-failures).
+The Anthropic adapters have `compact` too. Create the adapter once:
+
+```typescript
+import { createAnthropicChat } from "@tanstack/ai-anthropic";
+
+const adapter = createAnthropicChat(
+  "claude-opus-5-5",
+  process.env.ANTHROPIC_API_KEY!,
+);
+```
+
+Pass that adapter to `chat()` and to `native`, as in the sample above. See [OpenAI native compaction](../adapters/openai-advanced#native-compaction) and [Anthropic native compaction](../adapters/anthropic-advanced#native-compaction). For each kind of failure, see [Native compaction failures](./compaction-advanced#native-compaction-failures).
 
 ## When the chat is still too long
 

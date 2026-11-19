@@ -1,5 +1,14 @@
 # @tanstack/ai-client
 
+## 1.1.1
+
+### Patch Changes
+
+- [#2164](https://github.com/TanStack/ai/pull/2164) [`0fb44da`](https://github.com/TanStack/ai/commit/0fb44da5bb25ab8fb76802f46c9815360e510173) - Devtools now gets the thinking text in `text:chunk:thinking`. Before, it got the id of the reasoning step as the text.
+
+- Updated dependencies [[`fde4e09`](https://github.com/TanStack/ai/commit/fde4e09b0170017394ff2874847d416777920b2e)]:
+  - @tanstack/ai@1.5.0
+
 ## 1.1.0
 
 ### Minor Changes

@@ -785,12 +785,18 @@ Exactly **one** terminal hook runs per `chat()` call:
 | Hook | When it runs |
 | --- | --- |
 | `onFinish` | The run completed normally |
-| `onAbort` | The run was aborted: by `ctx.abort()`, by an external `AbortSignal`, or by an `abort` decision from `onBeforeToolCall` |
+| `onAbort` | The run was aborted: by `ctx.abort()`, by an external `AbortSignal`, by an `abort` decision from `onBeforeToolCall`, or by a consumer that stopped iterating (`break` or `return()`) |
 | `onError` | An error was not handled |
 
 `onFinish` also runs when the call pauses for a client tool or an approval. The run is not complete yet. To tell a pause from a completion, look in `onChunk` for a `RUN_FINISHED` chunk with `outcome.type === 'interrupt'`.
 
-`onAbort` gets `info.cancelRequested`. It is `true` only when an explicit cancel aborted the run, never when the client only disconnected.
+When a consumer stops iterating, the chunk it stopped at decides the hook:
+
+- A `RUN_FINISHED` chunk with `outcome.type === 'interrupt'`: `onFinish`.
+- A `RUN_ERROR` chunk: `onError`.
+- Any other chunk, including the final `RUN_FINISHED` of a completed run: `onAbort`.
+
+`onAbort` gets `info.cancelRequested`. It is `true` only when an explicit cancel aborted the run. It is `false` when the client disconnected or the consumer stopped iterating. A consumer stop has no `info.reason`.
 
 ```typescript
 import { type ChatMiddleware } from "@tanstack/ai";
