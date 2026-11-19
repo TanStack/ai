@@ -9,6 +9,7 @@ const REQUEST_URL = `https://queue.fal.run/${MODEL}/requests/${JOB_ID}`
 const FBX_URL = 'https://v3b.fal.media/files/e2e/swing.fbx'
 const JSON_URL = 'https://v3b.fal.media/files/e2e/swing.json'
 const PROMPT = 'A heavy two-handed overhead axe swing'
+const UTHANA_JOB_ID = 'uthana-job?character=orc-e2e&fps=30'
 
 interface StreamEvent {
   type: string
@@ -259,20 +260,20 @@ test.describe('generateMotion activity (uthana)', () => {
     expect(custom.filter((e) => e.name === 'motion:status')).toEqual([
       {
         name: 'motion:status',
-        value: { jobId: 'uthana-job', status: 'pending' },
+        value: { jobId: UTHANA_JOB_ID, status: 'pending' },
       },
       {
         name: 'motion:status',
-        value: { jobId: 'uthana-job', status: 'processing' },
+        value: { jobId: UTHANA_JOB_ID, status: 'processing' },
       },
       {
         name: 'motion:status',
-        value: { jobId: 'uthana-job', status: 'completed' },
+        value: { jobId: UTHANA_JOB_ID, status: 'completed' },
       },
     ])
     const result = custom.find((e) => e.name === 'generation:result')?.value
     expect(result).toMatchObject({
-      jobId: 'uthana-job',
+      jobId: UTHANA_JOB_ID,
       model: 'text-to-motion-3.0',
       assets: [
         {

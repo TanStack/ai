@@ -209,12 +209,11 @@ export class UthanaMotionAdapter<
         `Uthana job ${jobId} has no motion (status ${job.status}${jobError(job) ? `: ${jobError(job)}` : ''})`,
       )
     }
-    const opts = { ...this.defaults, ...jobOptions }
-    const characterId = opts.character_id ?? UTHANA_DEFAULT_CHARACTER_ID
+    const characterId = jobOptions.character_id ?? UTHANA_DEFAULT_CHARACTER_ID
     const assets: Array<MotionAsset> = []
-    for (const format of opts.formats ?? ['fbx']) {
+    for (const format of jobOptions.formats ?? ['fbx']) {
       const fileName = `uthana-${motionId}.${format}`
-      const query = opts.fps !== undefined ? `?fps=${opts.fps}` : ''
+      const query = jobOptions.fps !== undefined ? `?fps=${jobOptions.fps}` : ''
       const url = `${this.config.baseUrl}/motion/file/motion_viewer/${encodeURIComponent(characterId)}/${encodeURIComponent(motionId)}/${format}/${fileName}${query}`
       const response = await this.config.fetch(url, {
         headers: { authorization: this.config.authorization },
