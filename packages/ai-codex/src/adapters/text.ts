@@ -318,7 +318,12 @@ export class CodexTextAdapter<
     let bridge: HostToolBridge | undefined
     const tempFiles: Array<string> = []
     let cleanupSandbox: SandboxHandle | undefined
-    let releaseLogin: (() => Promise<void>) | undefined
+    let releaseLogin:
+      | ((options: { keep: boolean }) => Promise<void>)
+      | undefined
+    // A durable agent can outlive this stream. Its login then stays in the
+    // sandbox for the host that attaches.
+    let keepLogin = false
     let runFailed = false
     let releaseFailure: { error: unknown } | undefined
     // Durability caveat: the journaled path below derives its journal file
@@ -362,6 +367,7 @@ export class CodexTextAdapter<
           sandboxHomePath: '.codex/auth.json',
           label: 'Codex',
           connectCommand: '/connect:codex',
+          adopt: durability?.attach === true,
         })
         releaseLogin = login.release
       }
@@ -519,6 +525,7 @@ export class CodexTextAdapter<
       // translator alone: the stored log holds the previous host's MERGED
       // output, so comparing against anything else would compare against a
       // stream the log never contained.
+      keepLogin = durability !== undefined
       yield* alignedIfAttaching(
         mergeChunkStreams(
           translateThreadEvents(asEvents(), {
@@ -540,6 +547,9 @@ export class CodexTextAdapter<
         durability,
         logger,
       )
+      // The journal read also ends when the host is aborted. The agent runs on.
+      const signal = options.abortController?.signal ?? options.request?.signal
+      keepLogin = keepLogin && signal?.aborted === true
     } catch (error: unknown) {
       runFailed = true
       const err = error as Error & { code?: string }
@@ -562,7 +572,7 @@ export class CodexTextAdapter<
       }
     } finally {
       // First, because the sandbox copy of the login holds the plan tokens.
-      releaseFailure = await releaseLogin?.().then(
+      releaseFailure = await releaseLogin?.({ keep: keepLogin }).then(
         () => undefined,
         (error: unknown) => ({ error }),
       )

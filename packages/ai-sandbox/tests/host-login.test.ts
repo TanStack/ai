@@ -287,12 +287,16 @@ function fakeSandbox(options?: {
   return { sandbox, files: base.files }
 }
 
-async function mountWith(sandbox: ReturnType<typeof fakeSandbox>['sandbox']) {
+async function mountWith(
+  sandbox: ReturnType<typeof fakeSandbox>['sandbox'],
+  options?: { adopt?: boolean },
+) {
   return mountHostLogin(sandbox, {
     hostPath: join(dir, 'auth.json'),
     sandboxHomePath: '.codex/auth.json',
     label: 'Codex',
     connectCommand: '/connect:codex',
+    ...options,
   })
 }
 
@@ -326,6 +330,29 @@ describe('mountHostLogin', () => {
     await login.release()
     expect(await readFile(join(dir, 'auth.json'), 'utf8')).toBe(
       '{"token":"terminal"}',
+    )
+    expect(files.has(SANDBOX_FILE)).toBe(false)
+  })
+
+  it('release with keep leaves the login for a host that attaches', async () => {
+    const { sandbox, files } = fakeSandbox()
+    const login = await mountWith(sandbox)
+    await login.release({ keep: true })
+    expect(files.get(SANDBOX_FILE)).toBe('{"token":"old"}')
+    // The next run copies the host login again, and removes it at its end.
+    const next = await mountWith(sandbox)
+    await next.release()
+    expect(files.has(SANDBOX_FILE)).toBe(false)
+  })
+
+  it('adopt keeps the login in the sandbox and copies its refresh back', async () => {
+    const { sandbox, files } = fakeSandbox()
+    files.set(SANDBOX_FILE, '{"token":"refreshed"}')
+    const login = await mountWith(sandbox, { adopt: true })
+    expect(files.get(SANDBOX_FILE)).toBe('{"token":"refreshed"}')
+    await login.release()
+    expect(await readFile(join(dir, 'auth.json'), 'utf8')).toBe(
+      '{"token":"refreshed"}',
     )
     expect(files.has(SANDBOX_FILE)).toBe(false)
   })

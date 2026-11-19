@@ -280,6 +280,11 @@ export function cliPlanLogin(options: {
  * Runs on the same sandbox share one copy. The last `release()` writes it
  * back and removes it.
  *
+ * A durable agent can outlive the stream of its host. For that run, call
+ * `release({ keep: true })` to leave the login in the sandbox, and mount with
+ * `adopt: true` on the host that attaches. That host then uses the login
+ * that is already there, which can hold a refreshed token.
+ *
  * On a `local-process` sandbox, nothing is copied: the CLI reads the host
  * file.
  *
@@ -288,6 +293,7 @@ export function cliPlanLogin(options: {
  * @param options.sandboxHomePath - Path in the sandbox, relative to `$HOME`.
  * @param options.label - The CLI name for the error, for example 'Codex'.
  * @param options.connectCommand - The command that signs in, for example '/connect:codex'.
+ * @param options.adopt - Keep a login that is already in the sandbox. For a host that attaches to a running agent.
  *
  * Throws an `Error` when the host has no login file.
  *
@@ -338,11 +344,16 @@ export async function mountHostLogin(
   }
   let isReleased = false
   return {
-    release: async () => {
+    /** `keep: true` leaves the login in the sandbox for a host that attaches. */
+    release: async (releaseOptions?: { keep?: boolean }) => {
       if (isReleased) return
       isReleased = true
       shared.runs -= 1
       if (shared.runs > 0) return
+      if (releaseOptions?.keep === true) {
+        if (mounts.get(key) === shared) mounts.delete(key)
+        return
+      }
       shared.released = returnHostLogin(
         sandbox,
         options.hostPath,
@@ -360,6 +371,7 @@ interface HostLoginMountOptions {
   sandboxHomePath: string
   label: string
   connectCommand: string
+  adopt?: boolean
 }
 
 /** The sandbox path of the login and the host content that was copied. */
@@ -400,6 +412,11 @@ async function borrowHostLogin(
     )
   }
   const path = posix.join(homePath, sandboxHomePath)
+  // ponytail: an adopted copy is written back when the host file did not
+  // change since this mount. A sign-in on the host before the attach is lost.
+  if (options.adopt === true && (await sandbox.fs.exists(path))) {
+    return { path, content }
+  }
   await sandbox.fs.mkdir(posix.dirname(path))
   try {
     await sandbox.fs.write(path, content)

@@ -109,18 +109,22 @@ export interface GrokBuildTextConfig {
   acpPort?: number
 }
 
-type HostLogin = { release: () => Promise<void> }
+type HostLogin = Awaited<ReturnType<typeof mountHostLogin>>
 
 /**
  * Lend the host `grok login` to the sandbox for one run. This does nothing on
  * local-process, where grok reads the host file.
  */
-function mountGrokHostLogin(sandbox: SandboxHandle): Promise<HostLogin> {
+function mountGrokHostLogin(
+  sandbox: SandboxHandle,
+  adopt = false,
+): Promise<HostLogin> {
   return mountHostLogin(sandbox, {
     hostPath: grokAuthFile(),
     sandboxHomePath: '.grok/auth.json',
     label: 'Grok Build',
     connectCommand: '/connect:grok-build',
+    adopt,
   })
 }
 
@@ -132,8 +136,9 @@ async function releaseHostLogin(
   hostLogin: HostLogin | undefined,
   runFailed: boolean,
   logger: TextOptions<GrokBuildTextProviderOptions>['logger'],
+  keep = false,
 ): Promise<void> {
-  await hostLogin?.release().catch((error: unknown) => {
+  await hostLogin?.release({ keep }).catch((error: unknown) => {
     if (!runFailed) throw error
     logger.errors('grok-build: could not release the host login', {
       error,
@@ -693,6 +698,9 @@ export class GrokBuildTextAdapter<
     const { logger } = options
     let bridge: HostToolBridge | undefined
     let hostLogin: HostLogin | undefined
+    // A durable agent can outlive this stream. Its login then stays in the
+    // sandbox for the host that attaches.
+    let keepLogin = false
     let runFailed = false
     try {
       const tools = this.toolsForChoice(options)
@@ -765,7 +773,12 @@ export class GrokBuildTextAdapter<
 
       const authMode =
         options.modelOptions?.authMode ?? this.adapterConfig.authMode
-      if (authMode === 'host') hostLogin = await mountGrokHostLogin(sandbox)
+      if (authMode === 'host') {
+        hostLogin = await mountGrokHostLogin(
+          sandbox,
+          durability?.attach === true,
+        )
+      }
       const launch = grokAuthLaunch(
         await resolveGrokExecutable(sandbox, this.adapterConfig.grokExecutable),
         this.adapterConfig.env,
@@ -838,6 +851,7 @@ export class GrokBuildTextAdapter<
       // sequence is the whole of it. `isBridgeCustomChunk` tolerance inside
       // `alignedIfAttaching` is therefore slack this path does not need, not a
       // dependency of it.
+      keepLogin = durability !== undefined
       yield* alignedIfAttaching(
         translateThreadEvents(asEvents(), {
           model: this.model,
@@ -856,6 +870,9 @@ export class GrokBuildTextAdapter<
         durability,
         logger,
       )
+      // The journal read also ends when the host is aborted. The agent runs on.
+      const signal = options.abortController?.signal ?? options.request?.signal
+      keepLogin = keepLogin && signal?.aborted === true
 
       // Deliberately OUTSIDE the alignment wrap. `emitDiffChunks` shells out for
       // a live `git diff` after the translated stream ends, so it is new output
@@ -895,7 +912,7 @@ export class GrokBuildTextAdapter<
       try {
         await bridge?.close()
       } finally {
-        await releaseHostLogin(hostLogin, runFailed, logger)
+        await releaseHostLogin(hostLogin, runFailed, logger, keepLogin)
       }
     }
   }

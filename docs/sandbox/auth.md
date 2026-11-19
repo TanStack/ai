@@ -127,10 +127,18 @@ const stream = chat({
 For each run, the adapter does this:
 
 1. Before the run, it copies the login file of the machine into the home folder of the sandbox.
-2. After the run, it reads the file back. If the CLI refreshed the token, it writes the new file to the machine.
+2. After the run, it reads the file back. If the CLI refreshed the token, it writes the new file to the machine. If you signed in again on the machine during the run, it keeps your new login.
 3. Then it deletes the file from the sandbox. It does this also when the run fails or you abort it.
 
 So a sandbox that stays alive, or a snapshot of it, does not keep the login. On a local-process sandbox, nothing is copied: the CLI reads the file of the machine.
+
+Runs on the same sandbox share one copy. The last run to end deletes it.
+
+A [durable run](./durable-runs) is different, because its agent can run on after the host stops:
+
+- When the host stops reading before the agent ends, the login stays in the sandbox, so the agent can keep working.
+- The host that attaches to the run uses that login, and deletes it when the run ends.
+- If no host attaches, the login stays in the sandbox until the next run there ends.
 
 The login files:
 
