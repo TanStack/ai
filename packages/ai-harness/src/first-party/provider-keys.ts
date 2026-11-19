@@ -14,26 +14,54 @@ type ProviderSignIn = (ctx: {
 }) => Promise<string>
 
 /**
+ * A sign-in with the user's plan (for example a ChatGPT plan) through the
+ * provider's CLI on this machine. The CLI keeps the login in its own file.
+ * The harness saves no key and keeps no copy of the tokens.
+ */
+export interface ProviderLogin {
+  /** The name of the plan in messages, for example `'ChatGPT plan'`. */
+  planLabel: string
+  /**
+   * Runs the device sign-in. Calls `onCode` with the page to open and the
+   * code to type there. Resolves when the user is signed in. Stops when
+   * `signal` aborts.
+   */
+  signIn: (ctx: {
+    onCode: (code: { verificationUri: string; userCode?: string }) => void
+    signal?: AbortSignal
+  }) => Promise<void>
+  /** Signs the CLI out on this machine. */
+  signOut: () => Promise<void>
+  /** `true` when the CLI on this machine is signed in. */
+  status: () => Promise<boolean>
+}
+
+/**
  * A provider the user can connect: its BYOK descriptor, with a sign-in when
  * it has one. `keyUrl` is the provider's page to make a key: `/connect` opens
- * it in the browser before it asks for the key.
+ * it in the browser before it asks for the key. With `login`, `/connect`
+ * signs in with the user's plan and asks for no key.
  */
 export type KeyProvider = ByokProvider & {
   signIn?: ProviderSignIn
   keyUrl?: string
+  login?: ProviderLogin
 }
 
 export interface ProviderKeyStatus {
   id: string
   label: string
-  /** `connected`: a saved key. `env`: the env var. `missing`: neither. */
-  state: 'connected' | 'env' | 'missing'
+  /**
+   * `connected`: a saved key. `plan`: the plan sign-in on this machine.
+   * `env`: the env var. `missing`: none of them.
+   */
+  state: 'connected' | 'plan' | 'env' | 'missing'
 }
 
 /**
  * What UIs read from `state.plugins['tanstack/provider-keys']`. Every member
  * of the thread reads it, so it has no user's own keys: each provider is
- * `env` or `missing`. `/keys` shows the keys of the user who runs it.
+ * `plan`, `env`, or `missing`. `/keys` shows the keys of the user who runs it.
  */
 export interface ProviderKeysState {
   providers: Array<ProviderKeyStatus>
@@ -56,22 +84,29 @@ function untilAborted<T>(promise: Promise<T>, signal: AbortSignal) {
 }
 
 /**
- * The state of one provider, and its `/keys` line. The key shows masked only.
- * Without a user, only the env var counts. An env var counts only when the
- * keys of the session read env vars (`allowServerEnvKeys`).
+ * The state of one provider, and its `/keys` line. The order is: a saved
+ * key, the plan sign-in, the env var. The key shows masked only. Without a
+ * user, a saved key does not count. An env var counts only when the keys of
+ * the session read env vars (`allowServerEnvKeys`).
  */
 async function describeKey(
   user: { credentials: CredentialsAccess; keys: ProviderKeys } | undefined,
-  provider: ByokProvider,
+  provider: KeyProvider,
   readsEnv: boolean,
 ) {
-  const { id, label } = provider
+  const { id, label, login } = provider
   const status = (state: ProviderKeyStatus['state']) => ({ id, label, state })
   const saved = await user?.credentials.get(id)
   if (saved?.type === 'api_key') {
     return {
       status: status('connected'),
       line: `${label}: connected (key ...${maskKey(saved.value)})`,
+    }
+  }
+  if (login && (await login.status())) {
+    return {
+      status: status('plan'),
+      line: `${label}: signed in with your ${login.planLabel}`,
     }
   }
   const env = envKeyEntry(provider)
@@ -106,6 +141,10 @@ async function describeKey(
  *   `{ ...openrouterByok, signIn: openrouterSignIn() }`, or `keyUrl` to open
  *   the provider's key page before the question, for example
  *   `{ ...openaiByok, keyUrl: 'https://platform.openai.com/api-keys' }`.
+ *   Add `login` to sign in with the user's plan through the provider's CLI,
+ *   for example `{ ...codexByok, login: codexPlanLogin() }`. Then `/connect`
+ *   runs the plan sign-in and asks for no key, and `/disconnect` also signs
+ *   the CLI out.
  *
  * @example
  * ```ts
@@ -178,7 +217,36 @@ export function providerKeys(options: {
         }),
       }
       for (const provider of providers) {
-        const { id, label } = provider
+        const { id, label, login } = provider
+        if (login) {
+          commands[`connect:${id}`] = defineCommand({
+            description: `Sign in to ${label} with your ${login.planLabel}`,
+            // The CLI keeps the login. The harness saves nothing.
+            run: async (_input, { signal, session }) => {
+              // The host shows the page and the code. The tokens stay in the CLI.
+              const signingIn = login.signIn({
+                onCode: ({ verificationUri, userCode }) =>
+                  session.authRequired({
+                    connector: id,
+                    url: verificationUri,
+                    userCode,
+                  }),
+                signal,
+              })
+              await untilAborted(signingIn, signal)
+              return `Signed in to ${label} with your ${login.planLabel}.`
+            },
+          })
+          commands[`disconnect:${id}`] = defineCommand({
+            description: `Sign out of ${label} and remove your ${label} key`,
+            run: async (_input, { credentials }) => {
+              await credentials.delete(id)
+              await login.signOut()
+              return `Disconnected from ${label}. This also signs you out of ${label} in your terminal.`
+            },
+          })
+          continue
+        }
         commands[`connect:${id}`] = defineCommand({
           description: `Connect ${label} with your own key`,
           // The key belongs to the user who runs the command.

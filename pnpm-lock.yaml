@@ -4156,6 +4156,9 @@ importers:
       '@tanstack/ai-claude-code':
         specifier: workspace:*
         version: link:../../packages/ai-claude-code
+      '@tanstack/ai-codex':
+        specifier: workspace:*
+        version: link:../../packages/ai-codex
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../../packages/ai-client

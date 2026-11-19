@@ -7,6 +7,7 @@ import {
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
+import { mountHostLogin } from '@tanstack/ai-sandbox/host-login'
 import {
   AsyncQueue,
   resolvePermission,
@@ -35,7 +36,8 @@ import { buildPrompt } from '../messages/prompt'
 import { formatAcpRequestError, resolveGrokSessionAuthMethod } from '../auth'
 import type { GrokBuildAuthMode } from '../auth'
 import { createGrokAcpNotificationHandler } from '../process/grok-acp-notifications'
-import { openGrokAcpConnection } from '../process/acp'
+import { grokAuthLaunch, openGrokAcpConnection } from '../process/acp'
+import { grokAuthFile } from '../login'
 import { resolveGrokExecutable } from '../process/resolve-executable'
 import { resolveGrokCliModel } from '../model-meta'
 import { SESSION_ID_EVENT, translateThreadEvents } from '../stream/translate'
@@ -92,8 +94,11 @@ export interface GrokBuildTextConfig {
   transport?: AcpTransportPreference
   /**
    * `'api-key'` (default) calls authenticate with `xai.api_key`.
-   * `'host'` skips ACP authenticate (use `grok login`).
-   * Not inferred from the sandbox.
+   * `'host'` skips ACP authenticate and uses the `grok login` of this
+   * machine (see `grokBuildPlanLogin`). grok then runs without `XAI_API_KEY`
+   * and `GROK_API_KEY`. On a sandbox that is not local-process, the host
+   * `~/.grok/auth.json` is copied in for the run and removed after it.
+   * Both protocols read this option. Not inferred from the sandbox.
    */
   authMode?: GrokBuildAuthMode
   /** Explicit ACP auth method. Wins over {@link authMode}. */
@@ -102,6 +107,39 @@ export interface GrokBuildTextConfig {
   permissionMode?: AcpPermissionMode
   /** Port for in-sandbox `grok agent serve` when using WebSocket transport. */
   acpPort?: number
+}
+
+type HostLogin = { release: () => Promise<void> }
+
+/**
+ * Lend the host `grok login` to the sandbox for one run. This does nothing on
+ * local-process, where grok reads the host file.
+ */
+function mountGrokHostLogin(sandbox: SandboxHandle): Promise<HostLogin> {
+  return mountHostLogin(sandbox, {
+    hostPath: grokAuthFile(),
+    sandboxHomePath: '.grok/auth.json',
+    label: 'Grok Build',
+    connectCommand: '/connect:grok-build',
+  })
+}
+
+/**
+ * Release after grok stops, so a refreshed token is copied back. A failed run
+ * already sent its RUN_ERROR, so a release error then is only logged.
+ */
+async function releaseHostLogin(
+  hostLogin: HostLogin | undefined,
+  runFailed: boolean,
+  logger: TextOptions<GrokBuildTextProviderOptions>['logger'],
+): Promise<void> {
+  await hostLogin?.release().catch((error: unknown) => {
+    if (!runFailed) throw error
+    logger.errors('grok-build: could not release the host login', {
+      error,
+      source: 'grok-build.chatStream',
+    })
+  })
 }
 
 function q(value: string): string {
@@ -274,6 +312,8 @@ export class GrokBuildTextAdapter<
     const externalSignal =
       options.abortController?.signal ?? options.request?.signal ?? undefined
     let onAbort: (() => void) | undefined
+    let hostLogin: HostLogin | undefined
+    let runFailed = false
 
     try {
       const tools = this.toolsForChoice(options)
@@ -371,6 +411,8 @@ export class GrokBuildTextAdapter<
         sandbox,
         this.adapterConfig.grokExecutable,
       )
+      const authMode = modelOptions?.authMode ?? this.adapterConfig.authMode
+      if (authMode === 'host') hostLogin = await mountGrokHostLogin(sandbox)
       const connection = await openGrokAcpConnection({
         sandbox,
         exe,
@@ -378,6 +420,7 @@ export class GrokBuildTextAdapter<
         cwd,
         harnessCwd,
         ...(this.adapterConfig.env ? { env: this.adapterConfig.env } : {}),
+        ...(authMode !== undefined && { authMode }),
         extraArgs: this.adapterConfig.extraArgs,
         port: modelOptions?.acpPort ?? this.adapterConfig.acpPort,
         transportPreference:
@@ -389,7 +432,7 @@ export class GrokBuildTextAdapter<
         this.adapterConfig.permissionMode ??
         'bypassPermissions'
       const authMethodId = resolveGrokSessionAuthMethod(
-        modelOptions?.authMode ?? this.adapterConfig.authMode,
+        authMode,
         modelOptions?.authMethodId ?? this.adapterConfig.authMethodId,
         {
           ...process.env,
@@ -530,6 +573,7 @@ export class GrokBuildTextAdapter<
         yield* this.emitDiffChunks(sandbox, cwd, threadId, runId)
       }
     } catch (error: unknown) {
+      runFailed = true
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
       const message = formatAcpRequestError(error)
@@ -553,8 +597,12 @@ export class GrokBuildTextAdapter<
       if (onAbort !== undefined && externalSignal !== undefined) {
         externalSignal.removeEventListener('abort', onAbort)
       }
-      await handle?.dispose()
-      await bridge?.close()
+      try {
+        await handle?.dispose()
+        await bridge?.close()
+      } finally {
+        await releaseHostLogin(hostLogin, runFailed, logger)
+      }
     }
   }
 
@@ -635,6 +683,8 @@ export class GrokBuildTextAdapter<
   ): AsyncIterable<AdapterYieldChunk> {
     const { logger } = options
     let bridge: HostToolBridge | undefined
+    let hostLogin: HostLogin | undefined
+    let runFailed = false
     try {
       const tools = this.toolsForChoice(options)
       const sandbox = this.sandboxFrom(options)
@@ -704,9 +754,13 @@ export class GrokBuildTextAdapter<
         )
       }
 
-      const exe = await resolveGrokExecutable(
-        sandbox,
-        this.adapterConfig.grokExecutable,
+      const authMode =
+        options.modelOptions?.authMode ?? this.adapterConfig.authMode
+      if (authMode === 'host') hostLogin = await mountGrokHostLogin(sandbox)
+      const launch = grokAuthLaunch(
+        await resolveGrokExecutable(sandbox, this.adapterConfig.grokExecutable),
+        this.adapterConfig.env,
+        authMode,
       )
       const runCommand = this.buildCommand(
         options,
@@ -714,7 +768,7 @@ export class GrokBuildTextAdapter<
         harnessCwd,
         mapPolicyToGrokBuildFlags(policy),
         fullPrompt,
-        exe,
+        launch.exe,
       )
 
       logger.request(
@@ -732,7 +786,7 @@ export class GrokBuildTextAdapter<
 
       const rawEvents = spawnNdjson(sandbox, runCommand, {
         cwd,
-        ...(this.adapterConfig.env ? { env: this.adapterConfig.env } : {}),
+        ...(launch.env ? { env: launch.env } : {}),
         ...(options.abortController?.signal
           ? { signal: options.abortController.signal }
           : options.request?.signal
@@ -808,6 +862,7 @@ export class GrokBuildTextAdapter<
         yield* this.emitDiffChunks(sandbox, cwd, threadId, runId)
       }
     } catch (error: unknown) {
+      runFailed = true
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
       const message = formatAcpRequestError(error)
@@ -828,7 +883,11 @@ export class GrokBuildTextAdapter<
         },
       }
     } finally {
-      await bridge?.close()
+      try {
+        await bridge?.close()
+      } finally {
+        await releaseHostLogin(hostLogin, runFailed, logger)
+      }
     }
   }
 

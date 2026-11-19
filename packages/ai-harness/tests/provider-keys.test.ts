@@ -12,6 +12,7 @@ import {
 import { compact, modelPicker, providerKeys } from '../src/first-party'
 import { mockAdapter, questionsOf, text, toolCall } from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
+import type { KeyProvider, ProviderLogin } from '../src/first-party'
 import type {
   AnyAgent,
   HarnessPlugin,
@@ -36,6 +37,16 @@ const beta = defineByokProvider({
   env: 'BETA_TEST_KEY',
 })
 const gamma = defineByokProvider({ id: 'gamma', label: 'Gamma' })
+const codex = defineByokProvider({
+  id: 'codex',
+  label: 'Codex',
+  env: 'CODEX_TEST_KEY',
+})
+const grok = defineByokProvider({
+  id: 'grok',
+  label: 'Grok',
+  env: 'GROK_TEST_KEY',
+})
 
 /** The credential scope of the test user. */
 const USER = { threadId: 't', userId: 'user-1' }
@@ -93,10 +104,10 @@ async function open(options: {
     for await (const entry of session.events({ signal: reader.signal }))
       events.push(entry)
   })()
-  const saveKey = (value: string) =>
+  const saveKey = (value: string, id = 'acme') =>
     credentials.set({
       scope: USER,
-      id: 'acme',
+      id,
       credential: {
         type: 'api_key',
         value,
@@ -494,6 +505,157 @@ describe('providerKeys', () => {
     const everything = JSON.stringify({ events, results, logged, transcript })
     expect(everything).not.toContain(PASTED_KEY)
     expect(everything).toContain('...5678')
+    await close()
+  })
+})
+
+/** The page and the code that the fake CLI prints. */
+const DEVICE_CODE = {
+  verificationUri: 'https://auth.example.com/device',
+  userCode: 'ABCD-1234',
+}
+
+/**
+ * A plan login with no CLI: `signIn` reports `DEVICE_CODE` and signs in,
+ * `signOut` signs out, `status` tells if it is signed in.
+ */
+function planLogin(options?: {
+  planLabel?: string
+  signedIn?: boolean
+  signIn?: ProviderLogin['signIn']
+}) {
+  let signedIn = options?.signedIn ?? false
+  const login: ProviderLogin = {
+    planLabel: options?.planLabel ?? 'ChatGPT plan',
+    signIn:
+      options?.signIn ??
+      (async ({ onCode }) => {
+        onCode(DEVICE_CODE)
+        signedIn = true
+      }),
+    signOut: async () => {
+      signedIn = false
+    },
+    status: async () => signedIn,
+  }
+  return login
+}
+
+describe('providerKeys with a plan login', () => {
+  /** A session with `providerKeys` over `providers`. */
+  function openWith(providers: ReadonlyArray<KeyProvider>) {
+    return open({
+      adapter: mockAdapter([]).adapter,
+      plugins: [providerKeys({ providers })],
+    })
+  }
+
+  it('signs in with the plan, sends the page and the code, and saves no key', async () => {
+    const { session, credentials, events, close } = await openWith([
+      { ...codex, login: planLogin() },
+    ])
+    expect(await session.runCommand({ name: 'connect:codex' })).toBe(
+      'Signed in to Codex with your ChatGPT plan.',
+    )
+    expect(authRequired(events)).toEqual([
+      {
+        connector: 'codex',
+        url: 'https://auth.example.com/device',
+        userCode: 'ABCD-1234',
+      },
+    ])
+    expect(await credentials.get({ scope: USER, id: 'codex' })).toBeNull()
+    expect(await session.runCommand({ name: 'keys' })).toBe(
+      'Codex: signed in with your ChatGPT plan',
+    )
+    await close()
+  })
+
+  it('aborts the sign-in when /connect is cancelled', async () => {
+    let given: AbortSignal | undefined
+    const waitsForAbort: ProviderLogin['signIn'] = ({ onCode, signal }) =>
+      new Promise((_, reject) => {
+        given = signal
+        onCode(DEVICE_CODE)
+        signal?.addEventListener('abort', () => reject(signal.reason))
+      })
+    const { session, events, close } = await openWith([
+      { ...codex, login: planLogin({ signIn: waitsForAbort }) },
+    ])
+    const connecting = session.runCommand({ name: 'connect:codex' })
+    await waitFor(() => expect(authRequired(events)).toHaveLength(1))
+    await connecting.cancel()
+    await expect(connecting).rejects.toBeDefined()
+    expect(given?.aborted).toBe(true)
+    await close()
+  })
+
+  it('fails /connect with the error of the sign-in', async () => {
+    const fails: ProviderLogin['signIn'] = async () => {
+      throw new Error('codex login exited with code 1')
+    }
+    const { session, close } = await openWith([
+      { ...codex, login: planLogin({ signIn: fails }) },
+    ])
+    await expect(session.runCommand({ name: 'connect:codex' })).rejects.toThrow(
+      'codex login exited with code 1',
+    )
+    expect(await session.runCommand({ name: 'keys' })).toBe(
+      'Codex: missing. Run /connect codex.',
+    )
+    await close()
+  })
+
+  it('signs out and removes the saved key on /disconnect', async () => {
+    const { session, credentials, saveKey, close } = await openWith([
+      { ...codex, login: planLogin({ signedIn: true }) },
+    ])
+    await saveKey(SAVED_KEY, 'codex')
+    expect(await session.runCommand({ name: 'disconnect:codex' })).toBe(
+      'Disconnected from Codex. This also signs you out of Codex in your terminal.',
+    )
+    expect(await credentials.get({ scope: USER, id: 'codex' })).toBeNull()
+    expect(await session.runCommand({ name: 'keys' })).toBe(
+      'Codex: missing. Run /connect codex.',
+    )
+    await close()
+  })
+
+  it('orders /keys as a saved key, the plan, the env var, then missing', async () => {
+    vi.stubEnv('GROK_TEST_KEY', 'sk-grok-env-0000')
+    vi.stubEnv('BETA_TEST_KEY', 'sk-beta-env-4321')
+    const { session, saveKey, close } = await openWith([
+      { ...codex, login: planLogin({ signedIn: true }) },
+      {
+        ...grok,
+        login: planLogin({ signedIn: true, planLabel: 'SuperGrok plan' }),
+      },
+      beta,
+      gamma,
+    ])
+    await saveKey(SAVED_KEY, 'codex')
+    expect(await session.runCommand({ name: 'keys' })).toBe(
+      [
+        'Codex: connected (key ...1234)',
+        'Grok: signed in with your SuperGrok plan',
+        'Beta: from the BETA_TEST_KEY env var',
+        'Gamma: missing. Run /connect gamma.',
+      ].join('\n'),
+    )
+    await close()
+  })
+
+  it("shows 'plan' in the plugin state when the CLI is signed in at setup", async () => {
+    const { session, close } = await openWith([
+      { ...codex, login: planLogin({ signedIn: true }) },
+      { ...grok, login: planLogin() },
+    ])
+    expect(session.snapshot().plugins['tanstack/provider-keys']).toEqual({
+      providers: [
+        { id: 'codex', label: 'Codex', state: 'plan' },
+        { id: 'grok', label: 'Grok', state: 'missing' },
+      ],
+    })
     await close()
   })
 })
