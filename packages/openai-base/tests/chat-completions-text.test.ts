@@ -1703,5 +1703,43 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       })
       expect(requestOptions!.signal).toBe(controller.signal)
     })
+
+    it('preserves caller-supplied runId on RUN_STARTED and RUN_FINISHED', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-123',
+          model: 'test-model',
+          choices: [{ delta: { content: 'Hi' }, finish_reason: null }],
+        },
+        {
+          id: 'chatcmpl-123',
+          model: 'test-model',
+          choices: [{ delta: {}, finish_reason: 'stop' }],
+        },
+      ]
+
+      setupMockSdkClient(streamChunks)
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        runId: 'run-from-client',
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const runStarted = chunks.find((c) => c.type === EventType.RUN_STARTED)
+      const runFinished = chunks.find((c) => c.type === EventType.RUN_FINISHED)
+      expect(runStarted?.type === EventType.RUN_STARTED && runStarted.runId).toBe(
+        'run-from-client',
+      )
+      expect(
+        runFinished?.type === EventType.RUN_FINISHED && runFinished.runId,
+      ).toBe('run-from-client')
+    })
   })
 })
