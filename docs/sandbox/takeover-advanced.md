@@ -271,3 +271,24 @@ If you write a harness adapter, three exports are yours:
 - `alignedIfAttaching` applies alignment on an attach only.
 
 Wrap the **merged** output stream, never the translator before the merge. Otherwise you compare against a stream the log never held. See [Harnesses](./harnesses).
+
+On an attach, `alignedIfAttaching` also yields the chunks the log already holds, with a mark. `chat()` uses them to save the full transcript. `withSandbox` and `pipeToRunLog` drop them, so the client and the log get each chunk once. Return the stream from `chatStream` and you are done.
+
+If you forward the stream anywhere else, skip the marked chunks with `isStoredReplayChunk`:
+
+```ts
+import { alignedIfAttaching, isStoredReplayChunk } from '@tanstack/ai-sandbox'
+import type { StreamChunk } from '@tanstack/ai'
+
+type Durability = Parameters<typeof alignedIfAttaching>[1]
+
+export async function* newChunksOnly(
+  chunks: AsyncIterable<StreamChunk>,
+  durability: Durability,
+) {
+  for await (const chunk of alignedIfAttaching(chunks, durability)) {
+    if (isStoredReplayChunk(chunk)) continue
+    yield chunk
+  }
+}
+```

@@ -1519,7 +1519,8 @@
         {
           "label": "Takeover Internals",
           "to": "sandbox/takeover-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "Reaping & Retention",
