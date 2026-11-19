@@ -19,6 +19,7 @@ import type { AnySummarizeAdapter } from './summarize/adapter'
 import type { AnyImageAdapter } from './generateImage/adapter'
 import type { AnyAudioAdapter } from './generateAudio/adapter'
 import type { AnyVideoAdapter } from './generateVideo/adapter'
+import type { AnyModel3DAdapter } from './generate3DModel/adapter'
 import type { AnyTTSAdapter } from './generateSpeech/adapter'
 import type { AnyVoiceAdapter } from './generateVoice/adapter'
 import type { AnyTranscriptionAdapter } from './generateTranscription/adapter'
@@ -228,6 +229,30 @@ export {
 export { durationToSeconds, snapToDurationOption } from './generateVideo/snap'
 
 // ===========================
+// 3D Model Activity (Experimental)
+// ===========================
+
+export {
+  kind as model3DKind,
+  generate3DModel,
+  get3DModelJobStatus,
+  create3DModelOptions,
+  type Model3DActivityOptions,
+  type Model3DActivityResult,
+  type Model3DProviderOptions,
+  type Model3DPromptForAdapter,
+  type Model3DJobStatusOptions,
+  type Model3DJobStatusResult,
+} from './generate3DModel/index'
+
+export {
+  BaseModel3DAdapter,
+  type Model3DAdapter,
+  type Model3DAdapterConfig,
+  type AnyModel3DAdapter,
+} from './generate3DModel/adapter'
+
+// ===========================
 // TTS Activity
 // ===========================
 
@@ -377,6 +402,7 @@ export type AIAdapter =
   | AnyImageAdapter
   | AnyAudioAdapter
   | AnyVideoAdapter
+  | AnyModel3DAdapter
   | AnyTTSAdapter
   | AnyVoiceAdapter
   | AnyTranscriptionAdapter
@@ -394,6 +420,7 @@ export type AdapterKind =
   | 'image'
   | 'audio'
   | 'video'
+  | '3dModel'
   | 'tts'
   | 'voice'
   | 'transcription'

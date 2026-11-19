@@ -85,6 +85,7 @@ export type AgentProduces =
   | 'text'
   | 'image'
   | 'video'
+  | '3dModel'
   | 'audio'
   | 'speech'
   | 'voice'

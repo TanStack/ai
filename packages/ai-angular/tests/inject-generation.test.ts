@@ -5,11 +5,17 @@ import {
   platformBrowserDynamicTesting,
 } from '@angular/platform-browser-dynamic/testing'
 import { describe, expect, it, vi } from 'vitest'
+import { EventType } from '@tanstack/ai/client'
 import { injectGeneration } from '../src/inject-generation'
 import { injectGenerateVideo } from '../src/inject-generate-video'
 import { injectGenerateImage } from '../src/inject-generate-image'
 import { injectGenerateSpeech } from '../src/inject-generate-speech'
-import type { PersistedArtifactRef, StreamChunk } from '@tanstack/ai'
+import { injectGenerate3DModel } from '../src/inject-generate-3d-model'
+import type {
+  Model3DResult,
+  PersistedArtifactRef,
+  StreamChunk,
+} from '@tanstack/ai'
 import type {
   ConnectConnectionAdapter,
   RunAgentInputContext,
@@ -30,58 +36,12 @@ if (
   )
 }
 
-function renderInjectGeneration(options: any) {
+// Runs an inject* function in a component field initializer (a valid
+// injection context) and exposes what it returns.
+function renderInjectable<TResult>(factory: () => TResult) {
   @Component({ standalone: true, template: '' })
   class Host {
-    gen = injectGeneration(options)
-  }
-  const fixture = TestBed.createComponent(Host)
-  fixture.detectChanges()
-  return {
-    get result() {
-      return fixture.componentInstance.gen
-    },
-    flush: () => fixture.detectChanges(),
-    destroy: () => fixture.destroy(),
-  }
-}
-
-function renderInjectGenerateVideo(options: any) {
-  @Component({ standalone: true, template: '' })
-  class Host {
-    gen = injectGenerateVideo(options)
-  }
-  const fixture = TestBed.createComponent(Host)
-  fixture.detectChanges()
-  return {
-    get result() {
-      return fixture.componentInstance.gen
-    },
-    flush: () => fixture.detectChanges(),
-    destroy: () => fixture.destroy(),
-  }
-}
-
-function renderInjectGenerateImage(options: any) {
-  @Component({ standalone: true, template: '' })
-  class Host {
-    gen = injectGenerateImage(options)
-  }
-  const fixture = TestBed.createComponent(Host)
-  fixture.detectChanges()
-  return {
-    get result() {
-      return fixture.componentInstance.gen
-    },
-    flush: () => fixture.detectChanges(),
-    destroy: () => fixture.destroy(),
-  }
-}
-
-function renderInjectGenerateSpeech(options: any) {
-  @Component({ standalone: true, template: '' })
-  class Host {
-    gen = injectGenerateSpeech(options)
+    gen = factory()
   }
   const fixture = TestBed.createComponent(Host)
   fixture.detectChanges()
@@ -130,10 +90,12 @@ function createRunContextCaptureAdapter(chunks: Array<StreamChunk>): {
 describe('injectGeneration', () => {
   it('initializes idle with a fetcher and generates a result', async () => {
     const fetcher = vi.fn(async () => ({ value: 42 }))
-    const { result, flush } = renderInjectGeneration({
-      fetcher,
-      threadId: 'thread-1',
-    })
+    const { result, flush } = renderInjectable(() =>
+      injectGeneration({
+        fetcher,
+        threadId: 'thread-1',
+      }),
+    )
 
     expect(result.status()).toBe('idle')
     expect(result.result()).toBeNull()
@@ -145,19 +107,21 @@ describe('injectGeneration', () => {
   })
 
   it('throws without connection or fetcher', () => {
-    expect(() => renderInjectGeneration({ threadId: 'thread-1' })).toThrow(
-      /connection or fetcher/i,
-    )
+    expect(() =>
+      renderInjectable(() => injectGeneration({ threadId: 'thread-1' })),
+    ).toThrow(/connection or fetcher/i)
   })
 
   it('transforms the result when onResult returns a value', async () => {
-    const { result, flush } = renderInjectGeneration({
-      threadId: 'thread-1',
-      fetcher: async () => ({ id: '1', audio: 'base64data' }),
-      onResult: (raw: { id: string; audio: string }) => ({
-        playable: raw.audio.length > 0,
+    const { result, flush } = renderInjectable(() =>
+      injectGeneration({
+        threadId: 'thread-1',
+        fetcher: async () => ({ id: '1', audio: 'base64data' }),
+        onResult: (raw: { id: string; audio: string }) => ({
+          playable: raw.audio.length > 0,
+        }),
       }),
-    })
+    )
 
     await result.generate({ prompt: 'x' })
     flush()
@@ -174,11 +138,13 @@ describe('injectGeneration', () => {
       },
       activeRun: null,
     }))
-    const { result } = renderInjectGeneration({
-      threadId: 'hydrate-me',
-      connection: { ...adapter, hydrateGeneration },
-      persistence: true,
-    })
+    const { result } = renderInjectable(() =>
+      injectGeneration({
+        threadId: 'hydrate-me',
+        connection: { ...adapter, hydrateGeneration },
+        persistence: true,
+      }),
+    )
 
     await flushPromises()
 
@@ -202,12 +168,14 @@ describe('injectGenerateVideo', () => {
       resumeSnapshot: videoResumeSnapshot,
       activeRun: null,
     }))
-    const { result } = renderInjectGenerateVideo({
-      threadId: 'video-no-auto-fire',
-      // No `joinRun`, so the restored run cannot be tailed.
-      connection: { ...adapter, hydrateGeneration },
-      persistence: true,
-    })
+    const { result } = renderInjectable(() =>
+      injectGenerateVideo({
+        threadId: 'video-no-auto-fire',
+        // No `joinRun`, so the restored run cannot be tailed.
+        connection: { ...adapter, hydrateGeneration },
+        persistence: true,
+      }),
+    )
 
     await flushPromises()
 
@@ -258,11 +226,13 @@ describe('injectGenerateImage', () => {
       },
       activeRun: null,
     }))
-    const { result } = renderInjectGenerateImage({
-      threadId: 'img-hydrate',
-      connection: { ...adapter, hydrateGeneration },
-      persistence: true,
-    })
+    const { result } = renderInjectable(() =>
+      injectGenerateImage({
+        threadId: 'img-hydrate',
+        connection: { ...adapter, hydrateGeneration },
+        persistence: true,
+      }),
+    )
 
     await flushPromises()
 
@@ -319,11 +289,13 @@ describe('injectGenerateSpeech', () => {
       },
       activeRun: null,
     }))
-    const { result } = renderInjectGenerateSpeech({
-      threadId: 'tts-hydrate',
-      connection: { ...adapter, hydrateGeneration },
-      persistence: true,
-    })
+    const { result } = renderInjectable(() =>
+      injectGenerateSpeech({
+        threadId: 'tts-hydrate',
+        connection: { ...adapter, hydrateGeneration },
+        persistence: true,
+      }),
+    )
 
     await flushPromises()
 
@@ -339,5 +311,104 @@ describe('injectGenerateSpeech', () => {
       artifacts: [artifact],
     })
     expect(result.runId()).toBeNull()
+  })
+})
+
+// RUN_STARTED, then the given chunks, as the 3D model server route streams them.
+function create3DModelChunks(chunks: Array<StreamChunk>): Array<StreamChunk> {
+  return [
+    {
+      type: EventType.RUN_STARTED,
+      runId: 'run-3d',
+      threadId: 'thread-3d',
+      timestamp: 100,
+    },
+    ...chunks,
+  ]
+}
+
+describe('injectGenerate3DModel', () => {
+  it('reports progress, then stores the model result', async () => {
+    const model: Model3DResult = {
+      jobId: 'job-3d',
+      url: 'https://cdn.example.com/chair.glb',
+      format: 'glb',
+      previewImageUrl: 'https://cdn.example.com/chair.png',
+    }
+    const { adapter } = createRunContextCaptureAdapter(
+      create3DModelChunks([
+        {
+          type: EventType.CUSTOM,
+          name: 'generation:progress',
+          value: { progress: 40, message: 'processing' },
+          timestamp: 200,
+        },
+        {
+          type: EventType.CUSTOM,
+          name: 'generation:result',
+          value: model,
+          timestamp: 300,
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-3d',
+          threadId: 'thread-3d',
+          timestamp: 400,
+        },
+      ]),
+    )
+    const progressUpdates: Array<[number, string | undefined]> = []
+    const { result, flush } = renderInjectable(() =>
+      injectGenerate3DModel({
+        threadId: 'thread-3d',
+        connection: adapter,
+        onProgress: (progress, message) => {
+          progressUpdates.push([progress, message])
+        },
+      }),
+    )
+
+    await result.generate({ prompt: 'A low-poly wooden chair' })
+    flush()
+
+    expect(progressUpdates).toEqual([[40, 'processing']])
+    expect(result.result()).toEqual({
+      jobId: 'job-3d',
+      url: 'https://cdn.example.com/chair.glb',
+      format: 'glb',
+      previewImageUrl: 'https://cdn.example.com/chair.png',
+    })
+    expect(result.status()).toBe('success')
+    expect(result.error()).toBeUndefined()
+  })
+
+  it('surfaces a RUN_ERROR as the error and keeps no result', async () => {
+    const { adapter } = createRunContextCaptureAdapter(
+      create3DModelChunks([
+        {
+          type: EventType.RUN_ERROR,
+          message: 'Provider job failed',
+          timestamp: 200,
+        },
+      ]),
+    )
+    const onError = vi.fn()
+    const { result, flush } = renderInjectable(() =>
+      injectGenerate3DModel({
+        threadId: 'thread-3d-error',
+        connection: adapter,
+        onError,
+      }),
+    )
+
+    await result.generate({ prompt: 'A low-poly wooden chair' })
+    flush()
+
+    expect(result.error()?.message).toBe('Provider job failed')
+    expect(result.status()).toBe('error')
+    expect(result.result()).toBeNull()
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Provider job failed' }),
+    )
   })
 })

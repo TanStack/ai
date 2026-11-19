@@ -7,8 +7,10 @@ import { useGenerateSpeech } from '../src/use-generate-speech'
 import { useTranscription } from '../src/use-transcription'
 import { useSummarize } from '../src/use-summarize'
 import { useGenerateVideo } from '../src/use-generate-video'
+import { useGenerate3DModel } from '../src/use-generate-3d-model'
 import { createMockConnectionAdapter } from './test-utils'
 import type {
+  Model3DResult,
   PersistedArtifactRef,
   StreamChunk,
   TTSResult,
@@ -756,6 +758,104 @@ describe('useGenerateImage', () => {
       })
       expect(result.runId()).toBeNull()
     })
+  })
+})
+
+describe('useGenerate3DModel', () => {
+  const model3DResult: Model3DResult = {
+    jobId: 'job-3d-1',
+    url: 'https://example.com/robot.glb',
+    format: 'glb',
+    previewImageUrl: 'https://example.com/robot.png',
+  }
+
+  // The server route emits one progress event per provider poll, then the
+  // finished model.
+  function create3DModelChunks(): Array<StreamChunk> {
+    return [
+      {
+        type: EventType.RUN_STARTED,
+        runId: 'run-1',
+        threadId: 'thread-1',
+        timestamp: Date.now(),
+      },
+      {
+        type: EventType.CUSTOM,
+        name: 'generation:progress',
+        value: { progress: 10, message: 'pending' },
+        timestamp: Date.now(),
+      },
+      {
+        type: EventType.CUSTOM,
+        name: 'generation:progress',
+        value: { progress: 60, message: 'processing' },
+        timestamp: Date.now(),
+      },
+      {
+        type: EventType.CUSTOM,
+        name: 'generation:result',
+        value: model3DResult,
+        timestamp: Date.now(),
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        runId: 'run-1',
+        threadId: 'thread-1',
+        timestamp: Date.now(),
+      },
+    ]
+  }
+
+  it('reports poll progress, then stores the finished model', async () => {
+    const onProgress = vi.fn()
+    const adapter = createMockConnectionAdapter({
+      chunks: create3DModelChunks(),
+    })
+
+    const { result } = renderHook(() =>
+      useGenerate3DModel({
+        threadId: 'thread-1',
+        connection: adapter,
+        onProgress,
+      }),
+    )
+
+    await result.generate({ prompt: 'A small toy robot' })
+
+    expect(onProgress.mock.calls).toEqual([
+      [10, 'pending'],
+      [60, 'processing'],
+    ])
+    expect(result.result()).toEqual({
+      jobId: 'job-3d-1',
+      url: 'https://example.com/robot.glb',
+      format: 'glb',
+      previewImageUrl: 'https://example.com/robot.png',
+    })
+    expect(result.status()).toBe('success')
+    expect(result.isLoading()).toBe(false)
+  })
+
+  it('surfaces a stream error and keeps the result empty', async () => {
+    const onError = vi.fn()
+    const adapter = createMockConnectionAdapter({
+      chunks: createErrorChunks('3D model generation failed'),
+    })
+
+    const { result } = renderHook(() =>
+      useGenerate3DModel({
+        threadId: 'thread-1',
+        connection: adapter,
+        onError,
+      }),
+    )
+
+    await result.generate({ prompt: 'A small toy robot' })
+
+    expect(result.status()).toBe('error')
+    expect(result.error()?.message).toBe('3D model generation failed')
+    expect(result.result()).toBeNull()
+    expect(onError).toHaveBeenCalledWith(expect.any(Error))
   })
 })
 

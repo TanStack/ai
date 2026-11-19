@@ -1,19 +1,20 @@
 ---
 title: fal.ai
 id: fal-adapter
-description: "Use fal.ai in TanStack AI with @tanstack/ai-fal: 600+ hosted models for images, video, live video, speech, transcription, music, and sound effects."
+description: "Use fal.ai in TanStack AI with @tanstack/ai-fal: 600+ hosted models for images, video, live video, 3D models, speech, transcription, music, and sound effects."
 keywords:
   - tanstack ai
   - fal.ai
   - fal
   - image generation
   - video generation
+  - 3d model generation
   - flux
   - nano banana
   - adapter
 ---
 
-The fal.ai adapter calls hosted models for images, video, live video, speech, transcription, music, and sound effects. It has no text chat and no tools.
+The fal.ai adapter calls hosted models for images, video, live video, 3D models, speech, transcription, music, and sound effects. It has no text chat and no tools.
 
 The quick setup below generates an image on your server and shows it in React. For a full app, see the [media example](https://github.com/TanStack/ai/tree/main/examples/ts-react-media).
 
@@ -186,6 +187,39 @@ console.log(job.jobId);
 
 The `duration` values of each model are in [Video durations](#video-durations). To poll from a React component, see [Video Generation](../media/video-generation).
 
+## 3D models
+
+`fal3DModel()` turns an image, a text prompt, or an existing mesh into a 3D model file. Like video, it runs as a job. With `wait: true`, `generate3DModel()` returns the finished model:
+
+```typescript
+import { generate3DModel } from "@tanstack/ai";
+import { fal3DModel } from "@tanstack/ai-fal";
+
+const model = await generate3DModel({
+  adapter: fal3DModel("fal-ai/hunyuan-3d/v3.1/pro/image-to-3d"),
+  prompt: [
+    {
+      type: "image",
+      source: { type: "url", value: "https://example.com/concept/chest.png" },
+    },
+  ],
+  threadId: "thread-1",
+  wait: true,
+  modelOptions: { face_count: 40_000, enable_pbr: true },
+});
+
+console.log(model.url, model.format); // "https://...glb", "glb"
+```
+
+3D model generation is experimental. How the prompt reaches fal:
+
+- Text goes to `prompt`.
+- Image parts go to the image field of the model, for example `input_image_url` on Hunyuan3D.
+- One `model3d` part goes to the mesh field. See [Mesh input models](#mesh-input-models).
+- A part that the model cannot use throws before the job starts.
+
+`url` on the result is the best GLB. `files` holds every mesh file, each with a `role` such as `"rigged"`, and the texture files with the role `"texture"`. To stream the job to React, and for a full pipeline, see [3D Model Generation](../media/3d-model-generation).
+
 ## Live video
 
 `falLiveVideo("minimax/h3-max/director")` starts a live video stream that you can steer. The browser connects through a proxy on your server. See [Live Generation](../media/live-generation#fal-h3-max-director).
@@ -329,6 +363,34 @@ fal has hundreds of models. These are popular picks. Any fal model id works.
 | `fal-ai/ltx-2/text-to-video/fast` | Text-to-video | Fast text-to-video |
 | `fal-ai/ltx-2/image-to-video/fast` | Image-to-video | Fast image-to-video |
 
+### 3D model endpoints
+
+`fal3DModel()` knows these families. Write the id as a string literal, and TypeScript completes `modelOptions` and narrows the prompt parts. Any other fal 3D id also works, with no types.
+
+| Family | Ids | Input |
+|--------|-----|-------|
+| Hunyuan3D 3.1 | `fal-ai/hunyuan-3d/v3.1/pro/image-to-3d`, `.../pro/text-to-3d`, `.../rapid/image-to-3d`, `.../rapid/text-to-3d` | One image, or text |
+| Hunyuan3D 3 | `fal-ai/hunyuan3d-v3/image-to-3d`, `.../text-to-3d` | One image, or text |
+| Hunyuan3D 2 | `fal-ai/hunyuan3d/v2` (also `/turbo`, `/mini`, `/mini/turbo`, `/multi-view`, `/multi-view/turbo`) | One image. Multi-view takes its views in `modelOptions`. |
+| Meshy 7.1 | `meshy/v7.1/image-to-3d`, `meshy/v7.1/multi-image-to-3d`, `meshy/v7.1/text-to-3d` | Image, images, or text |
+| Meshy 6 | `fal-ai/meshy/v6/image-to-3d`, `fal-ai/meshy/v6/text-to-3d`, `fal-ai/meshy/v6-preview/text-to-3d` | Image, or text |
+| TRELLIS | `fal-ai/trellis`, `fal-ai/trellis/multi`, `fal-ai/trellis-2` | One or more images |
+| Tripo | `tripo3d/tripo/v2.5/image-to-3d`, `tripo3d/tripo/v2.5/multiview-to-3d` | One image. Multi-view takes its views in `modelOptions`. |
+| Rodin | `fal-ai/hyper3d/rodin`, `fal-ai/hyper3d/rodin/v2` | Images and text |
+| SAM 3 | `fal-ai/sam-3/3d-objects`, `fal-ai/sam-3/3d-body` | An image, and text for objects |
+
+#### Mesh input models
+
+These models take an existing mesh. Send the mesh as one `model3d` part. The adapter puts its URL in the mesh field:
+
+| Model | What it does | Mesh field | Other prompt parts |
+|-------|--------------|------------|--------------------|
+| `meshy/v7/retexture` | New textures from a style image or text, up to 8k | `model_url` | One image (`image_style_url`), or text (`text_style_prompt`) |
+| `fal-ai/trellis-2/retexture` | New textures from a reference image | `mesh_url` | One image |
+| `tripo3d/tripo/remesh` | A new mesh with fewer faces, with the textures baked on | `mesh_url` | None. Set `face_limit` in `modelOptions`. |
+
+For a low-poly mesh with quad faces, set `topology: 'quad'` and `target_polycount` in the `modelOptions` of `meshy/v7.1/image-to-3d`.
+
 ### Live models
 
 | Model | Description |
@@ -401,13 +463,14 @@ Named sizes change by model.
 | --- | --- | --- |
 | `fal-ai/kling-video/v1.6/{standard,pro}/text-to-video`, `fal-ai/kling-video/v2.6/pro/{text,image}-to-video` | `"5"` or `"10"` | discrete |
 | `fal-ai/kling-video/v3/pro/{text,image}-to-video` | `"3"` to `"15"` | discrete |
-| `fal-ai/pika/v2.2/text-to-video` | `"5"` or `"10"` | discrete |
-| `fal-ai/ltx-2.3/{text,image}-to-video` (and `/fast`) | `"6"`, `"8"`, or `"10"` | discrete |
-| `fal-ai/luma-dream-machine/ray-2` | `"5s"` or `"9s"` | discrete |
+| `fal-ai/ltx-2.3/{text,image}-to-video` | `6`, `8`, or `10` | discrete |
+| `fal-ai/ltx-2.3/{text,image}-to-video/fast` | `6` to `20`, in steps of 2 | discrete |
 | `fal-ai/veo3.1`, `fal-ai/veo3.1/fast` (and `/image-to-video`), `fal-ai/veo3` (and `/image-to-video`) | `"4s"`, `"6s"`, or `"8s"` | discrete |
-| `fal-ai/wan-25-preview/text-to-video` | `"2"` to `"15"` | discrete |
+| `fal-ai/wan-25-preview/text-to-video` | `"5"` or `"10"` | discrete |
 | `fal-ai/minimax/video-01` | not accepted | `{ kind: "none" }` |
 | `fal-ai/hunyuan-video-v1.5/text-to-video` | not accepted (uses `num_frames`) | `{ kind: "none" }` |
+
+`@fal-ai/client` has no types for Veo and Kling 1.6. For these models, `duration` takes any value. Use `snapDuration()` to get a valid one.
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
@@ -464,6 +527,7 @@ Each factory takes `model` first and an optional `config` (`apiKey`, `proxyUrl`,
 | `falSpeech(model, config?)` | `FalSpeechAdapter` | `generateSpeech()`. The audio comes back as base64 in `result.audio`. |
 | `falTranscription(model, config?)` | `FalTranscriptionAdapter` | `generateTranscription()` |
 | `falAudio(model, config?)` | `FalAudioAdapter` | `generateAudio()`. The result has a URL at `result.audio.url`. |
+| `fal3DModel(model, config?)` | `Fal3DModelAdapter` | `generate3DModel()`, `get3DModelJobStatus()`. Experimental. |
 | `falFiles(config?)` | `FalFilesAdapter` | The [Files API](../advanced/files-api) |
 
 Helpers:
