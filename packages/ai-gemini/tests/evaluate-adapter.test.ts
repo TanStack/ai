@@ -227,6 +227,36 @@ describe('GeminiEvaluateAdapter', () => {
     })
   })
 
+  it('serializes a structured object instruction to a JSON string', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        model: 'gemini-decision-1',
+        answers: { pick: { type: 'noul', noul: 0.5 } },
+        usage: {
+          total_input_tokens: 1,
+          total_output_tokens: 0,
+          total_tokens: 1,
+        },
+      }),
+    )
+
+    await decide({
+      adapter: adapter(),
+      state,
+      questions: {
+        pick: boolean({
+          instructions: { question: 'Is this urgent?', locale: 'en' },
+        }),
+      },
+    })
+
+    const { body } = await capturedRequest()
+    // Gemini takes a string instruction; a structured object is JSON-stringified.
+    expect(body.questions.pick.instructions).toBe(
+      '{"question":"Is this urgent?","locale":"en"}',
+    )
+  })
+
   it('throws with status on a non-OK response', async () => {
     fetchMock.mockResolvedValue(
       new Response('bad request', { status: 400, statusText: 'Bad Request' }),

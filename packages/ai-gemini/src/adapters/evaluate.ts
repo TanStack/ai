@@ -132,33 +132,48 @@ function mapUsage(usage: unknown) {
 }
 
 /**
+ * Serializes question `instructions` to the string Gemini expects. The shared
+ * `EvaluateInstructions` type permits a string, object, or array. Gemini's
+ * Decisions API takes a string, so a structured instruction is JSON-stringified
+ * while a plain string passes through unchanged.
+ */
+function toGeminiInstructions(instructions: unknown): string {
+  return typeof instructions === 'string'
+    ? instructions
+    : JSON.stringify(instructions)
+}
+
+/**
  * Translates the shared wire questions to the field names the Gemini Decisions
- * API expects. Two shapes differ from the core wire format:
+ * API expects. Three shapes differ from the core wire format:
  *
+ * - `instructions` take a string; Gemini rejects a structured object/array, so a
+ *   non-string instruction is JSON-stringified.
  * - `choice` criteria take string descriptions; Gemini uses `""` for an option
  *   with no description, so a `null` from `choice({ options: { yes: null } })`
  *   becomes `""`.
  * - `noul` (boolean) criteria use `true_description` / `false_description`, not
  *   the core `true` / `false` keys.
  *
- * `score` questions pass through unchanged. `instructions` must be a string or
- * text-content; a structured-object instruction is forwarded as-is.
+ * `score` criteria pass through unchanged.
  */
 function toGeminiQuestions(
   questions: Record<string, WireQuestion>,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const [key, question] of Object.entries(questions)) {
+    const instructions = toGeminiInstructions(question.instructions)
     if (question.type === 'choice') {
       const criteria: Record<string, string> = {}
       for (const [option, description] of Object.entries(question.criteria)) {
         criteria[option] = description ?? ''
       }
-      out[key] = { ...question, criteria }
+      out[key] = { ...question, instructions, criteria }
     } else if (question.type === 'noul') {
       const { criteria, ...rest } = question
       out[key] = {
         ...rest,
+        instructions,
         ...(criteria && {
           criteria: {
             ...(criteria.true !== undefined && {
@@ -171,7 +186,7 @@ function toGeminiQuestions(
         }),
       }
     } else {
-      out[key] = question
+      out[key] = { ...question, instructions }
     }
   }
   return out
