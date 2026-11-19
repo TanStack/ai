@@ -87,6 +87,7 @@ const OPERATION_NAME: Record<GenerationActivity, string> = {
   evaluate: 'evaluate',
   summarize: 'summarize',
   world: 'world_generation',
+  motion: 'motion_generation',
   liveVideo: 'live_video_generation',
 }
 

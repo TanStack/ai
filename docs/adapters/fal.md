@@ -1,7 +1,7 @@
 ---
 title: fal.ai
 id: fal-adapter
-description: "Use fal.ai in TanStack AI with @tanstack/ai-fal: 600+ hosted models for images, video, live video, 3D models, speech, transcription, music, and sound effects."
+description: "Use fal.ai in TanStack AI with @tanstack/ai-fal: 600+ hosted models for images, video, live video, motion clips, 3D models, speech, transcription, music, and sound effects."
 keywords:
   - tanstack ai
   - fal.ai
@@ -14,7 +14,7 @@ keywords:
   - adapter
 ---
 
-The fal.ai adapter calls hosted models for images, video, live video, 3D models, speech, transcription, music, and sound effects. It has no text chat and no tools.
+The fal.ai adapter calls hosted models for images, video, live video, motion clips, 3D models, speech, transcription, music, and sound effects. It has no text chat and no tools.
 
 The quick setup below generates an image on your server and shows it in React. For a full app, see the [media example](https://github.com/TanStack/ai/tree/main/examples/ts-react-media).
 
@@ -224,6 +224,56 @@ console.log(model.url, model.format); // "https://...glb", "glb"
 
 `falLiveVideo("minimax/h3-max/director")` starts a live video stream that you can steer. The browser connects through a proxy on your server. See [Live Generation](../media/live-generation#fal-h3-max-director).
 
+## Motion
+
+`falMotion` makes a skeletal animation clip (FBX) from a prompt. It runs as a job. `generateMotion()` submits it, and `getMotionJobStatus()` reads its status:
+
+```typescript
+import { generateMotion, getMotionJobStatus } from "@tanstack/ai";
+import { falMotion } from "@tanstack/ai-fal";
+
+const adapter = falMotion("fal-ai/hunyuan-motion");
+
+const { jobId } = await generateMotion({
+  adapter,
+  prompt: "A heavy two-handed overhead axe swing with a slow wind-up",
+  threadId: "orc-attacks",
+  duration: 3,
+  modelOptions: {
+    seed: 42,
+    guidance_scale: 7,
+  },
+});
+
+const status = await getMotionJobStatus({ adapter, jobId });
+
+console.log(status.status); // "pending" | "processing" | "completed" | "failed"
+console.log(status.motion?.assets[0]?.url); // The FBX, when the job is complete
+```
+
+The options:
+
+| Option | Values | Default |
+| --- | --- | --- |
+| `duration` | 0.5 to 12 seconds | 5 |
+| `modelOptions.seed` | Any integer. Send the same seed again to repeat a take. | Random |
+| `modelOptions.guidance_scale` | 1 to 10. A higher value follows the prompt more closely. | 5 |
+| `modelOptions.output_format` | `"fbx"` for an FBX file, `"dict"` for raw JSON motion data | `"fbx"` |
+
+What you get back:
+
+- The `fbx_file` output becomes an asset with `format: "fbx"`. With the default `output_format`, fal returns only this file.
+- If fal also returns `motion_json`, it becomes an asset with `format: "json"`.
+- fal names every file `hy_motion_000.fbx`. Save each clip under your own name.
+- `seed` is the seed that fal used. `usage` holds the billed units.
+- fal does not return clip length, frame rate, or joint names. The FBX holds an SMPL-H skeleton (52 bones, root bone `Pelvis`) at 30 fps, plus a skinned mannequin mesh. Root motion is in the `Pelvis` bone. Retarget the skeleton to your rig in your engine.
+- fal takes no character or skeleton input.
+- File URLs expire after the media expiry time in your fal account. Download the files and store them.
+
+`cancelMotionJob()` uses the fal queue cancel. fal removes a queued job. A running job can still finish. fal refuses a cancel for a completed job.
+
+See [Motion Generation](../media/motion-generation) for streaming, agent tools, and engine import.
+
 ## Speech
 
 `falSpeech` gets the audio from the fal CDN and returns it as base64:
@@ -396,6 +446,15 @@ For a low-poly mesh with quad faces, set `topology: 'quad'` and `target_polycoun
 | Model | Description |
 |-------|-------------|
 | `minimax/h3-max/director` | A live stream that you can steer. Use `falLiveVideo()` with `generateLiveVideo()`. |
+
+### Motion models
+
+| Model | Description |
+|-------|-------------|
+| `fal-ai/hunyuan-motion` | Hunyuan Motion 1B. About $0.08 per generation. |
+| `fal-ai/hunyuan-motion/fast` | Hunyuan Motion 0.46B, faster. About $0.06 per generation. |
+
+Both take the same options and return FBX. Use them with `falMotion()` and `generateMotion()`. Prices are from the fal model pages and can change.
 
 ### Text-to-speech models
 

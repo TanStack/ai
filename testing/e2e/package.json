@@ -56,6 +56,7 @@
     "@tanstack/ai-skills": "workspace:*",
     "@tanstack/ai-solid": "workspace:*",
     "@tanstack/ai-typesafe": "workspace:*",
+    "@tanstack/ai-uthana": "workspace:*",
     "@tanstack/ai-vercel-gateway": "workspace:*",
     "@tanstack/ai-vertex": "workspace:*",
     "@tanstack/ai-worldlabs": "workspace:*",

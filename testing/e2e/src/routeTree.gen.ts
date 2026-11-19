@@ -38,6 +38,7 @@ import { Route as JsonTransportRouteImport } from './routes/json-transport'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
 import { Route as MessageHistoryPagingRouteImport } from './routes/message-history-paging'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
+import { Route as MotionTestRouteImport } from './routes/motion-test'
 import { Route as PersistenceDurabilityRouteImport } from './routes/persistence-durability'
 import { Route as SolidReactiveChatRouteImport } from './routes/solid-reactive-chat'
 import { Route as SubagentsTestRouteImport } from './routes/subagents-test'
@@ -163,6 +164,7 @@ import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-t
 import { Route as ApiMistralStrictToolNullWireRouteImport } from './routes/api.mistral-strict-tool-null-wire'
 import { Route as ApiMistralTruncatedToolCallRouteImport } from './routes/api.mistral-truncated-tool-call'
 import { Route as ApiMoonshotUsageDetailsRouteImport } from './routes/api.moonshot-usage-details'
+import { Route as ApiMotionRouteImport } from './routes/api.motion'
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
 import { Route as ApiNeonWireRouteImport } from './routes/api.neon-wire'
 import { Route as ApiNonStreamingRunErrorRouteImport } from './routes/api.non-streaming-run-error'
@@ -378,6 +380,11 @@ const MessageHistoryPagingRoute = MessageHistoryPagingRouteImport.update({
 const MiddlewareTestRoute = MiddlewareTestRouteImport.update({
   id: '/middleware-test',
   path: '/middleware-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MotionTestRoute = MotionTestRouteImport.update({
+  id: '/motion-test',
+  path: '/motion-test',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PersistenceDurabilityRoute = PersistenceDurabilityRouteImport.update({
@@ -1033,6 +1040,11 @@ const ApiMoonshotUsageDetailsRoute = ApiMoonshotUsageDetailsRouteImport.update({
   path: '/api/moonshot-usage-details',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMotionRoute = ApiMotionRouteImport.update({
+  id: '/api/motion',
+  path: '/api/motion',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMultimodalToolResultWireRoute =
   ApiMultimodalToolResultWireRouteImport.update({
     id: '/api/multimodal-tool-result-wire',
@@ -1428,6 +1440,7 @@ export interface FileRoutesByFullPath {
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
+  '/motion-test': typeof MotionTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
@@ -1552,6 +1565,7 @@ export interface FileRoutesByFullPath {
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/mistral-truncated-tool-call': typeof ApiMistralTruncatedToolCallRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
+  '/api/motion': typeof ApiMotionRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
@@ -1652,6 +1666,7 @@ export interface FileRoutesByTo {
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
+  '/motion-test': typeof MotionTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
@@ -1776,6 +1791,7 @@ export interface FileRoutesByTo {
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/mistral-truncated-tool-call': typeof ApiMistralTruncatedToolCallRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
+  '/api/motion': typeof ApiMotionRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
@@ -1877,6 +1893,7 @@ export interface FileRoutesById {
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
+  '/motion-test': typeof MotionTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
@@ -2001,6 +2018,7 @@ export interface FileRoutesById {
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/mistral-truncated-tool-call': typeof ApiMistralTruncatedToolCallRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
+  '/api/motion': typeof ApiMotionRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
@@ -2103,6 +2121,7 @@ export interface FileRouteTypes {
     | '/markdown-cjk'
     | '/message-history-paging'
     | '/middleware-test'
+    | '/motion-test'
     | '/persistence-durability'
     | '/solid-reactive-chat'
     | '/subagents-test'
@@ -2227,6 +2246,7 @@ export interface FileRouteTypes {
     | '/api/mistral-strict-tool-null-wire'
     | '/api/mistral-truncated-tool-call'
     | '/api/moonshot-usage-details'
+    | '/api/motion'
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
     | '/api/non-streaming-run-error'
@@ -2327,6 +2347,7 @@ export interface FileRouteTypes {
     | '/markdown-cjk'
     | '/message-history-paging'
     | '/middleware-test'
+    | '/motion-test'
     | '/persistence-durability'
     | '/solid-reactive-chat'
     | '/subagents-test'
@@ -2451,6 +2472,7 @@ export interface FileRouteTypes {
     | '/api/mistral-strict-tool-null-wire'
     | '/api/mistral-truncated-tool-call'
     | '/api/moonshot-usage-details'
+    | '/api/motion'
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
     | '/api/non-streaming-run-error'
@@ -2551,6 +2573,7 @@ export interface FileRouteTypes {
     | '/markdown-cjk'
     | '/message-history-paging'
     | '/middleware-test'
+    | '/motion-test'
     | '/persistence-durability'
     | '/solid-reactive-chat'
     | '/subagents-test'
@@ -2675,6 +2698,7 @@ export interface FileRouteTypes {
     | '/api/mistral-strict-tool-null-wire'
     | '/api/mistral-truncated-tool-call'
     | '/api/moonshot-usage-details'
+    | '/api/motion'
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
     | '/api/non-streaming-run-error'
@@ -2776,6 +2800,7 @@ export interface RootRouteChildren {
   MarkdownCjkRoute: typeof MarkdownCjkRoute
   MessageHistoryPagingRoute: typeof MessageHistoryPagingRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
+  MotionTestRoute: typeof MotionTestRoute
   PersistenceDurabilityRoute: typeof PersistenceDurabilityRoute
   SolidReactiveChatRoute: typeof SolidReactiveChatRoute
   SubagentsTestRoute: typeof SubagentsTestRoute
@@ -2900,6 +2925,7 @@ export interface RootRouteChildren {
   ApiMistralStrictToolNullWireRoute: typeof ApiMistralStrictToolNullWireRoute
   ApiMistralTruncatedToolCallRoute: typeof ApiMistralTruncatedToolCallRoute
   ApiMoonshotUsageDetailsRoute: typeof ApiMoonshotUsageDetailsRoute
+  ApiMotionRoute: typeof ApiMotionRoute
   ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
   ApiNeonWireRoute: typeof ApiNeonWireRoute
   ApiNonStreamingRunErrorRoute: typeof ApiNonStreamingRunErrorRoute
@@ -3169,6 +3195,13 @@ declare module '@tanstack/react-router' {
       path: '/middleware-test'
       fullPath: '/middleware-test'
       preLoaderRoute: typeof MiddlewareTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/motion-test': {
+      id: '/motion-test'
+      path: '/motion-test'
+      fullPath: '/motion-test'
+      preLoaderRoute: typeof MotionTestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/persistence-durability': {
@@ -4046,6 +4079,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMoonshotUsageDetailsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/motion': {
+      id: '/api/motion'
+      path: '/api/motion'
+      fullPath: '/api/motion'
+      preLoaderRoute: typeof ApiMotionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/multimodal-tool-result-wire': {
       id: '/api/multimodal-tool-result-wire'
       path: '/api/multimodal-tool-result-wire'
@@ -4613,6 +4653,7 @@ const rootRouteChildren: RootRouteChildren = {
   MarkdownCjkRoute: MarkdownCjkRoute,
   MessageHistoryPagingRoute: MessageHistoryPagingRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
+  MotionTestRoute: MotionTestRoute,
   PersistenceDurabilityRoute: PersistenceDurabilityRoute,
   SolidReactiveChatRoute: SolidReactiveChatRoute,
   SubagentsTestRoute: SubagentsTestRoute,
@@ -4742,6 +4783,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMistralStrictToolNullWireRoute: ApiMistralStrictToolNullWireRoute,
   ApiMistralTruncatedToolCallRoute: ApiMistralTruncatedToolCallRoute,
   ApiMoonshotUsageDetailsRoute: ApiMoonshotUsageDetailsRoute,
+  ApiMotionRoute: ApiMotionRoute,
   ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,
   ApiNeonWireRoute: ApiNeonWireRoute,
   ApiNonStreamingRunErrorRoute: ApiNonStreamingRunErrorRoute,

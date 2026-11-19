@@ -48,6 +48,7 @@ export type GenerationActivity =
   | 'evaluate'
   | 'summarize'
   | 'world'
+  | 'motion'
   | 'liveVideo'
 
 /**
