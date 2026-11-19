@@ -14,6 +14,8 @@ import type { MotionGenerationResult, MotionStatusResult } from '@tanstack/ai'
 
 const MODEL = 'fal-ai/hunyuan-motion'
 const GUIDANCE_SCALE = 5 // fal default; listed so the manifest is explicit
+// Uthana allows 4 concurrent jobs. Cap every set so --set uthana does not fail.
+const CLIP_CONCURRENCY = 4
 
 export interface ClipSpec {
   name: string
@@ -242,6 +244,27 @@ async function runClip(spec: ClipSpec, out: string): Promise<ClipRecord> {
   return record
 }
 
+async function runClips(
+  clips: Array<ClipSpec>,
+  out: string,
+): Promise<Array<ClipRecord>> {
+  const records: Array<ClipRecord> = new Array(clips.length)
+  let next = 0
+  const workers = Math.min(CLIP_CONCURRENCY, clips.length)
+  await Promise.all(
+    Array.from({ length: workers }, async () => {
+      while (next < clips.length) {
+        const index = next
+        next += 1
+        const spec = clips[index]
+        if (!spec) continue
+        records[index] = await runClip(spec, out)
+      }
+    }),
+  )
+  return records
+}
+
 async function main() {
   const { only, out, set } = parseArgs(process.argv.slice(2))
   await mkdir(out, { recursive: true })
@@ -263,18 +286,21 @@ async function main() {
     .then((text) => JSON.parse(text).clips as Record<string, ClipRecord>)
     .catch(() => ({}))
 
-  const records = await Promise.all(clips.map((spec) => runClip(spec, out)))
+  const records = await runClips(clips, out)
   const merged = { ...previous }
   for (const record of records) merged[record.name] = record
 
+  const ran = records[0]
   await writeFile(
     manifestPath,
     JSON.stringify(
       {
         generatedWith:
-          '@tanstack/ai generateMotion + @tanstack/ai-fal falMotion',
-        provider: 'fal',
-        model: MODEL,
+          ran?.provider === 'uthana'
+            ? '@tanstack/ai generateMotion + @tanstack/ai-uthana uthanaMotion'
+            : '@tanstack/ai generateMotion + @tanstack/ai-fal falMotion',
+        provider: ran?.provider ?? 'fal',
+        model: ran?.model ?? MODEL,
         updatedAt: new Date().toISOString(),
         clips: merged,
       },

@@ -185,6 +185,47 @@ describe('uthanaMotion', () => {
     expect(urls).toEqual(['Kaydara FBX Binary  fake-fbx', 'glTF fake-glb'])
   })
 
+  it('downloads with defaults when a later adapter polls the job', async () => {
+    const uthana = fakeUthana({ jobs: [finished] })
+    const defaults = {
+      character_id: 'orc-1',
+      formats: ['fbx', 'glb'] as Array<'fbx' | 'glb'>,
+      fps: 30 as const,
+    }
+    const { jobId } = await generateMotion({
+      adapter: uthanaMotion('text-to-motion-3.0', {
+        apiKey: 'uth-test',
+        fetch: uthana.fetch,
+      }),
+      threadId: 'orc',
+      prompt: 'a heavy warrior swings an axe',
+      duration: 4,
+      modelOptions: defaults,
+    })
+
+    const status = await getMotionJobStatus({
+      adapter: uthanaMotion('text-to-motion-3.0', {
+        apiKey: 'uth-test',
+        fetch: uthana.fetch,
+        defaults,
+      }),
+      jobId,
+    })
+
+    expect(status.status).toBe('completed')
+    expect(status.motion?.assets.map((asset) => asset.format)).toEqual([
+      'fbx',
+      'glb',
+    ])
+    const downloads = uthana.seen
+      .filter((r) => r.url.includes('/motion/file/'))
+      .map((r) => r.url)
+    expect(downloads).toEqual([
+      `${BASE}/motion/file/motion_viewer/orc-1/motion-9/fbx/uthana-motion-9.fbx?fps=30`,
+      `${BASE}/motion/file/motion_viewer/orc-1/motion-9/glb/uthana-motion-9.glb?fps=30`,
+    ])
+  })
+
   it('reports a failed job with the provider exception', async () => {
     const uthana = fakeUthana({
       jobs: [{ status: 'FAILED', result: { exc: 'Generation crashed' } }],
