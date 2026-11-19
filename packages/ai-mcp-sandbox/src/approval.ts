@@ -38,6 +38,12 @@ export interface ApprovalStore {
 }
 
 const TTL_MS = 5 * 60 * 1000
+/**
+ * Hard ceiling on pending proposals. Even if every proposal is live, the map
+ * cannot grow without bound: once full, propose() evicts the oldest-expiring
+ * entry so a flood of un-consumed proposals cannot exhaust memory.
+ */
+const MAX_PENDING = 10_000
 
 export function createApprovalStore(ttlMs: number = TTL_MS): ApprovalStore {
   const pending = new Map<string, Proposal>()
@@ -48,11 +54,25 @@ export function createApprovalStore(ttlMs: number = TTL_MS): ApprovalStore {
     for (const [id, p] of pending) {
       if (p.expiresAtMs < t) pending.delete(id)
     }
+    // After dropping expired entries, if still at the ceiling, evict the
+    // oldest-expiring proposals until there is room for one more.
+    while (pending.size >= MAX_PENDING) {
+      let oldestId: string | undefined
+      let oldestExp = Infinity
+      for (const [id, p] of pending) {
+        if (p.expiresAtMs < oldestExp) {
+          oldestExp = p.expiresAtMs
+          oldestId = id
+        }
+      }
+      if (oldestId === undefined) break
+      pending.delete(oldestId)
+    }
   }
 
   return {
     propose(clientId, action) {
-      prune() // bound the map: expired proposals never linger
+      prune() // bound the map: expired/overflow proposals never linger
       // Snapshot the action so a later mutation of the caller's object cannot
       // change what phase 2 runs. The hash describes this snapshot.
       const snapshot = structuredClone(action)

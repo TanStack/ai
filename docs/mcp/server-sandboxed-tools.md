@@ -192,7 +192,7 @@ Turn a plain [Code Mode](../code-mode/code-mode) snippet into a starting manifes
 npx --package=@tanstack/ai-mcp-sandbox tanstack-ai-sandbox-import ./my-snippet.js
 ```
 
-It writes a deny-by-default manifest: no facades, the tightest limits, and an `unreviewed` flag. `sandboxedTool()` refuses to serve it until you fill in the scope, facades, and limits, then remove the flag. This keeps an unreviewed tool from running by accident.
+It writes a deny-by-default manifest: a placeholder scope, no facades, the tightest limits, and an `unreviewed` flag. `sandboxedTool()` refuses to serve any manifest that still carries the flag. The flag is the only gate it checks. It does not inspect the scope, facades, or limits, so you must review those yourself and set real values before you remove the flag. This keeps an unreviewed tool from running by accident.
 
 ## Lasting writes
 

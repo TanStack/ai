@@ -33,7 +33,22 @@ function main(argv: Array<string>): void {
     console.error(`Refusing to overwrite the snippet at ${snippetPath}.`)
     process.exit(1)
   }
-  writeFileSync(target, `${JSON.stringify(manifest, null, 2)}\n`)
+  try {
+    // 'wx' fails with EEXIST if the target exists — including when it is a
+    // hard link or symlink aliasing the snippet, which a resolved-path compare
+    // cannot detect. It also refuses to clobber a reviewed manifest in place.
+    writeFileSync(target, `${JSON.stringify(manifest, null, 2)}\n`, {
+      flag: 'wx',
+    })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+      console.error(
+        `Refusing to overwrite the existing file at ${target}. Remove it first.`,
+      )
+      process.exit(1)
+    }
+    throw error
+  }
   console.error(
     `Wrote ${target} (unreviewed). Fill scope/inject/limits and drop "unreviewed" before serving.`,
   )

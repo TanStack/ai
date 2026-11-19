@@ -736,7 +736,8 @@
         {
           "label": "Sandboxed Tools",
           "to": "mcp/server-sandboxed-tools",
-          "addedAt": "2026-11-16"
+          "addedAt": "2026-11-16",
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "MCP Server Sessions",

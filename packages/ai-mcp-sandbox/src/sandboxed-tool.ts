@@ -173,8 +173,10 @@ export function sandboxedTool(config: SandboxedToolConfig) {
       if (!result.success) {
         const message = result.error?.message ?? 'execution failed'
         const overBudget = counter.count > limits.maxInjectedCalls
-        audit(classifyFailure(message, overBudget), counter.count, 0, message)
+        // Mark audited before invoking onAudit: if the callback throws, the
+        // catch must not emit a second (error) record for this one execution.
         audited = true
+        audit(classifyFailure(message, overBudget), counter.count, 0, message)
         throw new Error(message)
       }
 
@@ -184,8 +186,10 @@ export function sandboxedTool(config: SandboxedToolConfig) {
         manifest.truncatable,
         limits.resultBytes,
       )
-      audit('ok', counter.count, byteLength(shaped))
+      // Mark audited before invoking onAudit: if the callback throws, the
+      // catch must not emit a second (error) record for this one execution.
       audited = true
+      audit('ok', counter.count, byteLength(shaped))
       return shaped
     } catch (error) {
       if (!audited) {

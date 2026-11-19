@@ -104,6 +104,26 @@ describe('sandboxedTool — end to end on quickjs', () => {
     })
   })
 
+  it('does not emit a second audit record when onAudit throws after success', async () => {
+    let calls = 0
+    const tool = sandboxedTool({
+      manifest: manifestFor(SNIPPET),
+      snippet: SNIPPET,
+      facades,
+      driver,
+      onAudit: () => {
+        calls++
+        throw new Error('sink down')
+      },
+    })
+    // The success-path onAudit throws; the catch must not call onAudit again
+    // (audited is set before the first call), so exactly one record is emitted.
+    await expect(
+      tool.execute!({ value: 'hi' }, ctx(authInfo(['demo:read']))),
+    ).rejects.toThrow('sink down')
+    expect(calls).toBe(1)
+  })
+
   it('denies a caller missing the required scope — no isolate run', async () => {
     const tool = sandboxedTool({
       manifest: manifestFor(SNIPPET),
