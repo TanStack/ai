@@ -216,6 +216,7 @@ function useMotionClip(threadId: string) {
     jobStatus,
     stopped,
     generate: (input: MotionInput) => {
+      generation.reset()
       setJobId(null)
       setJobStatus(null)
       setStopped(false)

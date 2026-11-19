@@ -4,7 +4,11 @@ import {
   generateMotion,
   getMotionJobStatus,
 } from '@tanstack/ai'
-import { createUthanaCharacter, uthanaMotion } from '../src/index'
+import {
+  createUthanaCharacter,
+  uthanaMotion,
+  UTHANA_DEFAULT_CHARACTER_ID,
+} from '../src/index'
 import type { StreamChunk } from '@tanstack/ai'
 
 const BASE = 'https://uthana.com'
@@ -211,6 +215,39 @@ describe('uthanaMotion', () => {
       .map((r) => r.url)
     const expected = `${BASE}/motion/file/motion_viewer/orc-1/motion-9/glb/uthana-motion-9.glb?fps=60`
     expect(downloads).toEqual([expected, expected])
+  })
+
+  it('downloads library fallbacks when a second adapter has different defaults', async () => {
+    const uthana = fakeUthana({ jobs: [finished] })
+    const { jobId } = await generateMotion({
+      adapter: uthanaMotion('text-to-motion-3.0', {
+        apiKey: 'uth-test',
+        fetch: uthana.fetch,
+      }),
+      threadId: 'orc',
+      prompt: 'a heavy warrior swings an axe',
+    })
+    expect(jobId).toBe('job-1')
+
+    await getMotionJobStatus({
+      adapter: uthanaMotion('text-to-motion-3.0', {
+        apiKey: 'uth-test',
+        fetch: uthana.fetch,
+        defaults: {
+          character_id: 'other-char',
+          formats: ['glb'],
+          fps: 60,
+        },
+      }),
+      jobId,
+    })
+
+    const downloads = uthana.seen
+      .filter((r) => r.url.includes('/motion/file/'))
+      .map((r) => r.url)
+    expect(downloads).toEqual([
+      `${BASE}/motion/file/motion_viewer/${UTHANA_DEFAULT_CHARACTER_ID}/motion-9/fbx/uthana-motion-9.fbx`,
+    ])
   })
 
   it('reports a failed job with the provider exception', async () => {
