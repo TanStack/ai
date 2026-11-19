@@ -22,6 +22,7 @@ import { Route as InterruptsRouteImport } from './routes/interrupts'
 import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-result'
 import { Route as McpAppsRouteImport } from './routes/mcp-apps'
 import { Route as McpDemoRouteImport } from './routes/mcp-demo'
+import { Route as OpenuiRouteImport } from './routes/openui'
 import { Route as PersistentChatRouteImport } from './routes/persistent-chat'
 import { Route as QueueingRouteImport } from './routes/queueing'
 import { Route as RealtimeRouteImport } from './routes/realtime'
@@ -55,6 +56,8 @@ import { Route as ApiMcpStatusRouteImport } from './routes/api.mcp-status'
 import { Route as ApiMcpTasksChatRouteImport } from './routes/api.mcp-tasks-chat'
 import { Route as ApiMcpTasksServerRouteImport } from './routes/api.mcp-tasks-server'
 import { Route as ApiOpenrouterCombinedRouteImport } from './routes/api.openrouter-combined'
+import { Route as ApiOpenuiChatRouteImport } from './routes/api.openui-chat'
+import { Route as ApiOpenuiLiveRouteImport } from './routes/api.openui-live'
 import { Route as ApiPersistentChatRouteImport } from './routes/api.persistent-chat'
 import { Route as ApiResumableRouteImport } from './routes/api.resumable'
 import { Route as ApiSandboxRepoReportRouteImport } from './routes/api.sandbox-repo-report'
@@ -149,6 +152,11 @@ const McpAppsRoute = McpAppsRouteImport.update({
 const McpDemoRoute = McpDemoRouteImport.update({
   id: '/mcp-demo',
   path: '/mcp-demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OpenuiRoute = OpenuiRouteImport.update({
+  id: '/openui',
+  path: '/openui',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PersistentChatRoute = PersistentChatRouteImport.update({
@@ -314,6 +322,16 @@ const ApiMcpTasksServerRoute = ApiMcpTasksServerRouteImport.update({
 const ApiOpenrouterCombinedRoute = ApiOpenrouterCombinedRouteImport.update({
   id: '/api/openrouter-combined',
   path: '/api/openrouter-combined',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpenuiChatRoute = ApiOpenuiChatRouteImport.update({
+  id: '/api/openui-chat',
+  path: '/api/openui-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpenuiLiveRoute = ApiOpenuiLiveRouteImport.update({
+  id: '/api/openui-live',
+  path: '/api/openui-live',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPersistentChatRoute = ApiPersistentChatRouteImport.update({
@@ -487,6 +505,7 @@ export interface FileRoutesByFullPath {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
+  '/openui': typeof OpenuiRoute
   '/persistent-chat': typeof PersistentChatRoute
   '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
@@ -520,6 +539,8 @@ export interface FileRoutesByFullPath {
   '/api/mcp-tasks-chat': typeof ApiMcpTasksChatRoute
   '/api/mcp-tasks-server': typeof ApiMcpTasksServerRoute
   '/api/openrouter-combined': typeof ApiOpenrouterCombinedRoute
+  '/api/openui-chat': typeof ApiOpenuiChatRoute
+  '/api/openui-live': typeof ApiOpenuiLiveRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-repo-report': typeof ApiSandboxRepoReportRoute
@@ -565,6 +586,7 @@ export interface FileRoutesByTo {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
+  '/openui': typeof OpenuiRoute
   '/persistent-chat': typeof PersistentChatRoute
   '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
@@ -598,6 +620,8 @@ export interface FileRoutesByTo {
   '/api/mcp-tasks-chat': typeof ApiMcpTasksChatRoute
   '/api/mcp-tasks-server': typeof ApiMcpTasksServerRoute
   '/api/openrouter-combined': typeof ApiOpenrouterCombinedRoute
+  '/api/openui-chat': typeof ApiOpenuiChatRoute
+  '/api/openui-live': typeof ApiOpenuiLiveRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-repo-report': typeof ApiSandboxRepoReportRoute
@@ -644,6 +668,7 @@ export interface FileRoutesById {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
+  '/openui': typeof OpenuiRoute
   '/persistent-chat': typeof PersistentChatRoute
   '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
@@ -677,6 +702,8 @@ export interface FileRoutesById {
   '/api/mcp-tasks-chat': typeof ApiMcpTasksChatRoute
   '/api/mcp-tasks-server': typeof ApiMcpTasksServerRoute
   '/api/openrouter-combined': typeof ApiOpenrouterCombinedRoute
+  '/api/openui-chat': typeof ApiOpenuiChatRoute
+  '/api/openui-live': typeof ApiOpenuiLiveRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-repo-report': typeof ApiSandboxRepoReportRoute
@@ -724,6 +751,7 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
+    | '/openui'
     | '/persistent-chat'
     | '/queueing'
     | '/realtime'
@@ -757,6 +785,8 @@ export interface FileRouteTypes {
     | '/api/mcp-tasks-chat'
     | '/api/mcp-tasks-server'
     | '/api/openrouter-combined'
+    | '/api/openui-chat'
+    | '/api/openui-live'
     | '/api/persistent-chat'
     | '/api/resumable'
     | '/api/sandbox-repo-report'
@@ -802,6 +832,7 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
+    | '/openui'
     | '/persistent-chat'
     | '/queueing'
     | '/realtime'
@@ -835,6 +866,8 @@ export interface FileRouteTypes {
     | '/api/mcp-tasks-chat'
     | '/api/mcp-tasks-server'
     | '/api/openrouter-combined'
+    | '/api/openui-chat'
+    | '/api/openui-live'
     | '/api/persistent-chat'
     | '/api/resumable'
     | '/api/sandbox-repo-report'
@@ -880,6 +913,7 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
+    | '/openui'
     | '/persistent-chat'
     | '/queueing'
     | '/realtime'
@@ -913,6 +947,8 @@ export interface FileRouteTypes {
     | '/api/mcp-tasks-chat'
     | '/api/mcp-tasks-server'
     | '/api/openrouter-combined'
+    | '/api/openui-chat'
+    | '/api/openui-live'
     | '/api/persistent-chat'
     | '/api/resumable'
     | '/api/sandbox-repo-report'
@@ -959,6 +995,7 @@ export interface RootRouteChildren {
   Issue176ToolResultRoute: typeof Issue176ToolResultRoute
   McpAppsRoute: typeof McpAppsRoute
   McpDemoRoute: typeof McpDemoRoute
+  OpenuiRoute: typeof OpenuiRoute
   PersistentChatRoute: typeof PersistentChatRoute
   QueueingRoute: typeof QueueingRoute
   RealtimeRoute: typeof RealtimeRoute
@@ -992,6 +1029,8 @@ export interface RootRouteChildren {
   ApiMcpTasksChatRoute: typeof ApiMcpTasksChatRoute
   ApiMcpTasksServerRoute: typeof ApiMcpTasksServerRoute
   ApiOpenrouterCombinedRoute: typeof ApiOpenrouterCombinedRoute
+  ApiOpenuiChatRoute: typeof ApiOpenuiChatRoute
+  ApiOpenuiLiveRoute: typeof ApiOpenuiLiveRoute
   ApiPersistentChatRoute: typeof ApiPersistentChatRoute
   ApiResumableRoute: typeof ApiResumableRoute
   ApiSandboxRepoReportRoute: typeof ApiSandboxRepoReportRoute
@@ -1114,6 +1153,13 @@ declare module '@tanstack/react-router' {
       path: '/mcp-demo'
       fullPath: '/mcp-demo'
       preLoaderRoute: typeof McpDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/openui': {
+      id: '/openui'
+      path: '/openui'
+      fullPath: '/openui'
+      preLoaderRoute: typeof OpenuiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/persistent-chat': {
@@ -1345,6 +1391,20 @@ declare module '@tanstack/react-router' {
       path: '/api/openrouter-combined'
       fullPath: '/api/openrouter-combined'
       preLoaderRoute: typeof ApiOpenrouterCombinedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openui-chat': {
+      id: '/api/openui-chat'
+      path: '/api/openui-chat'
+      fullPath: '/api/openui-chat'
+      preLoaderRoute: typeof ApiOpenuiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openui-live': {
+      id: '/api/openui-live'
+      path: '/api/openui-live'
+      fullPath: '/api/openui-live'
+      preLoaderRoute: typeof ApiOpenuiLiveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/persistent-chat': {
@@ -1585,6 +1645,7 @@ const rootRouteChildren: RootRouteChildren = {
   Issue176ToolResultRoute: Issue176ToolResultRoute,
   McpAppsRoute: McpAppsRoute,
   McpDemoRoute: McpDemoRoute,
+  OpenuiRoute: OpenuiRoute,
   PersistentChatRoute: PersistentChatRoute,
   QueueingRoute: QueueingRoute,
   RealtimeRoute: RealtimeRoute,
@@ -1618,6 +1679,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpTasksChatRoute: ApiMcpTasksChatRoute,
   ApiMcpTasksServerRoute: ApiMcpTasksServerRoute,
   ApiOpenrouterCombinedRoute: ApiOpenrouterCombinedRoute,
+  ApiOpenuiChatRoute: ApiOpenuiChatRoute,
+  ApiOpenuiLiveRoute: ApiOpenuiLiveRoute,
   ApiPersistentChatRoute: ApiPersistentChatRoute,
   ApiResumableRoute: ApiResumableRoute,
   ApiSandboxRepoReportRoute: ApiSandboxRepoReportRoute,
