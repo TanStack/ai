@@ -430,9 +430,7 @@ async function borrowHostLogin(
   }
   const content = await readHostFile(hostPath)
   if (content === undefined) {
-    throw new Error(
-      `No ${label} login on this machine. Run ${connectCommand}.`,
-    )
+    throw new Error(`No ${label} login on this machine. Run ${connectCommand}.`)
   }
   await sandbox.fs.mkdir(posix.dirname(path))
   try {
