@@ -45,6 +45,7 @@ import { buildFileHookEvent, resolveFileEvents } from './file-diff'
 import { ProjectionCapability, provideWorkspaceProjection } from './projection'
 import { resolveAllSecrets, resolveSecret } from './secrets'
 import { isStoredReplayChunk } from './align'
+import { holdRunDriverClaim, runDriverClaimHeldLocally } from './claim'
 import {
   createToolHistoryRecorder,
   stripObservedToolCalls,
@@ -141,6 +142,13 @@ interface SandboxRunState {
   pendingDiffs: Array<Promise<void>>
   /** Logger captured at setup, so terminal hooks can log watcher teardown. */
   logger?: InternalLogger
+  /**
+   * Ends the fresh producer's driver claim. Absent on an attach, and absent
+   * when this chat is already inside a claim (the takeover's own `drive`).
+   */
+  releaseDriverClaim?: () => void
+  /** A terminal hook ran. A claim that `setup` gets after this is released at once. */
+  driverClaimEnded?: boolean
   /**
    * Durability resolved once at setup (absent when the run is not durable), so
    * `onAbort` cannot reach a different verdict than the one `setup` published
@@ -585,6 +593,14 @@ function buildEnsureCtx(
   }
 }
 
+function releaseDriverClaim(state: SandboxRunState | undefined): void {
+  if (state === undefined) return
+  state.driverClaimEnded = true
+  const release = state.releaseDriverClaim
+  state.releaseDriverClaim = undefined
+  release?.()
+}
+
 /**
  * Dispatch a sandbox file event to the per-type hooks declared on the
  * definition. Errors in individual hooks are swallowed so one bad hook
@@ -798,12 +814,14 @@ export function withSandbox<TOffset extends string = string>(
       // `createOrResume` is idempotent and never resurrects a finished run, so
       // persistence's own later call stays correct and simply finds this record.
       if (durability !== undefined) {
+        let durableRecordReady = false
         try {
           await durability.runs.createOrResume({
             runId: ctx.runId,
             threadId: ctx.threadId,
             startedAt: Date.now(),
           })
+          durableRecordReady = true
         } catch (error) {
           // Best-effort: a store blip must not stop a run that is otherwise fine.
           // The run is simply invisible until persistence's own `onConfig` call.
@@ -811,6 +829,29 @@ export function withSandbox<TOffset extends string = string>(
             runId: ctx.runId,
             error,
           })
+        }
+
+        // The delivery sink keeps appending after a disconnect, and it never
+        // takes this lock. Hold the claim for the whole fresh run so a takeover
+        // cannot start a second writer while a tool call leaves the log quiet
+        // for longer than `fenceQuietMs`. Take it as soon as the record exists,
+        // so a reconnect cannot claim the run first. An attach, and a chat that
+        // is already inside a claim, must not take it again: `withLock` is not
+        // re-entrant.
+        if (
+          durableRecordReady &&
+          durability.attach !== true &&
+          ensureCtx.locks !== undefined &&
+          !runDriverClaimHeldLocally(ctx.runId)
+        ) {
+          state.releaseDriverClaim = await holdRunDriverClaim({
+            runs: durability.runs,
+            locks: ensureCtx.locks,
+            runId: ctx.runId,
+            ...(logger === undefined ? {} : { logger }),
+          })
+          // Core can run `onAbort` while `setup` still waits for the lock.
+          if (state.driverClaimEnded === true) releaseDriverClaim(state)
         }
 
         // NO ATTACH MARKER HERE. A joiner does need a chunk in the log before the
@@ -1178,187 +1219,199 @@ export function withSandbox<TOffset extends string = string>(
 
     async onFinish(ctx) {
       const state = runState.get(ctx)
-      // `chat()` also calls `onFinish` when the run pauses at an interrupt. The
-      // run is not complete, so keep the sandbox: no after-run snapshot and no
-      // `destroyOnComplete`. `onChunk` already stopped the watcher and the lease.
-      if (!state || state.interrupted) return
-      const { handle, ensureCtx } = state
-
-      // Last chance before persistence writes the transcript. Only matters if a
-      // config sync landed after the final tool chunk; the recorder is idempotent, so
-      // in the normal case this changes nothing.
-      state.toolHistory.reconcile(ctx)
-
-      await drainWatcher(state, 'finish')
-
-      let primaryError: unknown
       try {
-        await capturePortableCheckpoint(definition, state, ctx, 'finish')
+        // `chat()` also calls `onFinish` when the run pauses at an interrupt. The
+        // run is not complete, so keep the sandbox: no after-run snapshot and no
+        // `destroyOnComplete`. `onChunk` already stopped the watcher and the lease.
+        if (!state || state.interrupted) return
+        const { handle, ensureCtx } = state
 
-        const lifecycle = definition.lifecycle
+        // Last chance before persistence writes the transcript. Only matters if a
+        // config sync landed after the final tool chunk; the recorder is idempotent, so
+        // in the normal case this changes nothing.
+        state.toolHistory.reconcile(ctx)
 
-        // `handle` is absent only if `setup` never got past `definition.ensure`, in
-        // which case there is no sandbox to snapshot.
-        if (
-          lifecycle?.snapshot === 'after-run' &&
-          handle?.capabilities.snapshots &&
-          handle.snapshot
-        ) {
-          const snapshot = await handle.snapshot(`after-run-${ctx.runId}`)
-          const store = ensureCtx.store
-          if (store) {
-            const key = definition.key(ensureCtx)
-            const record = async () => {
-              const existing = await store.get(key)
-              if (!existing) return undefined
-              await store.upsert({
-                ...existing,
-                latestSnapshotId: snapshot.id,
-                updatedAt: Date.now(),
-              })
-              return existing.latestSnapshotId
+        await drainWatcher(state, 'finish')
+
+        let primaryError: unknown
+        try {
+          await capturePortableCheckpoint(definition, state, ctx, 'finish')
+
+          const lifecycle = definition.lifecycle
+
+          // `handle` is absent only if `setup` never got past `definition.ensure`, in
+          // which case there is no sandbox to snapshot.
+          if (
+            lifecycle?.snapshot === 'after-run' &&
+            handle?.capabilities.snapshots &&
+            handle.snapshot
+          ) {
+            const snapshot = await handle.snapshot(`after-run-${ctx.runId}`)
+            const store = ensureCtx.store
+            if (store) {
+              const key = definition.key(ensureCtx)
+              const record = async () => {
+                const existing = await store.get(key)
+                if (!existing) return undefined
+                await store.upsert({
+                  ...existing,
+                  latestSnapshotId: snapshot.id,
+                  updatedAt: Date.now(),
+                })
+                return existing.latestSnapshotId
+              }
+              // A provider that deletes replaced snapshots needs the ensure lock
+              // here: an overlapping `ensure()` writes back the record it read,
+              // which could restore the snapshot id deleted below.
+              const replaced = definition.provider.deleteSnapshot
+                ? await withSandboxKeyLock(ensureCtx.locks, key, record)
+                : await record()
+              if (replaced !== snapshot.id)
+                await deleteSnapshotQuietly(definition.provider, replaced, {
+                  logger: state.logger,
+                  meta: { runId: ctx.runId, phase: 'finish' },
+                })
             }
-            // A provider that deletes replaced snapshots needs the ensure lock
-            // here: an overlapping `ensure()` writes back the record it read,
-            // which could restore the snapshot id deleted below.
-            const replaced = definition.provider.deleteSnapshot
-              ? await withSandboxKeyLock(ensureCtx.locks, key, record)
-              : await record()
-            if (replaced !== snapshot.id)
-              await deleteSnapshotQuietly(definition.provider, replaced, {
-                logger: state.logger,
-                meta: { runId: ctx.runId, phase: 'finish' },
-              })
           }
-        }
 
-        if (lifecycle?.destroyOnComplete) {
-          await definition.destroy(ensureCtx)
-          await definition.hooks?.onDestroy?.()
-        }
-      } catch (error) {
-        primaryError = error
-        if (definition.lifecycle?.destroyOnComplete) {
-          try {
+          if (lifecycle?.destroyOnComplete) {
             await definition.destroy(ensureCtx)
             await definition.hooks?.onDestroy?.()
-          } catch (cleanupError) {
-            state.logger?.warn(
-              'sandbox destroy after terminal failure failed',
-              {
-                runId: ctx.runId,
-                phase: 'finish',
-                error: cleanupError,
-              },
-            )
+          }
+        } catch (error) {
+          primaryError = error
+          if (definition.lifecycle?.destroyOnComplete) {
+            try {
+              await definition.destroy(ensureCtx)
+              await definition.hooks?.onDestroy?.()
+            } catch (cleanupError) {
+              state.logger?.warn(
+                'sandbox destroy after terminal failure failed',
+                {
+                  runId: ctx.runId,
+                  phase: 'finish',
+                  error: cleanupError,
+                },
+              )
+            }
           }
         }
-      }
 
-      let snapshotCleanupError: unknown
-      try {
-        await stopSnapshotLease(state, { closePortable: true })
-      } catch (error) {
-        snapshotCleanupError = error
+        let snapshotCleanupError: unknown
+        try {
+          await stopSnapshotLease(state, { closePortable: true })
+        } catch (error) {
+          snapshotCleanupError = error
+        }
+        if (primaryError !== undefined) {
+          if (snapshotCleanupError !== undefined)
+            state.logger?.warn('sandbox snapshot writer release failed', {
+              runId: ctx.runId,
+              phase: 'finish',
+              error: snapshotCleanupError,
+            })
+          throw primaryError
+        }
+        if (snapshotCleanupError !== undefined) throw snapshotCleanupError
+      } finally {
+        releaseDriverClaim(state)
       }
-      if (primaryError !== undefined) {
-        if (snapshotCleanupError !== undefined)
-          state.logger?.warn('sandbox snapshot writer release failed', {
-            runId: ctx.runId,
-            phase: 'finish',
-            error: snapshotCleanupError,
-          })
-        throw primaryError
-      }
-      if (snapshotCleanupError !== undefined) throw snapshotCleanupError
     },
 
     async onAbort(ctx, info: AbortInfo) {
       const state = runState.get(ctx)
-      if (!state) return
-
-      // First on BOTH branches: a diff still in flight must be drained whether
-      // the sandbox is about to be destroyed or merely detached, or the final
-      // file's diff is dropped.
-      await drainWatcher(state, 'abort')
-      // Before the lease stops and before any destroy, while the files exist.
-      await checkpointFailedRun(definition, state, ctx, 'abort')
-      let releaseError: unknown
       try {
-        await stopSnapshotLease(state, { closePortable: true })
-      } catch (error) {
-        releaseError = error
-      }
+        if (!state) return
 
-      const durability = state.durability
-      const cancelled = await cancelIntent(
-        durability,
-        ctx.runId,
-        info.cancelRequested === true,
-      )
+        // First on BOTH branches: a diff still in flight must be drained whether
+        // the sandbox is about to be destroyed or merely detached, or the final
+        // file's diff is dropped.
+        await drainWatcher(state, 'abort')
+        // Before the lease stops and before any destroy, while the files exist.
+        await checkpointFailedRun(definition, state, ctx, 'abort')
+        let releaseError: unknown
+        try {
+          await stopSnapshotLease(state, { closePortable: true })
+        } catch (error) {
+          releaseError = error
+        }
 
-      if (
-        durability !== undefined &&
-        !cancelled &&
-        durability.detachOnDisconnect
-      ) {
-        // DETACH on the teardown path. Reached when the run is aborted for a
-        // reason that is NOT an out-of-band cancel while detachable — a genuine
-        // stop from elsewhere, or a host going down. The ordinary disconnect is
-        // handled by the disconnect subscriber in `setup`, which does not end the
-        // run at all.
-        //
-        // On a failed record write this branch is ABANDONED for the destroy one
-        // below, because a rejection here is the worst shape available: the
-        // verdict is unpublished, so core terminalizes the log and records a
-        // healthy detached run as failed; `detachedSince`/`sandboxKey` are
-        // unwritten, so `listReclaimable` can never surface the run and
-        // `reapDetachedRuns` can never reclaim it. A DESTROYED sandbox beats an
-        // unreachable one — the same reasoning `drainWatcher` applies to its own
-        // guarded `stop()`.
-        if (await recordDetach(definition, state, durability, ctx, 'abort')) {
+        const durability = state.durability
+        const cancelled = await cancelIntent(
+          durability,
+          ctx.runId,
+          info.cancelRequested === true,
+        )
+
+        if (
+          durability !== undefined &&
+          !cancelled &&
+          durability.detachOnDisconnect
+        ) {
+          // DETACH on the teardown path. Reached when the run is aborted for a
+          // reason that is NOT an out-of-band cancel while detachable — a genuine
+          // stop from elsewhere, or a host going down. The ordinary disconnect is
+          // handled by the disconnect subscriber in `setup`, which does not end the
+          // run at all.
+          //
+          // On a failed record write this branch is ABANDONED for the destroy one
+          // below, because a rejection here is the worst shape available: the
+          // verdict is unpublished, so core terminalizes the log and records a
+          // healthy detached run as failed; `detachedSince`/`sandboxKey` are
+          // unwritten, so `listReclaimable` can never surface the run and
+          // `reapDetachedRuns` can never reclaim it. A DESTROYED sandbox beats an
+          // unreachable one — the same reasoning `drainWatcher` applies to its own
+          // guarded `stop()`.
+          if (await recordDetach(definition, state, durability, ctx, 'abort')) {
+            if (releaseError) throw releaseError
+            return
+          }
+          await definition.destroy(state.ensureCtx)
+          await definition.hooks?.onDestroy?.()
           if (releaseError) throw releaseError
           return
         }
+
+        // ALWAYS tear down on an explicit abort, regardless of `destroyOnComplete`.
+        // The in-sandbox agent process is not killed by closing its IO stream
+        // (e.g. a Docker exec survives client disconnect), so the only reliable way
+        // to stop it — and the token/cost drain of its ongoing API calls — is to
+        // destroy the sandbox (stop the container/VM). `keepAlive` /
+        // `destroyOnComplete:false` governs *successful completion*, never cancel.
         await definition.destroy(state.ensureCtx)
         await definition.hooks?.onDestroy?.()
         if (releaseError) throw releaseError
-        return
+      } finally {
+        releaseDriverClaim(state)
       }
-
-      // ALWAYS tear down on an explicit abort, regardless of `destroyOnComplete`.
-      // The in-sandbox agent process is not killed by closing its IO stream
-      // (e.g. a Docker exec survives client disconnect), so the only reliable way
-      // to stop it — and the token/cost drain of its ongoing API calls — is to
-      // destroy the sandbox (stop the container/VM). `keepAlive` /
-      // `destroyOnComplete:false` governs *successful completion*, never cancel.
-      await definition.destroy(state.ensureCtx)
-      await definition.hooks?.onDestroy?.()
-      if (releaseError) throw releaseError
     },
 
     async onError(ctx, info) {
       const state = runState.get(ctx)
-      if (!state) return
-
-      await drainWatcher(state, 'error')
-      // Before the lease stops and before any destroy, while the files exist.
-      await checkpointFailedRun(definition, state, ctx, 'error')
-      let releaseError: unknown
       try {
-        await stopSnapshotLease(state)
-      } catch (error) {
-        releaseError = error
-      }
-      await definition.hooks?.onError?.(info.error)
+        if (!state) return
 
-      // On failure, only tear down when the lifecycle says so; otherwise leave
-      // the sandbox for a resumed retry.
-      if (definition.lifecycle?.destroyOnComplete) {
-        await definition.destroy(state.ensureCtx)
-        await definition.hooks?.onDestroy?.()
+        await drainWatcher(state, 'error')
+        // Before the lease stops and before any destroy, while the files exist.
+        await checkpointFailedRun(definition, state, ctx, 'error')
+        let releaseError: unknown
+        try {
+          await stopSnapshotLease(state)
+        } catch (error) {
+          releaseError = error
+        }
+        await definition.hooks?.onError?.(info.error)
+
+        // On failure, only tear down when the lifecycle says so; otherwise leave
+        // the sandbox for a resumed retry.
+        if (definition.lifecycle?.destroyOnComplete) {
+          await definition.destroy(state.ensureCtx)
+          await definition.hooks?.onDestroy?.()
+        }
+        if (releaseError) throw releaseError
+      } finally {
+        releaseDriverClaim(state)
       }
-      if (releaseError) throw releaseError
     },
   })
 }
