@@ -13,9 +13,7 @@ describe('makeRef', () => {
   })
 
   it('escapes a literal field named `root` so it cannot alias the sentinel', () => {
-    expect(makeRef('c', 'root', 'result')).not.toBe(
-      makeRef('c', '$', 'result'),
-    )
+    expect(makeRef('c', 'root', 'result')).not.toBe(makeRef('c', '$', 'result'))
   })
 
   it('separates result and args origins for the same path', () => {
