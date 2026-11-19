@@ -892,8 +892,7 @@ export class GrokBuildTextAdapter<
     } catch (error: unknown) {
       runFailed = true
       const signal = options.abortController?.signal ?? options.request?.signal
-      keepLogin =
-        signal?.aborted === true || durability?.attach === true
+      keepLogin = signal?.aborted === true || durability?.attach === true
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
       const message = formatAcpRequestError(error)
