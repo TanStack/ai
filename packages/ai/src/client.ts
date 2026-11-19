@@ -6,6 +6,7 @@ import type {
   VoiceGenerationOptions,
   VideoGenerationOptions,
   WorldGenerationOptions,
+  MotionGenerationOptions,
   LiveVideoGenerationOptions,
 } from './types'
 
@@ -17,6 +18,7 @@ export type GenerationKind =
   | 'video'
   | 'transcription'
   | 'world'
+  | 'motion'
   | 'liveVideo'
 
 type GenerationInputByKind = {
@@ -27,6 +29,7 @@ type GenerationInputByKind = {
   video: Omit<VideoGenerationOptions, 'logger' | 'model'>
   transcription: Omit<TranscriptionOptions, 'logger' | 'model'>
   world: Omit<WorldGenerationOptions, 'logger' | 'model'>
+  motion: Omit<MotionGenerationOptions, 'logger' | 'model'>
   liveVideo: Omit<LiveVideoGenerationOptions, 'logger' | 'model'>
 }
 
@@ -45,6 +48,7 @@ const generationKinds = [
   'video',
   'transcription',
   'world',
+  'motion',
   'liveVideo',
 ] as const satisfies ReadonlyArray<GenerationKind>
 
@@ -86,6 +90,7 @@ function requiredKeysForKind(kind: GenerationKind): Array<string> {
     case 'audio':
     case 'video':
     case 'world':
+    case 'motion':
     case 'liveVideo':
       return ['prompt']
   }

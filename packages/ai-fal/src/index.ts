@@ -11,6 +11,17 @@ export { FalImageAdapter, falImage } from './adapters/image'
 export { FalVideoAdapter, falVideo } from './adapters/video'
 
 // ============================================================================
+// Motion Adapter (Experimental)
+// ============================================================================
+
+export { FalMotionAdapter, falMotion } from './adapters/motion'
+export type {
+  FalMotionModel,
+  FalMotionProviderOptions,
+  FalHunyuanMotionProviderOptions,
+} from './adapters/motion'
+
+// ============================================================================
 // Live Adapter (Experimental)
 // ============================================================================
 

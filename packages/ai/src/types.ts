@@ -2857,6 +2857,122 @@ export interface WorldGenerationResult {
 }
 
 // ============================================================================
+// Motion Generation Types (Experimental)
+// ============================================================================
+
+/**
+ * Options an adapter receives to submit a motion (skeletal animation) job.
+ *
+ * @experimental Motion generation is an experimental feature and may change.
+ */
+export interface MotionGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for motion generation */
+  model: string
+  /** Natural-language description of the motion */
+  prompt: string
+  /**
+   * Requested clip length in seconds. Each provider accepts its own range
+   * and rejects values outside it.
+   */
+  duration?: number
+  /** Provider-specific options (seed, guidance, output format, ...) */
+  modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateMotion() entry point. Adapters
+   * must call logger.request() before the SDK call and logger.errors() in
+   * catch blocks.
+   */
+  logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. It aborts the HTTP request only. It never cancels the
+   * provider job.
+   */
+  abortSignal?: AbortSignal
+}
+
+/**
+ * A submitted motion job.
+ *
+ * @experimental Motion generation is an experimental feature and may change.
+ */
+export interface MotionJobResult {
+  /** Provider job id. Use it to poll, cancel, or resume from another request. */
+  jobId: string
+  /** Model the job runs on */
+  model: string
+}
+
+/** Lifecycle state of a motion job. */
+export type MotionJobState = 'pending' | 'processing' | 'completed' | 'failed'
+
+/**
+ * Status of a motion job, as the provider reports it. Fields the provider
+ * does not report stay undefined.
+ *
+ * @experimental Motion generation is an experimental feature and may change.
+ */
+export interface MotionStatusResult {
+  jobId: string
+  status: MotionJobState
+  /** Progress 0-100, only when the provider reports real progress */
+  progress?: number
+  /** Position in the provider queue, when the provider reports it */
+  queuePosition?: number
+  /** Provider error message when `status` is `failed` */
+  error?: string
+}
+
+/**
+ * File format of a motion asset. Known values: `fbx`, `bvh`, `glb`, `gltf`,
+ * and `json` (raw provider motion data). Other strings pass through as the
+ * provider names them.
+ */
+export type MotionAssetFormat =
+  | 'fbx'
+  | 'bvh'
+  | 'glb'
+  | 'gltf'
+  | 'json'
+  | (string & {})
+
+/**
+ * One downloadable file of a finished motion.
+ *
+ * @experimental Motion generation is an experimental feature and may change.
+ */
+export interface MotionAsset {
+  /** Download URL. Provider URLs are often temporary: copy the file to keep it. */
+  url: string
+  format: MotionAssetFormat
+  contentType?: string
+  fileName?: string
+  /** Size in bytes, when the provider reports it */
+  fileSize?: number
+  /** When `url` stops working, when the provider reports it */
+  expiresAt?: Date
+}
+
+/**
+ * A finished motion. Only metadata the provider actually returned is set.
+ * Clip length, frame rate, and skeleton are inside the asset file itself.
+ *
+ * @experimental Motion generation is an experimental feature and may change.
+ */
+export interface MotionGenerationResult {
+  jobId: string
+  model: string
+  /** Every file the provider returned for this motion */
+  assets: Array<MotionAsset>
+  /** Seed the provider used, when it reports one. Reuse it to repeat a take. */
+  seed?: number
+  /** Billing usage, when the adapter can report it */
+  usage?: TokenUsage
+}
+
+// ============================================================================
 // Live Generation Types (Experimental)
 // ============================================================================
 

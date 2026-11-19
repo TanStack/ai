@@ -38,6 +38,28 @@ export function createAdapterFalClient(config?: FalClientConfig) {
   return createFalClient(toFalClientOptions(config))
 }
 
+/**
+ * fal can report a request COMPLETED and then answer the result fetch with a
+ * 422. Join its validation details as `field: message` pairs. Returns
+ * undefined when the error has no detail list.
+ */
+export function falValidationMessage(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('body' in error)) {
+    return undefined
+  }
+  const body = error.body
+  if (typeof body !== 'object' || body === null || !('detail' in body)) {
+    return undefined
+  }
+  const detail = body.detail
+  if (!Array.isArray(detail)) return undefined
+  return detail
+    .map((d: { msg?: string; loc?: Array<string> }) =>
+      d.loc ? `${d.loc.join('.')}: ${d.msg}` : d.msg,
+    )
+    .join('; ')
+}
+
 export function generateId(prefix: string): string {
   return _generateId(prefix)
 }

@@ -9,6 +9,7 @@ Choose an example based on your use case:
 - **Want the smallest React + Start chat?** → [Basic Chat](#basic-chat)
 - **Want a chat server written with Effect?** → [Effect Chat](#effect-chat)
 - **Want an image from a prompt?** → [Generate Image](#generate-image)
+- **Want animation clips for a game ability?** → [Generate Motion](react/generate-motion/README.md)
 - **Want a table that fills as JSON streams?** → [Streaming Structured Table](#streaming-structured-table)
 - **Want typed ticket routing?** → [Evaluate](#evaluate)
 - **Want a blog desk with three agents?** → [Subagents](#subagents)

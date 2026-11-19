@@ -13,13 +13,13 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "Quick Start",
           "to": "getting-started/quick-start",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "Quick Start: React Native",
@@ -109,6 +109,11 @@
           "label": "Effect Chat",
           "to": "tutorials/effect-chat",
           "addedAt": "2026-11-06"
+        },
+        {
+          "label": "Generate Motion",
+          "to": "tutorials/generate-motion",
+          "addedAt": "2026-11-19"
         }
       ]
     },
@@ -165,6 +170,11 @@
           "label": "Effect Chat",
           "to": "framework/react/examples/effect-chat",
           "addedAt": "2026-11-06"
+        },
+        {
+          "label": "Generate Motion",
+          "to": "framework/react/examples/generate-motion",
+          "addedAt": "2026-11-19"
         }
       ]
     },
@@ -888,7 +898,7 @@
           "label": "Generations",
           "to": "media/generations",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "Realtime Voice Chat",
@@ -965,6 +975,12 @@
           "to": "media/world-generation",
           "addedAt": "2026-09-04",
           "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Motion Generation",
+          "to": "media/motion-generation",
+          "addedAt": "2026-11-19",
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "Generation Hooks",
@@ -1817,7 +1833,7 @@
           "label": "fal.ai",
           "to": "adapters/fal",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "Reactor",
@@ -1830,6 +1846,11 @@
           "to": "adapters/worldlabs",
           "addedAt": "2026-09-14",
           "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Uthana",
+          "to": "adapters/uthana",
+          "addedAt": "2026-11-19"
         },
         {
           "label": "OpenRouter Adapter",

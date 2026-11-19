@@ -118,10 +118,12 @@ To make a different media type, swap the server function and the hook for anothe
 | Video generation | `generateVideo()` | `useGenerateVideo()` | [Video Generation](./video-generation) |
 | Live generation | `generateLiveVideo()` | - | [Live Generation](./live-generation) |
 | World generation | `generateWorld()` | - | [World Generation](./world-generation) |
+| Motion generation | `generateMotion()` | `useGeneration()` | [Motion Generation](./motion-generation) |
 
-Three types work a little differently:
+Four types work a little differently:
 
 - **Video** runs as a job. The server starts the job and polls it until the video is ready. The hook also gives you the job status. See [Video Generation](./video-generation).
+- **Motion** also runs as a job. It has no dedicated hook. Use `useGeneration()` and read the job status in `onChunk`. See [Motion Generation](./motion-generation).
 - **Live** and **world** generation return a session token. The browser uses the token to connect to the provider. See [Live Generation](./live-generation) and [World Generation](./world-generation).
 
 The hooks for Vue, Solid, Svelte, Angular, and the other frameworks are in [Generation Hooks](./generation-hooks). To keep a result after a page reload, add [Generation Persistence](../persistence/generation-persistence).
@@ -146,7 +148,7 @@ On TanStack Start, the third transport gives you both: the input is typed and th
 
 The server passes `stream: true` to the generation function and sends the events as SSE. The hook reads them with `fetchServerSentEvents()`. This is the quick setup above.
 
-The hook sends its input inside an AG-UI request body. `generationParamsFromRequest(kind, request)` reads that body and returns `{ input, threadId, runId }`. The `kind` is one of `'image'`, `'audio'`, `'tts'`, `'voice'`, `'video'`, `'transcription'`, `'world'`, or `'liveVideo'`.
+The hook sends its input inside an AG-UI request body. `generationParamsFromRequest(kind, request)` reads that body and returns `{ input, threadId, runId }`. The `kind` is one of `'image'`, `'audio'`, `'tts'`, `'voice'`, `'video'`, `'transcription'`, `'world'`, `'liveVideo'`, or `'motion'`.
 
 #### Direct (fetcher)
 

@@ -91,6 +91,7 @@ export type AgentProduces =
   | 'transcription'
   | 'embedding'
   | 'world'
+  | 'motion'
   | 'liveVideo'
   | (string & {})
 
