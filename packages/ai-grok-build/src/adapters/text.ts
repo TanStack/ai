@@ -565,7 +565,7 @@ export class GrokBuildTextAdapter<
       }
 
       if (options.outputSchema) {
-        const parseFailed = yield* this.emitParsedStructuredOutput(
+        for (const chunk of this.emitParsedStructuredOutput(
           lastAssistantText,
           threadId,
           runId,
@@ -573,12 +573,13 @@ export class GrokBuildTextAdapter<
           heldFinished?.type === EventType.RUN_FINISHED
             ? heldFinished.usage
             : undefined,
-        )
-        // chat() stops at the first RUN_ERROR, so the held RUN_FINISHED is
-        // never read. Its usage is on the RUN_ERROR.
-        if (parseFailed) {
-          runFailed = true
-          heldFinished = undefined
+        )) {
+          if (chunk.type === EventType.RUN_ERROR) {
+            // chat() stops at this chunk, so mark failure before yielding it.
+            runFailed = true
+            heldFinished = undefined
+          }
+          yield chunk
         }
       }
       if (heldFinished) yield heldFinished

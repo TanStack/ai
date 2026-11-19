@@ -424,6 +424,38 @@ describe('grok-build authMode', () => {
     }
   })
 
+  it('a release error after a structured output RUN_ERROR does not throw when the stream closes early', async () => {
+    const local = await provider.create({})
+    try {
+      const { sandbox } = remoteSandbox(local, {
+        remove: () => Promise.reject(new Error('remove failed')),
+      })
+      await local.fs.write('/workspace/fake-grok.mjs', ACP_FAKE_GROK)
+      const stream = grokBuildText('grok-build-0.1', {
+        grokExecutable: 'node fake-grok.mjs',
+        protocol: 'acp',
+        transport: 'stdio',
+        emitDiff: false,
+        authMode: 'host',
+      }).chatStream({
+        threadId: 'thread-1',
+        model: 'grok-build-0.1',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sandbox),
+        outputSchema: { type: 'object', properties: {} },
+      })
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of stream) {
+        chunks.push(chunk)
+        if (chunk.type === 'RUN_ERROR') break
+      }
+      expect(chunks.filter((c) => c.type === 'RUN_ERROR')).toHaveLength(1)
+    } finally {
+      await local.destroy()
+    }
+  })
+
   it("an explicit 'xai.api_key' method wins over 'host' and keeps the key vars", async () => {
     const local = await provider.create({})
     try {

@@ -295,7 +295,8 @@ export function cliPlanLogin(options: {
  * @param options.connectCommand - The command that signs in, for example '/connect:codex'.
  * @param options.adopt - Keep a login that is already in the sandbox. For a host that attaches to a running agent.
  *
- * Throws an `Error` when the host has no login file.
+ * Throws an `Error` when the host has no login file, unless `adopt` finds a
+ * login already in the sandbox.
  *
  * @example
  * ```ts
@@ -390,20 +391,25 @@ const mounts = new Map<
   }
 >()
 
+/** Sidecar next to the sandbox login. Holds the host bytes from the first copy. */
+function hostBaselinePath(loginPath: string) {
+  return `${loginPath}.tanstack-host`
+}
+
+/** Host login bytes, or `undefined` when the file is missing. */
+function readHostFile(hostPath: string): Promise<string | undefined> {
+  return readFile(hostPath, 'utf8').catch((error: NodeJS.ErrnoException) => {
+    if (error.code !== 'ENOENT') throw error
+    return undefined
+  })
+}
+
 /** Copy the host login file into the sandbox. */
 async function borrowHostLogin(
   sandbox: SandboxHandle,
   options: HostLoginMountOptions,
 ): Promise<BorrowedLogin> {
   const { hostPath, sandboxHomePath, label, connectCommand } = options
-  const content = await readFile(hostPath, 'utf8').catch(
-    (error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error
-      throw new Error(
-        `No ${label} login on this machine. Run ${connectCommand}.`,
-      )
-    },
-  )
   const home = await sandbox.process.exec('printf %s "$HOME"')
   const homePath = home.stdout.trim()
   if (home.exitCode !== 0 || homePath === '') {
@@ -412,17 +418,30 @@ async function borrowHostLogin(
     )
   }
   const path = posix.join(homePath, sandboxHomePath)
-  // ponytail: an adopted copy is written back when the host file did not
-  // change since this mount. A sign-in on the host before the attach is lost.
+  const baselinePath = hostBaselinePath(path)
   if (options.adopt === true && (await sandbox.fs.exists(path))) {
+    // Keep the bytes copied on the first mount, not a sign-in since then.
+    // The host file can be missing: the sandbox login is enough to attach.
+    const content =
+      ((await sandbox.fs.exists(baselinePath))
+        ? await sandbox.fs.read(baselinePath)
+        : await readHostFile(hostPath)) ?? (await sandbox.fs.read(path))
     return { path, content }
+  }
+  const content = await readHostFile(hostPath)
+  if (content === undefined) {
+    throw new Error(
+      `No ${label} login on this machine. Run ${connectCommand}.`,
+    )
   }
   await sandbox.fs.mkdir(posix.dirname(path))
   try {
     await sandbox.fs.write(path, content)
+    await sandbox.fs.write(baselinePath, content)
   } catch (error) {
     // A failed write can still leave a file. Remove it, and keep the write error.
     await sandbox.fs.remove(path).catch(() => undefined)
+    await sandbox.fs.remove(baselinePath).catch(() => undefined)
     throw error
   }
   return { path, content }
@@ -445,5 +464,6 @@ async function returnHostLogin(
     if (hostNow === content) await writeFile(hostPath, after, { mode: 0o600 })
   } finally {
     await sandbox.fs.remove(path)
+    await sandbox.fs.remove(hostBaselinePath(path)).catch(() => undefined)
   }
 }

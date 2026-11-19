@@ -357,6 +357,31 @@ describe('mountHostLogin', () => {
     expect(files.has(SANDBOX_FILE)).toBe(false)
   })
 
+  it('adopt succeeds without a host file when the sandbox login exists', async () => {
+    const { sandbox, files } = fakeSandbox()
+    const first = await mountWith(sandbox)
+    await first.release({ keep: true })
+    await rm(join(dir, 'auth.json'))
+    const login = await mountWith(sandbox, { adopt: true })
+    expect(files.get(SANDBOX_FILE)).toBe('{"token":"old"}')
+    await login.release()
+    expect(files.has(SANDBOX_FILE)).toBe(false)
+  })
+
+  it('adopt does not overwrite a host sign-in that happened before attach', async () => {
+    const { sandbox, files } = fakeSandbox()
+    const first = await mountWith(sandbox)
+    files.set(SANDBOX_FILE, '{"token":"refreshed"}')
+    await first.release({ keep: true })
+    await writeFile(join(dir, 'auth.json'), '{"token":"terminal"}')
+    const login = await mountWith(sandbox, { adopt: true })
+    await login.release()
+    expect(await readFile(join(dir, 'auth.json'), 'utf8')).toBe(
+      '{"token":"terminal"}',
+    )
+    expect(files.has(SANDBOX_FILE)).toBe(false)
+  })
+
   it('removes the sandbox file when the write fails', async () => {
     const { sandbox, files } = fakeSandbox({
       write: (path, data) => {
