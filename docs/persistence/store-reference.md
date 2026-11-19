@@ -54,6 +54,9 @@ Rules:
 - To page in the database, return a `MessagePage`. `truncated: true` requires a `cursor`. The words `truncated` and `cursor` mean the same as in `BlobStore.list`.
 - If you ignore `before` and return the newest array again, `reconstructChat` loads the full thread and slices it.
 - `saveThread` gets the full merged list. It replaces the stored thread. It never appends. The merge by id happens in `withPersistence`, not in this store.
+- Keep the `metadata` of each message exactly as you got it. On a tool message, it holds the [result metadata](../tools/tool-result-metadata) of the call: app keys (for example `sources`) next to the reserved `tanstack` key. Store all of it, nested values included. A reload reads it again for the UI.
+- The client does not send the app keys of a tool result back. When a client copy replaces a stored tool message, `withPersistence` keeps the stored app metadata. Your store does not merge anything.
+- To prove the round trip, turn on the `'messages.metadata'` check of the [conformance suite](./build-your-own-adapter#turn-on-the-opt-in-checks).
 
 ## ActivityStore
 

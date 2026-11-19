@@ -666,6 +666,7 @@ The `info` fields:
 | `duration` | `number` | Run time in milliseconds |
 | `result` | `unknown` | The result (when `ok` is true). After a `replaceResult` from an earlier middleware, the new result. |
 | `error` | `unknown` | The error (when `ok` is false) |
+| `metadata` | `Record<string, unknown> \| undefined` | The [result metadata](../tools/tool-result-metadata) of the call. The model never sees it. After a `replaceResult` with `metadata` from an earlier middleware, the new value. |
 
 #### Replace a tool result
 
@@ -694,6 +695,7 @@ const firstTwentyRows: ChatMiddleware = {
 | --- | --- |
 | nothing | The result stays the same. |
 | `{ type: 'replaceResult', result }` | The model gets `result`. The stream sends it in `TOOL_CALL_RESULT`, so the client shows it too. |
+| `{ type: 'replaceResult', result, metadata }` | The same, and `metadata` replaces the result metadata. See [Change the result metadata](#change-the-result-metadata). |
 
 Good to know:
 
@@ -701,6 +703,36 @@ Good to know:
 - A failed call stays failed. Your replacement becomes the error that the model reads.
 - A `skip` result from `onBeforeToolCall` goes through this hook too. `info.result` is the parsed skip result, the same value that the model gets.
 - A call that the output limit cut goes through this hook too. It did not run, so `ok` is false, and `error` has the code `max_tokens`. See [When the output limit cuts a tool call](../chat/agentic-cycle#when-the-output-limit-cuts-a-tool-call).
+
+#### Change the result metadata
+
+A server tool can set [result metadata](../tools/tool-result-metadata) for your app, such as the sources of a search. Read it in `info.metadata`. To change it, add `metadata` to `replaceResult`. This middleware removes a `debug` key from successful calls before the client gets it:
+
+```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
+const dropDebugMetadata: ChatMiddleware = {
+  name: "drop-debug-metadata",
+  onAfterToolCall: (ctx, info) => {
+    if (!info.ok || info.metadata?.debug === undefined) return;
+    const { debug: _debug, ...rest } = info.metadata;
+    return { type: "replaceResult", result: info.result, metadata: rest };
+  },
+};
+```
+
+The `metadata` field:
+
+- Missing or `undefined`: the result metadata stays the same.
+- `{}`: removes all the result metadata.
+- The next middleware gets your value as `info.metadata`.
+- The `resultMetadataSchema` of the tool does not check your value. A `tanstack` key is dropped, because that key is reserved.
+- Your value becomes JSON. A `Date` becomes a string, and `NaN` becomes `null`. You get no warning for these changes.
+- If your value cannot become JSON, for example because it has a `BigInt`, the call keeps no result metadata. A warning goes to the server log, and the result stays. Change such fields to strings or numbers before you return them.
+
+A `skip` decision from `onBeforeToolCall` or `onGuardToolCall` can also have `metadata`: `{ type: 'skip', result, metadata }`. The tool does not run, so this is the first result metadata of the call. An `onAfterToolCall` hook can still replace it.
+
+`toolCacheMiddleware` keeps the result metadata with the result. A cache hit gives the metadata back, so your UI shows the same data. If you write your own `ToolCacheStorage`, store the optional `metadata` field of `ToolCacheEntry` too. Entries without it still work.
 
 ### Tool hook order in one turn
 

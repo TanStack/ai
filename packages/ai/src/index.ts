@@ -19,6 +19,10 @@ export {
   generateTranscription,
   embed,
   generateWorld,
+  generateMotion,
+  getMotionJobStatus,
+  cancelMotionJob,
+  MOTION_EVENTS,
   generateLiveVideo,
   uploadFile,
   getFile,
@@ -39,6 +43,7 @@ export { createVoiceOptions } from './activities/generateVoice/index'
 export { createTranscriptionOptions } from './activities/generateTranscription/index'
 export { createEmbedOptions } from './activities/embed/index'
 export { createWorldOptions } from './activities/generateWorld/index'
+export { createMotionOptions } from './activities/generateMotion/index'
 export { createLiveVideoOptions } from './activities/generateLiveVideo/index'
 
 // Re-export types
@@ -84,6 +89,14 @@ export type {
   WireAnswer,
   AnyWorldAdapter,
   WorldAdapter,
+  AnyMotionAdapter,
+  MotionAdapter,
+  MotionActivityOptions,
+  MotionActivityResult,
+  MotionProviderOptions,
+  MotionJobStatusOptions,
+  MotionJobStatusResult,
+  CancelMotionJobOptions,
   AnyLiveVideoAdapter,
   LiveVideoAdapter,
   FilesAdapter,
@@ -169,6 +182,7 @@ export {
   type InferToolName,
   type InferToolInput,
   type InferToolOutput,
+  type InferToolResultMetadata,
   type ApprovalCapabilityOf,
   type ApprovalSchemaConfig,
   type ApprovalSchemaOf,

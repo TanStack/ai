@@ -36,6 +36,7 @@ import {
 import { readErrorUsage, rebuildTokenUsage } from '../../utilities/ag-ui-usage'
 import { uiMessagesToWire } from '../../utilities/ag-ui-wire'
 import {
+  mergeMetadata,
   tanstackMetadata,
   withTanstackMetadata,
 } from '../../utilities/merge-metadata'
@@ -62,6 +63,7 @@ import { normalizeSystemPrompts } from '../../system-prompts'
 import { transformMessagesForReplay } from '../../utilities/replay-messages'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
+import { middlewareResultMetadata } from './tools/result-metadata'
 import type { DefinedAgent } from './agents/define-agent'
 import { providerKeys } from '../../byok/env-keys'
 import {
@@ -2993,6 +2995,10 @@ class TextEngine<
           toolName: call.function.name,
           result: decision ? decision.result : stored.content,
           state: 'output-error',
+          metadata: middlewareResultMetadata(
+            call.function.name,
+            decision?.metadata,
+          ),
         })
       }
       // This also stores the results, so the loop decision reads them.
@@ -4412,6 +4418,10 @@ class TextEngine<
         toolCallId: result.toolCallId,
         content: wireContent,
         role: 'tool' as const,
+        // App result metadata. The error state below goes under `tanstack`.
+        ...(result.metadata !== undefined && {
+          metadata: { ...result.metadata },
+        }),
       }
       // An outcome always comes with output-error. A string result says so,
       // or the client would parse '42' into 42.
@@ -4474,6 +4484,11 @@ class TextEngine<
       const errorField = result.state === 'output-error' && {
         error: toolResultErrorText(result.result),
       }
+      // The app result metadata goes on the tool message for the app and
+      // persistence. Adapters send only `content` to the model.
+      const metadataField = result.metadata !== undefined && {
+        metadata: mergeMetadata(existingToolMessage?.metadata, result.metadata),
+      }
       const replacementMessage: ModelMessage =
         existingToolMessage?.role === 'tool'
           ? {
@@ -4481,12 +4496,14 @@ class TextEngine<
               content,
               toolCallId: result.toolCallId,
               ...errorField,
+              ...metadataField,
             }
           : {
               role: 'tool',
               content,
               toolCallId: result.toolCallId,
               ...errorField,
+              ...metadataField,
             }
       const messageMetadata = {
         ...(result.outcome !== undefined && {

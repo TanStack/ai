@@ -9,4 +9,4 @@ title: PersistedArtifactRole
 type PersistedArtifactRole = "input" | "output";
 ```
 
-Defined in: [packages/ai/src/types.ts:2499](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2499)
+Defined in: [packages/ai/src/types.ts:2566](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2566)

@@ -9,7 +9,7 @@ title: modelMessageToUIMessage
 function modelMessageToUIMessage(modelMessage, id?): UIMessage;
 ```
 
-Defined in: [packages/ai/src/activities/chat/messages.ts:1074](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/messages.ts#L1074)
+Defined in: [packages/ai/src/activities/chat/messages.ts:1071](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/messages.ts#L1071)
 
 Convert a ModelMessage to UIMessage
 

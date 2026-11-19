@@ -65,7 +65,7 @@ Defined in: [packages/ai/src/tools/provider-tool.ts:24](https://github.com/TanSt
 description: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1044](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1044)
+Defined in: [packages/ai/src/types.ts:1098](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1098)
 
 Clear description of what the tool does.
 
@@ -90,7 +90,7 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 optional execute?: (args, context?) => any;
 ```
 
-Defined in: [packages/ai/src/types.ts:1124](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1124)
+Defined in: [packages/ai/src/types.ts:1186](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1186)
 
 Optional function to execute when the model calls this tool.
 
@@ -109,7 +109,7 @@ The arguments parsed from the model's tool call (validated against inputSchema)
 
 ##### context?
 
-[`ToolExecutionContext`](../type-aliases/ToolExecutionContext.md)\<`unknown`\>
+[`ToolExecutionContext`](../type-aliases/ToolExecutionContext.md)\<`unknown`, `Record`\<`string`, `unknown`\>\>
 
 #### Returns
 
@@ -138,7 +138,7 @@ execute: async (args) => {
 optional inputSchema?: SchemaInput;
 ```
 
-Defined in: [packages/ai/src/types.ts:1084](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1084)
+Defined in: [packages/ai/src/types.ts:1138](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1138)
 
 Schema describing the tool's input parameters.
 
@@ -196,7 +196,7 @@ type({
 optional lazy?: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:1130](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1130)
+Defined in: [packages/ai/src/types.ts:1194](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1194)
 
 If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools).
 
@@ -212,7 +212,7 @@ If true, this tool is lazy and will only be sent to the LLM after being discover
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1141](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1141)
+Defined in: [packages/ai/src/types.ts:1205](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1205)
 
 Additional metadata for adapters or custom extensions
 
@@ -228,7 +228,7 @@ Additional metadata for adapters or custom extensions
 name: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1034](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1034)
+Defined in: [packages/ai/src/types.ts:1088](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1088)
 
 Unique name of the tool (used by the model to call it).
 
@@ -253,7 +253,7 @@ Must be unique within the tools array.
 optional needsApproval?: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:1127](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1127)
+Defined in: [packages/ai/src/types.ts:1191](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1191)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
 
@@ -269,7 +269,7 @@ If true, tool execution requires user approval before running. Works with both s
 optional outputSchema?: SchemaInput;
 ```
 
-Defined in: [packages/ai/src/types.ts:1105](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1105)
+Defined in: [packages/ai/src/types.ts:1159](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1159)
 
 Optional schema for validating tool output.
 
@@ -304,7 +304,7 @@ z.object({
 optional replay?: "safe" | "never";
 ```
 
-Defined in: [packages/ai/src/types.ts:1138](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1138)
+Defined in: [packages/ai/src/types.ts:1202](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1202)
 
 Whether a host may run this tool again after a crash cut the run
 between the call and its result. `'safe'` runs it again. Omit the
@@ -314,3 +314,22 @@ writes the model note. `chat()` does not read this field.
 #### Inherited from
 
 [`Tool`](Tool.md).[`replay`](Tool.md#replay)
+
+***
+
+### resultMetadataSchema?
+
+```ts
+optional resultMetadataSchema?: SchemaInput;
+```
+
+Defined in: [packages/ai/src/types.ts:1167](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1167)
+
+Optional schema for the app-only result metadata that the tool sets
+with `context.setResultMetadata`. It accepts the same schemas as
+`outputSchema`. It types the setter and the client
+`part.resultMetadata`. The model never sees the metadata.
+
+#### Inherited from
+
+[`Tool`](Tool.md).[`resultMetadataSchema`](Tool.md#resultmetadataschema)

@@ -91,6 +91,12 @@ export type MessagePage =
  * `saveThread` always receives and persists the **complete, authoritative**
  * message list — it is an overwrite, never an append. The middleware snapshots
  * `ctx.messages` (the full running transcript) into it.
+ *
+ * Keep each message exactly as you got it, `metadata` included. The `metadata`
+ * of a tool message holds the tool result metadata: app keys (for example
+ * `sources`) next to the reserved `tanstack` key. Store all of it, nested
+ * values included. The UI reads it again on reload, and the client does not
+ * send the app keys back.
  */
 export interface MessageStore {
   /**
