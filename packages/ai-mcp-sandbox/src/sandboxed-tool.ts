@@ -17,7 +17,12 @@ function classifyFailure(
   overCallBudget: boolean,
 ): AuditEntry['outcome'] {
   if (overCallBudget) return 'limit'
-  return /timed out|out of memory|memory limit|stack/i.test(message)
+  // Match only genuine resource diagnostics. "stack" alone is too broad: an
+  // application error like `stack service unavailable` must stay an 'error',
+  // so we only treat a real stack-overflow message as a limit.
+  return /timed out|out of memory|memory limit|stack overflow|maximum call stack/i.test(
+    message,
+  )
     ? 'limit'
     : 'error'
 }
@@ -89,7 +94,7 @@ function assertServable(
  */
 export function sandboxedTool(config: SandboxedToolConfig) {
   const {
-    manifest,
+    manifest: callerManifest,
     snippet,
     facades,
     driver,
@@ -100,6 +105,11 @@ export function sandboxedTool(config: SandboxedToolConfig) {
     onAudit,
   } = config
 
+  // Snapshot the manifest once so the verified contract is a fixed snapshot:
+  // host code that still holds the config object cannot mutate manifest.scope,
+  // manifest.inject, or manifest.truncatable after construction and have the
+  // next call read the new values without a fresh signature check.
+  const manifest = structuredClone(callerManifest)
   assertServable(manifest, snippet, publicKey, requireSignature)
   const limits = intersectLimits(manifest.limits, serverCaps)
 
@@ -177,6 +187,16 @@ export function sandboxedTool(config: SandboxedToolConfig) {
         // catch must not emit a second (error) record for this one execution.
         audited = true
         audit(classifyFailure(message, overBudget), counter.count, 0, message)
+        throw new Error(message)
+      }
+
+      // A snippet can catch the injected-call rejection and still return a
+      // value. The documented contract says an over-budget run stops, so treat
+      // a tripped counter as a limit even on an otherwise-successful run.
+      if (counter.count > limits.maxInjectedCalls) {
+        const message = `Injected-call limit reached (${limits.maxInjectedCalls})`
+        audited = true
+        audit('limit', counter.count, 0, message)
         throw new Error(message)
       }
 

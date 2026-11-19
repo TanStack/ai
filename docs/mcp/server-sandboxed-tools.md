@@ -43,6 +43,40 @@ The driver is swappable. `@tanstack/ai-isolate-quickjs` runs anywhere, including
 ```ts
 // src/facades.ts
 const ALLOWED = new Set(['https://api.example.com'])
+// Cap the body read into the host process. The isolate limits bound the
+// snippet's heap and result, not what the facade buffers, so an allowed
+// endpoint that returns a huge body could exhaust host memory without this.
+const MAX_BODY_BYTES = 256 * 1024
+
+async function readCapped(response: Response, max: number): Promise<string> {
+  const body = response.body
+  if (!body) return ''
+  const reader = body.getReader()
+  const chunks: Array<Uint8Array> = []
+  let total = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      total += value.length
+      if (total > max) {
+        await reader.cancel()
+        throw new Error('response body too large')
+      }
+      chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+  return new TextDecoder().decode(
+    chunks.reduce<Uint8Array>((acc, c) => {
+      const next = new Uint8Array(acc.length + c.length)
+      next.set(acc)
+      next.set(c, acc.length)
+      return next
+    }, new Uint8Array(0)),
+  )
+}
 
 export const facades = {
   'http.get': {
@@ -59,7 +93,7 @@ export const facades = {
         redirect: 'error',
         signal: AbortSignal.timeout(3000),
       })
-      return response.text()
+      return readCapped(response, MAX_BODY_BYTES)
     },
   },
 }
@@ -69,7 +103,7 @@ export const facades = {
 
 ```ts group=server-sandboxed-tools
 // src/mcp-server.ts
-import { createMCPServer } from '@tanstack/ai-mcp/server'
+import { createMCPServer, jwtVerifier } from '@tanstack/ai-mcp/server'
 import { hashSnippet, sandboxedTool } from '@tanstack/ai-mcp-sandbox'
 import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
 import type { Manifest } from '@tanstack/ai-mcp-sandbox'
@@ -109,11 +143,21 @@ const pageSize = sandboxedTool({ manifest, snippet, facades, driver })
 export const server = createMCPServer({
   name: 'web',
   version: '1.0.0',
+  // A sandboxed tool needs a verified caller: the scope gate reads the token's
+  // scopes (here, web:read). Without auth there is no caller and the tool
+  // throws before the snippet runs. See MCP Server Auth for the full setup.
+  auth: {
+    verifier: jwtVerifier({
+      jwksUrl: 'https://auth.example.com/.well-known/jwks.json',
+      issuer: 'https://auth.example.com/',
+      audience: 'https://mcp.example.com/mcp',
+    }),
+  },
   tools: [pageSize], // mix freely with plain tools
 })
 ```
 
-Serve it from a route the same way as any MCP server. See [Serve Tools over HTTP](./server).
+The `scope` on the manifest (`web:read`) must be one of the token's scopes, or the caller gets a scope error and the snippet never runs. See [MCP Server Auth](./server-auth) for issuing and verifying those tokens. Serve it from a route the same way as any MCP server. See [Serve Tools over HTTP](./server).
 
 ## How a call runs
 
@@ -166,16 +210,28 @@ sandboxedTool({
 
 The manifest is the security contract. For first-party tools in your repo, the snippet hash is enough. When the manifest comes from somewhere you do not control, sign it so a tampered one is rejected.
 
-Signing uses Ed25519. Pass the public key and require a valid signature:
+Signing uses Ed25519. It happens in two separate places. Keep them apart: if the server both signs and verifies, a manifest tampered with before signing gets a fresh, valid signature, and verification can no longer catch the change.
+
+Step one is offline, on a trusted machine. A reviewer checks the manifest, signs it with a private key the server never sees, and keeps that private key protected:
+
+```ts
+// sign-manifest.ts — run once, offline, on a trusted machine. The private key
+// stays here and never ships to the server.
+import { signManifest } from '@tanstack/ai-mcp-sandbox'
+
+// privateKey comes from your secret store or an earlier generateManifestKeyPair().
+const signature = signManifest(reviewedManifest, privateKey)
+// Attach `signature` to the manifest you ship, and publish only the matching
+// public key to the server.
+```
+
+Step two is on the server. It loads only the public key and the already-signed manifest, and requires a valid signature. It never holds the private key:
 
 ```ts group=server-sandboxed-tools
-import { generateManifestKeyPair, signManifest } from '@tanstack/ai-mcp-sandbox'
-
-const { publicKey, privateKey } = generateManifestKeyPair()
-const signature = signManifest(manifest, privateKey)
-
+// The manifest arrives already signed; publicKey is the one matching key the
+// server trusts. The server cannot sign, only verify.
 sandboxedTool({
-  manifest: { ...manifest, signature },
+  manifest: signedManifest,
   snippet,
   facades,
   driver,
@@ -183,6 +239,8 @@ sandboxedTool({
   requireSignature: true,
 })
 ```
+
+`generateManifestKeyPair()` makes the key pair once, during setup, not on every serve.
 
 ## Import an existing snippet
 
@@ -198,4 +256,6 @@ It writes a deny-by-default manifest: a placeholder scope, no facades, the tight
 
 A sandboxed tool is a good fit for reads and safe actions. Approval never happens inside the isolate.
 
-For a write that must not run twice, use a two-phase proposal. The first call returns a `proposalId`, and a second call with that id performs the write. `createApprovalStore()` gives you the store: single-use ids, a short expiry, and no surviving proposals after a restart. This works with any MCP host, since it does not rely on a host-side approval prompt.
+Use a two-phase proposal to put a human decision in front of a write. The first call returns a `proposalId`, and a second call with that id performs the write. `createApprovalStore()` gives you the store: single-use ids, a short expiry, and no surviving proposals after a restart. This works with any MCP host, since it does not rely on a host-side approval prompt.
+
+A proposal id stops one id from being replayed: consume it once and a second consume of the same id fails. It is not write deduplication. Each `propose()` call mints a new id, so the same action proposed twice yields two ids, and consuming both runs the write twice. For a write that must never run twice, carry a durable idempotency key into the write itself (a unique order id, a row your database rejects on a second insert) so the underlying store refuses the duplicate.

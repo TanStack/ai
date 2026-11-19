@@ -328,6 +328,59 @@ describe('audit outcomes', () => {
     ).rejects.toThrow()
     expect(audits.at(-1)).toMatchObject({ outcome: 'limit' })
   })
+
+  it('rejects a caught injected-call overrun instead of returning success', async () => {
+    // The snippet swallows the over-budget rejection and returns normally.
+    const sneaky = `
+      await host.demo.echo({ value: 1 });
+      try { await host.demo.echo({ value: 2 }); } catch (e) {}
+      return 'done';
+    `
+    const audits: Array<AuditEntry> = []
+    const tool = sandboxedTool({
+      manifest: manifestFor(sneaky, {
+        limits: { ...LIMITS, maxInjectedCalls: 1 },
+      }),
+      snippet: sneaky,
+      facades,
+      driver,
+      onAudit: (e) => audits.push(e),
+    })
+    await expect(
+      tool.execute!({}, ctx(authInfo(['demo:read']))),
+    ).rejects.toThrow(/Injected-call limit/)
+    expect(audits).toHaveLength(1)
+    expect(audits.at(-1)).toMatchObject({ outcome: 'limit' })
+  })
+
+  it('audits an ordinary error whose message contains "stack" as an error, not a limit', async () => {
+    const snippet = `throw new Error('stack service unavailable')`
+    const audits: Array<AuditEntry> = []
+    const tool = sandboxedTool({
+      manifest: manifestFor(snippet, { inject: [] }),
+      snippet,
+      facades,
+      driver,
+      onAudit: (e) => audits.push(e),
+    })
+    await expect(
+      tool.execute!({}, ctx(authInfo(['demo:read']))),
+    ).rejects.toThrow()
+    expect(audits.at(-1)).toMatchObject({ outcome: 'error' })
+  })
+
+  it('enforces the scope snapshotted at build time, ignoring later manifest mutation', async () => {
+    const manifest = manifestFor(SNIPPET)
+    const tool = sandboxedTool({ manifest, snippet: SNIPPET, facades, driver })
+    // Mutating the caller's manifest after construction must not change the
+    // enforced scope — the wrapper works from a detached snapshot.
+    manifest.scope = 'demo:admin'
+    const out = await tool.execute!(
+      { value: 'hi' },
+      ctx(authInfo(['demo:read'])),
+    )
+    expect(out).toEqual({ echoed: 'echo:hi' })
+  })
 })
 
 describe('two-phase approval', () => {
@@ -351,6 +404,24 @@ describe('two-phase approval', () => {
     const store = createApprovalStore(0)
     const { proposalId } = store.propose('c1', { set: 'on' })
     expect(() => store.consume('c2', proposalId)).toThrow(ProposalExpiredError)
+  })
+
+  it('does not evict the owner proposal when a foreign client consumes it', () => {
+    const store = createApprovalStore()
+    const { proposalId } = store.propose('c1', { set: 'on' })
+    // A client that does not own the proposal must not consume (delete) it.
+    expect(() => store.consume('c2', proposalId)).toThrow(ProposalExpiredError)
+    // The real owner can still consume it afterwards.
+    expect(store.consume('c1', proposalId)).toEqual({ set: 'on' })
+  })
+
+  it('does not drop a live proposal when preparing an un-cloneable action', () => {
+    const store = createApprovalStore()
+    const { proposalId } = store.propose('c1', { set: 'on' })
+    // A function action throws DataCloneError inside structuredClone before the
+    // map is pruned, so the existing proposal must survive the failed propose.
+    expect(() => store.propose('c2', () => {})).toThrow()
+    expect(store.consume('c1', proposalId)).toEqual({ set: 'on' })
   })
 })
 

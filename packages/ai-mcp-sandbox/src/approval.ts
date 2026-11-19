@@ -72,15 +72,16 @@ export function createApprovalStore(ttlMs: number = TTL_MS): ApprovalStore {
 
   return {
     propose(clientId, action) {
-      prune() // bound the map: expired/overflow proposals never linger
-      // Snapshot the action so a later mutation of the caller's object cannot
-      // change what phase 2 runs. The hash describes this snapshot.
+      // Prepare the proposal fully before touching the map. If snapshotting
+      // throws (e.g. structuredClone rejects a function with DataCloneError),
+      // we must not have already evicted a live proposal to make room.
       const snapshot = structuredClone(action)
       const id = randomBytes(18).toString('hex')
       const actionHash = createHash('sha256')
         .update(canonicalize({ clientId, action: snapshot }), 'utf8')
         .digest('hex')
       const expiresAtMs = now() + ttlMs
+      prune() // bound the map: expired/overflow proposals never linger
       pending.set(id, {
         id,
         clientId,
@@ -92,10 +93,12 @@ export function createApprovalStore(ttlMs: number = TTL_MS): ApprovalStore {
     },
     consume(clientId, proposalId) {
       const p = pending.get(proposalId)
-      pending.delete(proposalId) // single-use: gone whether or not it was valid
+      // Check validity and ownership BEFORE deleting. A client that supplies a
+      // proposal it does not own must not evict the real owner's proposal.
       if (!p || p.clientId !== clientId || p.expiresAtMs < now()) {
         throw new ProposalExpiredError()
       }
+      pending.delete(proposalId) // single-use: a valid owner consumes it once
       return p.action
     },
   }
