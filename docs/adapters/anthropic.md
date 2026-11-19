@@ -356,8 +356,8 @@ Now a declined request gets an answer from a fallback model. When no model can a
 These topics are on [Anthropic: Advanced](./anthropic-advanced):
 
 - Bearer and OAuth tokens, gateways, and your own Anthropic client.
-- Claude on Vertex AI.
-- The `max_tokens` default and prompt caching.
+- Claude on Vertex AI, the `max_tokens` default, and prompt caching.
+- [Native compaction](./anthropic-advanced#native-compaction).
 - Every provider tool, with a full sample.
 - The API reference.
 

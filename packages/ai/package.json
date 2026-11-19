@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Type-safe TypeScript AI SDK for streaming chat, tool calling, agents, structured outputs, and multimodal generation.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -119,7 +119,7 @@
   },
   "devDependencies": {
     "@opentelemetry/api": "^1.9.0",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "4.1.12",
     "arktype": "^2.1.28",
     "zod": "^4.2.0"
   }

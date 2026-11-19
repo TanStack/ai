@@ -541,6 +541,10 @@ export interface ToolResultPart {
 export interface ThinkingPart {
   type: 'thinking'
   content: string
+  /**
+   * @deprecated Never set. The processor keeps its reasoning-step key
+   * internally, so stored and reloaded parts are the same as live ones.
+   */
   stepId?: string
   /**
    * The provider's opaque reasoning artefact, sent back unchanged: an
@@ -751,6 +755,12 @@ export interface TanStackMessageMetadata {
   }
   /** Outcome of a cancelled or denied tool result; when present, the UI state is `error`. */
   toolResultOutcome?: ToolResultOutcome
+  /**
+   * `'text'` on a tool result whose tool returned a string. Its content is
+   * then that string, not JSON, so a reader keeps `'42'` as `'42'`. A result
+   * without it is JSON text, or plain text that does not parse.
+   */
+  toolResultKind?: 'text'
   structuredOutput?: {
     status?: 'streaming' | 'complete' | 'error'
     partial?: unknown
@@ -1591,6 +1601,17 @@ export interface TextCompactOptions {
   wrapFetch?: FetchWrapper
   /** The system prompts of the chat call. */
   systemPrompts?: Array<SystemPrompt>
+  /**
+   * The tools of the chat call. The provider reads the definitions.
+   * The compaction call does not run a tool.
+   */
+  tools?: Array<AnyTool>
+  /** Provider model options of the chat call, including `max_tokens`. */
+  modelOptions?: Record<string, unknown>
+  /** How hard the model thinks on the chat call. */
+  reasoning?: ReasoningRequest
+  /** Report the token usage of the compaction call. */
+  addUsage?: (usage: TokenUsage) => void
 }
 
 // ============================================================================

@@ -82,6 +82,17 @@ for (const provider of ['openai', 'openai-compatible']) {
   })
 }
 
+test('a consumer that breaks out of chat() runs onAbort once', async ({
+  request,
+  testId,
+}) => {
+  const response = await request.post(
+    `/api/chat-consumer-stop?provider=openai&testId=${encodeURIComponent(testId)}`,
+  )
+  expect(response.ok()).toBe(true)
+  expect(await response.json()).toEqual({ hooks: ['onAbort'] })
+})
+
 test('preserves UI message IDs at the server conversion boundary', async ({
   request,
 }) => {

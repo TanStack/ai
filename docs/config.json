@@ -192,7 +192,7 @@
           "label": "Streaming",
           "to": "chat/streaming",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-04"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Stream Events",
@@ -426,7 +426,7 @@
           "label": "Middleware: Advanced",
           "to": "advanced/middleware-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-11"
         },
         {
           "label": "Built-in Middleware",
@@ -450,13 +450,13 @@
           "label": "Compaction",
           "to": "advanced/compaction",
           "addedAt": "2026-08-24",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Compaction: Advanced",
           "to": "advanced/compaction-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-11-07"
+          "updatedAt": "2026-11-09"
         }
       ],
       "tab": "guides"
@@ -1739,13 +1739,13 @@
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Anthropic: Advanced",
           "to": "adapters/anthropic-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Google Gemini",
@@ -1865,12 +1865,13 @@
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-18"
         },
         {
           "label": "OpenAI-Compatible: Advanced",
           "to": "adapters/openai-compatible-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-11-18"
         },
         {
           "label": "LLM Gateway",

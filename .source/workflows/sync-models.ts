@@ -47,6 +47,8 @@ export default defineWorkflow('sync-models', {
   },
   egress: [
     'registry.npmjs.org',
+    // The pinned @tanstack/oracles tarball in pnpm-lock.yaml.
+    'pkg.pr.new',
     'nodejs.org',
     'openrouter.ai',
     'ai-gateway.vercel.sh',
