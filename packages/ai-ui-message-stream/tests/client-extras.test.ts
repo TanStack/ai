@@ -156,6 +156,42 @@ describe('AI SDK server, TanStack client: client features', () => {
     expect(out.some((e) => e.type === EventType.CUSTOM)).toBe(false)
   })
 
+  it('checks only the text of the last step as the answer', async () => {
+    const out = await collect(
+      [
+        { type: 'start', messageId: 'a-1' },
+        { type: 'start-step' },
+        { type: 'text-start', id: '0' },
+        { type: 'text-delta', id: '0', delta: 'Checking.' },
+        { type: 'text-end', id: '0' },
+        {
+          type: 'tool-input-available',
+          toolCallId: 'c-1',
+          toolName: 'lookup',
+          input: {},
+        },
+        { type: 'tool-output-available', toolCallId: 'c-1', output: 'ok' },
+        { type: 'finish-step' },
+        { type: 'start-step' },
+        { type: 'text-start', id: '1' },
+        { type: 'text-delta', id: '1', delta: '{"name":"A","steps":[]}' },
+        { type: 'text-end', id: '1' },
+        { type: 'finish-step' },
+        { type: 'finish', finishReason: 'stop' },
+      ],
+      recipe,
+    )
+    expect(out.at(-2)).toMatchObject({
+      type: EventType.CUSTOM,
+      name: 'structured-output.complete',
+      value: {
+        object: { name: 'A', steps: [] },
+        raw: '{"name":"A","steps":[]}',
+      },
+    })
+    expect(out.at(-1)).toMatchObject({ type: EventType.RUN_FINISHED })
+  })
+
   it('queues a message sent while a reply streams and sends it after', async () => {
     let release!: () => void
     const gate = new Promise<void>((resolve) => (release = resolve))

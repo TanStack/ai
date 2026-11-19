@@ -228,7 +228,7 @@ export function Recipe() {
 }
 ```
 
-If the text is not valid JSON for the schema, the run ends with an error. All text of the reply counts as the answer, so a route that also writes text in a step that calls tools fails the check.
+Only the text of the last step is the answer. Text from an earlier step that calls tools is not part of it. If the answer is not valid JSON for the schema, the run ends with an error. A plain JSON Schema only types the answer. A Zod, Valibot or ArkType schema also checks it.
 
 ## 6. Load a saved chat
 

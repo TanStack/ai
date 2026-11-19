@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { EventType, chat } from '@tanstack/ai'
 import { fakeText } from '@tanstack/ai/testing'
 import { toolDefinition } from '@tanstack/ai/client'
@@ -323,6 +323,74 @@ describe('TanStack server, AI SDK client: errors', () => {
     await reader.read()
     await reader.cancel()
     expect(closed).toBe(true)
+  })
+
+  it('aborts the run on cancel while chat() waits for the provider', async () => {
+    const abortController = new AbortController()
+    let waiting = false
+    async function* stalled(): AsyncGenerator<StreamChunk> {
+      // One chunk, so the second read waits on the source.
+      yield { type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm', delta: 'x' }
+      waiting = true
+      // A provider read that never resolves.
+      await new Promise(() => {})
+    }
+    const reader = toUIMessageStream(stalled(), { abortController }).getReader()
+    await reader.read()
+    const pending = reader.read()
+    await vi.waitFor(() => expect(waiting).toBe(true))
+    await reader.cancel('gone')
+    expect(abortController.signal.aborted).toBe(true)
+    expect(await pending).toEqual({ done: true, value: undefined })
+  })
+
+  it('sends abort when a later step stops with no terminal event', async () => {
+    const chunks = await chunksOf(
+      toUIMessageStream(
+        (async function* (): AsyncGenerator<StreamChunk> {
+          yield {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: 'm1',
+            role: 'assistant',
+          }
+          yield { type: EventType.TEXT_MESSAGE_END, messageId: 'm1' }
+          yield {
+            type: EventType.RUN_FINISHED,
+            threadId: 't',
+            runId: 'r',
+            metadata: { tanstack: { finishReason: 'tool_calls' } },
+          }
+          yield {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: 'm2',
+            role: 'assistant',
+          }
+        })(),
+      ),
+    )
+    expect(chunks.at(-1)).toEqual({ type: 'abort' })
+    expect(chunks.some((c) => c.type === 'finish')).toBe(false)
+  })
+
+  it('keeps a null tool output as null', async () => {
+    const chunks = await chunksOf(
+      toUIMessageStream(
+        (async function* (): AsyncGenerator<StreamChunk> {
+          yield {
+            type: EventType.TOOL_CALL_RESULT,
+            messageId: 'm',
+            toolCallId: 'c-1',
+            content: 'null',
+            role: 'tool',
+          }
+        })(),
+      ),
+    )
+    expect(chunks).toContainEqual({
+      type: 'tool-output-available',
+      toolCallId: 'c-1',
+      output: null,
+    })
   })
 })
 

@@ -53,20 +53,24 @@ import { createUIMessageStreamResponse } from 'ai'
 
 export async function POST(request: Request) {
   const params = await chatParamsFromAISDKRequest(request)
+  const abortController = new AbortController()
 
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     ...params,
+    abortController,
   })
 
-  return createUIMessageStreamResponse({ stream: toUIMessageStream(stream) })
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream(stream, { abortController }),
+  })
 }
 ```
 
 What each call does:
 
-- `chatParamsFromAISDKRequest` reads the body that `useChat` sends. It returns the `threadId` (the chat id), the `messages`, and the answers to tool approvals. If the body is not valid, it throws a `Response` with status 400. An approval answer must come with the paused run id that `toUIMessageStream` put in the message metadata.
-- `toUIMessageStream` converts the events of `chat()` into the AI SDK UI message stream. A `chat()` error reaches `useChat` as its `error`. When the client goes away, the run stops.
+- `chatParamsFromAISDKRequest` reads the body that `useChat` sends. It returns the `threadId` (the chat id), the `messages`, and the answers to tool approvals. If the body is not valid, it throws a `Response` with status 400. If your framework does not return a thrown `Response` (for example a Next.js route handler), catch it and return it. An approval answer must come with the paused run id that `toUIMessageStream` put in the message metadata.
+- `toUIMessageStream` converts the events of `chat()` into the AI SDK UI message stream. A `chat()` error reaches `useChat` as its `error`. When the client goes away, it aborts the `abortController`, and the run stops.
 
 ## 3. Keep the client
 

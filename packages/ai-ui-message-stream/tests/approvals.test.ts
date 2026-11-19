@@ -262,6 +262,46 @@ describe('TanStack server, AI SDK client: approvals', () => {
   })
 })
 
+describe('chatParamsFromAISDKRequest: approval answers', () => {
+  it('reads the answers and the run id of the last assistant message', async () => {
+    const answered = (
+      id: string,
+      runId: string,
+      approvalId: string,
+    ): UIMessage => ({
+      id,
+      role: 'assistant',
+      metadata: { tanstack: { runId } },
+      parts: [
+        {
+          type: 'dynamic-tool',
+          toolName: 'deleteFile',
+          toolCallId: `call-${id}`,
+          input: { path: 'a.txt' },
+          state: 'approval-responded',
+          approval: { id: approvalId, approved: true },
+        },
+      ],
+    })
+    const params = await chatParamsFromAISDKRequest(
+      new Request('http://x/api/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          id: 'chat-1',
+          messages: [
+            answered('a-1', 'run-1', 'ap-1'),
+            answered('a-2', 'run-2', 'ap-2'),
+          ],
+        }),
+      }),
+    )
+    expect(params.parentRunId).toBe('run-2')
+    expect(params.resume).toEqual([
+      { interruptId: 'ap-2', status: 'resolved', payload: { approved: true } },
+    ])
+  })
+})
+
 describe('AI SDK server, TanStack client: approvals', () => {
   const deleteFile = toolDefinition({
     name: 'deleteFile',

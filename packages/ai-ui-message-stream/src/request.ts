@@ -55,28 +55,26 @@ export function chatParamsFromAISDKMessages(
   threadId: string,
   messages: Array<AISDKUIMessage>,
 ): AISDKChatParams {
-  const resume = messages.flatMap((message) =>
-    message.parts.flatMap(
-      (part): Array<RunAgentResumeItem> =>
-        isToolUIPart(part) && part.state === 'approval-responded'
-          ? [
-              {
-                interruptId: part.approval.id,
-                status: 'resolved',
-                payload: { approved: part.approval.approved },
-              },
-            ]
-          : [],
-    ),
+  // Only the last assistant message holds the paused run. Its answers and
+  // its run id go together.
+  const paused = messages.filter((m) => m.role === 'assistant').at(-1)
+  const resume = (paused?.parts ?? []).flatMap(
+    (part): Array<RunAgentResumeItem> =>
+      isToolUIPart(part) && part.state === 'approval-responded'
+        ? [
+            {
+              interruptId: part.approval.id,
+              status: 'resolved',
+              payload: { approved: part.approval.approved },
+            },
+          ]
+        : [],
   )
 
   const params = { threadId, messages: fromAISDKMessages(messages) }
   if (resume.length === 0) return params
   // `toUIMessageStream` puts the run id in the message metadata.
-  const runId = tanstackField(
-    messages.filter((m) => m.role === 'assistant').at(-1)?.metadata,
-    'runId',
-  )
+  const runId = tanstackField(paused?.metadata, 'runId')
   if (typeof runId !== 'string') {
     throw new Error(
       'An approval answer needs `metadata.tanstack.runId` on the last assistant message.',
@@ -90,7 +88,8 @@ export function chatParamsFromAISDKMessages(
  * `chatParamsFromAISDKRequestBody`.
  *
  * @throws {Response} 400 when the body is not JSON or not a valid chat
- *   request.
+ *   request. In a framework that does not return a thrown `Response` (for
+ *   example Next.js route handlers), catch it and return it.
  */
 export async function chatParamsFromAISDKRequest(
   request: Request,

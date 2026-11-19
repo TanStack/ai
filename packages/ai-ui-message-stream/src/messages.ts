@@ -186,7 +186,8 @@ function sourceToUrl(source: ContentPartSource): string {
 
 function toolOutput(content: ToolResultPart['content']): unknown {
   if (typeof content !== 'string') return content
-  return parseJson(content) ?? content
+  const parsed = parseJson(content)
+  return parsed === undefined ? content : parsed
 }
 
 /** The AI SDK approval fields that the TanStack tool-call part has no place for. */

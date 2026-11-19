@@ -70,7 +70,8 @@ export function tanstackField(metadata: unknown, key: string): unknown {
 /** Tool output as the AI SDK client renders it: parsed JSON, else the text. */
 function parseOutput(content: string | ReadonlyArray<unknown>): unknown {
   if (typeof content !== 'string') return content
-  return parseJson(content) ?? content
+  const parsed = parseJson(content)
+  return parsed === undefined ? content : parsed
 }
 
 /** A tool call that `toUIMessageStream` has seen. */
@@ -113,9 +114,14 @@ function toolCallFields(tool: ToolCallState): {
  * part, shared state a `data-state` part, and each subagent a `data-subagent`
  * card, each updated in place by id. A CUSTOM event becomes a transient
  * `data-<name>` chunk, which reaches `onData`.
+ *
+ * Pass the `abortController` that you gave `chat()`. When the client goes
+ * away, the response is cancelled and the run is aborted, also while it waits
+ * for the provider.
  */
 export function toUIMessageStream(
   stream: AsyncIterable<StreamChunk>,
+  { abortController }: { abortController?: AbortController } = {},
 ): ReadableStream<UIMessageChunk> {
   async function* convert(): AsyncGenerator<UIMessageChunk> {
     let started = false
@@ -142,6 +148,8 @@ export function toUIMessageStream(
     function* startStep(): Generator<UIMessageChunk> {
       if (inStep) return
       inStep = true
+      // A new model call: only its own RUN_FINISHED completes the stream.
+      finished = false
       yield { type: 'start-step' }
     }
 
@@ -496,8 +504,11 @@ export function toUIMessageStream(
         controller.close()
       }
     },
-    async cancel() {
-      await iterator.return(undefined)
+    cancel(reason) {
+      // The client went away. A pending read can wait on the provider, so
+      // abort the run and do not wait for the generator to return.
+      abortController?.abort(reason)
+      void iterator.return(undefined).catch(() => {})
     },
   })
 }
@@ -517,6 +528,10 @@ export interface FromUIMessageStreamOptions {
    * part with partial objects while it streams. At the end the text is
    * checked against the schema: a valid answer is the part's `data`, and an
    * invalid one ends the run with a RUN_ERROR.
+   *
+   * Only a Standard Schema (Zod, Valibot, ArkType) checks the answer. With a
+   * plain JSON Schema, the answer must be JSON, and its shape is not checked,
+   * as with `chat({ outputSchema })`.
    */
   outputSchema?: SchemaInput
 }
@@ -575,9 +590,8 @@ export async function* fromUIMessageStream(
   const approvals: Array<Interrupt> = []
   // ponytail: shallow merge, where the AI SDK merges nested objects too.
   let messageMetadata: unknown
-  // The answer text, once text starts with `outputSchema` set.
-  // ponytail: all text of the stream is the answer, so text in a tool-call
-  // step joins it. Start the answer per step if a route sends such text.
+  // The answer text, once text starts with `outputSchema` set. Each step
+  // starts it again, so only the text of the last step is the answer.
   let structuredRaw: string | undefined
 
   /**
@@ -705,10 +719,10 @@ export async function* fromUIMessageStream(
     })
   }
 
-  /** End one waiting call, or every waiting call except `keep`. */
-  function* endTools(only?: string, keep?: string): Generator<StreamChunk> {
+  /** End one waiting call, or every waiting call. */
+  function* endTools(only?: string): Generator<StreamChunk> {
     for (const toolCallId of only === undefined ? [...pendingEnds] : [only]) {
-      if (toolCallId === keep || !pendingEnds.delete(toolCallId)) continue
+      if (!pendingEnds.delete(toolCallId)) continue
       const tool = tools.get(toolCallId)
       if (tool) tool.ended = true
       yield { type: EventType.TOOL_CALL_END, toolCallId }
@@ -746,10 +760,9 @@ export async function* fromUIMessageStream(
   yield { type: EventType.RUN_STARTED, threadId, runId }
 
   for await (const chunk of stream) {
-    yield* endTools(
-      undefined,
-      'toolCallId' in chunk ? chunk.toolCallId : undefined,
-    )
+    // A chunk of another call does not end a waiting call: its approval or
+    // output can still come. Other chunks end every waiting call.
+    if (!('toolCallId' in chunk)) yield* endTools()
     // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- reset-step and custom parts are skipped; default maps data parts.
     switch (chunk.type) {
       case 'start':
@@ -761,6 +774,7 @@ export async function* fromUIMessageStream(
         break
 
       case 'start-step':
+        if (structuredRaw !== undefined) structuredRaw = ''
         yield { type: EventType.STEP_STARTED, stepName: `step-${++stepCount}` }
         break
       case 'finish-step':

@@ -321,6 +321,57 @@ describe('AI SDK server, TanStack client: fidelity', () => {
     )
   })
 
+  it('keeps the approval signature when another call comes between', async () => {
+    const { requests, transport } = fakeTransport([
+      [
+        { type: 'start', messageId: 'a-1' },
+        {
+          type: 'tool-input-available',
+          toolCallId: 'c-1',
+          toolName: 'deleteFile',
+          input: { path: 'a.txt' },
+        },
+        {
+          type: 'tool-input-available',
+          toolCallId: 'c-2',
+          toolName: 'deleteFile',
+          input: { path: 'b.txt' },
+        },
+        {
+          type: 'tool-approval-request',
+          approvalId: 'ap-1',
+          toolCallId: 'c-1',
+          signature: 'sig-1',
+        },
+        {
+          type: 'tool-approval-request',
+          approvalId: 'ap-2',
+          toolCallId: 'c-2',
+          signature: 'sig-2',
+        },
+        { type: 'finish', finishReason: 'tool-calls' },
+      ],
+      [{ type: 'start' }, { type: 'finish', finishReason: 'stop' }],
+    ])
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection: fromChatTransport(transport),
+    })
+
+    await client.sendMessage('Delete a.txt and b.txt')
+    for (const interrupt of client.getInterrupts()) {
+      if (interrupt.kind !== 'generic') throw new Error('expected generic')
+      interrupt.resolveInterrupt({ approved: true })
+    }
+
+    await vi.waitFor(() => expect(requests).toHaveLength(2))
+    const sent = requests[1]!.find((m) => m.role === 'assistant')
+    expect(sent?.parts.map((p) => 'approval' in p && p.approval)).toEqual([
+      { id: 'ap-1', approved: true, signature: 'sig-1' },
+      { id: 'ap-2', approved: true, signature: 'sig-2' },
+    ])
+  })
+
   it('sends a text-encoded tool input as JSON once', async () => {
     const out = await collect([
       {
@@ -402,6 +453,33 @@ describe('AI SDK server, TanStack client: fidelity', () => {
 })
 
 describe('toAISDKMessages', () => {
+  it('keeps a null tool output as null', () => {
+    const [assistant] = toAISDKMessages([
+      {
+        id: 'a',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'c-1',
+            name: 'lookup',
+            arguments: '{}',
+            state: 'input-complete',
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'c-1',
+            content: 'null',
+            state: 'complete',
+          },
+        ],
+      },
+    ])
+    expect(assistant?.parts).toContainEqual(
+      expect.objectContaining({ toolCallId: 'c-1', output: null }),
+    )
+  })
+
   it('drops system messages and sends a structured answer as text', () => {
     expect(
       toAISDKMessages([
