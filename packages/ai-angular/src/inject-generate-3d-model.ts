@@ -86,5 +86,7 @@ export function injectGenerate3DModel<TTransformed = void>(
   return injectGeneration<Model3DGenerateInput, Model3DResult, TTransformed>({
     ...options,
     devtools,
+    // 3D results are never persisted, even if an untyped caller sets it.
+    persistence: false,
   })
 }

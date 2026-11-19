@@ -281,6 +281,7 @@ otelMiddleware({
 These activities accept `otelMiddleware`:
 
 - `generateImage`, `generateVideo`, and `generateLiveVideo`.
+- `generate3DModel` (experimental).
 - `generateWorld` and `generateAudio`.
 - `generateSpeech` and `generateTranscription`.
 
@@ -290,6 +291,7 @@ Each media call makes one `CLIENT` span, tagged with the `gen_ai.operation.name`
 | --- | --- |
 | `generateImage` | `image_generation` |
 | `generateVideo` | `video_generation` |
+| `generate3DModel` | `3d_model_generation` |
 | `generateAudio` | `audio_generation` |
 | `generateSpeech` | `text_to_speech` |
 | `generateTranscription` | `transcription` |

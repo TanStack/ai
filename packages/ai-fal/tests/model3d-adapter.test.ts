@@ -191,7 +191,7 @@ describe('fal3DModel create3DModelJob', () => {
       'two unroled images to a single-image endpoint',
       'fal-ai/hunyuan3d-v3/image-to-3d',
       [image(IMAGE_URL), image(IMAGE_URL)],
-      /fal-ai\/hunyuan3d-v3\/image-to-3d accepts a single source image/,
+      /hunyuan3d-v3\/image-to-3d takes images only in 'input_image_url', not in 'image_urls'/,
     ],
     [
       'an unroled image and a start_frame image to a single-image endpoint',
@@ -204,7 +204,20 @@ describe('fal3DModel create3DModelJob', () => {
           metadata: { role: 'start_frame' },
         },
       ],
-      /fal-ai\/hunyuan3d-v3\/image-to-3d accepts a single source image/,
+      /hunyuan3d-v3\/image-to-3d takes images only in 'input_image_url', not in 'image_urls'/,
+    ],
+    [
+      'a reference image to an endpoint that takes no reference images',
+      'fal-ai/hunyuan3d-v3/image-to-3d',
+      [
+        image(IMAGE_URL),
+        {
+          type: 'image',
+          source: { type: 'url', value: 'https://example.com/ref.png' },
+          metadata: { role: 'reference' },
+        },
+      ],
+      /not in 'reference_image_urls'/,
     ],
     [
       'two style images to Meshy 7 retexture',
@@ -233,6 +246,21 @@ describe('fal3DModel create3DModelJob', () => {
       expect(queue.submitted).toEqual([])
     },
   )
+
+  it('sends a mask image as mask_url to SAM 3D Body', async () => {
+    const input = await submittedInput('fal-ai/sam-3/3d-body', [
+      image(IMAGE_URL),
+      {
+        type: 'image',
+        source: { type: 'url', value: 'https://example.com/mask.png' },
+        metadata: { role: 'mask' },
+      },
+    ])
+    expect(input).toEqual({
+      image_url: IMAGE_URL,
+      mask_url: 'https://example.com/mask.png',
+    })
+  })
 
   it('sends two images as image_urls to TRELLIS multi', async () => {
     const input = await submittedInput('fal-ai/trellis/multi', [

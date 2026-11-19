@@ -148,5 +148,9 @@ export function useGenerate3DModel<TTransformed = void>(
     Model3DGenerateInput,
     Model3DResult,
     TTransformed
-  >(options, { hookName: 'useGenerate3DModel' })
+  >(
+    // 3D results are never persisted, even if an untyped caller sets it.
+    { ...options, persistence: false },
+    { hookName: 'useGenerate3DModel' },
+  )
 }

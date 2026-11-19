@@ -71,7 +71,10 @@ function waitFor(
   })
 }
 
-function streamFrom(adapter: FakeModel3DAdapter) {
+function streamFrom(
+  adapter: FakeModel3DAdapter,
+  extra: { abortSignal?: AbortSignal } = {},
+) {
   return generate3DModel({
     adapter,
     prompt: 'a small robot',
@@ -80,6 +83,7 @@ function streamFrom(adapter: FakeModel3DAdapter) {
     stream: true,
     pollInterval: 1,
     debug: false,
+    ...extra,
   })
 }
 
@@ -173,6 +177,17 @@ describe('generate3DModel', () => {
     await vi.waitFor(() => {
       expect(adapter.cancelled).toEqual(['job-late'])
     })
+  })
+
+  it('creates no job when the signal is already aborted', async () => {
+    const adapter = new FakeModel3DAdapter([{ status: 'processing' }])
+    const controller = new AbortController()
+    controller.abort(new Error('user stopped'))
+
+    await expect(
+      waitFor(adapter, { abortSignal: controller.signal }),
+    ).rejects.toThrow('user stopped')
+    expect(adapter.createCalls).toBe(0)
   })
 
   it('cancels the job and leaves no timers when aborted during the poll sleep', async () => {
@@ -278,6 +293,25 @@ describe('generate3DModel', () => {
       if (chunk.type === 'CUSTOM') break
     }
 
+    expect(adapter.cancelled).toEqual(['job-1'])
+  })
+
+  it('cancels the job at abort while the stream consumer is paused', async () => {
+    const adapter = new FakeModel3DAdapter([{ status: 'processing' }])
+    const controller = new AbortController()
+    const stream = streamFrom(adapter, { abortSignal: controller.signal })[
+      Symbol.asyncIterator
+    ]()
+
+    // Read up to the first status, then stop reading.
+    let next = await stream.next()
+    while (!next.done && next.value.type !== 'CUSTOM') {
+      next = await stream.next()
+    }
+    controller.abort(new Error('user stopped'))
+
+    expect(adapter.cancelled).toEqual(['job-1'])
+    await stream.return?.(undefined)
     expect(adapter.cancelled).toEqual(['job-1'])
   })
 })

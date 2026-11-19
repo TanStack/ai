@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import {
   fetchServerSentEvents,
@@ -41,6 +41,10 @@ function ImageStep(props: ImageStepProps) {
   const [text, setText] = useState(initialText)
   // The image on screen: the last drawn or uploaded image.
   const [url, setUrl] = useState<string | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  // The file read in progress. A new file stops the old read, so an old
+  // file cannot replace the latest one.
+  const readerRef = useRef<FileReader | null>(null)
   const prompt = text.trim() ? toPrompt(text.trim()) : null
   const showImage = (next: string) => {
     setUrl(next)
@@ -58,10 +62,14 @@ function ImageStep(props: ImageStepProps) {
   })
   // An uploaded image becomes a data: URL. fal reads it like any URL.
   const upload = (file: File) => {
+    readerRef.current?.abort()
     const reader = new FileReader()
+    readerRef.current = reader
+    setUploadError(null)
     reader.onload = () => {
       if (typeof reader.result === 'string') showImage(reader.result)
     }
+    reader.onerror = () => setUploadError(`Could not read ${file.name}.`)
     reader.readAsDataURL(file)
   }
 
@@ -93,7 +101,7 @@ function ImageStep(props: ImageStepProps) {
           Or upload your own image
           <input
             type="file"
-            accept="image/png,image/jpeg,image/webp"
+            accept="image/png,image/jpeg"
             disabled={isLoading}
             onChange={(event) => {
               const file = event.target.files?.[0]
@@ -103,8 +111,10 @@ function ImageStep(props: ImageStepProps) {
           />
         </label>
       ) : null}
-      {error ? (
-        <p className="mt-3 text-sm text-red-400">{error.message}</p>
+      {error || uploadError ? (
+        <p className="mt-3 text-sm text-red-400">
+          {error?.message ?? uploadError}
+        </p>
       ) : null}
       {url ? (
         <img src={url} alt={title} className="mt-3 max-h-64 rounded-lg" />
@@ -207,7 +217,12 @@ function PipelinePage() {
           initialText="A wooden treasure chest with iron bands"
           action="Draw"
           toPrompt={(text) => text}
-          onImage={setConceptUrl}
+          onImage={(url) => {
+            // A new concept makes the old mesh and skin wrong for it.
+            setConceptUrl(url)
+            setMeshUrl(null)
+            setSkinUrl(null)
+          }}
           allowUpload
         />
         <ModelStep

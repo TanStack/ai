@@ -300,6 +300,8 @@ function createJob(
   signal: AbortSignal | undefined,
 ) {
   const { adapter } = options
+  // Do not submit a paid job for a run that is already aborted.
+  if (signal?.aborted) return Promise.reject(toAbortError(signal.reason))
   logger.request(`activity=generate3DModel provider=${adapter.name}`, {
     provider: adapter.name,
     model: adapter.model,
@@ -454,9 +456,21 @@ async function* run3DModelJob(
   // tell a consumer that stopped reading from a run that already ended.
   let settled = false
   let jobId: string | undefined
+  let cancelled = false
+  const cancel = () => {
+    if (jobId === undefined || cancelled) return
+    cancelled = true
+    cancelJob(adapter, jobId, logger)
+  }
+  // A stream consumer can pause at a `yield`. Cancel at the abort or the
+  // deadline, and do not wait until the consumer reads again.
+  const cancelOnAbort = () => {
+    if (!settled) cancel()
+  }
   try {
     const job = await createJob(options, logger, signal)
     jobId = job.jobId
+    signal?.addEventListener('abort', cancelOnAbort, { once: true })
 
     let status: Model3DStatusResult
     do {
@@ -494,9 +508,7 @@ async function* run3DModelJob(
     settled = true
     // Cancel only on a real caller abort or timeout. A provider error named
     // `TimeoutError` does not mean the caller wants the job stopped.
-    if (jobId !== undefined && signal?.aborted) {
-      cancelJob(adapter, jobId, logger)
-    }
+    if (signal?.aborted) cancel()
     await reportFailure(middleware, ctx, error, signal, startTime)
     logger.errors('generate3DModel activity failed', {
       error,
@@ -505,9 +517,10 @@ async function* run3DModelJob(
     throw error
   } finally {
     abortControls.clear()
+    signal?.removeEventListener('abort', cancelOnAbort)
     if (!settled) {
       // The consumer stopped reading before the job finished.
-      if (jobId !== undefined) cancelJob(adapter, jobId, logger)
+      cancel()
       await runGenerationAbort(middleware, ctx, {
         reason: '3D model generation stopped before completion',
         duration: Date.now() - startTime,

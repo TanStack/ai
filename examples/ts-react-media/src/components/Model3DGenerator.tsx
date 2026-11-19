@@ -74,6 +74,10 @@ export default function Model3DGenerator() {
   const [styleFiles, setStyleFiles] = useState<Array<File>>([])
   const [step, setStep] = useState<Step>('base')
   const [progress, setProgress] = useState<Progress | null>(null)
+  // The step that made the model on screen, and an image read error.
+  const [resultStep, setResultStep] = useState<Step>('base')
+  const [readError, setReadError] = useState<string | null>(null)
+  const stepRef = useRef<Step>('base')
   // Guard Generate and Retexture from file read through generation so a
   // second click cannot overwrite the accepted run.
   const inFlightRef = useRef(false)
@@ -106,6 +110,9 @@ export default function Model3DGenerator() {
         }),
       ),
     onProgress: (value, message) => setProgress({ value, message }),
+    onResult: () => {
+      setResultStep(stepRef.current)
+    },
   })
 
   const run = (next: Run) => {
@@ -114,6 +121,7 @@ export default function Model3DGenerator() {
       ...(next.modelOptions ? { modelOptions: next.modelOptions } : {}),
     }
     endpointByInput.current.set(input, next.model)
+    stepRef.current = next.step
     setStep(next.step)
     setProgress(null)
     void generate(input).finally(() => {
@@ -125,6 +133,7 @@ export default function Model3DGenerator() {
     const file = files[0]
     if (!file || isLoading || inFlightRef.current) return
     inFlightRef.current = true
+    setReadError(null)
     try {
       const image = toImagePart(await readMediaFile(file))
       const text = textHint.trim()
@@ -136,18 +145,22 @@ export default function Model3DGenerator() {
       })
     } catch {
       inFlightRef.current = false
+      setReadError(`Could not read ${file.name}.`)
     }
   }
 
-  // A failed run keeps the previous model on the hook. Hide it under the
-  // error so it does not look like the result of the failed run.
-  const shown = result && !isLoading && !error ? result : null
+  // A failed run keeps the previous model on the hook. After a failed base
+  // run, hide it so it does not look like the result of that run. After a
+  // failed retexture, keep it, so the user can retexture it again.
+  const shown =
+    result && !isLoading && (!error || step === 'retexture') ? result : null
   const isGlb = shown?.format === 'glb'
 
   const handleRetexture = async () => {
     const styleFile = styleFiles[0]
     if (!shown || !styleFile || isLoading || inFlightRef.current) return
     inFlightRef.current = true
+    setReadError(null)
     try {
       const reference = toImagePart(await readMediaFile(styleFile))
       const modelOptions = {
@@ -164,14 +177,16 @@ export default function Model3DGenerator() {
       })
     } catch {
       inFlightRef.current = false
+      setReadError(`Could not read ${styleFile.name}.`)
     }
   }
 
   const statusText = isLoading
     ? `${STEP_LABELS[step]}: ${describeProgress(progress)}`
-    : shown
-      ? `${STEP_LABELS[step]} is ready.`
+    : shown && !error
+      ? `${STEP_LABELS[resultStep]} is ready.`
       : ''
+  const errorText = readError ?? (error && !isLoading ? error.message : null)
   const progressValue =
     progress && progress.value > 0 ? progress.value : undefined
   const downloads: Array<Model3DFile> = shown
@@ -253,7 +268,12 @@ export default function Model3DGenerator() {
           {isLoading ? (
             <button
               type="button"
-              onClick={stop}
+              onClick={() => {
+                // Stop can come before the run settles, for example while
+                // BYOK waits on a passkey. Free the run lock here.
+                inFlightRef.current = false
+                stop()
+              }}
               className={`px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors flex items-center gap-2 ${FOCUS_RING}`}
             >
               <Square className="w-4 h-4" aria-hidden="true" />
@@ -275,12 +295,12 @@ export default function Model3DGenerator() {
             className="w-full h-2 accent-blue-500"
           />
         ) : null}
-        {error && !isLoading ? (
+        {errorText ? (
           <p
             role="alert"
             className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-300"
           >
-            {error.message}
+            {errorText}
           </p>
         ) : null}
       </div>
@@ -288,7 +308,7 @@ export default function Model3DGenerator() {
       {shown ? (
         <section aria-labelledby={resultHeadingId} className="space-y-4">
           <h2 id={resultHeadingId} className="text-lg font-medium text-white">
-            Result: {STEP_LABELS[step]}
+            Result: {STEP_LABELS[resultStep]}
           </h2>
           {isGlb ? (
             <GlbViewer

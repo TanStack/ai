@@ -171,6 +171,7 @@ function asImageToVideoPrompt(
 async function uploadInlineImageInputs(
   prompt: string | Array<TextPart | ImagePart<MediaInputMetadata>>,
   files: FilesAdapter,
+  abortSignal?: AbortSignal,
 ): Promise<string | Array<TextPart | ImagePart<MediaInputMetadata>>> {
   if (typeof prompt === 'string') return prompt
   return Promise.all(
@@ -179,6 +180,7 @@ async function uploadInlineImageInputs(
       const handle = await uploadFile({
         adapter: files,
         input: { data: part.source.value, mimeType: part.source.mimeType },
+        abortSignal,
       })
       return { ...part, source: fileSourceFromHandle(handle) }
     }),
@@ -758,6 +760,7 @@ export const generate3DModelFn = createServerFn({ method: 'POST' })
           : parts.filter((part) => part.type !== 'model3d'),
       ),
       falF(),
+      abortSignal,
     )
     abortSignal.throwIfAborted()
     const prompt = typeof others === 'string' ? others : [...meshes, ...others]

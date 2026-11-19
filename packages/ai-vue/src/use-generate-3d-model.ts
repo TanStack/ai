@@ -135,5 +135,7 @@ export function useGenerate3DModel<TTransformed = void>(
   return useGeneration<Model3DGenerateInput, Model3DResult, TTransformed>({
     ...options,
     devtools,
+    // 3D results are never persisted, even if an untyped caller sets it.
+    persistence: false,
   })
 }

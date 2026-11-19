@@ -91,6 +91,7 @@ export function createGenerate3DModel<TTransformed = void>(
   const devtools = { ...options.devtools, hookName: 'createGenerate3DModel' }
   return createGeneration<Model3DGenerateInput, Model3DResult, TTransformed>(
     handle,
-    { ...options, devtools },
+    // 3D results are never persisted, even if an untyped caller sets it.
+    { ...options, devtools, persistence: false },
   )
 }
