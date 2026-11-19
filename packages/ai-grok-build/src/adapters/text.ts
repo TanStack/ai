@@ -411,7 +411,13 @@ export class GrokBuildTextAdapter<
         sandbox,
         this.adapterConfig.grokExecutable,
       )
-      const authMode = modelOptions?.authMode ?? this.adapterConfig.authMode
+      const explicitAuthMethodId =
+        modelOptions?.authMethodId ?? this.adapterConfig.authMethodId
+      // An explicit `xai.api_key` wins over `authMode`, so it keeps the key.
+      const authMode =
+        explicitAuthMethodId === 'xai.api_key'
+          ? 'api-key'
+          : (modelOptions?.authMode ?? this.adapterConfig.authMode)
       if (authMode === 'host') hostLogin = await mountGrokHostLogin(sandbox)
       const connection = await openGrokAcpConnection({
         sandbox,
@@ -433,7 +439,7 @@ export class GrokBuildTextAdapter<
         'bypassPermissions'
       const authMethodId = resolveGrokSessionAuthMethod(
         authMode,
-        modelOptions?.authMethodId ?? this.adapterConfig.authMethodId,
+        explicitAuthMethodId,
         {
           ...process.env,
           ...this.adapterConfig.env,
@@ -565,7 +571,10 @@ export class GrokBuildTextAdapter<
         )
         // chat() stops at the first RUN_ERROR, so the held RUN_FINISHED is
         // never read. Its usage is on the RUN_ERROR.
-        if (parseFailed) heldFinished = undefined
+        if (parseFailed) {
+          runFailed = true
+          heldFinished = undefined
+        }
       }
       if (heldFinished) yield heldFinished
 

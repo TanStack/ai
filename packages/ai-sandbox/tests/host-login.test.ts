@@ -22,6 +22,17 @@ switch (mode) {
       process.exit(0)
     }, 100)
     break
+  case 'cut':
+    process.stdout.write('Open https://auth.example.com/device and enter ABCD-1234')
+    setTimeout(() => {
+      console.log('5')
+      process.exit(0)
+    }, 100)
+    break
+  case 'no-newline':
+    process.stdout.write('Open https://auth.example.com/device and enter ABCD-1234')
+    setTimeout(() => process.exit(0), 1500)
+    break
   case 'url-only':
     console.log('Open https://auth.example.com/device')
     setTimeout(() => process.exit(0), 1500)
@@ -96,6 +107,32 @@ describe('cliPlanLogin.signIn', () => {
   it('waits for a code that comes after the URL', async () => {
     const onCode = vi.fn()
     await fakeLogin({ loginArgs: ['split'] }).signIn({ onCode })
+    expect(onCode.mock.calls).toEqual([
+      [
+        {
+          verificationUri: 'https://auth.example.com/device',
+          userCode: 'ABCD-1234',
+        },
+      ],
+    ])
+  })
+
+  it('waits for the rest of a code that a chunk cuts', async () => {
+    const onCode = vi.fn()
+    await fakeLogin({ loginArgs: ['cut'] }).signIn({ onCode })
+    expect(onCode.mock.calls).toEqual([
+      [
+        {
+          verificationUri: 'https://auth.example.com/device',
+          userCode: 'ABCD-12345',
+        },
+      ],
+    ])
+  })
+
+  it('reports a code with no newline after the CLI is quiet', async () => {
+    const onCode = vi.fn()
+    await fakeLogin({ loginArgs: ['no-newline'] }).signIn({ onCode })
     expect(onCode.mock.calls).toEqual([
       [
         {
@@ -222,14 +259,25 @@ describe('cliPlanLogin.status', () => {
 
 const SANDBOX_FILE = '/home/user/.codex/auth.json'
 
+let sandboxCount = 0
+
 function fakeSandbox(options?: {
   provider?: string
   read?: SandboxFs['read']
+  write?: SandboxFs['write']
 }) {
-  const base = makeFakeHandle('sbx-1', options?.provider ?? 'docker')
+  sandboxCount += 1
+  const base = makeFakeHandle(
+    `sbx-${sandboxCount}`,
+    options?.provider ?? 'docker',
+  )
   const sandbox = {
     ...base,
-    fs: { ...base.fs, read: options?.read ?? base.fs.read },
+    fs: {
+      ...base.fs,
+      read: options?.read ?? base.fs.read,
+      write: options?.write ?? base.fs.write,
+    },
     process: {
       ...base.process,
       exec: () =>
@@ -255,8 +303,42 @@ describe('mountHostLogin', () => {
 
   it('copies the host file to <home>/<sandboxHomePath>', async () => {
     const { sandbox, files } = fakeSandbox()
-    await mountWith(sandbox)
+    const login = await mountWith(sandbox)
     expect(files.get(SANDBOX_FILE)).toBe('{"token":"old"}')
+    await login.release()
+  })
+
+  it('runs on one sandbox share the copy, and the last release removes it', async () => {
+    const { sandbox, files } = fakeSandbox()
+    const first = await mountWith(sandbox)
+    const second = await mountWith(sandbox)
+    await first.release()
+    expect(files.get(SANDBOX_FILE)).toBe('{"token":"old"}')
+    await second.release()
+    expect(files.has(SANDBOX_FILE)).toBe(false)
+  })
+
+  it('release keeps a host login that changed during the run', async () => {
+    const { sandbox, files } = fakeSandbox()
+    const login = await mountWith(sandbox)
+    files.set(SANDBOX_FILE, '{"token":"refreshed"}')
+    await writeFile(join(dir, 'auth.json'), '{"token":"terminal"}')
+    await login.release()
+    expect(await readFile(join(dir, 'auth.json'), 'utf8')).toBe(
+      '{"token":"terminal"}',
+    )
+    expect(files.has(SANDBOX_FILE)).toBe(false)
+  })
+
+  it('removes the sandbox file when the write fails', async () => {
+    const { sandbox, files } = fakeSandbox({
+      write: (path, data) => {
+        files.set(path, String(data))
+        return Promise.reject(new Error('disk full'))
+      },
+    })
+    await expect(mountWith(sandbox)).rejects.toThrow('disk full')
+    expect(files.has(SANDBOX_FILE)).toBe(false)
   })
 
   it('release writes a changed file back to the host and removes the sandbox file', async () => {

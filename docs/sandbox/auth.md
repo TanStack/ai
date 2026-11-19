@@ -118,7 +118,7 @@ const sandbox = defineSandbox({
 
 const stream = chat({
   threadId: 'thread-1',
-  adapter: codexText('gpt-5.3-codex', { authMode: 'host' }),
+  adapter: codexText('gpt-6.1-sol', { authMode: 'host' }),
   messages: [{ role: 'user', content: 'Summarize this repo.' }],
   middleware: [withSandbox(sandbox)],
 })

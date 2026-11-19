@@ -34,8 +34,21 @@ export type CliExecutable = string | ReadonlyArray<string>
 
 const URL_PATTERN = /https:\/\/\S+/
 const CODE_PATTERN = /[A-Z0-9]{4,}-[A-Z0-9]{4,}/
-/** When the CLI prints a URL and no code, report the URL after this quiet time. */
-const URL_ONLY_DELAY_MS = 500
+/**
+ * A chunk can end in the middle of the URL or the code. The last word of the
+ * output is read only after the CLI was quiet for this time.
+ */
+const QUIET_DELAY_MS = 500
+
+/** The URL and the code in `text`, or `undefined` when it has no URL. */
+function parseDeviceCode(text: string): DeviceCode | undefined {
+  const verificationUri = URL_PATTERN.exec(text)?.[0]
+  if (verificationUri === undefined) return undefined
+  const userCode = CODE_PATTERN.exec(text)?.[0]
+  return userCode === undefined
+    ? { verificationUri }
+    : { verificationUri, userCode }
+}
 
 /**
  * Runs the CLI with no shell (Windows `.cmd` shims go through `cmd.exe`) and collects stdout and stderr together.
@@ -205,9 +218,9 @@ export function cliPlanLogin(options: {
     planLabel,
     signIn: async ({ onCode, signal }) => {
       let reported = false
-      let urlOnlyTimer: ReturnType<typeof setTimeout> | undefined
+      let quietTimer: ReturnType<typeof setTimeout> | undefined
       const report = (code: DeviceCode) => {
-        clearTimeout(urlOnlyTimer)
+        clearTimeout(quietTimer)
         if (reported) return
         reported = true
         onCode(code)
@@ -215,19 +228,19 @@ export function cliPlanLogin(options: {
       const onOutput = (output: string) => {
         if (reported) return
         const text = stripVTControlCharacters(output)
-        const verificationUri = URL_PATTERN.exec(text)?.[0]
-        if (verificationUri === undefined) return
-        const userCode = CODE_PATTERN.exec(text)?.[0]
-        if (userCode !== undefined) {
-          report({ verificationUri, userCode })
+        clearTimeout(quietTimer)
+        // Without the last word, which the next chunk can still make longer.
+        const complete = parseDeviceCode(text.slice(0, text.search(/\S*$/)))
+        if (complete?.userCode !== undefined) {
+          report(complete)
           return
         }
-        // The code can come in a later chunk. Wait a short time for it.
-        clearTimeout(urlOnlyTimer)
-        urlOnlyTimer = setTimeout(
-          () => report({ verificationUri }),
-          URL_ONLY_DELAY_MS,
-        )
+        // The code can come in a later chunk, or the CLI waits after its
+        // last word. Read all of the output after a quiet time.
+        quietTimer = setTimeout(() => {
+          const settled = parseDeviceCode(text)
+          if (settled !== undefined) report(settled)
+        }, QUIET_DELAY_MS)
       }
       try {
         const result = await runCli({
@@ -241,7 +254,7 @@ export function cliPlanLogin(options: {
         const hasUrl = URL_PATTERN.test(stripVTControlCharacters(result.output))
         throw failure(result, hasUrl ? '' : ' It printed no sign-in URL.')
       } finally {
-        clearTimeout(urlOnlyTimer)
+        clearTimeout(quietTimer)
       }
     },
     signOut: async () => {
@@ -260,8 +273,12 @@ export function cliPlanLogin(options: {
 /**
  * Copies the host login file of a CLI into the sandbox home for one run.
  * Call `release()` in a `finally` after the run. It writes the sandbox file
- * back to the host when the CLI changed it (a refreshed token), then removes
- * it from the sandbox, also when the read-back fails.
+ * back to the host when the CLI changed it (a refreshed token) and the host
+ * file did not change during the run. Then it removes the file from the
+ * sandbox, also when the read-back fails.
+ *
+ * Runs on the same sandbox share one copy. The last `release()` writes it
+ * back and removes it.
  *
  * On a `local-process` sandbox, nothing is copied: the CLI reads the host
  * file.
@@ -291,17 +308,82 @@ export function cliPlanLogin(options: {
  */
 export async function mountHostLogin(
   sandbox: SandboxHandle,
-  options: {
-    hostPath: string
-    sandboxHomePath: string
-    label: string
-    connectCommand: string
-  },
+  options: HostLoginMountOptions,
 ) {
-  const { hostPath, sandboxHomePath, label, connectCommand } = options
   if (sandbox.provider === 'local-process') {
     return { release: () => Promise.resolve() }
   }
+  // Runs on one sandbox share one copy. The last run to end releases it.
+  // ponytail: per process. Two hosts on one sandbox still share no count.
+  const key = `${sandbox.provider}\0${sandbox.id}\0${options.sandboxHomePath}`
+  let mount = mounts.get(key)
+  // A release in progress removes the file. Wait for it, then copy again.
+  while (mount?.released !== undefined) {
+    await mount.released.catch(() => undefined)
+    mount = mounts.get(key)
+  }
+  if (mount === undefined) {
+    mount = { runs: 0, borrowed: borrowHostLogin(sandbox, options) }
+    mounts.set(key, mount)
+  }
+  const shared = mount
+  shared.runs += 1
+  let borrowed: BorrowedLogin
+  try {
+    borrowed = await shared.borrowed
+  } catch (error) {
+    shared.runs -= 1
+    if (shared.runs === 0 && mounts.get(key) === shared) mounts.delete(key)
+    throw error
+  }
+  let isReleased = false
+  return {
+    release: async () => {
+      if (isReleased) return
+      isReleased = true
+      shared.runs -= 1
+      if (shared.runs > 0) return
+      shared.released = returnHostLogin(
+        sandbox,
+        options.hostPath,
+        borrowed,
+      ).finally(() => {
+        if (mounts.get(key) === shared) mounts.delete(key)
+      })
+      await shared.released
+    },
+  }
+}
+
+interface HostLoginMountOptions {
+  hostPath: string
+  sandboxHomePath: string
+  label: string
+  connectCommand: string
+}
+
+/** The sandbox path of the login and the host content that was copied. */
+interface BorrowedLogin {
+  path: string
+  content: string
+}
+
+/** The mounts in use, by sandbox and login file. */
+const mounts = new Map<
+  string,
+  {
+    runs: number
+    borrowed: Promise<BorrowedLogin>
+    released?: Promise<void>
+  }
+>()
+
+/** Copy the host login file into the sandbox. */
+async function borrowHostLogin(
+  sandbox: SandboxHandle,
+  options: HostLoginMountOptions,
+): Promise<BorrowedLogin> {
+  const { hostPath, sandboxHomePath, label, connectCommand } = options
   const content = await readFile(hostPath, 'utf8').catch(
     (error: NodeJS.ErrnoException) => {
       if (error.code !== 'ENOENT') throw error
@@ -319,17 +401,32 @@ export async function mountHostLogin(
   }
   const path = posix.join(homePath, sandboxHomePath)
   await sandbox.fs.mkdir(posix.dirname(path))
-  await sandbox.fs.write(path, content)
-  return {
-    release: async () => {
-      try {
-        const after = await sandbox.fs.read(path)
-        if (after !== content) {
-          await writeFile(hostPath, after, { mode: 0o600 })
-        }
-      } finally {
-        await sandbox.fs.remove(path)
-      }
-    },
+  try {
+    await sandbox.fs.write(path, content)
+  } catch (error) {
+    // A failed write can still leave a file. Remove it, and keep the write error.
+    await sandbox.fs.remove(path).catch(() => undefined)
+    throw error
+  }
+  return { path, content }
+}
+
+/**
+ * Copy a refreshed token back to the host, then remove the sandbox file, also
+ * when the read-back fails.
+ */
+async function returnHostLogin(
+  sandbox: SandboxHandle,
+  hostPath: string,
+  { path, content }: BorrowedLogin,
+): Promise<void> {
+  try {
+    const after = await sandbox.fs.read(path)
+    if (after === content) return
+    // A sign-in on the host during the run is newer. Keep it.
+    const hostNow = await readFile(hostPath, 'utf8').catch(() => undefined)
+    if (hostNow === content) await writeFile(hostPath, after, { mode: 0o600 })
+  } finally {
+    await sandbox.fs.remove(path)
   }
 }

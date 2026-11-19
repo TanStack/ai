@@ -275,6 +275,7 @@ async function runAcp(
   local: SandboxHandle,
   config: GrokBuildTextConfig,
   sandbox: SandboxHandle = local,
+  outputSchema?: { type: 'object'; properties: Record<string, never> },
 ) {
   await local.fs.write('/workspace/fake-grok.mjs', ACP_FAKE_GROK)
   const adapter = grokBuildText('grok-build-0.1', {
@@ -291,6 +292,7 @@ async function runAcp(
       messages: [{ role: 'user', content: 'say pong' }],
       logger: noopLogger,
       capabilities: capabilityContextWith(sandbox),
+      ...(outputSchema && { outputSchema }),
     }),
   )
   const run: unknown = JSON.parse(
@@ -401,6 +403,46 @@ describe('grok-build authMode', () => {
       await expect(
         runAcp(local, { authMode: 'host' }, sandbox),
       ).rejects.toThrow('remove failed')
+    } finally {
+      await local.destroy()
+    }
+  })
+
+  it('a release error after a structured output error keeps the run error', async () => {
+    const local = await provider.create({})
+    try {
+      const { sandbox } = remoteSandbox(local, {
+        remove: () => Promise.reject(new Error('remove failed')),
+      })
+      const { chunks } = await runAcp(local, { authMode: 'host' }, sandbox, {
+        type: 'object',
+        properties: {},
+      })
+      expect(chunks.filter((c) => c.type === 'RUN_ERROR')).toHaveLength(1)
+    } finally {
+      await local.destroy()
+    }
+  })
+
+  it("an explicit 'xai.api_key' method wins over 'host' and keeps the key vars", async () => {
+    const local = await provider.create({})
+    try {
+      const { chunks, run } = await runAcp(local, {
+        authMode: 'host',
+        authMethodId: 'xai.api_key',
+        env: KEY_ENV,
+      })
+      expect(chunks.find((c) => c.type === 'RUN_ERROR')).toBeUndefined()
+      expect(run).toEqual({
+        XAI_API_KEY: 'sk-config',
+        GROK_API_KEY: 'gk-config',
+        methods: [
+          'initialize',
+          'authenticate',
+          'session/new',
+          'session/prompt',
+        ],
+      })
     } finally {
       await local.destroy()
     }

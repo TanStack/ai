@@ -658,4 +658,20 @@ describe('providerKeys with a plan login', () => {
     })
     await close()
   })
+
+  it("updates 'plan' in the plugin state after /connect and /disconnect", async () => {
+    const { session, close } = await openWith([
+      { ...codex, login: planLogin() },
+    ])
+    const stateOf = () => session.snapshot().plugins['tanstack/provider-keys']
+    await session.runCommand({ name: 'connect:codex' })
+    expect(stateOf()).toEqual({
+      providers: [{ id: 'codex', label: 'Codex', state: 'plan' }],
+    })
+    await session.runCommand({ name: 'disconnect:codex' })
+    expect(stateOf()).toEqual({
+      providers: [{ id: 'codex', label: 'Codex', state: 'missing' }],
+    })
+    await close()
+  })
 })

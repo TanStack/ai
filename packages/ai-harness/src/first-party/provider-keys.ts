@@ -174,12 +174,15 @@ export function providerKeys(options: {
         Promise.all(
           providers.map((provider) => describeKey(user, provider, readsEnv)),
         )
-      // No user at setup: the state shows the env vars only, and no command
-      // writes the keys of one user into it.
-      const described = await describe()
-      await state.update(() => ({
-        providers: described.map((entry) => entry.status),
-      }))
+      // No user: the state shows the plans and the env vars only, and no
+      // command writes the keys of one user into it.
+      const publish = async () => {
+        const described = await describe()
+        await state.update(() => ({
+          providers: described.map((entry) => entry.status),
+        }))
+      }
+      await publish()
       /** The `/keys` lines of the user who runs a command. */
       const linesOf = async ({ credentials, run }: CommandContext) =>
         (await describe({ credentials, keys: run.keys }))
@@ -234,6 +237,7 @@ export function providerKeys(options: {
                 signal,
               })
               await untilAborted(signingIn, signal)
+              await publish()
               return `Signed in to ${label} with your ${login.planLabel}.`
             },
           })
@@ -242,6 +246,7 @@ export function providerKeys(options: {
             run: async (_input, { credentials }) => {
               await credentials.delete(id)
               await login.signOut()
+              await publish()
               return `Disconnected from ${label}. This also signs you out of ${label} in your terminal.`
             },
           })

@@ -22,14 +22,14 @@ Use this for a harness that runs on the computer of the user: a CLI or a desktop
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @tanstack/ai-harness @tanstack/ai-sandbox @tanstack/ai-sandbox-local-process @tanstack/ai-codex @tanstack/ai-grok-build
-vue: @tanstack/ai-harness @tanstack/ai-sandbox @tanstack/ai-sandbox-local-process @tanstack/ai-codex @tanstack/ai-grok-build
-solid: @tanstack/ai-harness @tanstack/ai-sandbox @tanstack/ai-sandbox-local-process @tanstack/ai-codex @tanstack/ai-grok-build
-svelte: @tanstack/ai-harness @tanstack/ai-sandbox @tanstack/ai-sandbox-local-process @tanstack/ai-codex @tanstack/ai-grok-build
-preact: @tanstack/ai-harness @tanstack/ai-sandbox @tanstack/ai-sandbox-local-process @tanstack/ai-codex @tanstack/ai-grok-build
-angular: @tanstack/ai-harness @tanstack/ai-sandbox @tanstack/ai-sandbox-local-process @tanstack/ai-codex @tanstack/ai-grok-build
-octane: @tanstack/ai-harness @tanstack/ai-sandbox @tanstack/ai-sandbox-local-process @tanstack/ai-codex @tanstack/ai-grok-build
-vanilla: @tanstack/ai-harness @tanstack/ai-sandbox @tanstack/ai-sandbox-local-process @tanstack/ai-codex @tanstack/ai-grok-build
+react: @tanstack/ai-harness @tanstack/ai-persistence @tanstack/ai-openai @tanstack/ai-sandbox @tanstack/ai-sandbox-local-process @tanstack/ai-codex @tanstack/ai-grok-build
+vue: @tanstack/ai-harness @tanstack/ai-persistence @tanstack/ai-openai @tanstack/ai-sandbox @tanstack/ai-sandbox-local-process @tanstack/ai-codex @tanstack/ai-grok-build
+solid: @tanstack/ai-harness @tanstack/ai-persistence @tanstack/ai-openai @tanstack/ai-sandbox @tanstack/ai-sandbox-local-process @tanstack/ai-codex @tanstack/ai-grok-build
+svelte: @tanstack/ai-harness @tanstack/ai-persistence @tanstack/ai-openai @tanstack/ai-sandbox @tanstack/ai-sandbox-local-process @tanstack/ai-codex @tanstack/ai-grok-build
+preact: @tanstack/ai-harness @tanstack/ai-persistence @tanstack/ai-openai @tanstack/ai-sandbox @tanstack/ai-sandbox-local-process @tanstack/ai-codex @tanstack/ai-grok-build
+angular: @tanstack/ai-harness @tanstack/ai-persistence @tanstack/ai-openai @tanstack/ai-sandbox @tanstack/ai-sandbox-local-process @tanstack/ai-codex @tanstack/ai-grok-build
+octane: @tanstack/ai-harness @tanstack/ai-persistence @tanstack/ai-openai @tanstack/ai-sandbox @tanstack/ai-sandbox-local-process @tanstack/ai-codex @tanstack/ai-grok-build
+vanilla: @tanstack/ai-harness @tanstack/ai-persistence @tanstack/ai-openai @tanstack/ai-sandbox @tanstack/ai-sandbox-local-process @tanstack/ai-codex @tanstack/ai-grok-build
 
 <!-- ::end:tabs -->
 
@@ -110,14 +110,41 @@ A CLI from `runCli` shows them for you:
 Sign in to codex. Open https://auth.example.com/device and enter the code ABCD-1234.
 ```
 
-In your own UI, listen for `signIn` on the session view, and run the exposed command:
+For your own UI, first serve the harness. Mount the handler on `/api/harness`:
+
+```ts group=harness-plan-sign-in
+import { createHarnessHost, membersOnly } from '@tanstack/ai-harness'
+import { createHarnessHandler } from '@tanstack/ai-harness/server'
+import { memoryPersistence } from '@tanstack/ai-persistence'
+
+const host = createHarnessHost({
+  persistence: memoryPersistence(),
+  access: {
+    getUser: ({ request }) =>
+      request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
+        ? { id: 'me' }
+        : null,
+    rules: membersOnly(),
+  },
+})
+
+export const handler = createHarnessHandler({ host, harness: lead })
+```
+
+The plan login belongs to the machine, so let only the user of the machine in. See [Access and tenants](./access).
+
+Then listen for `signIn` on the session view, and run the exposed command:
 
 ```ts group=harness-plan-sign-in-client
 import { createHarnessClient } from '@tanstack/ai-harness/client'
 import { createSessionView } from '@tanstack/ai-harness/view'
 
 const view = createSessionView(
-  createHarnessClient({ url: '/api/harness', threadId: 'ada-chat' }),
+  createHarnessClient({
+    url: '/api/harness',
+    threadId: 'ada-chat',
+    headers: { authorization: 'Bearer my-token' },
+  }),
 )
 
 view.on('signIn', ({ connector, url, userCode }) => {
