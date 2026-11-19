@@ -14,7 +14,13 @@ import { withSandbox } from '../src/middleware'
 import { alignedIfAttaching, getSandboxDurability } from '../src/durability'
 import { pipeToRunLog } from '../src/run'
 import { InMemorySandboxInstanceStore } from '../src/instance-store'
-import { FULL_CAPS, fakeLog, fromChunkValues, makeFakeHandle } from './fakes'
+import {
+  FULL_CAPS,
+  fakeLog,
+  fromChunkValues,
+  makeFakeHandle,
+  makeFakeProvider,
+} from './fakes'
 import type {
   AnyTextAdapter,
   ModelMessage,
@@ -332,5 +338,52 @@ describe('sandbox takeover transcript', () => {
       ]),
     )
     expect(textDeltas(takeover.live)).toEqual(['Finished.'])
+  })
+
+  it('keeps the sandbox when the replayed prefix ends at an interrupt', async () => {
+    const runId = 'run-paused'
+    const threadId = 'thread-paused'
+    const at = (chunk: StreamChunk) => stamp(runId, threadId, chunk)
+    const chunks = [
+      at({ type: EventType.RUN_STARTED, runId, threadId }),
+      at({
+        type: EventType.RUN_FINISHED,
+        runId,
+        threadId,
+        finishReason: 'stop',
+        outcome: { type: 'interrupt', interrupts: [] },
+      }),
+    ]
+    // The first host appended the whole paused run before it died.
+    const log = fakeLog(chunks)
+    const runs = new InMemoryRunStore()
+    const provider = makeFakeProvider()
+    await pipeToRunLog(
+      chat({
+        adapter: harness(chunks),
+        messages: [{ role: 'user', content: 'go' }],
+        threadId,
+        runId,
+        middleware: [
+          withSandbox(
+            defineSandbox({
+              id: 's',
+              provider,
+              lifecycle: { snapshot: 'none', destroyOnComplete: true },
+              fileEvents: false,
+            }),
+            {
+              instances: new InMemorySandboxInstanceStore(),
+              runs,
+              durability: { adapter: log, attach: true },
+            },
+          ),
+        ],
+      }),
+      { runs, runId, threadId, durability: () => log as StreamDurability },
+    )
+
+    expect(provider.calls.create).toBe(1)
+    expect(provider.calls.destroy).toBe(0)
   })
 })

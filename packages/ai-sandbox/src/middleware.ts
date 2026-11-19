@@ -1160,10 +1160,10 @@ export function withSandbox<TOffset extends string = string>(
 
     // Record the harness's own tool calls as transcript messages. A stored
     // replay chunk is recorded, then dropped: the event log already has it.
+    // A replayed interrupt still pauses the run, so it is handled first.
     async onChunk(ctx, chunk) {
       const state = runState.get(ctx)
       state?.toolHistory.observe(chunk, ctx)
-      if (isStoredReplayChunk(chunk)) return null
       if (
         state &&
         chunk.type === 'RUN_FINISHED' &&
@@ -1173,7 +1173,7 @@ export function withSandbox<TOffset extends string = string>(
         await drainWatcher(state, 'pause')
         await stopSnapshotLease(state, { closePortable: true })
       }
-      return undefined
+      return isStoredReplayChunk(chunk) ? null : undefined
     },
 
     async onFinish(ctx) {
