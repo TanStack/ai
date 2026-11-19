@@ -554,10 +554,16 @@ export class CodexTextAdapter<
     } catch (error: unknown) {
       runFailed = true
       const signal = options.abortController?.signal ?? options.request?.signal
-      // Only a durable agent can run on. A normal run is stopped by now.
+      // Only a durable agent can run on, and only if its exit was not seen.
+      // A dead or stalled journal read does not mean the agent stopped.
+      // ponytail: the exit is told by the message `spawnNdjson` throws.
+      const exited =
+        error instanceof Error &&
+        error.message.startsWith('Agent process exited with code')
       keepLogin =
         durability !== undefined &&
-        (signal?.aborted === true || durability.attach)
+        !exited &&
+        (signal?.aborted === true || keepLogin)
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
       logger.errors('codex.chatStream fatal', {

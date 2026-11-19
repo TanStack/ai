@@ -628,6 +628,25 @@ describe(
       await sbx.destroy()
     })
 
+    it('a stalled journal read keeps the login for the agent that may still run', async () => {
+      const sbx = await provider.create({})
+      // Writes nothing past the first-byte wait, then exits by itself.
+      await sbx.fs.write(
+        '/workspace/fake-grok.mjs',
+        'setTimeout(() => process.exit(0), 12000)',
+      )
+      const chunks = await collect(
+        hostRun(
+          sbx,
+          `r-host-stall-${randomUUID()}`,
+          durabilityWith(fakeLog(), false),
+        ),
+      )
+      expect(chunks.find((c) => c.type === 'RUN_ERROR')).toBeDefined()
+      expect(hostLogin.releases).toEqual([{ keep: true }])
+      await sbx.destroy()
+    })
+
     it('an aborted run that is not durable removes the login', async () => {
       const sbx = await provider.create({})
       // The CLI fails after the abort, so the run ends in the catch.

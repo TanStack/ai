@@ -786,6 +786,28 @@ describe("codex durable runs with authMode 'host'", () => {
     await sbx.destroy()
   })
 
+  it('a stalled journal read keeps the login for the agent that may still run', async () => {
+    const sbx = await provider.create({})
+    // Writes nothing past the first-byte wait, then exits by itself.
+    await sbx.fs.write(
+      '/workspace/fake-codex.mjs',
+      [
+        `process.stdin.on('data', () => {})`,
+        `process.stdin.on('end', () => setTimeout(() => process.exit(0), 12000))`,
+      ].join('\n'),
+    )
+    const chunks = await collect(
+      hostRun(
+        recordingHandle(sbx).handle,
+        `r-host-stall-${crypto.randomUUID()}`,
+        durabilityWith(),
+      ),
+    )
+    expect(chunks.find((c) => c.type === 'RUN_ERROR')).toBeDefined()
+    expect(hostLogin.releases).toEqual([{ keep: true }])
+    await sbx.destroy()
+  }, 30_000)
+
   it('an aborted run that is not durable removes the login', async () => {
     const sbx = await provider.create({})
     // The CLI fails after the abort, so the run ends in the catch.
