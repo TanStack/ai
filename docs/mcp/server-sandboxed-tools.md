@@ -218,8 +218,13 @@ Step one is offline, on a trusted machine. A reviewer checks the manifest, signs
 // sign-manifest.ts — run once, offline, on a trusted machine. The private key
 // stays here and never ships to the server.
 import { signManifest } from '@tanstack/ai-mcp-sandbox'
+import type { Manifest } from '@tanstack/ai-mcp-sandbox'
 
+// The manifest a reviewer has read and approved by hand.
+declare const reviewedManifest: Manifest
 // privateKey comes from your secret store or an earlier generateManifestKeyPair().
+declare const privateKey: string
+
 const signature = signManifest(reviewedManifest, privateKey)
 // Attach `signature` to the manifest you ship, and publish only the matching
 // public key to the server.
@@ -230,6 +235,9 @@ Step two is on the server. It loads only the public key and the already-signed m
 ```ts group=server-sandboxed-tools
 // The manifest arrives already signed; publicKey is the one matching key the
 // server trusts. The server cannot sign, only verify.
+declare const signedManifest: Manifest
+declare const publicKey: string
+
 sandboxedTool({
   manifest: signedManifest,
   snippet,
