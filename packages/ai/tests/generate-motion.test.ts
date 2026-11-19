@@ -28,6 +28,7 @@ const finishedMotion: MotionGenerationResult = {
  */
 function fakeMotionAdapter(options: {
   statuses: Array<Omit<MotionStatusResult, 'jobId'>>
+  createMotionJob?: MotionAdapter['createMotionJob']
   getMotion?: MotionAdapter['getMotion']
   cancelMotionJob?: MotionAdapter['cancelMotionJob']
 }): MotionAdapter {
@@ -37,7 +38,9 @@ function fakeMotionAdapter(options: {
     name: 'fake',
     model: 'motion-model',
     '~types': { providerOptions: {} },
-    createMotionJob: async () => ({ jobId: 'job-1', model: 'motion-model' }),
+    createMotionJob:
+      options.createMotionJob ??
+      (async () => ({ jobId: 'job-1', model: 'motion-model' })),
     getMotionStatus: async (jobId) => {
       const status =
         options.statuses[Math.min(poll, options.statuses.length - 1)]!
@@ -160,6 +163,70 @@ describe('generateMotion stream', () => {
     expect(calls.map((c) => c.hook)).toEqual(['start', 'abort'])
     expect(cancel).not.toHaveBeenCalled()
   })
+  it('ends the run as aborted when the reader stops early, and leaves the job running', async () => {
+    const cancel = vi.fn(async () => {})
+    const adapter = fakeMotionAdapter({
+      statuses: [{ status: 'processing' }],
+      cancelMotionJob: cancel,
+    })
+    const { calls, middleware } = recordingMiddleware()
+
+    for await (const c of generateMotion({
+      adapter,
+      threadId: 'orc',
+      prompt: 'overhead axe swing',
+      stream: true,
+      pollingInterval: 0,
+      middleware: [middleware],
+    })) {
+      if (c.type === 'CUSTOM' && c.name === 'motion:status') break
+    }
+
+    expect(calls.map((c) => c.hook)).toEqual(['start', 'abort'])
+    expect(cancel).not.toHaveBeenCalled()
+  })
+
+  it('ends with RUN_ERROR when the job runs past maxDuration', async () => {
+    const adapter = fakeMotionAdapter({ statuses: [{ status: 'processing' }] })
+    const { calls, middleware } = recordingMiddleware()
+
+    const chunks = await collectChunks(
+      generateMotion({
+        adapter,
+        threadId: 'orc',
+        prompt: 'overhead axe swing',
+        stream: true,
+        maxDuration: 0,
+        middleware: [middleware],
+      }),
+    )
+
+    const last = chunks.at(-1)
+    expect(last?.type === 'RUN_ERROR' && last.message).toBe(
+      'Motion generation did not finish within 0 ms. Job job-1 may still be running.',
+    )
+    expect(calls.map((c) => c.hook)).toEqual(['start', 'error'])
+  })
+
+  it('ends the run as aborted when the timeout fires while it waits', async () => {
+    const adapter = fakeMotionAdapter({ statuses: [{ status: 'processing' }] })
+    const { calls, middleware } = recordingMiddleware()
+
+    const chunks = await collectChunks(
+      generateMotion({
+        adapter,
+        threadId: 'orc',
+        prompt: 'overhead axe swing',
+        stream: true,
+        pollingInterval: 60_000,
+        timeout: 5,
+        middleware: [middleware],
+      }),
+    )
+
+    expect(chunks.at(-1)?.type).toBe('RUN_ERROR')
+    expect(calls.map((c) => c.hook)).toEqual(['start', 'abort'])
+  })
 })
 
 describe('generateMotion submit and getMotionJobStatus', () => {
@@ -190,6 +257,29 @@ describe('generateMotion submit and getMotionJobStatus', () => {
       { hook: 'start', runId: 'motion:fake:job-1' },
       { hook: 'start', runId: 'motion:fake:job-1' },
       { hook: 'finish', runId: 'motion:fake:job-1' },
+    ])
+  })
+
+  it('opens and fails a run with no job id when the submit fails', async () => {
+    const adapter = fakeMotionAdapter({
+      statuses: [{ status: 'pending' }],
+      createMotionJob: async () => {
+        throw new Error('Insufficient balance')
+      },
+    })
+    const { calls, middleware } = recordingMiddleware()
+
+    await expect(
+      generateMotion({
+        adapter,
+        threadId: 'orc',
+        prompt: 'overhead axe swing',
+        middleware: [middleware],
+      }),
+    ).rejects.toThrow('Insufficient balance')
+    expect(calls).toEqual([
+      { hook: 'start', runId: undefined },
+      { hook: 'error', runId: undefined },
     ])
   })
 

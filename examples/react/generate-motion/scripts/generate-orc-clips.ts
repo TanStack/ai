@@ -268,13 +268,8 @@ async function runClips(
 async function main() {
   const { only, out, set } = parseArgs(process.argv.slice(2))
   await mkdir(out, { recursive: true })
-  // --set ab runs the prompt/guidance/seed grid in ab-clips.ts.
   const all =
-    set === 'ab'
-      ? (await import('./ab-clips.ts')).AB_CLIPS
-      : set === 'uthana'
-        ? (await import('./uthana-clips.ts')).UTHANA_CLIPS
-        : CLIPS
+    set === 'uthana' ? (await import('./uthana-clips.ts')).UTHANA_CLIPS : CLIPS
   const clips = only ? all.filter((c) => only.includes(c.name)) : all
 
   // Keep earlier records when only some clips are regenerated.
@@ -312,5 +307,5 @@ async function main() {
   if (records.some((r) => !r.result)) process.exitCode = 1
 }
 
-// Run only as a script, so ab-clips.ts can import the ClipSpec type.
+// Run only as a script, so uthana-clips.ts can import the ClipSpec type.
 if (import.meta.main) await main()

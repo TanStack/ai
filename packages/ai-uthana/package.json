@@ -18,6 +18,7 @@
     "url": "https://github.com/sponsors/tannerlinsley"
   },
   "type": "module",
+  "sideEffects": false,
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
   "exports": {

@@ -88,6 +88,8 @@ function fakeUthana(options: {
   return { fetch, seen }
 }
 
+const ORC_JOB = 'job-1?character=orc-1&formats=fbx&formats=glb&fps=30'
+
 const finished = {
   status: 'FINISHED',
   result: {
@@ -139,9 +141,9 @@ describe('uthanaMotion', () => {
       c.type === 'CUSTOM' && c.name === 'motion:status' ? [c.value] : [],
     )
     expect(statuses).toEqual([
-      { jobId: 'job-1', status: 'pending' },
-      { jobId: 'job-1', status: 'processing' },
-      { jobId: 'job-1', status: 'completed' },
+      { jobId: ORC_JOB, status: 'pending' },
+      { jobId: ORC_JOB, status: 'processing' },
+      { jobId: ORC_JOB, status: 'completed' },
     ])
     const downloads = uthana.seen
       .filter((r) => r.url.includes('/motion/file/'))
@@ -156,7 +158,7 @@ describe('uthanaMotion', () => {
     )
     const value = result?.type === 'CUSTOM' ? result.value : undefined
     expect(value).toMatchObject({
-      jobId: 'job-1',
+      jobId: ORC_JOB,
       model: 'text-to-motion-3.0',
       assets: [
         {
@@ -185,45 +187,30 @@ describe('uthanaMotion', () => {
     expect(urls).toEqual(['Kaydara FBX Binary  fake-fbx', 'glTF fake-glb'])
   })
 
-  it('downloads with defaults when a later adapter polls the job', async () => {
+  it('downloads with the submit options on every poll, from any adapter', async () => {
     const uthana = fakeUthana({ jobs: [finished] })
-    const defaults = {
-      character_id: 'orc-1',
-      formats: ['fbx', 'glb'] as Array<'fbx' | 'glb'>,
-      fps: 30 as const,
+    const adapter = uthanaMotion('text-to-motion-3.0', {
+      apiKey: 'uth-test',
+      fetch: uthana.fetch,
+    })
+
+    for (let i = 0; i < 2; i += 1) {
+      await getMotionJobStatus({
+        adapter,
+        jobId: 'job-1?character=orc-1&formats=glb&fps=60',
+      })
     }
-    const { jobId } = await generateMotion({
-      adapter: uthanaMotion('text-to-motion-3.0', {
-        apiKey: 'uth-test',
-        fetch: uthana.fetch,
-      }),
-      threadId: 'orc',
-      prompt: 'a heavy warrior swings an axe',
-      duration: 4,
-      modelOptions: defaults,
-    })
 
-    const status = await getMotionJobStatus({
-      adapter: uthanaMotion('text-to-motion-3.0', {
-        apiKey: 'uth-test',
-        fetch: uthana.fetch,
-        defaults,
-      }),
-      jobId,
-    })
-
-    expect(status.status).toBe('completed')
-    expect(status.motion?.assets.map((asset) => asset.format)).toEqual([
-      'fbx',
-      'glb',
-    ])
+    const polledIds = uthana.seen.flatMap((r) =>
+      r.graphql ? [r.graphql.variables.id] : [],
+    )
+    // Each poll reads the job twice: once for the status, once to download.
+    expect(new Set(polledIds)).toEqual(new Set(['job-1']))
     const downloads = uthana.seen
       .filter((r) => r.url.includes('/motion/file/'))
       .map((r) => r.url)
-    expect(downloads).toEqual([
-      `${BASE}/motion/file/motion_viewer/orc-1/motion-9/fbx/uthana-motion-9.fbx?fps=30`,
-      `${BASE}/motion/file/motion_viewer/orc-1/motion-9/glb/uthana-motion-9.glb?fps=30`,
-    ])
+    const expected = `${BASE}/motion/file/motion_viewer/orc-1/motion-9/glb/uthana-motion-9.glb?fps=60`
+    expect(downloads).toEqual([expected, expected])
   })
 
   it('reports a failed job with the provider exception', async () => {

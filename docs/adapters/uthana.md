@@ -187,7 +187,7 @@ About the upload:
 The repo example has two scripts that do this from the command line:
 
 - [`scripts/upload-uthana-character.ts`](https://github.com/TanStack/ai/tree/main/examples/react/generate-motion/scripts/upload-uthana-character.ts) uploads a model and prints the character id.
-- [`scripts/generate-orc-clips.ts`](https://github.com/TanStack/ai/tree/main/examples/react/generate-motion/scripts/generate-orc-clips.ts) with `--set uthana` makes a set of clips on that character.
+- [`scripts/generate-orc-clips.ts`](https://github.com/TanStack/ai/tree/main/examples/react/generate-motion/scripts/generate-orc-clips.ts) with `--set uthana` makes a set of clips. Set `UTHANA_CHARACTER_ID` to make them on your character.
 
 ## Models and options
 
@@ -238,20 +238,22 @@ If a job fails, `status.error` holds the error text from Uthana.
 
 ### Check a job from another process
 
-`getMotionJobStatus()` downloads the files when the job is complete. The adapter that submitted the job keeps its `character_id`, `formats`, and `fps`. A new adapter in another process does not know them.
-
-Pass the same options as `defaults` on both adapters. The download then uses the same character and formats:
+`getMotionJobStatus()` downloads the files when the job is complete. The job id holds the `character_id`, `formats`, and `fps` of the submit, so any adapter downloads the same files:
 
 ```ts
 import { getMotionJobStatus } from '@tanstack/ai'
 import { uthanaMotion } from '@tanstack/ai-uthana'
 
-const adapter = uthanaMotion('text-to-motion-3.0', {
-  defaults: { character_id: 'your-character-id', formats: ['fbx', 'glb'] },
-})
-
-const status = await getMotionJobStatus({ adapter, jobId: 'the-job-id' })
+// jobId is the id that generateMotion() returned, in any process.
+export function checkMotionJob(jobId: string) {
+  return getMotionJobStatus({
+    adapter: uthanaMotion('text-to-motion-3.0'),
+    jobId,
+  })
+}
 ```
+
+Keep the full job id. The part after `?` holds the options.
 
 ### Downloads on your plan
 

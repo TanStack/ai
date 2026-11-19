@@ -61,6 +61,43 @@ function jobError(job: UthanaJob): string | undefined {
   return job.result?.exc ?? undefined
 }
 
+function isFormat(value: string): value is UthanaMotionFormat {
+  return value === 'fbx' || value === 'glb'
+}
+
+/**
+ * The job id carries the download options after a `?`, so a poll from any
+ * process or adapter downloads on the same character, formats, and fps.
+ */
+function encodeJobId(id: string, options: UthanaMotionProviderOptions) {
+  const params = new URLSearchParams()
+  if (options.character_id) params.set('character', options.character_id)
+  for (const format of options.formats ?? []) params.append('formats', format)
+  if (options.fps !== undefined) params.set('fps', String(options.fps))
+  const query = params.toString()
+  return query ? `${id}?${query}` : id
+}
+
+function decodeJobId(jobId: string): {
+  id: string
+  options: UthanaMotionProviderOptions
+} {
+  const index = jobId.indexOf('?')
+  if (index === -1) return { id: jobId, options: {} }
+  const params = new URLSearchParams(jobId.slice(index + 1))
+  const character = params.get('character')
+  const formats = params.getAll('formats').filter(isFormat)
+  const fps = Number(params.get('fps'))
+  return {
+    id: jobId.slice(0, index),
+    options: {
+      ...(character ? { character_id: character } : {}),
+      ...(formats.length > 0 ? { formats } : {}),
+      ...(fps === 24 || fps === 30 || fps === 60 ? { fps } : {}),
+    },
+  }
+}
+
 /**
  * Uthana motion adapter. Runs Uthana text-to-motion jobs and downloads the
  * finished motion as FBX or GLB on the chosen character.
@@ -76,13 +113,6 @@ export class UthanaMotionAdapter<
 > extends BaseMotionAdapter<TModel, UthanaMotionProviderOptions> {
   readonly name = 'uthana' as const
   private readonly config: ResolvedUthanaConfig
-  // ponytail: options of the last submit per job, so getMotion downloads on
-  // the same character and formats. A poll from another process uses the
-  // adapter's own defaults instead.
-  private readonly downloadOptions = new Map<
-    string,
-    UthanaMotionProviderOptions
-  >()
   private readonly defaults: UthanaMotionProviderOptions
 
   constructor(
@@ -121,8 +151,10 @@ export class UthanaMotionAdapter<
         },
         options.abortSignal,
       )
-      const jobId = data.create_text_to_motion_job.job.id
-      this.downloadOptions.set(jobId, modelOptions)
+      const jobId = encodeJobId(
+        data.create_text_to_motion_job.job.id,
+        modelOptions,
+      )
       return { jobId, model: this.model }
     } catch (error) {
       logger.errors('uthana.createMotionJob fatal', {
@@ -148,7 +180,7 @@ export class UthanaMotionAdapter<
     jobId: string,
     options?: { abortSignal?: AbortSignal },
   ): Promise<MotionStatusResult> {
-    const job = await this.readJob(jobId, options?.abortSignal)
+    const job = await this.readJob(decodeJobId(jobId).id, options?.abortSignal)
     const error = jobError(job)
     switch (job.status) {
       case 'READY':
@@ -169,14 +201,15 @@ export class UthanaMotionAdapter<
     jobId: string,
     options?: { abortSignal?: AbortSignal },
   ): Promise<MotionGenerationResult> {
-    const job = await this.readJob(jobId, options?.abortSignal)
+    const { id, options: jobOptions } = decodeJobId(jobId)
+    const job = await this.readJob(id, options?.abortSignal)
     const motionId = job.result?.result?.id
     if (job.status !== 'FINISHED' || !motionId) {
       throw new Error(
         `Uthana job ${jobId} has no motion (status ${job.status}${jobError(job) ? `: ${jobError(job)}` : ''})`,
       )
     }
-    const opts = { ...this.defaults, ...this.downloadOptions.get(jobId) }
+    const opts = { ...this.defaults, ...jobOptions }
     const characterId = opts.character_id ?? UTHANA_DEFAULT_CHARACTER_ID
     const assets: Array<MotionAsset> = []
     for (const format of opts.formats ?? ['fbx']) {
@@ -202,7 +235,6 @@ export class UthanaMotionAdapter<
         fileSize: bytes.byteLength,
       })
     }
-    this.downloadOptions.delete(jobId)
     return { jobId, model: this.model, assets }
   }
 }
@@ -210,7 +242,7 @@ export class UthanaMotionAdapter<
 /**
  * Create an Uthana motion adapter. Reads `config.apiKey`, or
  * `UTHANA_API_KEY` from the environment. `config.defaults` sets provider
- * options for every job, which also covers polls from another process.
+ * options for every job.
  *
  * @example
  * ```ts

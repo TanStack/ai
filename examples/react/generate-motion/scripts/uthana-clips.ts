@@ -1,16 +1,15 @@
-// The Uthana comparison set: the clips that looked stiffest on fal, made on
-// the uploaded orc character. Uthana text-to-motion 3.0 takes 4 to 10 s and
-// has no seed or guidance control.
+// The Uthana set: the orc clips, made on your own character. Uthana
+// text-to-motion 3.0 has no seed or guidance control.
 //
-//   UTHANA_API_KEY=... node scripts/generate-orc-clips.ts --set uthana
+//   UTHANA_API_KEY=... UTHANA_CHARACTER_ID=... node scripts/generate-orc-clips.ts --set uthana
+//
+// Get the character id from upload-uthana-character.ts. Without it, the
+// clips use the default Uthana character.
 import type { ClipSpec } from './generate-orc-clips.ts'
-
-// From upload-uthana-character.ts with the form-5 orc chieftain GLB.
-const ORC_CHARACTER_ID = 'cQqy57L59QaH'
 
 const base = {
   provider: 'uthana',
-  characterId: ORC_CHARACTER_ID,
+  characterId: process.env.UTHANA_CHARACTER_ID,
   seed: 0,
 } as const
 
