@@ -46,13 +46,17 @@ import { createUIMessageStreamResponse } from 'ai'
 
 export async function POST(request: Request) {
   const params = await chatParamsFromAISDKRequest(request)
+  const abortController = new AbortController()
 
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     ...params,
+    abortController,
   })
 
-  return createUIMessageStreamResponse({ stream: toUIMessageStream(stream) })
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream(stream, { abortController }),
+  })
 }
 ```
 

@@ -148,8 +148,10 @@ export function toUIMessageStream(
     function* startStep(): Generator<UIMessageChunk> {
       if (inStep) return
       inStep = true
-      // A new model call: only its own RUN_FINISHED completes the stream.
+      // A new model call: only its own RUN_FINISHED completes the stream,
+      // with its own finish reason.
       finished = false
+      finishReason = undefined
       yield { type: 'start-step' }
     }
 

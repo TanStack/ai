@@ -344,6 +344,58 @@ describe('TanStack server, AI SDK client: errors', () => {
     expect(await pending).toEqual({ done: true, value: undefined })
   })
 
+  it('aborts the provider of chat() when the AI SDK client goes away', async () => {
+    let providerSignal: AbortSignal | undefined
+    const fake = fakeText({ tokensPerSecond: 50 })
+    fake.setResponses([
+      ({ request }) => {
+        providerSignal =
+          request.request?.signal ?? request.abortController?.signal
+        return { text: 'one two three four five six seven eight nine ten' }
+      },
+    ])
+    const abortController = new AbortController()
+    const reader = toUIMessageStream(
+      chat({ adapter: fake, threadId: 't', messages: [], abortController }),
+      { abortController },
+    ).getReader()
+    for (;;) {
+      const { value } = await reader.read()
+      if (value?.type === 'text-delta') break
+    }
+    await reader.cancel()
+    expect(providerSignal?.aborted).toBe(true)
+  })
+
+  it('does not repeat the finish reason of an earlier step', async () => {
+    const chunks = await chunksOf(
+      toUIMessageStream(
+        (async function* (): AsyncGenerator<StreamChunk> {
+          yield {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: 'm1',
+            role: 'assistant',
+          }
+          yield { type: EventType.TEXT_MESSAGE_END, messageId: 'm1' }
+          yield {
+            type: EventType.RUN_FINISHED,
+            threadId: 't',
+            runId: 'r',
+            metadata: { tanstack: { finishReason: 'tool_calls' } },
+          }
+          yield {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: 'm2',
+            role: 'assistant',
+          }
+          yield { type: EventType.TEXT_MESSAGE_END, messageId: 'm2' }
+          yield { type: EventType.RUN_FINISHED, threadId: 't', runId: 'r' }
+        })(),
+      ),
+    )
+    expect(chunks.at(-1)).toEqual({ type: 'finish' })
+  })
+
   it('sends abort when a later step stops with no terminal event', async () => {
     const chunks = await chunksOf(
       toUIMessageStream(
