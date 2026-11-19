@@ -1010,6 +1010,9 @@ async function buildClientToolResult(
  *   repaired: the built-in repair (default), none (`false`), or a function.
  * @param capabilities - The run's capability readers. Each server tool gets
  *   them on its context as `get` and `getOptional`.
+ * @param normalizeToolInput - Undo a provider rewrite of the parsed
+ *   arguments before the check. Strict-mode `null`s for omitted optional
+ *   fields are removed here, including on an approval resume.
  */
 export async function* executeToolCalls<TContext = unknown>(
   toolCalls: Array<ToolCall>,
@@ -1029,6 +1032,7 @@ export async function* executeToolCalls<TContext = unknown>(
   toolExecution: NonNullable<TextOptions['toolExecution']> = 'parallel',
   repairToolInput?: TextOptions['repairToolInput'],
   capabilities?: Pick<ToolExecutionContext, 'get' | 'getOptional'>,
+  normalizeToolInput?: (toolName: string, input: unknown) => unknown,
 ): AsyncGenerator<CustomEvent | StreamChunk, ExecuteToolCallsResult, void> {
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
@@ -1185,6 +1189,7 @@ export async function* executeToolCalls<TContext = unknown>(
         continue
       }
     }
+    if (normalizeToolInput) input = normalizeToolInput(toolName, input)
     // The input that the model sent, to tell later edits apart from it.
     const sentInput = JSON.stringify(input)
 
@@ -1411,6 +1416,7 @@ export async function* executeToolCalls<TContext = unknown>(
       toolExecution,
       repairToolInput,
       capabilities,
+      normalizeToolInput,
     )
     results.push(...rest.results)
     needsClientExecution.push(...rest.needsClientExecution)
