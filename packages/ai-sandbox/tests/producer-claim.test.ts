@@ -5,7 +5,10 @@
 import { describe, expect, it } from 'vitest'
 import { InMemoryRunStore, memoryStream } from '@tanstack/ai'
 import { InMemoryLockStore } from '@tanstack/ai/locks'
-import { provideSandboxRuntime } from '@tanstack/ai/adapter-internals'
+import {
+  providePendingTurn,
+  provideSandboxRuntime,
+} from '@tanstack/ai/adapter-internals'
 import { defineSandbox } from '../src/sandbox'
 import { withSandbox } from '../src/middleware'
 import { withRunClaim } from '../src/claim'
@@ -109,6 +112,62 @@ describe('fresh producer driver claim', () => {
     await withRunClaim({ runs, locks, runId: 'attach' }, async () => {
       entered = true
     })
+    expect(entered).toBe(true)
+  })
+
+  it('takes the claim before a slow pending-turn snapshot', async () => {
+    const locks = new InMemoryLockStore()
+    const runs = new InMemoryRunStore()
+    const { ctx, middleware } = harness({ runId: 'slow', locks, runs })
+    let finishSnapshot = (): void => {}
+    providePendingTurn(ctx, {
+      snapshot: () => new Promise<void>((done) => (finishSnapshot = done)),
+    })
+    const setup = middleware.setup?.(ctx)
+    await wait(10)
+
+    let entered = false
+    const takeover = withRunClaim({ runs, locks, runId: 'slow' }, async () => {
+      entered = true
+    })
+    await wait(30)
+    expect(entered).toBe(false)
+
+    finishSnapshot()
+    await setup
+    await middleware.onFinish?.(ctx, {
+      finishReason: 'stop',
+      duration: 1,
+      content: '',
+    })
+    await takeover
+    expect(entered).toBe(true)
+  })
+
+  it('releases a claim that arrives after onAbort', async () => {
+    const locks = new InMemoryLockStore()
+    const runs = new InMemoryRunStore()
+    await runs.createOrResume({ runId: 'late', threadId: 't1', startedAt: 1 })
+    // Another host holds the lock, so setup waits for it.
+    let endFirst = (): void => {}
+    const first = locks.withLock(
+      'run-driver:late',
+      () => new Promise<void>((done) => (endFirst = done)),
+    )
+
+    const { ctx, middleware } = harness({ runId: 'late', locks, runs })
+    const setup = middleware.setup?.(ctx)
+    await wait(10)
+    await middleware.onAbort?.(ctx, { reason: 'stop', duration: 1 })
+    endFirst()
+    await first
+    await setup
+
+    let entered = false
+    const next = withRunClaim({ runs, locks, runId: 'late' }, async () => {
+      entered = true
+    })
+    await Promise.race([next, wait(100)])
     expect(entered).toBe(true)
   })
 })

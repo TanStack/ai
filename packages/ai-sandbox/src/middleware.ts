@@ -146,6 +146,8 @@ interface SandboxRunState {
    * when this chat is already inside a claim (the takeover's own `drive`).
    */
   releaseDriverClaim?: () => void
+  /** A terminal hook ran. A claim that `setup` gets after this is released at once. */
+  driverClaimEnded?: boolean
   /**
    * Durability resolved once at setup (absent when the run is not durable), so
    * `onAbort` cannot reach a different verdict than the one `setup` published
@@ -591,10 +593,11 @@ function buildEnsureCtx(
 }
 
 function releaseDriverClaim(state: SandboxRunState | undefined): void {
-  if (state === undefined || state.releaseDriverClaim === undefined) return
+  if (state === undefined) return
+  state.driverClaimEnded = true
   const release = state.releaseDriverClaim
   state.releaseDriverClaim = undefined
-  release()
+  release?.()
 }
 
 /**
@@ -604,7 +607,6 @@ function releaseDriverClaim(state: SandboxRunState | undefined): void {
  * a throwing hook is observable (matching the run-scoped path in the engine
  * and the behavior the observability docs promise).
  */
-
 async function dispatchDefinitionHooks(
   hooks: SandboxHooks | undefined,
   event: SandboxFileHookEvent,
@@ -828,6 +830,29 @@ export function withSandbox<TOffset extends string = string>(
           })
         }
 
+        // The delivery sink keeps appending after a disconnect, and it never
+        // takes this lock. Hold the claim for the whole fresh run so a takeover
+        // cannot start a second writer while a tool call leaves the log quiet
+        // for longer than `fenceQuietMs`. Take it as soon as the record exists,
+        // so a reconnect cannot claim the run first. An attach, and a chat that
+        // is already inside a claim, must not take it again: `withLock` is not
+        // re-entrant.
+        if (
+          durableRecordReady &&
+          durability.attach !== true &&
+          ensureCtx.locks !== undefined &&
+          !runDriverClaimHeldLocally(ctx.runId)
+        ) {
+          state.releaseDriverClaim = await holdRunDriverClaim({
+            runs: durability.runs,
+            locks: ensureCtx.locks,
+            runId: ctx.runId,
+            ...(logger === undefined ? {} : { logger }),
+          })
+          // Core can run `onAbort` while `setup` still waits for the lock.
+          if (state.driverClaimEnded === true) releaseDriverClaim(state)
+        }
+
         // NO ATTACH MARKER HERE. A joiner does need a chunk in the log before the
         // harness has emitted anything — an empty log fails every joiner's
         // fast-fail (`memoryStream`'s first-chunk deadline, the client's rejoin
@@ -859,25 +884,6 @@ export function withSandbox<TOffset extends string = string>(
           logger?.warn('sandbox pending-turn snapshot failed', {
             runId: ctx.runId,
             error,
-          })
-        }
-
-        // The delivery sink keeps appending after a disconnect, and it never
-        // takes this lock. Hold the claim for the whole fresh run so a takeover
-        // cannot start a second writer while a tool call leaves the log quiet
-        // for longer than `fenceQuietMs`. An attach, and a chat that is already
-        // inside a claim, must not take it again: `withLock` is not re-entrant.
-        if (
-          durableRecordReady &&
-          durability.attach !== true &&
-          ensureCtx.locks !== undefined &&
-          !runDriverClaimHeldLocally(ctx.runId)
-        ) {
-          state.releaseDriverClaim = await holdRunDriverClaim({
-            runs: durability.runs,
-            locks: ensureCtx.locks,
-            runId: ctx.runId,
-            ...(logger === undefined ? {} : { logger }),
           })
         }
       }
