@@ -10,22 +10,22 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiMotionCancelRouteImport } from './routes/api.motion.cancel'
 import { Route as ApiGenerateMotionRouteImport } from './routes/api.generate.motion'
+import { Route as ApiMotionCancelRouteImport } from './routes/api.motion.cancel'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiMotionCancelRoute = ApiMotionCancelRouteImport.update({
-  id: '/api/motion/cancel',
-  path: '/api/motion/cancel',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiGenerateMotionRoute = ApiGenerateMotionRouteImport.update({
   id: '/api/generate/motion',
   path: '/api/generate/motion',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMotionCancelRoute = ApiMotionCancelRouteImport.update({
+  id: '/api/motion/cancel',
+  path: '/api/motion/cancel',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -68,18 +68,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/motion/cancel': {
-      id: '/api/motion/cancel'
-      path: '/api/motion/cancel'
-      fullPath: '/api/motion/cancel'
-      preLoaderRoute: typeof ApiMotionCancelRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/generate/motion': {
       id: '/api/generate/motion'
       path: '/api/generate/motion'
       fullPath: '/api/generate/motion'
       preLoaderRoute: typeof ApiGenerateMotionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/motion/cancel': {
+      id: '/api/motion/cancel'
+      path: '/api/motion/cancel'
+      fullPath: '/api/motion/cancel'
+      preLoaderRoute: typeof ApiMotionCancelRouteImport
       parentRoute: typeof rootRouteImport
     }
   }

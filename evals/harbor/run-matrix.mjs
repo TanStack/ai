@@ -76,6 +76,17 @@ async function main() {
     )
     process.exit(1)
   }
+  // A spend cap only works if we can price the model. With an unknown rate,
+  // trialCost() returns null, spentUsd never moves, and --max-usd silently
+  // stops nothing. Refuse to start rather than run paid trials uncapped.
+  if (maxUsd !== null && !DEFAULT_RATES[model]) {
+    console.error(
+      `--max-usd is set but model "${model}" has no rate in DEFAULT_RATES, ` +
+        `so the cap cannot be enforced. Add a rate for it in report.mjs, or ` +
+        `drop --max-usd to run uncapped.`,
+    )
+    process.exit(1)
+  }
 
   const taskFiles = globSync(taskGlob).sort()
   if (taskFiles.length === 0) {

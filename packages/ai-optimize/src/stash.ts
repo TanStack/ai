@@ -29,9 +29,19 @@ export function createStash(): Stash {
  *  field path of the same call do not collide in the stash. */
 export type ProjectionOrigin = 'result' | 'args'
 
-/** Deterministic ref: `ctx_<toolCallId>_<origin>_<slug>`. The slug keeps `.`
- *  path separators (so `a.b` and `a_b` stay distinct) and collapses other
- *  non-alphanumerics to `_`; `$` becomes `root`. */
+/** Deterministic, collision-free ref: `ctx_<toolCallId>_<origin>_<slug>`.
+ *
+ *  The slug must be injective in `fieldPath`: two different paths must never
+ *  produce the same ref, or one projection's original value overwrites the
+ *  other in the stash and both markers then retrieve the wrong content. A
+ *  lossy "replace every non-alphanumeric with `_`" scheme collides (`a.b` vs
+ *  `a_b`, and `$` vs a literal field named `root`).
+ *
+ *  So we escape: any byte that is not `[A-Za-z0-9.]` becomes `~HH` (lowercase
+ *  hex). `~` never appears unescaped, so the mapping is reversible and no two
+ *  distinct paths collide. The whole-result sentinel `$` keeps the readable
+ *  `root` spelling; a literal field named `root` is escaped (`~72oot`) so it
+ *  can never be mistaken for the sentinel. */
 export function makeRef(
   toolCallId: string,
   fieldPath: string,
@@ -40,6 +50,12 @@ export function makeRef(
   const slug =
     fieldPath === '$'
       ? 'root'
-      : fieldPath.replace(/[^a-zA-Z0-9.]+/g, '_').replace(/^[._]+|[._]+$/g, '')
-  return `ctx_${toolCallId}_${origin}_${slug || 'root'}`
+      : fieldPath === 'root'
+        ? `~72oot`
+        : fieldPath.replace(/[^a-zA-Z0-9.]/g, (ch) =>
+            Array.from(new TextEncoder().encode(ch))
+              .map((b) => `~${b.toString(16).padStart(2, '0')}`)
+              .join(''),
+          )
+  return `ctx_${toolCallId}_${origin}_${slug}`
 }

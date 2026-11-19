@@ -162,7 +162,22 @@ export async function runTask(task, { arm, model }) {
   let runError
   try {
     for await (const chunk of stream) {
-      if (firstTokenMs === undefined)
+      // chat() can end the stream with a RUN_ERROR chunk instead of throwing.
+      // Treat it as an error so the run is graded 'error', not from partial
+      // text. Tokens are already counted by the usage middleware.
+      if (chunk.type === 'RUN_ERROR') {
+        runError ??= new Error(chunk.message || 'Run failed')
+        continue
+      }
+      // Time-to-first-token = first *content* token, not the first stream
+      // event. A TEXT_MESSAGE_START (or any non-content chunk) before content
+      // would otherwise report stream-event latency as token latency.
+      if (
+        firstTokenMs === undefined &&
+        chunk.type === 'TEXT_MESSAGE_CONTENT' &&
+        typeof chunk.delta === 'string' &&
+        chunk.delta.length > 0
+      )
         firstTokenMs = performance.now() - startedAt
       // Grade only the LAST assistant message: reset at each new text message so
       // an answer mentioned before a tool call doesn't count as the final answer.

@@ -486,7 +486,8 @@
         {
           "label": "Context Optimization",
           "to": "advanced/context-optimization",
-          "addedAt": "2026-11-12"
+          "addedAt": "2026-11-12",
+          "updatedAt": "2026-11-19"
         }
       ],
       "tab": "guides"

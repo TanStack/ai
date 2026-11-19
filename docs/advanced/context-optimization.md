@@ -163,7 +163,7 @@ This changes the **completed call** only. The approval prompt, the live stream, 
 
 Two cases to watch:
 
-- **Drop only when nothing later in the run reads it.** A terminal write (the last thing the agent does with that file) is free to drop. Dropping writes an agent keeps working against mid-session can cost more than it saves, because the model re-checks work it can no longer see in its own history.
+- **Drop only when nothing later in the run reads it.** A terminal write (the last thing the agent does with that file) is free to drop. Dropping writes an agent keeps working against mid-session can cost more than it saves, because the model re-checks work it can no longer see in its own history. The rule matches on tool **name**, so it applies to *every* completed call of that tool, not just the last one. If an agent uses one `write_file` tool for both intermediate and final writes, dropping its arguments drops the intermediate ones too. When you need that split, give the terminal write its own tool name (for example `commit_file`) and put the rule only on that one, or leave argument dropping off for the workflow.
 - **A failed call still counts as completed.** If a large write fails, its arguments can still be dropped even though the file was never saved, and the model must retrieve them before it can retry. Don't drop arguments for a tool whose failures you can't distinguish.
 
 ## Code mode
