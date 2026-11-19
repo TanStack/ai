@@ -38,6 +38,7 @@ export type GenerationActivity =
   | 'chat'
   | 'image'
   | 'video'
+  | '3dModel'
   | 'audio'
   | 'tts'
   | 'voice'

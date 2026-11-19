@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-bedrock",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "type": "module",
   "description": "Amazon Bedrock adapter for TanStack AI with chat, tools, reasoning, embeddings, and reranking.",
   "author": "",

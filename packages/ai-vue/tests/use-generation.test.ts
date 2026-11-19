@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, nextTick } from 'vue'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { EventType } from '@tanstack/ai/client'
 import { useGeneration } from '../src/use-generation'
 import { useGenerateImage } from '../src/use-generate-image'
 import { useGenerateAudio } from '../src/use-generate-audio'
@@ -8,8 +9,10 @@ import { useGenerateSpeech } from '../src/use-generate-speech'
 import { useTranscription } from '../src/use-transcription'
 import { useSummarize } from '../src/use-summarize'
 import { useGenerateVideo } from '../src/use-generate-video'
+import { useGenerate3DModel } from '../src/use-generate-3d-model'
 import { createMockConnectionAdapter } from './test-utils'
 import type {
+  Model3DResult,
   PersistedArtifactRef,
   StreamChunk,
   TTSResult,
@@ -608,6 +611,107 @@ describe('useGenerateImage', () => {
       artifacts: [artifact],
     })
     expect(result.runId.value).toBeNull()
+  })
+})
+
+describe('useGenerate3DModel', () => {
+  const model3DResult: Model3DResult = {
+    jobId: 'job-3d',
+    url: 'https://example.com/chest.glb',
+    format: 'glb',
+    previewImageUrl: 'https://example.com/chest.png',
+  }
+
+  // The server route emits one progress event per poll, then the result.
+  function create3DModelChunks(): Array<StreamChunk> {
+    return [
+      {
+        type: EventType.RUN_STARTED,
+        runId: 'run-3d',
+        threadId: 'thread-3d',
+        timestamp: 1,
+      },
+      {
+        type: 'CUSTOM',
+        name: 'generation:progress',
+        value: { progress: 10, message: 'pending' },
+        timestamp: 2,
+      },
+      {
+        type: 'CUSTOM',
+        name: 'generation:progress',
+        value: { progress: 60, message: 'processing' },
+        timestamp: 3,
+      },
+      {
+        type: 'CUSTOM',
+        name: 'generation:result',
+        value: model3DResult,
+        timestamp: 4,
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        runId: 'run-3d',
+        threadId: 'thread-3d',
+        finishReason: 'stop',
+        timestamp: 5,
+      },
+    ]
+  }
+
+  it('reports progress, then stores the 3D model result', async () => {
+    const adapter = createMockConnectionAdapter({
+      chunks: create3DModelChunks(),
+    })
+    const onProgress = vi.fn()
+
+    const { result } = renderHook(() =>
+      useGenerate3DModel({
+        threadId: 'thread-3d',
+        connection: adapter,
+        onProgress,
+      }),
+    )
+
+    await result.generate({ prompt: 'A wooden treasure chest' })
+    await flushPromises()
+    await nextTick()
+
+    expect(onProgress.mock.calls).toEqual([
+      [10, 'pending'],
+      [60, 'processing'],
+    ])
+    expect(result.result.value).toEqual({
+      jobId: 'job-3d',
+      url: 'https://example.com/chest.glb',
+      format: 'glb',
+      previewImageUrl: 'https://example.com/chest.png',
+    })
+    expect(result.status.value).toBe('success')
+  })
+
+  it('sets the error state when the run fails', async () => {
+    const adapter = createMockConnectionAdapter({
+      chunks: createErrorChunks('3D generation failed'),
+    })
+    const onError = vi.fn()
+
+    const { result } = renderHook(() =>
+      useGenerate3DModel({
+        threadId: 'thread-3d',
+        connection: adapter,
+        onError,
+      }),
+    )
+
+    await result.generate({ prompt: 'A wooden treasure chest' })
+    await flushPromises()
+    await nextTick()
+
+    expect(result.status.value).toBe('error')
+    expect(result.error.value?.message).toBe('3D generation failed')
+    expect(result.result.value).toBeNull()
+    expect(onError).toHaveBeenCalledTimes(1)
   })
 })
 

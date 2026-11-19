@@ -1332,6 +1332,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     return makeStructuredOutputCompatibleWithMap(schema, originalRequired)
   }
 
+  /** Undo strict-mode nulls before the engine checks recorded arguments. */
+  normalizeToolInput(
+    toolName: string,
+    input: unknown,
+    tools: ReadonlyArray<AnyTool> | undefined,
+  ): unknown {
+    return createToolInputNormalizer(tools, (schema, required) =>
+      this.makeStructuredOutputCompatibleWithMap(schema, required),
+    )(toolName, input)
+  }
+
   /**
    * Applies provider-specific transformations for structured output compatibility.
    * Override `makeStructuredOutputCompatibleWithMap` when you need the inverse map

@@ -11,6 +11,8 @@ export {
   generateAudio,
   generateVideo,
   getVideoJobStatus,
+  generate3DModel,
+  get3DModelJobStatus,
   generateSpeech,
   listVoices,
   generateVoice,
@@ -35,6 +37,7 @@ export { createRerankOptions } from './activities/rerank/index'
 export { createImageOptions } from './activities/generateImage/index'
 export { createAudioOptions } from './activities/generateAudio/index'
 export { createVideoOptions } from './activities/generateVideo/index'
+export { create3DModelOptions } from './activities/generate3DModel/index'
 export { createSpeechOptions } from './activities/generateSpeech/index'
 export { createVoiceOptions } from './activities/generateVoice/index'
 export { createTranscriptionOptions } from './activities/generateTranscription/index'
@@ -63,6 +66,15 @@ export type {
   TranscriptionAdapter,
   AnyVideoAdapter,
   VideoAdapter,
+  AnyModel3DAdapter,
+  Model3DAdapter,
+  Model3DAdapterConfig,
+  Model3DActivityOptions,
+  Model3DActivityResult,
+  Model3DProviderOptions,
+  Model3DPromptForAdapter,
+  Model3DJobStatusOptions,
+  Model3DJobStatusResult,
   AnyEmbeddingAdapter,
   EmbeddingAdapter,
   AnyRerankAdapter,
@@ -92,6 +104,9 @@ export type {
   FileHandle,
   FileUploadInput,
 } from './activities/index'
+
+// 3D model adapter base (experimental)
+export { BaseModel3DAdapter } from './activities/generate3DModel/adapter'
 
 // Rerank adapter base + types
 export { BaseRerankAdapter } from './activities/rerank/adapter'

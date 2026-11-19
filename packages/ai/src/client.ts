@@ -5,6 +5,7 @@ import type {
   TranscriptionOptions,
   VoiceGenerationOptions,
   VideoGenerationOptions,
+  Model3DGenerationOptions,
   WorldGenerationOptions,
   MotionGenerationOptions,
   LiveVideoGenerationOptions,
@@ -16,6 +17,7 @@ export type GenerationKind =
   | 'tts'
   | 'voice'
   | 'video'
+  | '3dModel'
   | 'transcription'
   | 'world'
   | 'motion'
@@ -27,6 +29,7 @@ type GenerationInputByKind = {
   tts: Omit<TTSOptions, 'logger' | 'model'>
   voice: Omit<VoiceGenerationOptions, 'logger' | 'model'>
   video: Omit<VideoGenerationOptions, 'logger' | 'model'>
+  '3dModel': Omit<Model3DGenerationOptions, 'logger' | 'model'>
   transcription: Omit<TranscriptionOptions, 'logger' | 'model'>
   world: Omit<WorldGenerationOptions, 'logger' | 'model'>
   motion: Omit<MotionGenerationOptions, 'logger' | 'model'>
@@ -46,6 +49,7 @@ const generationKinds = [
   'tts',
   'voice',
   'video',
+  '3dModel',
   'transcription',
   'world',
   'motion',
@@ -89,6 +93,7 @@ function requiredKeysForKind(kind: GenerationKind): Array<string> {
     case 'image':
     case 'audio':
     case 'video':
+    case '3dModel':
     case 'world':
     case 'motion':
     case 'liveVideo':

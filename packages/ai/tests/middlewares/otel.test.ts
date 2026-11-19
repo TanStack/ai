@@ -1490,6 +1490,7 @@ describe('otelMiddleware — media activities', () => {
     const cases: Array<[GenerationActivity, string]> = [
       ['image', 'image_generation'],
       ['video', 'video_generation'],
+      ['3dModel', '3d_model_generation'],
       ['audio', 'audio_generation'],
       ['tts', 'text_to_speech'],
       ['voice', 'voice_generation'],
@@ -1697,6 +1698,35 @@ describe('otelMiddleware — media activities', () => {
     expect(span.attributes['langfuse.observation.output']).toBe(
       span.attributes['gen_ai.output.messages'],
     )
+  })
+
+  it('captures a 3D model URL with captureContent', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer, captureContent: true })
+    const ctx = makeGenCtx({
+      activity: '3dModel',
+      artifactInputs: { prompt: 'a chest' },
+    })
+
+    mw.onStart?.(ctx)
+    await applyGenerationResultTransforms(ctx, {
+      url: 'https://cdn.example/out.glb',
+    })
+
+    expect(
+      JSON.parse(spans[0]!.attributes['gen_ai.output.messages'] as string),
+    ).toEqual([
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'uri',
+            modality: 'model3d',
+            uri: 'https://cdn.example/out.glb',
+          },
+        ],
+      },
+    ])
   })
 
   it('captures image outputs, keeping base64 as a placeholder', async () => {

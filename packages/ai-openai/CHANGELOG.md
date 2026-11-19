@@ -1,5 +1,19 @@
 # @tanstack/ai-openai
 
+## 1.2.0
+
+### Minor Changes
+
+- [#2156](https://github.com/TanStack/ai/pull/2156) [`df6f5a9`](https://github.com/TanStack/ai/commit/df6f5a9f5ff782db85c8a36715bac18a7f090180) - The OpenAI-compatible adapters support `chat({ reasoning })`. Add the levels of a model to its `createModel` definition (`reasoning: { levels, budget }`), or to the `reasoning` config of `openaiCompatibleText`. The adapter sends the level as `reasoning_effort` on Chat Completions, or as `reasoning: { effort, summary }` on Responses. `chat()` accepts only the levels of the model.
+
+  `OpenAICompatibleChatAdapter` and `OpenAICompatibleResponsesAdapter` take the same levels in a new `reasoning` constructor option, and in their last type parameter. TypeScript shows an error when the option is missing or its levels are different from the type parameter. The new `OpenAICompatibleAdapterOptions` type is exported from `@tanstack/ai-openai/compatible`.
+
+### Patch Changes
+
+- Updated dependencies [[`95c1d78`](https://github.com/TanStack/ai/commit/95c1d781c92904612e0d675a9ca38f1a8d9a1c09), [`df6f5a9`](https://github.com/TanStack/ai/commit/df6f5a9f5ff782db85c8a36715bac18a7f090180), [`40d1c61`](https://github.com/TanStack/ai/commit/40d1c61c6bdf1957bd124d09b1f07617a05e759d)]:
+  - @tanstack/ai@1.6.0
+  - @tanstack/openai-base@1.1.0
+
 ## 1.1.1
 
 ### Patch Changes

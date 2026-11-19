@@ -153,7 +153,13 @@ function makeTextStream(): ReadableStream<Uint8Array> {
 export const Route = createFileRoute('/api/openai-strict-tool-null-wire')({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        const body: unknown = await request.json().catch(() => ({}))
+        const approvalResume =
+          typeof body === 'object' &&
+          body !== null &&
+          'resume' in body &&
+          body.resume === true
         let requestCount = 0
         let firstRequestBody: unknown
         let executedInput: unknown
@@ -167,7 +173,9 @@ export const Route = createFileRoute('/api/openai-strict-tool-null-wire')({
           }
 
           return new Response(
-            requestCount === 1 ? makeToolCallStream() : makeTextStream(),
+            !approvalResume && requestCount === 1
+              ? makeToolCallStream()
+              : makeTextStream(),
             { headers: { 'Content-Type': 'text/event-stream' } },
           )
         }
@@ -189,6 +197,87 @@ export const Route = createFileRoute('/api/openai-strict-tool-null-wire')({
           fetch: mockFetch,
         })
         const text: Array<string> = []
+
+        if (approvalResume) {
+          const toolCallId = 'call_book'
+          const args = JSON.stringify({
+            destination: 'Tokyo',
+            date: null,
+            note: null,
+          })
+          const bookFlight = toolDefinition({
+            name: 'bookFlight',
+            description: 'Book a flight',
+            needsApproval: true,
+            inputSchema: {
+              type: 'object',
+              properties: {
+                destination: { type: 'string' },
+                date: { type: 'string' },
+                note: { type: ['string', 'null'] },
+              },
+              required: ['destination'],
+              additionalProperties: false,
+            },
+          }).server((input) => {
+            executedInput = input
+            return { booked: true }
+          })
+          let toolError: string | undefined
+          try {
+            for await (const chunk of chat({
+              threadId: 'openai-strict-tool-null-wire',
+              ...createChatOptions({ adapter }),
+              messages: [
+                {
+                  role: 'user',
+                  content: 'Book a flight to Tokyo. I have no date yet.',
+                },
+                {
+                  role: 'assistant',
+                  content: null,
+                  toolCalls: [
+                    {
+                      id: toolCallId,
+                      type: 'function',
+                      function: { name: 'bookFlight', arguments: args },
+                    },
+                  ],
+                },
+              ],
+              tools: [bookFlight],
+              parentRunId: 'r1',
+              resume: [
+                {
+                  interruptId: `approval_${toolCallId}`,
+                  status: 'resolved',
+                  payload: { approved: true },
+                },
+              ],
+              repairToolInput: false,
+              agentLoopStrategy: maxIterations(3),
+            })) {
+              if (
+                chunk.type === 'TOOL_CALL_RESULT' &&
+                typeof chunk.content === 'string' &&
+                chunk.content.includes('Input validation failed')
+              ) {
+                toolError = chunk.content
+              }
+            }
+          } catch (error) {
+            return Response.json({
+              ok: false,
+              error: error instanceof Error ? error.message : String(error),
+            })
+          }
+          return Response.json({
+            ok: toolError === undefined && executedInput !== undefined,
+            executedInput,
+            toolError,
+            requestCount,
+          })
+        }
 
         try {
           for await (const chunk of chat({

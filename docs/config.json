@@ -65,6 +65,11 @@
           "updatedAt": "2026-10-22"
         },
         {
+          "label": "Game Asset Pipeline",
+          "to": "tutorials/game-asset-pipeline",
+          "addedAt": "2026-11-18"
+        },
+        {
           "label": "Streaming Structured Table",
           "to": "tutorials/streaming-structured-table",
           "addedAt": "2026-09-17",
@@ -130,6 +135,11 @@
           "label": "Generate Image",
           "to": "framework/react/examples/generate-image",
           "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Game Asset Pipeline",
+          "to": "framework/react/examples/game-asset-pipeline",
+          "addedAt": "2026-11-18"
         },
         {
           "label": "Streaming Structured Table",
@@ -370,7 +380,7 @@
           "label": "Server Tools: Advanced",
           "to": "tools/server-tools-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Client Tools",
@@ -454,7 +464,7 @@
           "label": "OpenTelemetry",
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "Compaction",
@@ -983,10 +993,20 @@
           "updatedAt": "2026-11-19"
         },
         {
+          "label": "3D Model Generation",
+          "to": "media/3d-model-generation",
+          "addedAt": "2026-11-18"
+        },
+        {
+          "label": "3D Model Generation: Advanced",
+          "to": "media/3d-model-generation-advanced",
+          "addedAt": "2026-11-18"
+        },
+        {
           "label": "Generation Hooks",
           "to": "media/generation-hooks",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-18"
         }
       ],
       "tab": "guides"
@@ -1535,7 +1555,8 @@
         {
           "label": "Takeover Internals",
           "to": "sandbox/takeover-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "Reaping & Retention",

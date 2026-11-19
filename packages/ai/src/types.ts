@@ -2395,12 +2395,14 @@ export interface MediaInputMetadata {
  * content-part shapes: text parts carry the instruction, image / video /
  * audio parts carry conditioning inputs (with an optional
  * `metadata.role` hint — see {@link MediaInputRole}).
+ * A {@link Model3DPart} carries an existing mesh for 3D model generation.
  */
 export type MediaPromptPart =
   | TextPart
   | ImagePart<MediaInputMetadata>
   | VideoPart<MediaInputMetadata>
   | AudioPart<MediaInputMetadata>
+  | Model3DPart
 
 /**
  * Prompt accepted by `generateImage()` / `generateVideo()`: a plain string,
@@ -2419,13 +2421,14 @@ export type MediaPrompt = string | Array<MediaPromptPart>
 /**
  * Non-text modalities a media-generation model can accept in its prompt.
  */
-export type MediaPromptModality = 'image' | 'video' | 'audio'
+export type MediaPromptModality = 'image' | 'video' | 'audio' | 'model3d'
 
 /** Maps a prompt modality to its content-part type. @internal */
 interface MediaPartByModality {
   image: ImagePart<MediaInputMetadata>
   video: VideoPart<MediaInputMetadata>
   audio: AudioPart<MediaInputMetadata>
+  model3d: Model3DPart
 }
 
 /**
@@ -2746,6 +2749,175 @@ export interface VideoStreamResult {
   contentType: string
   usage?: TokenUsage
   url?: never
+}
+
+// ============================================================================
+// 3D Model Generation Types (Experimental)
+// ============================================================================
+
+/**
+ * File format of a 3D model.
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export type Model3DFormat = 'glb' | 'gltf' | 'fbx' | 'obj' | 'usdz' | 'stl'
+
+/**
+ * What one file of a 3D model result holds.
+ *
+ * - `'base'`: the mesh as the provider made it.
+ * - `'pbr'`: the mesh with PBR materials.
+ * - `'rigged'`: the mesh with a skeleton.
+ * - `'animation'`: an animated version of the mesh.
+ * - `'texture'`: a texture image for the mesh.
+ * - `'part'`: one part of a mesh that the provider split into parts.
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export type Model3DFileRole =
+  | 'base'
+  | 'pbr'
+  | 'rigged'
+  | 'animation'
+  | 'texture'
+  | 'part'
+
+/**
+ * Metadata for a {@link Model3DPart} in a media prompt.
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export interface Model3DInputMetadata {
+  /** File format of the mesh. Set it when the source URL has no file extension. */
+  format?: Model3DFormat
+}
+
+/**
+ * A prompt part that carries an existing 3D mesh, for example the input of a
+ * retopology or retexture step. It is valid only in a media prompt
+ * ({@link MediaPromptPart}), not in a chat message.
+ *
+ * @example
+ * ```ts
+ * const mesh: Model3DPart = {
+ *   type: 'model3d',
+ *   source: { type: 'url', value: 'https://example.com/chair.glb' },
+ * }
+ * ```
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export interface Model3DPart<TMetadata = Model3DInputMetadata> {
+  type: 'model3d'
+  /** Where the mesh bytes come from: a URL, inline data, or a provider file. */
+  source: ContentPartSource
+  /** Optional metadata, such as the mesh file format. */
+  metadata?: TMetadata
+}
+
+/**
+ * Options that the 3D model activity gives to an adapter when it creates a job.
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export interface Model3DGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for 3D model generation */
+  model: string
+  /**
+   * What to make: a plain string for text-to-3D, or an ordered array of text,
+   * image, and `model3d` parts. Adapters route the image and mesh parts to the
+   * provider request fields, and throw at runtime when the model cannot use
+   * a part.
+   */
+  prompt: MediaPrompt
+  /** Model-specific options for 3D model generation */
+  modelOptions?: TProviderOptions
+  /**
+   * Internal logger from the generate3DModel() entry point. Adapters must
+   * call logger.request() before the SDK call and logger.errors() in catch blocks.
+   */
+  logger: InternalLogger
+  /**
+   * Abort signal made by the activity from the caller `abortSignal` and/or
+   * `timeout`. Adapters should give it to the provider SDK when the SDK
+   * supports it. It is for this request only. Never store it on a client config.
+   */
+  abortSignal?: AbortSignal
+}
+
+/**
+ * Result of creating a 3D model generation job.
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export interface Model3DJobResult {
+  /** Unique job identifier for polling status */
+  jobId: string
+  /** Model used for generation */
+  model: string
+}
+
+/**
+ * Status of a 3D model generation job.
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export interface Model3DStatusResult {
+  /** Job identifier */
+  jobId: string
+  /** Current status of the job */
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  /** Progress percentage (0-100), if available */
+  progress?: number
+  /** Error message if status is 'failed' */
+  error?: string
+}
+
+/**
+ * One file of a finished 3D model, for example a rigged GLB or a texture.
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export interface Model3DFile {
+  /** URL of the file */
+  url: string
+  /**
+   * Set for mesh files. Not set for textures and other non-mesh files; use
+   * `contentType`.
+   */
+  format?: Model3DFormat
+  /** What the file holds, when the provider tells us */
+  role?: Model3DFileRole
+  /** MIME type of the file, when known (e.g. `model/gltf-binary`) */
+  contentType?: string
+}
+
+/**
+ * The finished 3D model.
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export interface Model3DResult {
+  /** Job identifier */
+  jobId: string
+  /** URL of the main model file. The adapter picks a GLB when there is one. */
+  url: string
+  /** File format of `url` */
+  format: Model3DFormat
+  /**
+   * The files the provider returned: every mesh with its format, and the
+   * texture files. Each file has a role when the provider tells us.
+   */
+  files?: Array<Model3DFile>
+  /** URL of a preview image of the model, when the provider makes one */
+  previewImageUrl?: string
+  /**
+   * Usage information for the finished generation, when the adapter can
+   * report it. For usage-based providers (e.g. fal) this carries `billed`.
+   */
+  usage?: TokenUsage
 }
 
 // ============================================================================

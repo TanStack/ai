@@ -1,5 +1,24 @@
 # @tanstack/ai
 
+## 1.6.0
+
+### Minor Changes
+
+- [#2110](https://github.com/TanStack/ai/pull/2110) [`95c1d78`](https://github.com/TanStack/ai/commit/95c1d781c92904612e0d675a9ca38f1a8d9a1c09) - Undo strict-mode `null`s on tool arguments before the input check. An approved call whose history still has those `null`s now runs when `repairToolInput` is off.
+
+- [#2156](https://github.com/TanStack/ai/pull/2156) [`df6f5a9`](https://github.com/TanStack/ai/commit/df6f5a9f5ff782db85c8a36715bac18a7f090180) - The OpenAI-compatible adapters support `chat({ reasoning })`. Add the levels of a model to its `createModel` definition (`reasoning: { levels, budget }`), or to the `reasoning` config of `openaiCompatibleText`. The adapter sends the level as `reasoning_effort` on Chat Completions, or as `reasoning: { effort, summary }` on Responses. `chat()` accepts only the levels of the model.
+
+  `OpenAICompatibleChatAdapter` and `OpenAICompatibleResponsesAdapter` take the same levels in a new `reasoning` constructor option, and in their last type parameter. TypeScript shows an error when the option is missing or its levels are different from the type parameter. The new `OpenAICompatibleAdapterOptions` type is exported from `@tanstack/ai-openai/compatible`.
+
+### Patch Changes
+
+- [#2163](https://github.com/TanStack/ai/pull/2163) [`40d1c61`](https://github.com/TanStack/ai/commit/40d1c61c6bdf1957bd124d09b1f07617a05e759d) - A chat loaded from stored messages now looks the same as the chat the user saw live.
+  - A tool result that is a string stays a string, also when the string is JSON text. Before, a tool that returned `'42'` showed the number `42`, live or after a reload. This applies to server tools, client tools, middleware skip results, and MCP text results from tools without an `outputSchema`. A server tool that returns `JSON.stringify(value)` now gives that string as `part.output`. Return the value itself to get it as an object.
+  - Live messages no longer get the snapshot wire fields `tanstack.createdAt` and `toolCallMetadata` in their metadata.
+  - A reload drops an assistant answer that holds only whitespace, as the live chat does.
+  - When a run stops for a client tool, the messages that `chat()` stores keep the ids of the snapshot, so a reload gives tool results the same ids.
+  - `ThinkingPart.stepId` is deprecated and is no longer set. Parts are the same live, stored, and reloaded.
+
 ## 1.5.0
 
 ### Minor Changes
