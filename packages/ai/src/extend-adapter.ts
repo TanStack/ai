@@ -1,4 +1,8 @@
+import type { ModelReasoning } from './reasoning'
 import type { Modality } from './types'
+
+/** A model's reasoning levels: the provider value to send for each level. */
+type ModelReasoningLevels = Exclude<ModelReasoning, false>
 
 // ===========================
 // Extended Model Definition
@@ -24,6 +28,9 @@ export interface ExtendedModelDef<
   TOptions = unknown,
   TFeatures extends ReadonlyArray<string> = ReadonlyArray<string>,
   TTools extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TReasoning extends ModelReasoningLevels | undefined =
+    | ModelReasoningLevels
+    | undefined,
 > {
   /** The model name identifier */
   name: TName
@@ -35,6 +42,11 @@ export interface ExtendedModelDef<
   features?: TFeatures
   /** Optional declared provider tools (e.g. 'web_search') */
   tools?: TTools
+  /**
+   * Optional reasoning levels for `chat({ reasoning })`. The
+   * `openaiCompatible` factory of `@tanstack/ai-openai` reads them.
+   */
+  reasoning?: TReasoning
 }
 
 /** Capability bag accepted by the object form of `createModel`. */
@@ -48,6 +60,7 @@ export interface ModelCapabilities<
   features?: TFeatures
   tools?: TTools
   modelOptions?: TOptions
+  reasoning?: ModelReasoningLevels
 }
 
 /**
@@ -110,7 +123,10 @@ export function createModel<
     : ReadonlyArray<string>,
   TCaps['tools'] extends ReadonlyArray<string>
     ? TCaps['tools']
-    : ReadonlyArray<string>
+    : ReadonlyArray<string>,
+  TCaps['reasoning'] extends ModelReasoningLevels
+    ? TCaps['reasoning']
+    : undefined
 >
 // Implementation
 export function createModel(
@@ -127,6 +143,7 @@ export function createModel(
     modelOptions: caps.modelOptions ?? {},
     features: caps.features,
     tools: caps.tools,
+    reasoning: caps.reasoning,
   }
 }
 

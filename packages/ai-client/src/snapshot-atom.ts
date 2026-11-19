@@ -1,3 +1,4 @@
+import { copyThinkingStepOf } from '@tanstack/ai/client'
 import type { Atom } from '@tanstack/store'
 
 export { createAtom } from '@tanstack/store'
@@ -104,7 +105,11 @@ export function freezeSnapshotPart<TPart extends object>(
         : { ...sub },
     )
   }
-  return Object.freeze(copy) as TPart
+  const frozen = Object.freeze(copy) as TPart
+  if (record.type === 'thinking') {
+    copyThinkingStepOf(part, frozen)
+  }
+  return frozen
 }
 
 function cached<T extends object>(

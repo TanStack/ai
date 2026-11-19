@@ -1494,6 +1494,32 @@ describe('Message Converters', () => {
   })
 
   describe('modelMessagesToUIMessages', () => {
+    it('drops an assistant answer that is only whitespace', () => {
+      const reloaded = modelMessagesToUIMessages([
+        { role: 'user', content: 'hi' },
+        { role: 'assistant', content: ' \t ' },
+      ])
+
+      expect(reloaded.map((message) => message.role)).toEqual(['user'])
+    })
+
+    it('keeps a whitespace-only assistant answer that stopped with an error', () => {
+      const reloaded = modelMessagesToUIMessages([
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: '\n',
+          metadata: { tanstack: { stopReason: 'error' } },
+        },
+      ])
+
+      expect(reloaded).toHaveLength(2)
+      expect(reloaded[1]).toMatchObject({
+        role: 'assistant',
+        metadata: { tanstack: { stopReason: 'error' } },
+      })
+    })
+
     it('preserves per-tool identity and metadata across a multi-tool round-trip', () => {
       const original: Array<ModelMessage> = [
         {
@@ -2097,6 +2123,31 @@ describe('Message Converters', () => {
   })
 
   describe('Round-trip symmetry: UI -> Model -> UI', () => {
+    it('keeps a JSON-text string tool output as a string', () => {
+      const original: UIMessage = {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'tc1',
+            name: 'read_code',
+            arguments: '{}',
+            state: 'input-complete',
+            output: '42',
+          },
+        ],
+      }
+
+      const [reloaded] = modelMessagesToUIMessages(
+        uiMessageToModelMessages(original),
+      )
+
+      expect(
+        reloaded?.parts.find((part) => part.type === 'tool-call'),
+      ).toMatchObject({ output: '42' })
+    })
+
     it('should round-trip simple text user message', () => {
       const createdAt = new Date('2025-01-01')
       const original: UIMessage = {

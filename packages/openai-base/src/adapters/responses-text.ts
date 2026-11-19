@@ -19,6 +19,7 @@ import {
   transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
 import { drainAfterTerminal, generateId } from '@tanstack/ai-utils'
+import { APIUserAbortError } from 'openai/core/error'
 import { Stream } from 'openai/streaming'
 import { clientFor, extractRequestOptions } from '../utils/request-options'
 import type { Fetch } from '../utils/request-options'
@@ -617,6 +618,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       const rawEvent = toRunErrorRawEvent(error)
       const retryAfterMs = toRetryAfterMs(error)
 
+      // Log before yielding: a consumer that stops at RUN_ERROR closes this
+      // generator at the yield.
+      if (!this.isAbortError(error)) {
+        options.logger.errors(`${this.name}.chatStream fatal`, {
+          error: errorPayload,
+          source: `${this.name}.chatStream`,
+        })
+      }
+
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
@@ -655,11 +665,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           code: errorPayload.code,
         },
       }
-
-      options.logger.errors(`${this.name}.chatStream fatal`, {
-        error: errorPayload,
-        source: `${this.name}.chatStream`,
-      })
     }
   }
 
@@ -772,10 +777,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
       // (including auth headers) which we must never surface to user loggers.
-      chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
-        error: toRunErrorPayload(error, `${this.name}.structuredOutput failed`),
-        source: `${this.name}.structuredOutput`,
-      })
+      if (!this.isAbortError(error)) {
+        chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
+          error: toRunErrorPayload(
+            error,
+            `${this.name}.structuredOutput failed`,
+          ),
+          source: `${this.name}.structuredOutput`,
+        })
+      }
       throw error
     }
   }
@@ -1195,6 +1205,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       // `exactOptionalPropertyTypes` (see chatStream catch).
       const resolvedCode = isAbort ? 'aborted' : errorPayload.code
       const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
+      // Log before RUN_ERROR: chat() closes this generator at that yield.
+      if (!isAbort) {
+        chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
+          error: errorPayload,
+          source: `${this.name}.structuredOutputStream`,
+        })
+      }
       yield {
         type: EventType.RUN_ERROR,
         metadata: this.sourceMetadata(
@@ -1212,11 +1229,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           ...(resolvedCode !== undefined && { code: resolvedCode }),
         },
       }
-
-      chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
-        error: errorPayload,
-        source: `${this.name}.structuredOutputStream`,
-      })
     }
   }
 
@@ -1265,6 +1277,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     error: unknown,
     fallbackMessage: string,
   ): { message: string; code: string | undefined } {
+    if (this.isAbortError(error)) {
+      return { message: 'Request aborted', code: 'aborted' }
+    }
     const payload = toRunErrorPayload(error, fallbackMessage)
     return this.isContextOverflow(payload)
       ? { ...payload, code: CONTEXT_OVERFLOW_CODE }
@@ -1289,8 +1304,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    */
   protected isAbortError(error: unknown): boolean {
     if (!error || typeof error !== 'object') return false
-    const e = error as { name?: unknown; code?: unknown }
+    const e = error as {
+      name?: unknown
+      code?: unknown
+      constructor?: { name?: unknown }
+    }
     return (
+      // The openai client's APIUserAbortError leaves `name` as 'Error'.
+      error instanceof APIUserAbortError ||
+      // An injected client from another copy of `openai` has its own class.
+      e.constructor?.name === 'APIUserAbortError' ||
       e.name === 'APIUserAbortError' ||
       e.name === 'AbortError' ||
       e.code === 'ERR_CANCELED'
@@ -2736,10 +2759,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         error,
         `${this.name}.processStreamChunks failed`,
       )
-      options.logger.errors(`${this.name}.processStreamChunks fatal`, {
-        error: errorPayload,
-        source: `${this.name}.processStreamChunks`,
-      })
+      // A caller abort is not a failure, so it stays off the errors channel.
+      if (!this.isAbortError(error)) {
+        options.logger.errors(`${this.name}.processStreamChunks fatal`, {
+          error: errorPayload,
+          source: `${this.name}.processStreamChunks`,
+        })
+      }
       // A held refusal wins over a later stream error. A caller abort stays
       // an abort.
       if (pendingRunError && !this.isAbortError(error)) {

@@ -46,14 +46,6 @@ import type {
   UnionToIntersection,
 } from '../runtime-context-types'
 
-function safeJsonParse(value: string): unknown {
-  try {
-    return JSON.parse(value)
-  } catch {
-    return value
-  }
-}
-
 /** Marks the synthetic tool that runs a subagent. */
 export const SUBAGENT_TOOL = Symbol.for('tanstack.ai.subagentTool')
 
@@ -747,11 +739,7 @@ async function applyToolCallDecision(
   }
 
   if (decision.type === 'skip') {
-    // One parsed value: the hook sees the same value that is pushed.
-    const skipResult =
-      typeof decision.result === 'string'
-        ? safeJsonParse(decision.result)
-        : (decision.result ?? null)
+    const skipResult = decision.result ?? null
     await pushResultAndRunAfterHook(
       results,
       { toolCallId: toolCall.id, toolName, result: skipResult, duration: 0 },
@@ -871,8 +859,9 @@ export async function* executeServerTool<TContext = unknown>(
       result = parseWithStandardSchema(tool.outputSchema, result)
     }
 
-    const finalResult =
-      typeof result === 'string' ? safeJsonParse(result) : (result ?? null)
+    // A string result stays a string, so a tool whose schema says string
+    // keeps `'42'` as `'42'`.
+    const finalResult = result ?? null
 
     await pushResultAndRunAfterHook(
       results,
@@ -978,14 +967,13 @@ async function buildClientToolResult(
       result = validation.data
     }
 
-    const parsed =
-      typeof result === 'string' ? safeJsonParse(result) : (result ?? null)
+    const output = result ?? null
     return {
       toolCallId,
       toolName,
-      result: parsed,
+      result: output,
       input,
-      output: parsed,
+      output,
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Validation failed'

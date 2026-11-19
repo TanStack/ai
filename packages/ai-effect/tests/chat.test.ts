@@ -3,7 +3,13 @@ import { Context, Effect, Fiber, Layer, Schema, Stream } from 'effect'
 import { toolDefinition } from '@tanstack/ai'
 import { fakeText } from '@tanstack/ai/testing'
 import { chat, serverTool, toolSchema } from '../src/chat'
-import type { ChatResult, ModelMessage, StreamChunk } from '@tanstack/ai'
+import type {
+  AbortInfo,
+  ChatMiddleware,
+  ChatResult,
+  ModelMessage,
+  StreamChunk,
+} from '@tanstack/ai'
 import type { FakeResponseStep } from '@tanstack/ai/testing'
 import type { AIError } from '../src/lift'
 
@@ -209,6 +215,109 @@ describe('chat', () => {
     expectTypeOf(whole).toEqualTypeOf<
       Effect.Effect<ChatResult, AIError, never>
     >()
+  })
+})
+
+describe('chat abort reaches middleware onAbort', () => {
+  function abortRecorder() {
+    const aborts: Array<AbortInfo> = []
+    const middleware: ChatMiddleware = {
+      name: 'record-abort',
+      onAbort: async (_ctx, info) => {
+        // Stands in for a hook that awaits I/O, such as marking the run aborted in a store.
+        await new Promise((resolve) => setTimeout(resolve, 10))
+        aborts.push(info)
+      },
+    }
+    return { middleware, aborts }
+  }
+
+  it('Stream.take stops the run through onAbort', async () => {
+    const { step, seen } = recordRequest('a long answer in many chunks')
+    const adapter = fakeWith([step])
+    const { middleware, aborts } = abortRecorder()
+
+    await Effect.runPromise(
+      Stream.runCollect(
+        chat({
+          adapter,
+          messages,
+          threadId: 't1',
+          middleware: [middleware],
+        }).pipe(
+          Stream.filter((chunk) => chunk.type === 'TEXT_MESSAGE_CONTENT'),
+          Stream.take(1),
+        ),
+      ),
+    )
+
+    expect(seen.signal?.aborted).toBe(true)
+    expect(aborts).toHaveLength(1)
+  })
+
+  it('interrupting while the consumer handles a chunk runs onAbort', async () => {
+    const { step, seen } = recordRequest('a long answer in many chunks')
+    const adapter = fakeWith([step])
+    const { middleware, aborts } = abortRecorder()
+    let markFirstText = () => {}
+    const firstText = new Promise<void>((resolve) => {
+      markFirstText = resolve
+    })
+
+    const fiber = Effect.runFork(
+      Stream.runDrain(
+        chat({
+          adapter,
+          messages,
+          threadId: 't1',
+          middleware: [middleware],
+        }).pipe(
+          Stream.tap((chunk) =>
+            chunk.type === 'TEXT_MESSAGE_CONTENT'
+              ? Effect.sync(markFirstText).pipe(Effect.andThen(Effect.never))
+              : Effect.void,
+          ),
+        ),
+      ),
+    )
+    await firstText
+    await Effect.runPromise(Fiber.interrupt(fiber))
+
+    expect(seen.signal?.aborted).toBe(true)
+    expect(aborts).toHaveLength(1)
+  })
+
+  it('interrupting while a chunk is pending runs onAbort before the interrupt completes', async () => {
+    const { step, seen } = recordRequest('a long answer in many chunks')
+    const adapter = fakeText({ tokensPerSecond: 50 })
+    adapter.setResponses([step])
+    const { middleware, aborts } = abortRecorder()
+    let markFirstText = () => {}
+    const firstText = new Promise<void>((resolve) => {
+      markFirstText = resolve
+    })
+
+    const fiber = Effect.runFork(
+      Stream.runDrain(
+        chat({
+          adapter,
+          messages,
+          threadId: 't1',
+          middleware: [middleware],
+        }).pipe(
+          Stream.tap((chunk) =>
+            Effect.sync(() => {
+              if (chunk.type === 'TEXT_MESSAGE_CONTENT') markFirstText()
+            }),
+          ),
+        ),
+      ),
+    )
+    await firstText
+    await Effect.runPromise(Fiber.interrupt(fiber))
+
+    expect(seen.signal?.aborted).toBe(true)
+    expect(aborts).toHaveLength(1)
   })
 })
 

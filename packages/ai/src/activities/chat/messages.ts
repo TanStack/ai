@@ -6,6 +6,8 @@ import {
   isContentPartArray,
   isToolResultOutcome,
   normalizeToolResult,
+  parseToolOutput,
+  textToolResultMark,
 } from '../../utilities/tool-result'
 import {
   mergeMetadata,
@@ -103,14 +105,6 @@ function toolCallFromWire(toolCall: ToolCall, bag: unknown): ToolCall {
       ...(fromBag ?? {}),
       ...(encrypted !== undefined ? { thoughtSignature: encrypted } : {}),
     },
-  }
-}
-
-function parseToolResultContent(content: string): unknown {
-  try {
-    return JSON.parse(content)
-  } catch {
-    return content
   }
 }
 
@@ -982,10 +976,12 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
     // Output takes priority — if the tool has already produced a result,
     // emit the concrete output regardless of approval metadata.
     if (part.output !== undefined && !emittedToolResultIds.has(part.id)) {
+      const textMark = textToolResultMark(part.output)
       messageList.push({
         role: 'tool',
         content: normalizeToolResult(part.output),
         toolCallId: part.id,
+        ...(textMark && { metadata: { tanstack: textMark } }),
       })
       emittedToolResultIds.add(part.id)
     }
@@ -1337,6 +1333,24 @@ export function aguiSnapshotMessageToUIMessage(
   }
 }
 
+/**
+ * A wire row's metadata without the fields that describe the row:
+ * `createdAt` becomes the message's `createdAt`, and `toolCallMetadata`
+ * goes onto each tool-call part (docs/protocol/metadata.md). Undefined when
+ * nothing is left.
+ */
+function withoutWireRowFields(
+  metadata: NonNullable<UIMessage['metadata']>,
+): UIMessage['metadata'] {
+  const tanstack = tanstackMetadata(metadata)
+  if (tanstack === undefined) return metadata
+  const { createdAt: _row, toolCallMetadata: _calls, ...rest } = tanstack
+  const { tanstack: _wire, ...others } = metadata
+  const kept =
+    Object.keys(rest).length > 0 ? { ...others, tanstack: rest } : others
+  return Object.keys(kept).length > 0 ? kept : undefined
+}
+
 /** Copy snapshot metadata when it is a record. Rebuild createdAt from tanstack.createdAt. */
 function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
   const normalizedParts = ui.parts.map((part) => normalizeMessagePart(part))
@@ -1352,7 +1366,13 @@ function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
     const raw = source.metadata
     if (raw != null && typeof raw === 'object' && !Array.isArray(raw)) {
       metadata = raw as NonNullable<UIMessage['metadata']>
-      next = { ...next, metadata }
+      const kept = withoutWireRowFields(metadata)
+      if (kept !== undefined) {
+        next = { ...next, metadata: kept }
+      } else {
+        const { metadata: _dropped, ...rest } = next
+        next = rest
+      }
     }
   }
 
@@ -1433,6 +1453,21 @@ export function aguiContentToContentParts(
 }
 
 /**
+ * An assistant message with only whitespace text: no tool calls, results,
+ * or thinking. `StreamProcessor` drops one at the end of a stream (some
+ * models, such as Gemini, answer only a newline during auto-continuation), so the
+ * reload drops it too.
+ */
+export function isWhitespaceOnlyMessage(message: UIMessage): boolean {
+  return (
+    message.parts.length > 0 &&
+    message.parts.every(
+      (part) => part.type === 'text' && part.content.trim() === '',
+    )
+  )
+}
+
+/**
  * Convert an array of ModelMessages to UIMessages
  *
  * This handles merging tool result messages with their corresponding assistant
@@ -1472,7 +1507,7 @@ export function modelMessagesToUIMessages(
         if (toolCallPart) {
           toolCallPart.output =
             typeof content === 'string'
-              ? parseToolResultContent(content)
+              ? parseToolOutput(content, msg.metadata)
               : content
           toolCallPart.state = resultState
         }
@@ -1521,7 +1556,12 @@ export function modelMessagesToUIMessages(
     }
   }
 
-  return uiMessages
+  return uiMessages.filter(
+    (message) =>
+      message.role !== 'assistant' ||
+      !isWhitespaceOnlyMessage(message) ||
+      tanstackMetadata(message)?.stopReason === 'error',
+  )
 }
 
 /**

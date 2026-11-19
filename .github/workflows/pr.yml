@@ -103,6 +103,21 @@ jobs:
           # place — without this the base collection silently re-reads head's
           # numbers and every delta comes out as 0.00.
           rm -rf packages/*/coverage
+          # Coverage does not run a browser. The base commit's postinstall
+          # still runs `playwright install chromium`. An older Playwright
+          # exits on ubuntu-latest, and this job stops before the compare.
+          if [ -f testing/e2e/package.json ]; then
+            node --input-type=module -e '
+              import { readFileSync, writeFileSync } from "node:fs"
+              const path = "testing/e2e/package.json"
+              const pkg = JSON.parse(readFileSync(path, "utf8"))
+              const script = pkg.scripts && pkg.scripts.postinstall
+              if (typeof script === "string" && script.includes("playwright install")) {
+                pkg.scripts.postinstall = "true"
+                writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n")
+              }
+            '
+          fi
           pnpm install --frozen-lockfile
           # Intersect with projects that have test:coverage on the base commit
           # (added packages, or packages that gained the script in this PR).

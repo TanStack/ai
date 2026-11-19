@@ -1,5 +1,43 @@
 # @tanstack/ai
 
+## 1.5.0
+
+### Minor Changes
+
+- [#2107](https://github.com/TanStack/ai/pull/2107) [`fde4e09`](https://github.com/TanStack/ai/commit/fde4e09b0170017394ff2874847d416777920b2e) - `withCompaction({ native })` now passes the tools, the model options, and the reasoning of the chat call into `compact`. The Anthropic text adapter implements `compact` as an on-demand Messages request (`compaction: { type: "summarize" }`, beta `compact-2026-09-04`). The signed compaction block stays on the assistant message and goes back on later requests to the same model. A result with no signed block uses the configured strategy.
+
+## 1.4.1
+
+### Patch Changes
+
+- [#2098](https://github.com/TanStack/ai/pull/2098) [`1888233`](https://github.com/TanStack/ai/commit/1888233ddb501d14b17aa9a5f3497373a0e9242e) - A `chat()` consumer that stops iterating (`break` or `return()`) now runs the middleware `onAbort` hook, so every run gets exactly one terminal hook. Stopping at a client-tool or approval pause's `RUN_FINISHED` chunk runs `onFinish`, as a drained pause does, so the paused state (such as a `withSandbox` sandbox) is kept. Stopping at a `RUN_ERROR` chunk runs `onError`.
+
+## 1.4.0
+
+### Minor Changes
+
+- [#2116](https://github.com/TanStack/ai/pull/2116) [`702d639`](https://github.com/TanStack/ai/commit/702d639c36b7564875595845ebb7ec6ad437e484) - Send request context to MCP servers as `_meta`. Set `requestMeta` on `chat({ mcp })` or `tools()`, or pass `meta` to `callTool`, `readResource`, `getPrompt`, and the MCP Apps call handler.
+
+  `createMCPClients().readResource(uri, { serverId })` now reads only from the server with that key.
+
+## 1.3.0
+
+### Minor Changes
+
+- [#2071](https://github.com/TanStack/ai/pull/2071) [`e8546f9`](https://github.com/TanStack/ai/commit/e8546f90834ace0129c4e2b5491909ea87e07f20) - A run that the agent loop stops before the model finished now says so. When `agentLoopStrategy` (for example `maxIterations`) or a middleware `onShouldContinue` returns `false` while tool results wait for the next model call, `chat()` ends the stream with a `RUN_FINISHED` that has `metadata.tanstack.loopStopped: true`, and the last stored assistant message gets the same field. `finishReason` stays the reason of the last model call (`tool_calls`, or `length` for a cut answer). A run that the model ends has no `loopStopped`.
+
+  In `@tanstack/ai-harness`, a turn that the loop stops settles with `{ outcome: 'completed', loopStopped: true }`. `session.settled()`, the `harness.input.settled` event of `createHarnessClient().events()`, and the transcript all carry it.
+
+- [#2087](https://github.com/TanStack/ai/pull/2087) [`5fd5355`](https://github.com/TanStack/ai/commit/5fd535501784df0102880470835913ceec3a8e1e) - Keep Responses item ids and phases when adjacent answer text is merged. Save each item's text length so replay can restore its boundary.
+
+### Patch Changes
+
+- [#2056](https://github.com/TanStack/ai/pull/2056) [`9393839`](https://github.com/TanStack/ai/commit/9393839d380dde91fa91e81b5e92448610e9782a) - `@tanstack/ai` exports `stableJson`: JSON text with the keys of every object in sorted order, for values that come back from a store with their keys reordered. `@tanstack/ai-harness` now imports it and no longer keeps its own copy.
+
+- [#2086](https://github.com/TanStack/ai/pull/2086) [`215e339`](https://github.com/TanStack/ai/commit/215e3396eb907054baddbf3423da8bc3e90ecf50) - Stop a long-running server tool from leaking memory. While a tool ran, the event poll subscribed to the tool's promise again every 10 ms and kept every subscription until the tool finished. Memory grew by about 100 MB per hour while a tool stayed pending. The poll now subscribes once.
+
+- [#2069](https://github.com/TanStack/ai/pull/2069) [`7157ef3`](https://github.com/TanStack/ai/commit/7157ef3e8556ac23c350822ba0f3c4bbf0abb118) - Preserve metadata from live AG-UI TOOL_CALL_RESULT events on ToolResultPart.
+
 ## 1.2.0
 
 ### Minor Changes

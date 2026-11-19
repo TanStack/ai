@@ -31,6 +31,7 @@ import type {
 import {
   callMcpTool,
   makeMcpExecute,
+  requestMetaParams,
   requiresTaskExecution,
   sdkRequestOptions,
   serverSupportsTaskCalls,
@@ -139,10 +140,11 @@ export interface MCPClient<
   resources: (options?: { signal?: AbortSignal }) => Promise<Array<Resource>>
   /**
    * Reads one resource. With a typed server, `uri` is one of its resource URIs.
+   * `options.meta` is sent as the request `_meta`; reserved MCP keys are dropped.
    */
   readResource: (
     uri: TServer['resources'][keyof TServer['resources']]['uri'],
-    options?: { signal?: AbortSignal },
+    options?: { signal?: AbortSignal; meta?: Record<string, unknown> },
   ) => Promise<ReadResourceResult>
   resourceTemplates: (options?: {
     signal?: AbortSignal
@@ -152,11 +154,12 @@ export interface MCPClient<
    * Renders one prompt. With a typed server, `name` is one of its prompt
    * names and `args` has that prompt's argument type. MCP sends each
    * argument as a string.
+   * `options.meta` is sent as the request `_meta`; reserved MCP keys are dropped.
    */
   getPrompt: <TName extends keyof TServer['prompts'] & string>(
     name: TName,
     args?: TServer['prompts'][TName]['args'],
-    options?: { signal?: AbortSignal },
+    options?: { signal?: AbortSignal; meta?: Record<string, unknown> },
   ) => Promise<GetPromptResult>
   /**
    * Call a tool directly and return its raw MCP result. Tools declaring
@@ -168,11 +171,12 @@ export interface MCPClient<
    * With a typed server, `name` is one of its tool names and `args` has
    * that tool's input type. The result is the raw MCP result. For a tool
    * with an output schema, `structuredContent` has the tool output type.
+   * `options.meta` is sent as the request `_meta`; reserved MCP keys are dropped.
    */
   callTool: <TName extends keyof TServer['tools'] & string>(
     name: TName,
     args?: TServer['tools'][TName]['input'],
-    options?: { signal?: AbortSignal },
+    options?: { signal?: AbortSignal; meta?: Record<string, unknown> },
   ) => Promise<TypedCallToolResult<TServer['tools'][TName]['output']>>
   /**
    * Sends one request with the SDK `Client.request`, with the same
@@ -471,6 +475,7 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
             requiresTaskExecution(serverTool),
             requestOptions,
             serverTool.inputSchema,
+            { requestMeta: options.requestMeta, serverId: this.prefix },
           ),
         ) as ServerTool
         // A caller-supplied definition may already carry its own `mcp` block,
@@ -513,6 +518,7 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
         lazy: options.lazy,
         needsApproval,
         requestOptions,
+        requestMeta: options.requestMeta,
       })
     }
 
@@ -538,14 +544,17 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
 
   async readResource(
     uri: string,
-    options?: { signal?: AbortSignal },
+    options?: { signal?: AbortSignal; meta?: Record<string, unknown> },
   ): Promise<ReadResourceResult> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
     const request = sdkRequestOptions(
       this.#policy.requestOptions,
       options?.signal,
     )
-    return this.#client.readResource({ uri }, request)
+    return this.#client.readResource(
+      { uri, ...requestMetaParams(options?.meta) },
+      request,
+    )
   }
 
   async resourceTemplates(options?: {
@@ -572,7 +581,7 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
   async getPrompt(
     name: string,
     args?: unknown,
-    options?: { signal?: AbortSignal },
+    options?: { signal?: AbortSignal; meta?: Record<string, unknown> },
   ): Promise<GetPromptResult> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
     // MCP prompt arguments are strings.
@@ -585,13 +594,20 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
       this.#policy.requestOptions,
       options?.signal,
     )
-    return this.#client.getPrompt({ name, arguments: promptArgs }, request)
+    return this.#client.getPrompt(
+      {
+        name,
+        arguments: promptArgs,
+        ...requestMetaParams(options?.meta),
+      },
+      request,
+    )
   }
 
   async callTool<TName extends keyof TServer['tools'] & string>(
     name: TName,
     args?: TServer['tools'][TName]['input'],
-    options?: { signal?: AbortSignal },
+    options?: { signal?: AbortSignal; meta?: Record<string, unknown> },
   ): Promise<TypedCallToolResult<TServer['tools'][TName]['output']>> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
     if (!this.#toolDefinitions) {
@@ -623,6 +639,8 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
       undefined,
       this.#policy.requestOptions,
       definition?.inputSchema,
+      undefined,
+      options?.meta,
     )
     // Trust boundary: the server type says what `structuredContent` holds.
     // The client does not check the wire value against that type.

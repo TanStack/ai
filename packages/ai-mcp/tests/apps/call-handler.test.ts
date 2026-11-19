@@ -519,6 +519,25 @@ describe('createMcpAppCallHandler', () => {
     expect(callToolMock).toHaveBeenCalledWith('place_order', {})
   })
 
+  it('forwards meta to the proxied tools/call', async () => {
+    const meta = { tenant: 'acme', traceparent: '00-abc-def-01' }
+    const res = await weatherPoolHandler()(
+      { threadId: 't1', serverId: 'weather', toolName: 'place_order' },
+      { meta },
+    )
+    expect(res).toEqual({ ok: true, result: expect.anything() })
+    expect(callToolMock).toHaveBeenCalledWith(
+      'place_order',
+      {},
+      { meta: { tenant: 'acme', traceparent: '00-abc-def-01' } },
+    )
+    // The connect does not get the meta. Only the tools/call does.
+    expect(createMCPClient).toHaveBeenCalledWith({
+      transport: { type: 'http', url: 'https://x/mcp' },
+      prefix: 'weather',
+    })
+  })
+
   it('rejects a client whose descriptor has no reconnectable transport', async () => {
     const handler = createMcpAppCallHandler({
       // Built from a raw Transport: getInfo().transport is undefined.
