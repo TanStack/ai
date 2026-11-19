@@ -4,6 +4,29 @@ import { createUIMessageStreamResponse } from 'ai'
 import { toUIMessageStream } from './stream'
 
 /**
+ * Serve a `chat()` run to the AI SDK `useChat`. It is
+ * `createUIMessageStreamResponse({ stream: toUIMessageStream(stream) })` in
+ * one call. Pass the `abortController` that you gave `chat()`, so that the run
+ * stops when the client goes away. The other options (`headers`, `status`,
+ * `consumeSseStream`) go to `createUIMessageStreamResponse`.
+ */
+export function toUIMessageStreamResponse(
+  stream: AsyncIterable<StreamChunk>,
+  {
+    abortController,
+    ...init
+  }: { abortController?: AbortController } & Omit<
+    Parameters<typeof createUIMessageStreamResponse>[0],
+    'stream'
+  > = {},
+): Response {
+  return createUIMessageStreamResponse({
+    ...init,
+    stream: toUIMessageStream(stream, { abortController }),
+  })
+}
+
+/**
  * Answer the AI SDK resume request (`GET {api}/{chatId}/stream`, which
  * `useChat({ resume: true })` sends on mount). Pass the durability log of the
  * chat's active run. The run is replayed from its start, as the AI SDK
@@ -14,9 +37,7 @@ export function resumeUIMessageStreamResponse(
   durability: StreamDurability | null | undefined,
 ): Response {
   if (!durability) return new Response(null, { status: 204 })
-  return createUIMessageStreamResponse({
-    stream: toUIMessageStream(replayRunStream(durability)),
-  })
+  return toUIMessageStreamResponse(replayRunStream(durability))
 }
 
 /**

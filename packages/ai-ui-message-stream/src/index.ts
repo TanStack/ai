@@ -22,6 +22,7 @@ export type { FromUIMessageStreamOptions } from './stream'
 export {
   resumeUIMessageStreamResponse,
   toResumableUIMessageStreamResponse,
+  toUIMessageStreamResponse,
 } from './resume'
 export {
   chatParamsFromAISDKRequest,

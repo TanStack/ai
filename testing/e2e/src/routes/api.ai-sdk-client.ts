@@ -3,9 +3,8 @@ import { EventType, chat, toolDefinition } from '@tanstack/ai'
 import { fakeText } from '@tanstack/ai/testing'
 import {
   chatParamsFromAISDKRequest,
-  toUIMessageStream,
+  toUIMessageStreamResponse,
 } from '@tanstack/ai-ui-message-stream'
-import { createUIMessageStreamResponse } from 'ai'
 import { z } from 'zod'
 import type { StreamChunk } from '@tanstack/ai'
 import type { FakeResponse, FakeResponseStep } from '@tanstack/ai/testing'
@@ -165,15 +164,13 @@ export const Route = createFileRoute('/api/ai-sdk-client')({
             .join('') ?? ''
 
         if (prompt.startsWith('[bad-args]'))
-          return createUIMessageStreamResponse({
-            stream: toUIMessageStream(
-              fromArray(brokenArgsRun(params.threadId)),
-            ),
-          })
+          return toUIMessageStreamResponse(
+            fromArray(brokenArgsRun(params.threadId)),
+          )
         if (prompt.startsWith('[activity]'))
-          return createUIMessageStreamResponse({
-            stream: toUIMessageStream(fromArray(activityRun(params.threadId))),
-          })
+          return toUIMessageStreamResponse(
+            fromArray(activityRun(params.threadId)),
+          )
 
         // A fake per request: each model call reads the request.
         const fake = fakeText(
@@ -192,11 +189,9 @@ export const Route = createFileRoute('/api/ai-sdk-client')({
           tools: [getWeather, deleteFile, explode, getLocation],
           ...params,
         })
-        return createUIMessageStreamResponse({
-          stream: toUIMessageStream(
-            prompt.startsWith('[crash]') ? crashAfterFirstText(stream) : stream,
-          ),
-        })
+        return toUIMessageStreamResponse(
+          prompt.startsWith('[crash]') ? crashAfterFirstText(stream) : stream,
+        )
       },
     },
   },

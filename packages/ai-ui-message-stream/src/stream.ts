@@ -99,8 +99,9 @@ function toolCallFields(tool: ToolCallState): {
 
 /**
  * Convert the AG-UI event stream of `chat()` into an AI SDK UI message
- * stream. Serve it with the AI SDK's `createUIMessageStreamResponse`, and the
- * AI SDK `useChat` reads it like a `streamText` route.
+ * stream. The AI SDK `useChat` reads it like a `streamText` route. To serve it,
+ * use `toUIMessageStreamResponse`. Use this stream when you merge it into
+ * another AI SDK stream or pipe it to a Node response.
  *
  * Each model call is one step. Its `RUN_FINISHED` metadata (model, response
  * ids, finish reason) and usage go into the message metadata. A tool call's

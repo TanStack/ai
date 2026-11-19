@@ -4,7 +4,11 @@ import { fakeText } from '@tanstack/ai/testing'
 import { toolDefinition } from '@tanstack/ai/client'
 import { readUIMessageStream } from 'ai'
 import { z } from 'zod'
-import { fromUIMessageStream, toUIMessageStream } from '../src'
+import {
+  fromUIMessageStream,
+  toUIMessageStream,
+  toUIMessageStreamResponse,
+} from '../src'
 import type { StreamChunk } from '@tanstack/ai'
 import type { UIMessageChunk } from 'ai'
 
@@ -342,6 +346,26 @@ describe('TanStack server, AI SDK client: errors', () => {
     await reader.cancel('gone')
     expect(abortController.signal.aborted).toBe(true)
     expect(await pending).toEqual({ done: true, value: undefined })
+  })
+
+  it('serves the stream as a response that aborts the run on cancel', async () => {
+    const abortController = new AbortController()
+    async function* stalled(): AsyncGenerator<StreamChunk> {
+      yield { type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm', delta: 'x' }
+      await new Promise(() => {})
+    }
+    const response = toUIMessageStreamResponse(stalled(), {
+      abortController,
+      headers: { 'x-run': 'r1' },
+    })
+    expect(response.headers.get('x-run')).toBe('r1')
+    expect(response.headers.get('content-type')).toContain('text/event-stream')
+    const reader = response.body!.getReader()
+    let text = ''
+    while (!text.includes('text-delta'))
+      text += new TextDecoder().decode((await reader.read()).value)
+    await reader.cancel('gone')
+    await vi.waitFor(() => expect(abortController.signal.aborted).toBe(true))
   })
 
   it('aborts the provider of chat() when the AI SDK client goes away', async () => {

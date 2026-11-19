@@ -2,13 +2,14 @@
 title: AI SDK useChat with a TanStack AI server
 id: ai-sdk-client-tanstack-server
 order: 3
-description: "Serve the Vercel AI SDK useChat hook from TanStack AI chat(). Read the request with chatParamsFromAISDKRequest and convert the reply with toUIMessageStream, or keep a plain TanStack route and convert in the browser with toChatTransport. Your AI SDK UI does not change."
+description: "Serve the Vercel AI SDK useChat hook from TanStack AI chat(). Read the request with chatParamsFromAISDKRequest and serve the reply with toUIMessageStreamResponse, or keep a plain TanStack route and convert in the browser with toChatTransport. Your AI SDK UI does not change."
 keywords:
   - tanstack ai
   - vercel ai sdk
   - useChat
   - ai elements
   - ui message stream
+  - toUIMessageStreamResponse
   - toUIMessageStream
   - toChatTransport
   - tool approval
@@ -16,7 +17,7 @@ keywords:
   - migration
 ---
 
-Serve the AI SDK `useChat` hook from TanStack AI `chat()`. Read the request with `chatParamsFromAISDKRequest`, and convert the reply with `toUIMessageStream`. Your AI SDK client code, AI Elements included, does not change.
+Serve the AI SDK `useChat` hook from TanStack AI `chat()`. Read the request with `chatParamsFromAISDKRequest`, and serve the reply with `toUIMessageStreamResponse`. Your AI SDK client code, AI Elements included, does not change.
 
 Use this page to move the server first. To keep a plain TanStack route and convert in the browser, see [Bridge in the browser](#bridge-in-the-browser). To move the client first, see [TanStack useChat with an AI SDK server](./tanstack-client-ai-sdk-server).
 
@@ -38,7 +39,7 @@ vanilla: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream @tansta
 
 <!-- ::end:tabs -->
 
-Keep the `ai` package. The server uses its response helper, and your client still uses `useChat`.
+Keep the `ai` package. `@tanstack/ai-ui-message-stream` needs it, and your client still uses `useChat`.
 
 ## 2. Replace the server route
 
@@ -47,9 +48,8 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import {
   chatParamsFromAISDKRequest,
-  toUIMessageStream,
+  toUIMessageStreamResponse,
 } from '@tanstack/ai-ui-message-stream'
-import { createUIMessageStreamResponse } from 'ai'
 
 export async function POST(request: Request) {
   const params = await chatParamsFromAISDKRequest(request)
@@ -61,16 +61,14 @@ export async function POST(request: Request) {
     abortController,
   })
 
-  return createUIMessageStreamResponse({
-    stream: toUIMessageStream(stream, { abortController }),
-  })
+  return toUIMessageStreamResponse(stream, { abortController })
 }
 ```
 
 What each call does:
 
-- `chatParamsFromAISDKRequest` reads the body that `useChat` sends. It returns the `threadId` (the chat id), the `messages`, and the answers to tool approvals. If the body is not valid, it throws a `Response` with status 400. If your framework does not return a thrown `Response` (for example a Next.js route handler), catch it and return it. An approval answer must come with the paused run id that `toUIMessageStream` put in the message metadata.
-- `toUIMessageStream` converts the events of `chat()` into the AI SDK UI message stream. A `chat()` error reaches `useChat` as its `error`. When the client goes away, it aborts the `abortController`, and the run stops.
+- `chatParamsFromAISDKRequest` reads the body that `useChat` sends. It returns the `threadId` (the chat id), the `messages`, and the answers to tool approvals. If the body is not valid, it throws a `Response` with status 400. If your framework does not return a thrown `Response` (for example a Next.js route handler), catch it and return it. An approval answer must come with the paused run id that `toUIMessageStreamResponse` put in the message metadata.
+- `toUIMessageStreamResponse` converts the events of `chat()` into an AI SDK UI message stream response. A `chat()` error reaches `useChat` as its `error`. When the client goes away, it aborts the `abortController`, and the run stops.
 
 ## 3. Keep the client
 
@@ -110,9 +108,8 @@ import { chat, toolDefinition } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import {
   chatParamsFromAISDKRequest,
-  toUIMessageStream,
+  toUIMessageStreamResponse,
 } from '@tanstack/ai-ui-message-stream'
-import { createUIMessageStreamResponse } from 'ai'
 import { z } from 'zod'
 
 const getWeather = toolDefinition({
@@ -137,7 +134,7 @@ export async function POST(request: Request) {
     ...params,
   })
 
-  return createUIMessageStreamResponse({ stream: toUIMessageStream(stream) })
+  return toUIMessageStreamResponse(stream)
 }
 ```
 
@@ -177,7 +174,7 @@ export function Chat() {
 
 ## 5. Show activity, state and subagents
 
-`toUIMessageStream` sends each of these as a data part. The client replaces a data part in place when it gets a new value for the same id.
+`toUIMessageStreamResponse` sends each of these as a data part. The client replaces a data part in place when it gets a new value for the same id.
 
 - **Activity:** a `data-<activityType>` part with the activity id.
 - **Shared state:** a `data-state` part with the full state.

@@ -40,9 +40,8 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import {
   chatParamsFromAISDKRequest,
-  toUIMessageStream,
+  toUIMessageStreamResponse,
 } from '@tanstack/ai-ui-message-stream'
-import { createUIMessageStreamResponse } from 'ai'
 
 export async function POST(request: Request) {
   const params = await chatParamsFromAISDKRequest(request)
@@ -54,9 +53,7 @@ export async function POST(request: Request) {
     abortController,
   })
 
-  return createUIMessageStreamResponse({
-    stream: toUIMessageStream(stream, { abortController }),
-  })
+  return toUIMessageStreamResponse(stream, { abortController })
 }
 ```
 
@@ -86,7 +83,8 @@ export function Chat() {
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | `chatParamsFromAISDKRequest(request)`                                   | AI SDK `useChat` request to `chat()` params, approval answers included         |
 | `chatParamsFromAISDKRequestBody(body)`                                  | The same, from a body you already read                                         |
-| `toUIMessageStream(stream, { abortController })`                        | `chat()` events to an AI SDK UI message stream                                 |
+| `toUIMessageStreamResponse(stream, { abortController })`                | A `chat()` run as an AI SDK `useChat` response                                 |
+| `toUIMessageStream(stream, { abortController })`                        | `chat()` events to an AI SDK UI message stream, to merge or pipe yourself      |
 | `toResumableUIMessageStreamResponse(stream, durability)`                | A `chat()` run that AI SDK `useChat({ resume: true })` can rejoin              |
 | `resumeUIMessageStreamResponse(durability)`                             | The AI SDK resume `GET`                                                        |
 | `toChatTransport(connection)`                                           | A TanStack connection to an AI SDK `ChatTransport`, for a plain `chat()` route |

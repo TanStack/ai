@@ -42,7 +42,7 @@ place to stay: finish the port of the other side, then remove it.
 
 - Server first: keep AI SDK `useChat` and serve it from `chat()` with
   `chat({ adapter, ...(await chatParamsFromAISDKRequest(request)) })` and
-  `toUIMessageStream`.
+  `toUIMessageStreamResponse`.
   https://tanstack.com/ai/latest/docs/migration/ai-sdk-client-tanstack-server
 - Server first, with no AI SDK code on the route: serve `chat()` with
   `toServerSentEventsResponse` and pass
