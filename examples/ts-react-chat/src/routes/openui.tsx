@@ -335,6 +335,7 @@ function OpenUiPage() {
               <button
                 onClick={() => send(input)}
                 disabled={!input.trim() || isLoading}
+                aria-label="Send message"
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-orange-500 transition-colors hover:text-orange-400 focus:outline-none disabled:text-gray-500"
               >
                 <Send className="h-4 w-4" />
