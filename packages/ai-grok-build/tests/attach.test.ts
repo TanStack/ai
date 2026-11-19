@@ -627,5 +627,32 @@ describe(
       expect(hostLogin.releases).toEqual([{ keep: false }])
       await sbx.destroy()
     })
+
+    it('an aborted run that is not durable removes the login', async () => {
+      const sbx = await provider.create({})
+      // The CLI fails after the abort, so the run ends in the catch.
+      await sbx.fs.write(
+        '/workspace/fake-grok.mjs',
+        SLOW_FAKE_GROK.replace('}, 300)', 'process.exit(3) }, 300)'),
+      )
+      const controller = new AbortController()
+      for await (const _chunk of grokBuildText('grok-build', {
+        grokExecutable: 'node fake-grok.mjs',
+        protocol: 'streaming-json',
+        emitDiff: false,
+        authMode: 'host',
+      }).chatStream({
+        threadId: THREAD_ID,
+        model: 'grok-build',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        capabilities: contextWith(sbx),
+        abortController: controller,
+      })) {
+        controller.abort()
+      }
+      expect(hostLogin.releases).toEqual([{ keep: false }])
+      await sbx.destroy()
+    })
   },
 )

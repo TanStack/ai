@@ -785,4 +785,29 @@ describe("codex durable runs with authMode 'host'", () => {
     expect(hostLogin.releases).toEqual([{ keep: false }])
     await sbx.destroy()
   })
+
+  it('an aborted run that is not durable removes the login', async () => {
+    const sbx = await provider.create({})
+    // The CLI fails after the abort, so the run ends in the catch.
+    await sbx.fs.write(
+      '/workspace/fake-codex.mjs',
+      SLOW_FAKE_CODEX.replace('}, 300)', 'process.exit(3) }, 300)'),
+    )
+    const controller = new AbortController()
+    for await (const _chunk of codexText('gpt-5.5-codex', {
+      codexExecutable: 'node fake-codex.mjs',
+      authMode: 'host',
+    }).chatStream({
+      model: 'gpt-5.5-codex',
+      messages: [{ role: 'user', content: 'say pong' }],
+      logger: noopLogger,
+      threadId: `t-host-${crypto.randomUUID()}`,
+      capabilities: capabilityContext(sbx),
+      abortController: controller,
+    })) {
+      controller.abort()
+    }
+    expect(hostLogin.releases).toEqual([{ keep: false }])
+    await sbx.destroy()
+  })
 })

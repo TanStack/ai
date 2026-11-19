@@ -892,7 +892,10 @@ export class GrokBuildTextAdapter<
     } catch (error: unknown) {
       runFailed = true
       const signal = options.abortController?.signal ?? options.request?.signal
-      keepLogin = signal?.aborted === true || durability?.attach === true
+      // Only a durable agent can run on. A normal run is stopped by now.
+      keepLogin =
+        durability !== undefined &&
+        (signal?.aborted === true || durability.attach)
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
       const message = formatAcpRequestError(error)
