@@ -31,21 +31,41 @@ export const Route = createFileRoute('/api/openui-live')({
         const params = parseParams(url.searchParams.get('params'))
         const encoder = new TextEncoder()
 
+        let stop: () => void = () => {}
         const stream = new ReadableStream<Uint8Array>({
           start(controller) {
-            const cleanup = source.run(params, (value) => {
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify(value)}\n\n`),
-              )
-            })
-            request.signal.addEventListener('abort', () => {
-              cleanup()
+            let closed = false
+            let cleanup: (() => void) | undefined
+            stop = () => {
+              if (closed) return
+              closed = true
+              request.signal.removeEventListener('abort', stop)
+              cleanup?.()
               try {
                 controller.close()
               } catch {
                 // already closed
               }
+            }
+            if (request.signal.aborted) {
+              stop()
+              return
+            }
+            request.signal.addEventListener('abort', stop, { once: true })
+            cleanup = source.run(params, (value) => {
+              if (closed) return
+              try {
+                controller.enqueue(
+                  encoder.encode(`data: ${JSON.stringify(value)}\n\n`),
+                )
+              } catch {
+                stop()
+              }
             })
+            if (closed) cleanup()
+          },
+          cancel() {
+            stop()
           },
         })
 

@@ -113,7 +113,7 @@ const SUGGESTIONS = [
   },
 ]
 
-function Messages({ messages }: { messages: Array<UIMessage> }) {
+function Messages({ messages }: { messages: ReadonlyArray<UIMessage> }) {
   const visible = messages.filter((m) =>
     m.parts.some(
       (p) =>
@@ -231,7 +231,7 @@ function OpenUiPage() {
   const { messages, sendMessage, isLoading, error, stop } = useChat({
     threadId,
     connection: fetchServerSentEvents('/api/openui-chat'),
-    body: { provider },
+    forwardedProps: { provider },
   })
 
   const [input, setInput] = useState('')

@@ -21,6 +21,12 @@ describe('openui-live', () => {
     expect(getDataSource('nope')).toBeUndefined()
   })
 
+  it('returns undefined for inherited object property names', () => {
+    expect(getDataSource('constructor')).toBeUndefined()
+    expect(getDataSource('toString')).toBeUndefined()
+    expect(getDataSource('__proto__')).toBeUndefined()
+  })
+
   it('catalog lists spendFeed for the prompt', () => {
     expect(describeLiveSourcesForPrompt()).toContain('spendFeed')
   })

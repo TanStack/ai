@@ -29,7 +29,10 @@ const SOURCES: Record<string, SourceEntry> = {
       '"spendFeed"(intervalMs?) -> { total, delta, at }: a live running spend total in USD that ticks up over time.',
     run: (params, emit) => {
       const intervalMs =
-        typeof params.intervalMs === 'number' ? params.intervalMs : 1000
+        typeof params.intervalMs === 'number' &&
+        Number.isFinite(params.intervalMs)
+          ? Math.max(100, params.intervalMs)
+          : 1000
       let total = 0
       const tick = () => {
         const delta = 50 + Math.round(Math.random() * 450)
@@ -44,7 +47,7 @@ const SOURCES: Record<string, SourceEntry> = {
 }
 
 export function getDataSource(name: string): SourceEntry | undefined {
-  return SOURCES[name]
+  return Object.hasOwn(SOURCES, name) ? SOURCES[name] : undefined
 }
 
 /** One-line-per-source catalog for the system prompt. */
