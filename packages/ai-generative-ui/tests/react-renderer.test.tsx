@@ -4,12 +4,12 @@ import { describe, it, expect, vi } from 'vitest'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
-  GenerativeUIRenderer,
   comparePlansBasicFixture,
   billSplitFixture,
   chordDiagramEmaj7Fixture,
   type GraphDocument,
 } from '../src/index'
+import { GenerativeUIRenderer } from '../src/react'
 
 describe('GenerativeUIRenderer React Component', () => {
   it('renders compare plans fixture with columns and buttons', async () => {

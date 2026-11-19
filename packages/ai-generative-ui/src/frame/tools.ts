@@ -176,6 +176,21 @@ export interface ArtifactToolContext {
   /** Injected for determinism in tests. */
   now?: () => string
   genId?: () => string
+  /**
+   * Host network-grant policy (§9.3). Given the origins a model requested,
+   * return the subset the host is willing to grant. Defaults to granting none —
+   * a model can never widen its own `connect-src`.
+   */
+  grantNetwork?: (requested: Array<string>) => Array<string>
+}
+
+/** Keep only well-formed HTTPS origins the host policy returned. */
+function filterNetworkGrants(
+  grantNetwork: ArtifactToolContext['grantNetwork'],
+  requested: Array<string> | undefined,
+): Array<string> {
+  const approved = grantNetwork?.(requested ?? []) ?? []
+  return approved.filter((g) => /^https:\/\/[A-Za-z0-9.-]+(:\d+)?$/.test(g))
 }
 
 let idSeq = 0
@@ -273,7 +288,10 @@ export function createArtifactTools(ctx: ArtifactToolContext) {
         fallbackText: input.fallbackText,
         source: input.source,
         scope: input.scope ?? 'private',
-        networkGrants: input.networkGrants,
+        networkGrants: filterNetworkGrants(
+          ctx.grantNetwork,
+          input.networkGrants,
+        ),
         data: input.data,
         dataSource: input.dataSource,
       })

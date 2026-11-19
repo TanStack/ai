@@ -7,8 +7,6 @@ import {
 import { MCPAppResource } from '@tanstack/ai-react/mcp-apps'
 import {
   A2uiSurfaceStore,
-  GenerativeUIRenderer,
-  FrameArtifactRenderer,
   parseA2uiOperations,
   validateGraph,
   LiveDriver,
@@ -16,6 +14,10 @@ import {
   type GraphDocument,
   type IntentPayload,
 } from '@tanstack/ai-generative-ui'
+import {
+  GenerativeUIRenderer,
+  FrameArtifactRenderer,
+} from '@tanstack/ai-generative-ui/react'
 
 /**
  * The inline-first surface (Draft 0.2 §11 / Draft 0.1 §1.6): a conversation
@@ -177,6 +179,7 @@ export function ChatSurface() {
   }, [])
 
   const { messages, sendMessage, isLoading } = useChat({
+    threadId: 'generative-ui:chat',
     connection: fetchServerSentEvents('/api/chat', async () => ({
       body: { provider: providerRef.current },
     })),

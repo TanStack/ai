@@ -11,11 +11,16 @@ export * from './data-sources'
 export * from './guidance'
 export * from './fixtures/index'
 export * from './drivers/index'
-export * from './react/index'
 
 /** A2UI v0.9 surfaces as a parallel ingress into the graph model (addendum). */
 export * from './a2ui/index'
 
 /** Draft 0.2 — The Frame Tier (Tier F). */
 export * from './frame/index'
-export * from './react/frame'
+
+/**
+ * React renderers (`GenerativeUIRenderer`, `FrameArtifactRenderer`, …) are NOT
+ * re-exported here: they pull in `react`, an optional peer. Keeping them off the
+ * root entry lets a server-only consumer import `validateGraph`, compute, etc.
+ * without React installed. Import renderers from `@tanstack/ai-generative-ui/react`.
+ */

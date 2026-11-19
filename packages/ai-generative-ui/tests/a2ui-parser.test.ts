@@ -44,6 +44,27 @@ describe('A2UI operation parsing — shape discipline (addendum §A2.2)', () => 
     expect(operations).toHaveLength(1)
     expect(operations[0]!.version).toBe('v0.9')
   })
+
+  it('drops updateComponents whose components is not an array of {id}', () => {
+    const { operations, diagnostics } = parseA2uiOperations([
+      { version: 'v0.9', updateComponents: { surfaceId: 's', components: {} } },
+      {
+        version: 'v0.9',
+        updateComponents: { surfaceId: 's', components: [{ no: 'id' }] },
+      },
+    ])
+    expect(operations).toHaveLength(0)
+    expect(diagnostics.filter((d) => d.code === 'op-malformed')).toHaveLength(2)
+  })
+
+  it('drops updateDataModel without a string path, and ops without surfaceId', () => {
+    const { operations, diagnostics } = parseA2uiOperations([
+      { version: 'v0.9', updateDataModel: { surfaceId: 's', value: 1 } },
+      { version: 'v0.9', createSurface: { catalogId: 'b' } },
+    ])
+    expect(operations).toHaveLength(0)
+    expect(diagnostics.filter((d) => d.code === 'op-malformed')).toHaveLength(2)
+  })
 })
 
 describe('A2UI container extraction', () => {

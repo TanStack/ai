@@ -92,10 +92,10 @@ export function buildCsp(opts: CspOptions): string {
  */
 const BRIDGE_CLIENT_TEMPLATE = /* js */ `
 (function () {
-  var NS = '__NS__';
-  var ARTIFACT_ID = '__ARTIFACT_ID__';
-  var INSTANCE_ID = '__INSTANCE_ID__';
-  var APP_ORIGIN = '__APP_ORIGIN__';
+  var NS = __NS__;
+  var ARTIFACT_ID = __ARTIFACT_ID__;
+  var INSTANCE_ID = __INSTANCE_ID__;
+  var APP_ORIGIN = __APP_ORIGIN__;
 
   var state = {};
   var theme = { mode: 'light', tokens: {} };
@@ -288,17 +288,35 @@ function themeStyle(theme: FrameTheme): string {
   return `:root{${decls}}`
 }
 
+/**
+ * A `<`-safe, breakout-safe JavaScript string literal for inline `<script>`
+ * injection. `JSON.stringify` quotes and escapes the value; escaping `<` and the
+ * line/paragraph separators prevents `</script>` breakout and U+2028/U+2029
+ * parse errors. Values flow in from untrusted sources (query params, headers,
+ * model output), so this is load-bearing.
+ */
+function jsLiteral(v: string): string {
+  return JSON.stringify(v)
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
+}
+
 function bridgeClient(
   record: ArtifactRecord,
   instanceId: string,
   appOrigin: string,
 ): string {
-  return BRIDGE_CLIENT_TEMPLATE.replace(/__NS__/g, FRAME_PROTOCOL)
-    .replace(/__ARTIFACT_ID__/g, record.artifactId)
-    .replace(/__INSTANCE_ID__/g, instanceId)
-    .replace(/__APP_ORIGIN__/g, appOrigin)
-    .replace(/__KIND__/g, record.kind)
-    .replace(/__SHELL_VERSION__/g, SHELL_VERSION_VALUE)
+  // Replacement callbacks so `$&`/`$'` sequences in a value are inserted
+  // literally rather than expanded by String.prototype.replace.
+  return BRIDGE_CLIENT_TEMPLATE.replace(/__NS__/g, () =>
+    jsLiteral(FRAME_PROTOCOL),
+  )
+    .replace(/__ARTIFACT_ID__/g, () => jsLiteral(record.artifactId))
+    .replace(/__INSTANCE_ID__/g, () => jsLiteral(instanceId))
+    .replace(/__APP_ORIGIN__/g, () => jsLiteral(appOrigin))
+    .replace(/__KIND__/g, () => record.kind)
+    .replace(/__SHELL_VERSION__/g, () => SHELL_VERSION_VALUE)
 }
 
 const BASE_STYLE = /* css */ `
@@ -396,7 +414,12 @@ export function buildShellDocument(opts: ShellOptions): string {
   const imports: Record<string, string> = {}
   if (registry) for (const m of registry.modules) imports[m.name] = m.url
   const importMap = JSON.stringify({ imports }, null, 2)
+  // `opts.props` is model-supplied; escape `<` so a value containing
+  // `</script>` cannot close the inline module script early.
   const propsJson = JSON.stringify(opts.props ?? {})
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
   const builtUrl = opts.builtUrl ?? ''
 
   const bootstrap = /* js */ `

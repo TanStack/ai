@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { FrameArtifactRenderer } from '@tanstack/ai-generative-ui'
+import { useEffect, useMemo, useState } from 'react'
+import { FrameArtifactRenderer } from '@tanstack/ai-generative-ui/react'
 import type { ArtifactPin } from '@tanstack/ai-generative-ui'
 
 interface LibraryEntry {
@@ -60,6 +60,19 @@ export function FrameSurface() {
   const push = (line: Omit<LogLine, 't'>) =>
     setLog((l) => [{ t: Date.now(), ...line }, ...l].slice(0, 40))
 
+  // One stable subscription per data-bound artifact. Recreating it on every
+  // render (state updates from onStateChange/onIntent re-render this component)
+  // would tear down and reopen the EventSource, resetting the live feed.
+  const subscriptions = useMemo(
+    () =>
+      new Map(
+        artifacts
+          .filter((a) => a.dataSource)
+          .map((a) => [a.artifactId, liveSubscription(a.dataSource!)]),
+      ),
+    [artifacts],
+  )
+
   const sandboxUrl = (pin: ArtifactPin, instanceId: string) =>
     `/sandbox/${pin.artifactId}/${pin.revision}?i=${encodeURIComponent(instanceId)}`
 
@@ -107,9 +120,12 @@ export function FrameSurface() {
                   sandboxUrl={sandboxUrl}
                   title={a.title}
                   minHeight={120}
-                  subscribeData={
-                    a.dataSource ? liveSubscription(a.dataSource) : undefined
+                  protocol={
+                    a.kind === 'react-tsx' && !a.dataSource
+                      ? 'mcp-app'
+                      : 'ogui/1'
                   }
+                  subscribeData={subscriptions.get(a.artifactId)}
                   onStateChange={(s) =>
                     push({
                       kind: 'state',

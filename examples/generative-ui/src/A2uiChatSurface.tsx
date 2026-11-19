@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import {
   A2uiSurfaceStore,
-  GenerativeUIRenderer,
   type Diagnostic,
   type IntentPayload,
 } from '@tanstack/ai-generative-ui'
+import { GenerativeUIRenderer } from '@tanstack/ai-generative-ui/react'
 
 /**
  * Chat-driven A2UI. The model emits A2UI v0.9 operations through the a2ui_ops
@@ -90,6 +90,7 @@ export function A2uiChatSurface() {
   }, [])
 
   const { messages, sendMessage, isLoading } = useChat({
+    threadId: 'generative-ui:a2ui-chat',
     connection: fetchServerSentEvents('/api/a2ui-chat', async () => ({
       body: { provider: providerRef.current },
     })),

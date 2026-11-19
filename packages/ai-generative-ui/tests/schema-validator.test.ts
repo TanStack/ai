@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { validateGraph, isValidSvgPath, CANONICAL_FIXTURES } from '../src/index'
 
 describe('Schema Validator and Bounded Repair (§9.3)', () => {
-  it('validates all 9 canonical fixtures successfully', () => {
+  it('validates all 11 canonical fixtures successfully', () => {
     for (const [name, fixture] of Object.entries(CANONICAL_FIXTURES)) {
       const result = validateGraph(fixture, { repair: false })
       expect(
@@ -61,6 +61,10 @@ describe('Schema Validator and Bounded Repair (§9.3)', () => {
     expect(
       result.repairs.some((r) => r.includes('Degraded unknown leaf')),
     ).toBe(true)
+    // The placeholder names the degraded component, not the replacement "Text".
+    expect(result.graph?.root.props?.content).toBe(
+      '[Unsupported component: QuantumWidget]',
+    )
   })
 
   it('repairs inverted slider min/max bounds', () => {

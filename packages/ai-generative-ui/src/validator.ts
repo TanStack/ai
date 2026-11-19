@@ -199,9 +199,10 @@ export function validateGraph(
           repairs.push(
             `Degraded unknown leaf type "${type}" at ${path} to "Text"`,
           )
+          const originalType = type
           type = 'Text'
           props = {
-            content: `[Unsupported component: ${type}]`,
+            content: `[Unsupported component: ${originalType}]`,
             variant: 'caption',
           }
         }

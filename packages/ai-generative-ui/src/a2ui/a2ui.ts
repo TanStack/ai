@@ -132,8 +132,16 @@ function parseOne(
 
   for (const kind of OP_KINDS) {
     if (kind in obj) {
+      const payload = obj[kind]
+      if (!isValidOpPayload(kind, payload)) {
+        diagnostics.push({
+          code: 'op-malformed',
+          message: `A2UI ${kind} payload has an invalid shape; ignored.`,
+        })
+        return undefined
+      }
       // Version is carried by the container in some integrations; default it.
-      return { version: 'v0.9', [kind]: obj[kind] } as A2uiOperation
+      return { version: 'v0.9', [kind]: payload } as A2uiOperation
     }
   }
   diagnostics.push({
@@ -141,6 +149,34 @@ function parseOne(
     message: 'Unrecognised A2UI operation shape; ignored.',
   })
   return undefined
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+/**
+ * Validate an operation's payload before the surface store consumes it. The
+ * model supplies the payload, and the store dereferences `components`, `path`,
+ * and `surfaceId` directly — an invalid shape would throw during render, taking
+ * the whole surface with it. A malformed payload is dropped with a diagnostic,
+ * matching the addendum's contract that every translation problem is reported.
+ */
+function isValidOpPayload(kind: A2uiOperationKind, p: unknown): boolean {
+  if (!isRecord(p) || typeof p.surfaceId !== 'string') return false
+  switch (kind) {
+    case 'updateComponents':
+      return (
+        Array.isArray(p.components) &&
+        p.components.every((c) => isRecord(c) && typeof c.id === 'string')
+      )
+    case 'updateDataModel':
+      return typeof p.path === 'string'
+    case 'createSurface':
+    case 'deleteSurface':
+      // A valid `surfaceId` (checked above) is all the store dereferences.
+      return true
+  }
 }
 
 /**

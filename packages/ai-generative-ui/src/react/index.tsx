@@ -177,20 +177,32 @@ export function GenerativeUIRenderer({
   className = '',
   initialState = {},
 }: GenerativeUIRendererProps) {
-  // Initialize state with defaults from bindings
-  const [state, setState] = useState<Record<string, unknown>>(() => {
-    const s: Record<string, unknown> = { ...initialState }
-    // Pre-populate sensible defaults for demo fixtures
-    if (s.subtotal === undefined) s.subtotal = 100
-    if (s.tipPercent === undefined) s.tipPercent = 18
-    if (s.splitCount === undefined) s.splitCount = 4
-    if (s.spiceLevel === undefined) s.spiceLevel = 3
-    if (s.cuisine === undefined) s.cuisine = 'italian'
-    // Seed state from the graph's own declared input defaults so computes have
-    // real inputs on first render (a live model often sets an input's initial
-    // value via props AND binds it to a state key).
-    return collectInitialBoundState(graph.root, s)
-  })
+  // Seed state from the graph's own declared input defaults so computes have
+  // real inputs on first render (a live model often sets an input's initial
+  // value via props AND binds it to a state key). No demo-specific defaults
+  // live here — the published renderer carries only graph-provided values, so
+  // a live graph's own `props.value` is never shadowed. Example/demo seeds go
+  // in fixtures (`props.value`) or the caller's `initialState`.
+  const seedState = useCallback(
+    () => collectInitialBoundState(graph.root, { ...initialState }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [graph.root, initialState],
+  )
+  const [state, setState] = useState<Record<string, unknown>>(seedState)
+
+  // Reset state when the graph identity changes (a new graphId or a new
+  // revision). State is seeded on mount only, so without this an unkeyed
+  // renderer would keep the previous graph's values and ignore the new graph's
+  // declared defaults. `Playground` keys an ancestor by both and remounts; the
+  // A2UI surfaces render unkeyed, so this guard is what makes them correct.
+  const graphIdentity = `${graph.graphId}@${graph.revision}`
+  const lastIdentity = useRef(graphIdentity)
+  useEffect(() => {
+    if (lastIdentity.current === graphIdentity) return
+    lastIdentity.current = graphIdentity
+    setState(seedState())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graphIdentity])
 
   // Recompute any bound compute nodes whenever state changes
   useEffect(() => {
@@ -215,7 +227,13 @@ export function GenerativeUIRenderer({
                 typeof result === 'object' &&
                 !Array.isArray(result)
               ) {
+                // Don't let a compute's output key clobber an input it also
+                // names (e.g. `percentOf` returns `amount`, one of its own
+                // inputs). Overwriting the bound input here would feed the
+                // compute its own output on the next run and decay the value.
+                const inputPaths = new Set(Object.values(inputs))
                 for (const [k, v] of Object.entries(result)) {
+                  if (inputPaths.has(k)) continue
                   next = setStatePath(next, k, v)
                 }
               }
@@ -1744,9 +1762,12 @@ function WidgetRenderer({
   const CSP =
     `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; ` +
     `script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:;">`
-  const srcdoc = rawSrcdoc.includes('<head>')
-    ? rawSrcdoc.replace('<head>', `<head>${CSP}`)
-    : `<head>${CSP}</head>${rawSrcdoc}`
+  // The meta CSP must precede ALL author content: a `<meta http-equiv>` policy
+  // only governs markup parsed after it. Injecting at a literal `<head>` let a
+  // widget bypass the policy with a `<script>` before `<head>`, or with a
+  // `<head lang="en">`/`<HEAD>` the substring match missed. Prepending the meta
+  // puts it in the parser's implied <head>, so it applies to everything.
+  const srcdoc = `${CSP}${rawSrcdoc}`
 
   function readThemeTokens(): Record<string, string> {
     const el = iframeRef.current

@@ -245,12 +245,23 @@ export class A2uiSurfaceStore {
           isBinding(value)
         ) {
           bind.value = pointerToStatePath(value.path)
+          // Seed the rendered value from the data model too. The bind alone
+          // wires two-way editing, but the renderer seeds initial input state
+          // from `props.value`, so without this an input bound to an
+          // agent-populated path (e.g. `/passenger/name`) renders empty.
+          props.value = getByPointer(state.dataModel, value.path)
           continue
         }
         props[key] = this.resolveValue(value, state.dataModel, id, push)
       }
 
-      const labels = comp.tabItems?.map((t) => t.title ?? '')
+      // `tabItems` is model output — guard the shape before mapping it, or a
+      // string/object value throws here and removes the whole surface.
+      const labels = Array.isArray(comp.tabItems)
+        ? comp.tabItems.map((t) =>
+            typeof t?.title === 'string' ? t.title : '',
+          )
+        : undefined
       const childText = childNodes.find((n) => n.type === 'Text')?.props
         ?.content
       const mapping = this.profile[comp.component]
@@ -288,11 +299,22 @@ export class A2uiSurfaceStore {
       }
       if (result) {
         if (Object.keys(bind).length > 0) result.bind = bind
-        if (comp.action) {
-          const { name, context } = comp.action.event
+        // `action.event` is model output and may be missing — destructuring it
+        // unguarded throws "Cannot destructure property 'name' of undefined"
+        // and removes the whole surface. Drop a malformed action with a
+        // diagnostic instead.
+        const event = comp.action?.event
+        if (event && typeof event.name === 'string') {
+          const { name, context } = event
           result.on = {
             click: context ? { intent: name, payload: context } : name,
           }
+        } else if (comp.action) {
+          push(
+            'action-malformed',
+            `Action on "${id}" has no event.name; dropped.`,
+            id,
+          )
         }
       }
       return result

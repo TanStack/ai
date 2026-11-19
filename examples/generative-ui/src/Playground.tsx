@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import {
-  GenerativeUIRenderer,
-  GenerativeUITextFallback,
   CANONICAL_FIXTURES,
   validateGraph,
   type GraphDocument,
   type IntentPayload,
 } from '@tanstack/ai-generative-ui'
+import {
+  GenerativeUIRenderer,
+  GenerativeUITextFallback,
+} from '@tanstack/ai-generative-ui/react'
 
 interface IntentLogEntry extends IntentPayload {
   timestamp: string

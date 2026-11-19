@@ -106,8 +106,9 @@ export function isPathImport(specifier: string): boolean {
 }
 
 const IMPORT_RE =
-  // static `import ... from 'x'`, bare `import 'x'`, and `import('x')`
-  /(?:import\s+(?:[^'"]*?\s+from\s+)?|import\s*\(\s*|export\s+[^'"]*?\s+from\s+)['"]([^'"]+)['"]/g
+  // static `import ... from 'x'`, bare `import 'x'`, and `import('x')`;
+  // tolerate minified forms with no whitespace (e.g. `import{x}from'x'`)
+  /(?:\bimport\s*(?:[^'"()]*?\bfrom\s*)?|\bimport\s*\(\s*|\bexport\s*[^'"]*?\bfrom\s*)['"]([^'"]+)['"]/g
 
 /** Every module specifier a source imports, in source order (deduped). */
 export function extractImports(source: string): Array<string> {

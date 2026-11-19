@@ -125,12 +125,16 @@ import { sources } from './data-sources'
 
 export async function GET(request: Request) {
   const name = new URL(request.url).searchParams.get('source') ?? ''
-  const stream = new ReadableStream({
+  const encoder = new TextEncoder()
+  const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       const unsubscribe = sources.subscribe(name, {}, (value) => {
-        controller.enqueue(`data: ${JSON.stringify(value)}\n\n`)
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`))
       })
-      request.signal.addEventListener('abort', unsubscribe)
+      request.signal.addEventListener('abort', () => {
+        unsubscribe()
+        controller.close()
+      })
     },
   })
   return new Response(stream, {

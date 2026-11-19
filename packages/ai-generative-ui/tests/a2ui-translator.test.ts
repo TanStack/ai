@@ -252,3 +252,44 @@ describe('lifecycle (§A5.5)', () => {
     expect(store.listSurfaces()).toHaveLength(0)
   })
 })
+
+describe('malformed component data degrades, never throws (addendum §9.3)', () => {
+  it('survives a non-array tabItems and an action with no event', () => {
+    const store = new A2uiSurfaceStore()
+    const run = () =>
+      store.applyContainer({
+        a2ui_operations: [
+          {
+            version: 'v0.9',
+            createSurface: { surfaceId: 's', catalogId: 'basic' },
+          },
+          {
+            version: 'v0.9',
+            updateComponents: {
+              surfaceId: 's',
+              components: [
+                { id: 'col', component: 'Column', children: ['tabs', 'btn'] },
+                // tabItems is a string, not an array — must not throw.
+                { id: 'tabs', component: 'Tabs', tabItems: 'oops' },
+                // action without an event — must not throw on destructure.
+                {
+                  id: 'btn',
+                  component: 'Button',
+                  child: 'lbl',
+                  action: { name: 'book' },
+                },
+                { id: 'lbl', component: 'Text', text: 'Go' },
+              ],
+            },
+          },
+        ],
+      })
+    expect(run).not.toThrow()
+
+    const graph = store.getGraph('s')
+    expect(graph).toBeDefined()
+    const btn = find(graph!.root, 'btn')
+    // The malformed action is dropped, not promoted to a click handler.
+    expect(btn?.on).toBeUndefined()
+  })
+})

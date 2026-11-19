@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
 import {
   A2uiSurfaceStore,
-  GenerativeUIRenderer,
   type Diagnostic,
   type IntentPayload,
 } from '@tanstack/ai-generative-ui'
+import { GenerativeUIRenderer } from '@tanstack/ai-generative-ui/react'
 import { A2uiChatSurface } from './A2uiChatSurface'
 
 /**
