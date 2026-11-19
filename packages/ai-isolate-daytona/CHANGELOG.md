@@ -1,5 +1,14 @@
 # @tanstack/ai-isolate-daytona
 
+## 1.1.1
+
+### Patch Changes
+
+- [#2170](https://github.com/TanStack/ai/pull/2170) [`24ad184`](https://github.com/TanStack/ai/commit/24ad184dba14bb31529f5c2b813b1c941f395c9a) - Pin `@daytona/sdk` to `^0.231.1` in the install command. The usage example calls `daytona.create()`, which `@daytona/sdk` 2.0 moves to `daytona.v0`, so an unpinned install breaks the example once 2.0 becomes the default.
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@1.1.1
+
 ## 1.1.0
 
 ### Minor Changes

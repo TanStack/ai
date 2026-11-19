@@ -1,5 +1,14 @@
 # @tanstack/ai-mistral
 
+## 1.1.3
+
+### Patch Changes
+
+- [#2183](https://github.com/TanStack/ai/pull/2183) [`4c614ad`](https://github.com/TanStack/ai/commit/4c614ad6e60ddef5d9a848c3d783d927e003c0ec) - Mistral streams that end with `finish_reason: "error"` now end the run with `RUN_ERROR` instead of a clean `RUN_FINISHED`.
+
+- Updated dependencies [[`95c1d78`](https://github.com/TanStack/ai/commit/95c1d781c92904612e0d675a9ca38f1a8d9a1c09), [`df6f5a9`](https://github.com/TanStack/ai/commit/df6f5a9f5ff782db85c8a36715bac18a7f090180), [`40d1c61`](https://github.com/TanStack/ai/commit/40d1c61c6bdf1957bd124d09b1f07617a05e759d)]:
+  - @tanstack/ai@1.6.0
+
 ## 1.1.2
 
 ### Patch Changes
