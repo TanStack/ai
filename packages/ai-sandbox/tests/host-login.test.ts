@@ -345,6 +345,15 @@ describe('mountHostLogin', () => {
     expect(files.has(SANDBOX_FILE)).toBe(false)
   })
 
+  it('keeps the login when a shared run releases with keep before the last release', async () => {
+    const { sandbox, files } = fakeSandbox()
+    const first = await mountWith(sandbox)
+    const second = await mountWith(sandbox)
+    await first.release({ keep: true })
+    await second.release()
+    expect(files.get(SANDBOX_FILE)).toBe('{"token":"old"}')
+  })
+
   it('adopt keeps the login in the sandbox and copies its refresh back', async () => {
     const { sandbox, files } = fakeSandbox()
     files.set(SANDBOX_FILE, '{"token":"refreshed"}')

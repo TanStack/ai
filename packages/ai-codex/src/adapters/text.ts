@@ -370,6 +370,7 @@ export class CodexTextAdapter<
           adopt: durability?.attach === true,
         })
         releaseLogin = login.release
+        if (durability?.attach === true) keepLogin = true
       }
 
       // Project declarative workspace inputs (MCP/skills) into codex's native
@@ -552,6 +553,9 @@ export class CodexTextAdapter<
       keepLogin = keepLogin && signal?.aborted === true
     } catch (error: unknown) {
       runFailed = true
+      const signal = options.abortController?.signal ?? options.request?.signal
+      keepLogin =
+        signal?.aborted === true || durability?.attach === true
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
       logger.errors('codex.chatStream fatal', {

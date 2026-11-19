@@ -577,5 +577,55 @@ describe(
       expect(hostLogin.releases).toEqual([{ keep: true }])
       await sbx.destroy()
     })
+
+    it('an attach setup failure releases with keep: true', async () => {
+      const sbx = await provider.create({})
+      const failing = {
+        ...sbx,
+        provider: 'docker',
+        process: {
+          ...sbx.process,
+          exec: () => Promise.reject(new Error('attach setup failed')),
+        },
+      }
+      const chunks = await collect(
+        grokBuildText('grok-build', {
+          protocol: 'streaming-json',
+          emitDiff: false,
+          authMode: 'host',
+        }).chatStream({
+          threadId: THREAD_ID,
+          model: 'grok-build',
+          messages: [{ role: 'user', content: 'say pong' }],
+          logger: noopLogger,
+          capabilities: contextWith(failing, durabilityWith(fakeLog(), true)),
+          runId: `r-host-attach-setup-${randomUUID()}`,
+        }),
+      )
+      expect(chunks.find((c) => c.type === 'RUN_ERROR')).toMatchObject({
+        message: 'attach setup failed',
+      })
+      expect(hostLogin.mounts).toMatchObject([{ adopt: true }])
+      expect(hostLogin.releases).toEqual([{ keep: true }])
+      await sbx.destroy()
+    })
+
+    it('a durable host-auth run with a non-zero CLI exit releases with keep: false', async () => {
+      const sbx = await provider.create({})
+      await sbx.fs.write('/workspace/fake-grok.mjs', 'process.exit(3)')
+      const chunks = await collect(
+        hostRun(
+          sbx,
+          `r-host-fail-${randomUUID()}`,
+          durabilityWith(fakeLog(), false),
+        ),
+      )
+      expect(chunks.find((c) => c.type === 'RUN_ERROR')).toMatchObject({
+        message: expect.stringMatching(/code 3/),
+      })
+      expect(hostLogin.mounts).toMatchObject([{ adopt: false }])
+      expect(hostLogin.releases).toEqual([{ keep: false }])
+      await sbx.destroy()
+    })
   },
 )

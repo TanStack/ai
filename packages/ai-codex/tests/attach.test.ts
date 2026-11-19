@@ -726,4 +726,63 @@ describe("codex durable runs with authMode 'host'", () => {
     expect(hostLogin.releases).toEqual([{ keep: true }])
     await sbx.destroy()
   })
+
+  it('an attach setup failure releases with keep: true', async () => {
+    const sbx = await provider.create({})
+    const handle = recordingHandle(sbx).handle
+    const failing = {
+      ...handle,
+      fs: {
+        ...handle.fs,
+        write: () => Promise.reject(new Error('attach setup failed')),
+      },
+    }
+    const chunks = await collect(
+      codexText('gpt-5.5-codex', {
+        codexExecutable: 'node fake-codex.mjs',
+        authMode: 'host',
+      }).chatStream({
+        model: 'gpt-5.5-codex',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        runId: `r-host-attach-setup-${crypto.randomUUID()}`,
+        threadId: `t-host-${crypto.randomUUID()}`,
+        capabilities: capabilityContext(
+          failing,
+          durabilityWith({ attach: true }),
+        ),
+        outputSchema: { type: 'object', properties: {} },
+      }),
+    )
+    expect(chunks.find((c) => c.type === 'RUN_ERROR')).toMatchObject({
+      message: 'attach setup failed',
+    })
+    expect(hostLogin.mounts).toMatchObject([{ adopt: true }])
+    expect(hostLogin.releases).toEqual([{ keep: true }])
+    await sbx.destroy()
+  })
+
+  it('a durable host-auth run with a non-zero CLI exit releases with keep: false', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write(
+      '/workspace/fake-codex.mjs',
+      [
+        `process.stdin.on('data', () => {})`,
+        `process.stdin.on('end', () => process.exit(3))`,
+      ].join('\n'),
+    )
+    const chunks = await collect(
+      hostRun(
+        recordingHandle(sbx).handle,
+        `r-host-fail-${crypto.randomUUID()}`,
+        durabilityWith(),
+      ),
+    )
+    expect(chunks.find((c) => c.type === 'RUN_ERROR')).toMatchObject({
+      message: expect.stringMatching(/code 3/),
+    })
+    expect(hostLogin.mounts).toMatchObject([{ adopt: false }])
+    expect(hostLogin.releases).toEqual([{ keep: false }])
+    await sbx.destroy()
+  })
 })

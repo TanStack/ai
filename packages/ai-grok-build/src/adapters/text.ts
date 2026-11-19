@@ -703,6 +703,9 @@ export class GrokBuildTextAdapter<
     // sandbox for the host that attaches.
     let keepLogin = false
     let runFailed = false
+    const durability = options.capabilities
+      ? getSandboxDurability(options.capabilities, { optional: true })
+      : undefined
     try {
       const tools = this.toolsForChoice(options)
       const sandbox = this.sandboxFrom(options)
@@ -715,9 +718,6 @@ export class GrokBuildTextAdapter<
       // that a loud failure when durability is wired, and preserves the
       // generated fallback exactly as before when it is not — several `chat()`
       // paths pass `runId` as a conditional spread, so `undefined` is reachable.
-      const durability = options.capabilities
-        ? getSandboxDurability(options.capabilities, { optional: true })
-        : undefined
       const runId = resolveDurableRunId(options.runId, {
         durable: durability !== undefined,
         adapter: 'grok-build',
@@ -779,6 +779,7 @@ export class GrokBuildTextAdapter<
           sandbox,
           durability?.attach === true,
         )
+        if (durability?.attach === true) keepLogin = true
       }
       const launch = grokAuthLaunch(
         await resolveGrokExecutable(sandbox, this.adapterConfig.grokExecutable),
@@ -890,6 +891,9 @@ export class GrokBuildTextAdapter<
       }
     } catch (error: unknown) {
       runFailed = true
+      const signal = options.abortController?.signal ?? options.request?.signal
+      keepLogin =
+        signal?.aborted === true || durability?.attach === true
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
       const message = formatAcpRequestError(error)

@@ -350,8 +350,9 @@ export async function mountHostLogin(
       if (isReleased) return
       isReleased = true
       shared.runs -= 1
+      if (releaseOptions?.keep === true) shared.keep = true
       if (shared.runs > 0) return
-      if (releaseOptions?.keep === true) {
+      if (shared.keep === true) {
         if (mounts.get(key) === shared) mounts.delete(key)
         return
       }
@@ -388,6 +389,7 @@ const mounts = new Map<
     runs: number
     borrowed: Promise<BorrowedLogin>
     released?: Promise<void>
+    keep?: boolean
   }
 >()
 
