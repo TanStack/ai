@@ -425,6 +425,8 @@ export interface TextChunkToolResultEvent extends BaseEventContext {
   messageId?: string
   toolCallId: string
   result: string
+  /** App metadata of the tool result. It has no reserved `tanstack` key. */
+  metadata?: Record<string, unknown>
 }
 
 /** Emitted for streaming thinking chunks. */

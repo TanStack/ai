@@ -107,6 +107,17 @@ interface InternalQueuedMessage extends QueuedMessage {
 
 const STREAM_PROCESSING_BUDGET_MS = 8
 
+/**
+ * The `setResultMetadata` of a client tool context. Result metadata works
+ * only in server tools, so this setter always throws. The tool call then
+ * gets an error result.
+ */
+export function rejectClientResultMetadata() {
+  throw new Error(
+    'setResultMetadata works only in server tools. A client tool can return the data in its output or keep it in app state.',
+  )
+}
+
 type SchedulerWithYield = {
   yield?: () => Promise<void>
 }
@@ -3207,6 +3218,7 @@ export class ChatClient<
           context: context as TContext,
           abortSignal: this.clientToolAbortController.signal,
           emitCustomEvent: () => {},
+          setResultMetadata: rejectClientResultMetadata,
         })
         await this.addToolResultForClientTool(
           {
@@ -3220,6 +3232,10 @@ export class ChatClient<
           runEventContext,
         )
       } catch (error: any) {
+        // A sync throw (for example setResultMetadata) runs before
+        // observeInterruptState hydrates a client_tool interrupt. Yield so
+        // the chunk handler can register it first.
+        await Promise.resolve()
         await this.addToolResultForClientTool(
           {
             toolCallId: args.toolCallId,

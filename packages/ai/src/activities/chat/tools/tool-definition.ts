@@ -1,6 +1,7 @@
 import type {
   InferSchemaType,
   JSONSchema,
+  ResultMetadataFromSchema,
   SchemaInput,
   Tool,
   ToolExecuteFunction,
@@ -90,9 +91,13 @@ export interface ServerTool<
   TContext = unknown,
   TNeedsApproval extends boolean = false,
   TApprovalSchema extends ApprovalSchemaConfig | undefined = undefined,
+  // Wide default, so `ServerTool<any, any, any>` accepts every tool.
+  TResultMetadataSchema extends SchemaInput | undefined =
+    | SchemaInput
+    | undefined,
 >
   extends
-    Tool<TInput, TOutput, TName, TContext>,
+    Tool<TInput, TOutput, TName, TContext, TResultMetadataSchema>,
     ToolApprovalCapabilityMarker<TNeedsApproval, TApprovalSchema> {
   __toolSide: 'server'
   inputSchema?: TInput
@@ -115,6 +120,9 @@ export interface ClientTool<
   // `false` when the tool config omits `needsApproval`.
   TNeedsApproval extends boolean = false,
   TApprovalSchema extends ApprovalSchemaConfig | undefined = undefined,
+  TResultMetadataSchema extends SchemaInput | undefined =
+    | SchemaInput
+    | undefined,
 > extends ToolApprovalCapabilityMarker<TNeedsApproval, TApprovalSchema> {
   __toolSide: 'client'
   name: TName
@@ -132,12 +140,15 @@ export interface ClientTool<
   lazy?: boolean
   replay?: 'safe' | 'never'
   metadata?: Record<string, unknown>
-  execute?: ToolExecuteFunction<TInput, TOutput, TContext>
+  resultMetadataSchema?: TResultMetadataSchema
+  // `never`: a client tool cannot set result metadata. The schema above
+  // still types the metadata that the client reads.
+  execute?: ToolExecuteFunction<TInput, TOutput, TContext, never>
 }
 
 /** Broad server-tool shape for heterogeneous internal collections. */
 export type AnyServerTool = Omit<
-  ServerTool<any, any, string, any, boolean, any>,
+  ServerTool<any, any, string, any, boolean, any, any>,
   'execute'
 > & {
   execute?: ((args: any, context?: any) => any) | undefined
@@ -153,7 +164,8 @@ export interface ToolDefinitionInstance<
   TContext = unknown,
   TNeedsApproval extends boolean = false,
   TApprovalSchema extends ApprovalSchemaConfig | undefined = undefined,
-> extends Tool<TInput, TOutput, TName, TContext> {
+  TResultMetadataSchema extends SchemaInput | undefined = undefined,
+> extends Tool<TInput, TOutput, TName, TContext, TResultMetadataSchema> {
   __toolSide: 'definition'
   // Narrow the base `needsApproval?: boolean` to the captured literal so it
   // survives into `ToolCallPartForTool`'s approval gate.
@@ -172,11 +184,11 @@ export interface ToolDefinitionInstance<
  * Union type for any kind of client-side tool (client tool or definition)
  */
 export type AnyClientTool =
-  | (Omit<ClientTool<any, any, string, any, boolean, any>, 'execute'> & {
+  | (Omit<ClientTool<any, any, string, any, boolean, any, any>, 'execute'> & {
       execute?: ((args: any, context?: any) => any) | undefined
     })
   | (Omit<
-      ToolDefinitionInstance<any, any, string, any, boolean, any>,
+      ToolDefinitionInstance<any, any, string, any, boolean, any, any>,
       'execute'
     > & {
       execute?: ((args: any, context?: any) => any) | undefined
@@ -210,6 +222,15 @@ export type InferToolOutput<T> = T extends { outputSchema?: infer TOutput }
   : unknown
 
 /**
+ * Extract the result metadata type from a tool. A Standard Schema in
+ * `resultMetadataSchema` gives its type. No schema, or a plain JSON Schema,
+ * gives `Record<string, unknown>`.
+ */
+export type InferToolResultMetadata<T> = ResultMetadataFromSchema<
+  T extends { resultMetadataSchema?: infer TSchema } ? TSchema : undefined
+>
+
+/**
  * Tool definition configuration
  */
 export type ToolDefinitionConfig<
@@ -218,11 +239,18 @@ export type ToolDefinitionConfig<
   TName extends string = string,
   TNeedsApproval extends boolean = false,
   TApprovalSchema extends ApprovalSchemaConfig | undefined = undefined,
+  TResultMetadataSchema extends SchemaInput | undefined = undefined,
 > = {
   name: TName
   description: string
   inputSchema?: TInput
   outputSchema?: TOutput
+  /**
+   * Schema for the app-only metadata that the tool sets with
+   * `context.setResultMetadata`. It types the setter and the client
+   * `part.resultMetadata`. The model never sees the metadata.
+   */
+  resultMetadataSchema?: TResultMetadataSchema
   lazy?: boolean
   /**
    * Whether a host may run this tool again after a crash cut the run
@@ -244,26 +272,36 @@ export interface ToolDefinition<
   TName extends string = string,
   TNeedsApproval extends boolean = false,
   TApprovalSchema extends ApprovalSchemaConfig | undefined = undefined,
+  TResultMetadataSchema extends SchemaInput | undefined =
+    | SchemaInput
+    | undefined,
 > extends ToolDefinitionInstance<
   TInput,
   TOutput,
   TName,
   unknown,
   TNeedsApproval,
-  TApprovalSchema
+  TApprovalSchema,
+  TResultMetadataSchema
 > {
   /**
    * Create a server-side tool with execute function
    */
   server: <TContext = unknown>(
-    execute: ToolExecuteFunction<TInput, TOutput, TContext>,
+    execute: ToolExecuteFunction<
+      TInput,
+      TOutput,
+      TContext,
+      TResultMetadataSchema
+    >,
   ) => ServerTool<
     TInput,
     TOutput,
     TName,
     TContext,
     TNeedsApproval,
-    TApprovalSchema
+    TApprovalSchema,
+    TResultMetadataSchema
   > &
     BuiltToolSchemaFields<TInput, TOutput, TApprovalSchema>
 
@@ -273,14 +311,17 @@ export interface ToolDefinition<
    * tool so the tool-call part's `approval` field stays gated on it.
    */
   client: <TContext = unknown>(
-    execute?: ToolExecuteFunction<TInput, TOutput, TContext>,
+    // `never`: a client tool cannot set result metadata. The setter throws
+    // at runtime, so a call to it is a type error.
+    execute?: ToolExecuteFunction<TInput, TOutput, TContext, never>,
   ) => ClientTool<
     TInput,
     TOutput,
     TName,
     TContext,
     TNeedsApproval,
-    TApprovalSchema
+    TApprovalSchema,
+    TResultMetadataSchema
   > &
     BuiltToolSchemaFields<TInput, TOutput, TApprovalSchema>
 }
@@ -349,15 +390,24 @@ export function toolDefinition<
   // which collapses the approval gate in `ToolCallPartForTool`.
   const TNeedsApproval extends boolean = false,
   TApprovalSchema extends ApprovalSchemaConfig | undefined = undefined,
+  TResultMetadataSchema extends SchemaInput | undefined = undefined,
 >(
   config: ToolDefinitionConfig<
     TInput,
     TOutput,
     TName,
     TNeedsApproval,
-    TApprovalSchema
+    TApprovalSchema,
+    TResultMetadataSchema
   >,
-): ToolDefinition<TInput, TOutput, TName, TNeedsApproval, TApprovalSchema> {
+): ToolDefinition<
+  TInput,
+  TOutput,
+  TName,
+  TNeedsApproval,
+  TApprovalSchema,
+  TResultMetadataSchema
+> {
   if (config.approvalSchema !== undefined && config.needsApproval !== true) {
     throw new TypeError('approvalSchema requires needsApproval: true.')
   }
@@ -372,7 +422,8 @@ export function toolDefinition<
     TOutput,
     TName,
     TNeedsApproval,
-    TApprovalSchema
+    TApprovalSchema,
+    TResultMetadataSchema
   > = {
     __toolSide: 'definition',
     ...config,
@@ -382,14 +433,20 @@ export function toolDefinition<
     needsApproval,
     execution,
     server<TContext = unknown>(
-      execute: ToolExecuteFunction<TInput, TOutput, TContext>,
+      execute: ToolExecuteFunction<
+        TInput,
+        TOutput,
+        TContext,
+        TResultMetadataSchema
+      >,
     ): ServerTool<
       TInput,
       TOutput,
       TName,
       TContext,
       TNeedsApproval,
-      TApprovalSchema
+      TApprovalSchema,
+      TResultMetadataSchema
     > &
       BuiltToolSchemaFields<TInput, TOutput, TApprovalSchema> {
       return {
@@ -405,14 +462,15 @@ export function toolDefinition<
     },
 
     client<TContext = unknown>(
-      execute?: ToolExecuteFunction<TInput, TOutput, TContext>,
+      execute?: ToolExecuteFunction<TInput, TOutput, TContext, never>,
     ): ClientTool<
       TInput,
       TOutput,
       TName,
       TContext,
       TNeedsApproval,
-      TApprovalSchema
+      TApprovalSchema,
+      TResultMetadataSchema
     > &
       BuiltToolSchemaFields<TInput, TOutput, TApprovalSchema> {
       return {

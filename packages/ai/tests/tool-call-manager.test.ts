@@ -199,7 +199,10 @@ describe('ToolCallManager', () => {
     expect(finalResult[0]?.toolCallId).toBe('call_123')
 
     // Tool execute should have been called
-    expect(mockWeatherTool.execute).toHaveBeenCalledWith({ location: 'Paris' })
+    expect(mockWeatherTool.execute).toHaveBeenCalledWith(
+      { location: 'Paris' },
+      expect.objectContaining({ toolCallId: 'call_123' }),
+    )
   })
 
   it('should handle tool execution errors gracefully', async () => {
