@@ -9,7 +9,7 @@ title: chat
 function chat<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware, TAgents>(options): TextActivityResult<TSchema, TStream, TTools>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/index.ts:6350](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L6350)
+Defined in: [packages/ai/src/activities/chat/index.ts:6418](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L6418)
 
 Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
 
@@ -37,11 +37,11 @@ This activity supports four modes:
 
 `TTools` *extends* 
   \| readonly (
-  \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`\>, `"execute"`\> & `object` & `object`
+  \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`, [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`\>, `"execute"`\> & `object` & `object`
   \| [`ProviderTool`](../interfaces/ProviderTool.md)\<`string`, `TAdapter`\[`"~types"`\]\[`"toolCapabilities"`\]\[`number`\]\>)[]
   \| `undefined` = 
   \| readonly (
-  \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`\>, `"execute"`\> & `object` & `object`
+  \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`, [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`\>, `"execute"`\> & `object` & `object`
   \| [`ProviderTool`](../interfaces/ProviderTool.md)\<`string`, `TAdapter`\[`"~types"`\]\[`"toolCapabilities"`\]\[`number`\]\>)[]
   \| `undefined`
 

@@ -11,6 +11,7 @@ type GuardToolCallDecision =
   | undefined
   | null
   | {
+  metadata?: Record<string, unknown>;
   result: unknown;
   type: "skip";
 }
@@ -20,10 +21,67 @@ type GuardToolCallDecision =
 };
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:484](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L484)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:493](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L493)
 
 Decision returned from onGuardToolCall. A guard cannot change the args.
 - undefined/void: allow the call. The next guard runs.
 - { type: 'skip', result }: deny the call. The tool does not run, and the
   model gets `result`, as for an `onBeforeToolCall` skip.
 - { type: 'abort', reason }: abort the entire chat run
+
+## Union Members
+
+`void`
+
+***
+
+`undefined`
+
+***
+
+`null`
+
+***
+
+### Type Literal
+
+```ts
+{
+  metadata?: Record<string, unknown>;
+  result: unknown;
+  type: "skip";
+}
+```
+
+#### metadata?
+
+```ts
+optional metadata?: Record<string, unknown>;
+```
+
+Optional result metadata for the app. The model never sees it. The
+tool does not run, so the result gets only this metadata. The value
+is not checked against the tool schema.
+
+#### result
+
+```ts
+result: unknown;
+```
+
+#### type
+
+```ts
+type: "skip";
+```
+
+***
+
+### Type Literal
+
+```ts
+{
+  reason?: string;
+  type: "abort";
+}
+```

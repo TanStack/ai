@@ -10,12 +10,14 @@ type MediaPromptPart =
   | TextPart
   | ImagePart<MediaInputMetadata>
   | VideoPart<MediaInputMetadata>
-| AudioPart<MediaInputMetadata>;
+  | AudioPart<MediaInputMetadata>
+  | Model3DPart;
 ```
 
-Defined in: [packages/ai/src/types.ts:2389](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2389)
+Defined in: [packages/ai/src/types.ts:2454](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2454)
 
 A single part of a multimodal media-generation prompt. Reuses the chat
 content-part shapes: text parts carry the instruction, image / video /
 audio parts carry conditioning inputs (with an optional
 `metadata.role` hint — see [MediaInputRole](MediaInputRole.md)).
+A [Model3DPart](../interfaces/Model3DPart.md) carries an existing mesh for 3D model generation.

@@ -9,7 +9,7 @@ title: generationParamsFromBody
 function generationParamsFromBody<TKind>(kind, body): GenerationParams<TKind>;
 ```
 
-Defined in: [packages/ai/src/client.ts:118](https://github.com/TanStack/ai/blob/main/packages/ai/src/client.ts#L118)
+Defined in: [packages/ai/src/client.ts:128](https://github.com/TanStack/ai/blob/main/packages/ai/src/client.ts#L128)
 
 Read a generation request: the AG-UI `RunAgentInput` body that the
 generation hooks send. The input is in `forwardedProps`.

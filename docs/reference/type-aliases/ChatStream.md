@@ -11,7 +11,7 @@ type ChatStream = AsyncIterable<
 | KnownCustomEvent>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2010](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2010)
+Defined in: [packages/ai/src/types.ts:2074](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2074)
 
 The default chat streaming result: standard chunks plus every typed
  framework CUSTOM event, with the `value: any` catch-all excluded so
