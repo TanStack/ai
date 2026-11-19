@@ -5,12 +5,13 @@ import { describe, expect, it } from 'vitest'
 import { createAuditLog, redactArgs } from '../src/audit'
 
 describe('redactArgs', () => {
-  it('keeps id-like and query-like fields, redacts the rest', () => {
+  it('keeps id-like fields and redacts the rest, including free-text query', () => {
     expect(
       redactArgs({ movieId: 'tt123', query: 'dune', apiKey: 'secret', n: 5 }),
     ).toEqual({
       movieId: 'tt123',
-      query: 'dune',
+      // `query` is free text and can carry a secret, so it is redacted.
+      query: '[redacted]',
       apiKey: '[redacted]',
       n: '[redacted]',
     })
@@ -65,5 +66,17 @@ describe('createAuditLog', () => {
     expect(text).not.toContain('"old"')
     expect(text).toContain('"fresh"')
     expect(text).toContain('"new"')
+  })
+
+  it('does not start init until the first record, so a failure cannot float', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'audit-'))
+    // A path whose parent is an existing file. mkdir is best-effort, but the
+    // append then rejects, and that rejection must reach the record() caller
+    // rather than surface as an unhandled rejection during construction.
+    const file = join(dir, 'a-file')
+    await writeFile(file, 'x')
+    const log = createAuditLog({ path: join(file, 'audit.jsonl') })
+    // Construction did nothing; the first record triggers and surfaces the fault.
+    await expect(log.record({ event: 'x', outcome: 'ok' })).rejects.toThrow()
   })
 })

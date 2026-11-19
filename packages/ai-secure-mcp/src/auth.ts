@@ -22,10 +22,14 @@ export function constantTimeEqual(a: string, b: string): boolean {
   return timingSafeEqual(left, right)
 }
 
-/** Reads the bearer token from an `Authorization` header value. */
+/**
+ * Reads the bearer token from an `Authorization` header value. The scheme name
+ * is case-insensitive (RFC 7235) and one or more spaces may separate it from
+ * the token (RFC 6750), so `bearer  xyz` and `Bearer xyz` both yield `xyz`.
+ */
 export function bearerToken(header: string | null): string | undefined {
   if (header === null) return undefined
-  const match = /^Bearer (.+)$/.exec(header.trim())
+  const match = /^Bearer +(.+)$/i.exec(header.trim())
   return match?.[1]
 }
 

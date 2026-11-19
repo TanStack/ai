@@ -27,6 +27,7 @@ export {
   ntfyNotifier,
   webhookNotifier,
   silentNotifier,
+  safeNotifier,
   debounceNotifier,
   describeEvent,
 } from './notifier'

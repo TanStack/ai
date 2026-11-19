@@ -46,4 +46,35 @@ describe('createEgress', () => {
   it('rejects a non-URL allowlist entry at build time', () => {
     expect(() => createEgress({ allow: ['not a url'] })).toThrow(SecureMcpError)
   })
+
+  it('honors a caller signal that is already aborted', async () => {
+    const fetchImpl = vi.fn(async () => new Response('body'))
+    const egress = createEgress({
+      allow: ['https://api.hue.local'],
+      fetch: fetchImpl,
+    })
+    await expect(
+      egress('https://api.hue.local/x', { signal: AbortSignal.abort() }),
+    ).rejects.toMatchObject({ code: 'backend_unavailable' })
+    // The request never went out, because the caller had already cancelled.
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('passes a combined signal to fetch so caller cancellation reaches it', async () => {
+    let seen: AbortSignal | undefined
+    const egress = createEgress({
+      allow: ['https://api.hue.local'],
+      fetch: async (_url, init) => {
+        seen = init?.signal ?? undefined
+        return new Response('body')
+      },
+    })
+    const controller = new AbortController()
+    await egress('https://api.hue.local/x', { signal: controller.signal })
+    expect(seen).toBeInstanceOf(AbortSignal)
+    expect(seen?.aborted).toBe(false)
+    // A later caller abort propagates to the signal fetch received.
+    controller.abort()
+    expect(seen?.aborted).toBe(true)
+  })
 })

@@ -23,12 +23,34 @@ function toClient(value: unknown, index: number): ClientRecord {
     tokenHash: value.tokenHash,
     scopes: value.scopes.filter((s): s is string => typeof s === 'string'),
   }
-  if (Array.isArray(value.targets)) {
-    client.targets = value.targets.filter(
-      (t): t is string => typeof t === 'string',
-    )
+  // A present `targets` must be an array of strings. A malformed value is
+  // rejected, never silently dropped: dropping it would widen the token's reach
+  // to every target instead of the intended restriction.
+  if (value.targets !== undefined) {
+    if (
+      !Array.isArray(value.targets) ||
+      !value.targets.every((t) => typeof t === 'string')
+    ) {
+      throw new SecureMcpError(
+        'invalid_input',
+        `Client at index ${index} has a "targets" that is not an array of strings.`,
+      )
+    }
+    client.targets = value.targets
   }
-  if (typeof value.expiresAt === 'number') {
+  // A present `expiresAt` must be a finite number (Unix seconds). A malformed
+  // value is rejected, never silently dropped: dropping it would turn an
+  // intended expiry into a token that never expires.
+  if (value.expiresAt !== undefined) {
+    if (
+      typeof value.expiresAt !== 'number' ||
+      !Number.isFinite(value.expiresAt)
+    ) {
+      throw new SecureMcpError(
+        'invalid_input',
+        `Client at index ${index} has an "expiresAt" that is not a finite number.`,
+      )
+    }
     client.expiresAt = value.expiresAt
   }
   return client

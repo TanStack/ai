@@ -82,7 +82,10 @@ describe('createSecureMcpServer — go-live safety', () => {
 
   it('refuses to build a public funnel while the preflight fails', () => {
     expect(() =>
-      createSecureMcpServer({ ...base(), funnel: { port: 8787, public: true } }),
+      createSecureMcpServer({
+        ...base(),
+        funnel: { port: 8787, public: true },
+      }),
     ).toThrow(/Refusing to expose a public funnel/)
   })
 

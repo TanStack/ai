@@ -8,8 +8,10 @@ import type { EgressFetch } from './egress'
 import type { AccessPolicy, ClientRecord, SecurityNotifier } from './types'
 
 /**
- * The per-request values the envelope injects into `ctx.context`. A tool reads
- * `ctx.context.egress` to reach the network. The guard reads `secure` to know
+ * The per-request values the envelope injects into `ctx.context`. A tool should
+ * reach the network only through `ctx.context.egress`, which refuses any origin
+ * off the allowlist. This is a helper, not an enforced boundary: a tool that
+ * calls global `fetch` directly bypasses it. The guard reads `secure` to know
  * the caller.
  */
 export interface SecureRequestContext {
@@ -36,7 +38,10 @@ function readClient(
   // Typed as present, but a misuse could still leave it out at runtime.
   const client = context?.context?.secure?.client
   if (client === undefined) {
-    throw new SecureMcpError('auth_failure', 'The request is not authenticated.')
+    throw new SecureMcpError(
+      'auth_failure',
+      'The request is not authenticated.',
+    )
   }
   return client
 }
@@ -60,14 +65,28 @@ export function guardTools(
 
       const scope = deps.policy.scopes?.[tool.name]
       if (scope !== undefined && !client.scopes.includes(scope)) {
-        return refuse(deps, client, tool.name, args, 'forbidden_scope', `This token does not hold the "${scope}" scope.`)
+        return refuse(
+          deps,
+          client,
+          tool.name,
+          args,
+          'forbidden_scope',
+          `This token does not hold the "${scope}" scope.`,
+        )
       }
 
       const targetField = deps.policy.targetParam?.[tool.name]
       if (targetField !== undefined && client.targets !== undefined) {
         const value = isRecord(args) ? args[targetField] : undefined
         if (!client.targets.includes(String(value))) {
-          return refuse(deps, client, tool.name, args, 'forbidden_scope', 'This token may not reach that target.')
+          return refuse(
+            deps,
+            client,
+            tool.name,
+            args,
+            'forbidden_scope',
+            'This token may not reach that target.',
+          )
         }
       }
 
@@ -76,7 +95,32 @@ export function guardTools(
         const envelope = deps.approvals.propose({
           owner: client.id,
           summary,
-          run: async () => original?.(args, context),
+          // Audit both outcomes of the confirmed run. The proposal is consumed
+          // single-use before this runs, so a throw here would otherwise leave
+          // no execution record for the failed approved action.
+          run: async () => {
+            try {
+              const result = await original?.(args, context)
+              await deps.audit?.record({
+                client: client.id,
+                event: 'tool_call',
+                tool: tool.name,
+                outcome: 'ok',
+                args,
+              })
+              return result
+            } catch (error) {
+              await deps.audit?.record({
+                client: client.id,
+                event: 'tool_call',
+                tool: tool.name,
+                outcome: 'error',
+                code: error instanceof SecureMcpError ? error.code : undefined,
+                args,
+              })
+              throw error
+            }
+          },
         })
         await deps.audit?.record({
           client: client.id,
@@ -115,6 +159,14 @@ export function guardTools(
         throw error
       }
     }
+    // An approval-gated tool returns the `approval_required` envelope on the
+    // first call, not its own output shape. Keeping an `outputSchema` would make
+    // the MCP server reject that envelope as a schema mismatch, so the client
+    // would never receive the `proposalId` the confirm tool needs. Drop it.
+    if (deps.policy.approve?.includes(tool.name)) {
+      const { outputSchema: _outputSchema, ...rest } = tool
+      return { ...rest, execute }
+    }
     return { ...tool, execute }
   })
 }
@@ -152,7 +204,9 @@ export function createConfirmTool(deps: {
     description:
       'Confirm a pending approval by its proposalId. Runs the proposed action.',
     inputSchema: z.object({
-      proposalId: z.string().describe('The id from an approval_required reply.'),
+      proposalId: z
+        .string()
+        .describe('The id from an approval_required reply.'),
     }),
   }).server<SecureRequestContext>(async ({ proposalId }, context) => {
     const client = readClient(context)

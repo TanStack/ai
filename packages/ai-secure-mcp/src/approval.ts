@@ -38,18 +38,38 @@ export interface ApprovalStore {
 export function createApprovalStore(options?: {
   /** How long a proposal stays valid, 300000 ms (5 minutes) by default. */
   ttlMs?: number
+  /** The most pending proposals to hold at once, 1000 by default. */
+  maxPending?: number
   /** A clock in ms, for tests. */
   now?: () => number
   /** An id source, for tests. */
   newId?: () => string
 }): ApprovalStore {
   const ttlMs = options?.ttlMs ?? 300_000
+  const maxPending = options?.maxPending ?? 1000
   const now = options?.now ?? (() => Date.now())
   const newId = options?.newId ?? (() => randomUUID())
   const proposals = new Map<string, Proposal>()
 
+  // Drop every proposal past its expiry. Called on each store operation so an
+  // unconfirmed proposal cannot pin its `run` closure (args, context) forever.
+  const pruneExpired = () => {
+    const at = now()
+    for (const [id, proposal] of proposals) {
+      if (at >= proposal.expiresAt) proposals.delete(id)
+    }
+  }
+
   return {
     propose: ({ owner, summary, run }) => {
+      pruneExpired()
+      // Bound the map even when nothing has expired: evict the oldest pending
+      // proposal (Map preserves insertion order) so a flood cannot grow it.
+      while (proposals.size >= maxPending) {
+        const oldest = proposals.keys().next().value
+        if (oldest === undefined) break
+        proposals.delete(oldest)
+      }
       const proposalId = newId()
       const expiresAt = now() + ttlMs
       proposals.set(proposalId, { owner, summary, run, expiresAt })
@@ -75,6 +95,9 @@ export function createApprovalStore(options?: {
       return proposal.run()
     },
 
-    pendingCount: () => proposals.size,
+    pendingCount: () => {
+      pruneExpired()
+      return proposals.size
+    },
   }
 }

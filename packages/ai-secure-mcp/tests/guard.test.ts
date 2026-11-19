@@ -13,7 +13,9 @@ import type {
   SecurityNotifier,
 } from '../src/types'
 
-function capturingNotifier(): SecurityNotifier & { events: Array<SecurityEvent> } {
+function capturingNotifier(): SecurityNotifier & {
+  events: Array<SecurityEvent>
+} {
   const events: Array<SecurityEvent> = []
   return { events, notify: async (event) => void events.push(event) }
 }
@@ -71,7 +73,10 @@ describe('guardTools — scopes', () => {
       contextFor(control),
     )
     expect(result).toEqual({ room: 'den', on: true })
-    expect(audit.entries.at(-1)).toMatchObject({ outcome: 'ok', tool: 'setLights' })
+    expect(audit.entries.at(-1)).toMatchObject({
+      outcome: 'ok',
+      tool: 'setLights',
+    })
   })
 
   it('refuses and notifies when the client lacks the scope', async () => {
@@ -101,7 +106,10 @@ describe('guardTools — target allowlist', () => {
       targets: ['living-room'],
     }
     await expect(
-      guardedLights!.execute!({ room: 'bedroom', on: true }, contextFor(scoped)),
+      guardedLights!.execute!(
+        { room: 'bedroom', on: true },
+        contextFor(scoped),
+      ),
     ).rejects.toMatchObject({ code: 'forbidden_scope' })
     // An allowed target runs.
     await expect(
@@ -145,5 +153,57 @@ describe('guardTools — two-phase approval', () => {
     await expect(
       guardedLights!.execute!({ room: 'den', on: true }, undefined),
     ).rejects.toMatchObject({ code: 'auth_failure' })
+  })
+
+  it('audits a confirmed run that throws, then rethrows', async () => {
+    const failing = toolDefinition({
+      name: 'buyMovie',
+      description: 'Buy a movie',
+      inputSchema: z.object({ movieId: z.string() }),
+    }).server(async () => {
+      throw new Error('backend down')
+    })
+    const notify = capturingNotifier()
+    const audit = capturingAudit()
+    const approvals = createApprovalStore({ newId: () => 'prop-1' })
+    const [guarded] = guardTools([failing], {
+      policy: { approve: ['buyMovie'] },
+      approvals,
+      audit,
+      notify,
+      summarize: () => 's',
+    })
+    await guarded!.execute!({ movieId: 'tt1' }, contextFor(control))
+    const confirm = createConfirmTool({ approvals, audit })
+    await expect(
+      confirm.execute!({ proposalId: 'prop-1' }, contextFor(control)),
+    ).rejects.toThrow('backend down')
+    // The failed approved action left an error record.
+    expect(audit.entries).toContainEqual(
+      expect.objectContaining({
+        event: 'tool_call',
+        tool: 'buyMovie',
+        outcome: 'error',
+      }),
+    )
+  })
+
+  it('drops the outputSchema on an approval-gated tool', () => {
+    const withSchema = toolDefinition({
+      name: 'buyMovie',
+      description: 'Buy a movie',
+      inputSchema: z.object({ movieId: z.string() }),
+      outputSchema: z.object({ bought: z.string() }),
+    }).server(async ({ movieId }) => ({ bought: movieId }))
+    const [guarded] = guardTools([withSchema], {
+      policy: { approve: ['buyMovie'] },
+      approvals: createApprovalStore(),
+      notify: capturingNotifier(),
+      summarize: () => 's',
+    })
+    // The approval envelope does not match the tool's outputSchema, so the
+    // wrapped tool must not advertise one — otherwise the MCP server would
+    // reject the envelope and the client would never get the proposalId.
+    expect(guarded!.outputSchema).toBeUndefined()
   })
 })

@@ -18,15 +18,19 @@ export interface AuditEntry {
 }
 
 /**
- * Keeps only id-like and query-like fields; everything else is redacted. The
- * match is a suffix, so camelCase (`movieId`) and snake_case (`movie_id`) both
- * count.
+ * Keeps only id-like fields; everything else is redacted. The match is a
+ * suffix, so camelCase (`movieId`) and snake_case (`movie_id`) both count.
+ *
+ * Free-text fields such as `query`/`q` are intentionally excluded: a query
+ * string is not id-like and can carry a secret (for example
+ * `ALTER USER alice PASSWORD 'x'`). Retain one only through an explicit
+ * per-tool allowlist that documents its safe content.
  */
-const KEEP = /(id|ids|query|q|name|title|kind|type|scope|origin)$/i
+const KEEP = /(id|ids|name|title|kind|type|scope|origin)$/i
 
 /**
- * Redacts tool input to id-like and query-like fields. A non-object becomes a
- * type tag. This keeps a useful trail without storing a secret value.
+ * Redacts tool input to id-like fields. A non-object becomes a type tag. This
+ * keeps a useful trail without storing a secret value.
  */
 export function redactArgs(args: unknown): unknown {
   if (args === null || typeof args !== 'object') {
@@ -61,8 +65,7 @@ export function createAuditLog(options: {
   now?: () => number
 }): AuditLog {
   const now = options.now ?? (() => Date.now())
-  // Prune and ensure the directory on first write, once.
-  const ready = (async () => {
+  const init = async () => {
     await mkdir(dirname(options.path), { recursive: true }).catch(() => {})
     if (options.retentionDays === undefined) return
     const cutoff = now() - options.retentionDays * 86_400_000
@@ -84,10 +87,16 @@ export function createAuditLog(options: {
         }
       })
     await writeFile(options.path, kept.length ? kept.join('\n') + '\n' : '')
-  })()
+  }
+  // Prune and ensure the directory once, lazily on the first `record`. Running
+  // init eagerly here would leave its rejection unhandled until a later
+  // `record` awaits it, which can crash the process on Node's default handler.
+  // A failure is preserved and surfaced to the caller of `record`.
+  let ready: Promise<void> | undefined
 
   return {
     record: async (entry) => {
+      ready ??= init()
       await ready
       const line = JSON.stringify({
         time: now(),

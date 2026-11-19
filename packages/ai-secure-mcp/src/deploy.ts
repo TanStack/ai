@@ -57,10 +57,10 @@ export function preflight(input: PreflightInput): PreflightResult {
  * @param options.port - The local port the server listens on
  * @param options.public - Use Funnel (public) instead of Serve (tailnet-only)
  */
-export function tailscaleCommand(options: {
-  port: number
-  public?: boolean
-}): { command: string; note: string } {
+export function tailscaleCommand(options: { port: number; public?: boolean }): {
+  command: string
+  note: string
+} {
   const target = `http://127.0.0.1:${options.port}`
   if (options.public === true) {
     return {

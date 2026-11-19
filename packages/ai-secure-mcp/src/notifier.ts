@@ -28,6 +28,25 @@ export function silentNotifier(): SecurityNotifier {
 }
 
 /**
+ * Wraps a notifier so a rejected `notify` can never surface as an unhandled
+ * rejection. A notification is best-effort: a custom notifier that throws or
+ * rejects must not crash the request path, which on Node's default handler an
+ * unhandled rejection can do. Notification failures stay separate from the
+ * request's own outcome.
+ */
+export function safeNotifier(inner: SecurityNotifier): SecurityNotifier {
+  return {
+    notify: async (event) => {
+      try {
+        await inner.notify(event)
+      } catch {
+        // swallow: a down notifier must not break the request path.
+      }
+    },
+  }
+}
+
+/**
  * A notifier that pushes to an [ntfy](https://ntfy.sh) topic. Zero infra: the
  * body is the event summary. No secret or token is ever in the body.
  *

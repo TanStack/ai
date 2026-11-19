@@ -61,4 +61,32 @@ describe('createApprovalStore', () => {
     })
     expect(store.pendingCount()).toBe(0)
   })
+
+  it('prunes expired proposals without a confirm, so the map cannot grow', () => {
+    let t = 0
+    const store = createApprovalStore({
+      ttlMs: 100,
+      now: () => t,
+      newId: fixedIds(),
+    })
+    store.propose({ owner: 'a', summary: 's', run: async () => 1 })
+    store.propose({ owner: 'a', summary: 's', run: async () => 1 })
+    expect(store.pendingCount()).toBe(2)
+    // Advance past the ttl. No one confirms the expired ids.
+    t = 101
+    // pendingCount prunes, so the stale proposals and their closures are gone.
+    expect(store.pendingCount()).toBe(0)
+    // A later propose also prunes first, so it starts from a clean map.
+    store.propose({ owner: 'a', summary: 's', run: async () => 1 })
+    expect(store.pendingCount()).toBe(1)
+  })
+
+  it('bounds the number of pending proposals', () => {
+    const store = createApprovalStore({ maxPending: 2, newId: fixedIds() })
+    store.propose({ owner: 'a', summary: '1', run: async () => 1 })
+    store.propose({ owner: 'a', summary: '2', run: async () => 2 })
+    store.propose({ owner: 'a', summary: '3', run: async () => 3 })
+    // The oldest was evicted to stay within the bound.
+    expect(store.pendingCount()).toBe(2)
+  })
 })

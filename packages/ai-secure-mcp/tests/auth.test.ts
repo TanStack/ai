@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { SecureMcpError } from '../src/types'
-import { bearerToken, constantTimeEqual, hashToken, verifyToken } from '../src/auth'
+import {
+  bearerToken,
+  constantTimeEqual,
+  hashToken,
+  verifyToken,
+} from '../src/auth'
 import type { ClientRecord } from '../src/types'
 
 const client: ClientRecord = {
@@ -30,9 +35,12 @@ describe('constantTimeEqual', () => {
 })
 
 describe('bearerToken', () => {
-  it('reads a Bearer token and ignores other shapes', () => {
+  it('reads a Bearer token across case and spacing, ignores other shapes', () => {
     expect(bearerToken('Bearer xyz')).toBe('xyz')
-    expect(bearerToken(' Bearer  xyz ')).toBe(' xyz')
+    // The scheme is case-insensitive and allows extra separator spaces.
+    expect(bearerToken('bearer xyz')).toBe('xyz')
+    expect(bearerToken('Bearer  xyz')).toBe('xyz')
+    expect(bearerToken(' Bearer  xyz ')).toBe('xyz')
     expect(bearerToken('Basic xyz')).toBeUndefined()
     expect(bearerToken(null)).toBeUndefined()
   })

@@ -27,7 +27,7 @@ It wraps your server with:
 
 - **Hashed-token auth** — bearer tokens stored as SHA-256 hashes, constant-time compare.
 - **Scopes and a target allowlist** — a token holds scopes; a scope can be narrowed to named resources.
-- **Deny-by-default egress** — one allowlisted `egress` capability, no generic `fetch`.
+- **Deny-by-default egress helper** — one allowlisted `egress` capability a tool uses on purpose. It is not an enforced network boundary: a tool that calls global `fetch` still reaches the network. For enforced isolation, run the server behind a separate execution or network boundary.
 - **Rate limits** — a per-client sliding window.
 - **A redacted audit log** — append-only JSONL, args redacted to id-like fields, no secrets.
 - **A tripwire notifier** — push a signal to your phone when someone pokes at the server.
@@ -83,8 +83,12 @@ the command to expose the server when you pass `funnel`.
 
 ## Reaching the network from a tool
 
-A tool receives the `egress` capability on `ctx.context`. It is the only way to
-the network, and it refuses any origin not on the allowlist.
+A tool receives the `egress` capability on `ctx.context`. A tool must use it on
+purpose; it then refuses any origin not on the allowlist. It is not an enforced
+boundary: a tool that calls global `fetch` directly bypasses `egress` and its
+allowlist. Write tools to reach the network only through `ctx.context.egress`,
+and run the server behind a separate execution or network boundary when you need
+enforced confinement.
 
 ```typescript
 import { toolDefinition } from '@tanstack/ai'
@@ -116,14 +120,20 @@ so a crash cannot leave a ghost approval.
 
 ## Secure defaults
 
-| Concern | Default | Footgun it prevents |
-| --- | --- | --- |
-| Egress | deny-by-default allowlist | a tool exfiltrating data |
-| Generic HTTP | not injectable | SSRF through a "helpful" tool |
-| Tokens | hash-only, constant-time | replay from a leaked store |
-| Secrets | never in the audit log or a notification | prompt/response exfiltration |
-| Approval state | in memory, fail-closed on restart | a ghost approval after a crash |
-| Exposure | tailnet-only unless you opt into a public funnel | accidental internet |
+| Concern        | Default                                          | Footgun it prevents                                                            |
+| -------------- | ------------------------------------------------ | ------------------------------------------------------------------------------ |
+| Egress helper  | deny-by-default allowlist                        | a tool exfiltrating data _when it uses `ctx.context.egress`_                   |
+| Generic HTTP   | not injected into the context                    | SSRF through a "helpful" tool _that reaches the network only through `egress`_ |
+| Tokens         | hash-only, constant-time                         | replay from a leaked store                                                     |
+| Secrets        | never in the audit log or a notification         | prompt/response exfiltration                                                   |
+| Approval state | in memory, fail-closed on restart                | a ghost approval after a crash                                                 |
+| Exposure       | tailnet-only unless you opt into a public funnel | accidental internet                                                            |
+
+The egress allowlist is a helper, not an enforced boundary. It stops
+exfiltration and SSRF only for a tool that reaches the network through
+`ctx.context.egress`; a tool that calls global `fetch` bypasses it. Enforced
+network confinement needs a separate execution or network boundary around the
+server.
 
 The preflight refuses a public funnel while a token is unhashed, egress is open,
 or the audit log or notifier is off. The funnel URL is not a secret: auth stands

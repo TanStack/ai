@@ -4,7 +4,7 @@ import { createApprovalStore } from './approval'
 import { createAuditLog } from './audit'
 import { createEgress } from './egress'
 import { createConfirmTool, guardTools } from './guard'
-import { silentNotifier } from './notifier'
+import { safeNotifier, silentNotifier } from './notifier'
 import { createRateLimiter } from './rate-limit'
 import { preflight, tailscaleCommand } from './deploy'
 import { SecureMcpError } from './types'
@@ -13,11 +13,7 @@ import type { AnyServerTool } from '@tanstack/ai'
 import type { SampleRequest } from '@tanstack/ai-mcp/server'
 import type { AuditLog } from './audit'
 import type { PreflightResult } from './deploy'
-import type {
-  AccessPolicy,
-  ClientRecord,
-  SecurityNotifier,
-} from './types'
+import type { AccessPolicy, ClientRecord, SecurityNotifier } from './types'
 
 /** Config for {@link createSecureMcpServer}. */
 export interface SecureMcpConfig {
@@ -80,7 +76,9 @@ function jsonError(status: number, code: string, headers?: HeadersInit) {
 export function createSecureMcpServer(
   config: SecureMcpConfig,
 ): SecureMcpServer {
-  const notify = config.notify ?? silentNotifier()
+  // Wrap the notifier so a custom `notify` that rejects cannot become an
+  // unhandled rejection on any of the fire-and-forget (`void`) call sites.
+  const notify = safeNotifier(config.notify ?? silentNotifier())
   const audit: AuditLog | undefined =
     config.audit === false || config.audit === undefined
       ? undefined

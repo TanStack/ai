@@ -36,14 +36,20 @@ describe('ntfyNotifier', () => {
         throw new Error('down')
       },
     })
-    await expect(boom.notify({ kind: 'rate_limited', client: 'y' })).resolves.toBeUndefined()
+    await expect(
+      boom.notify({ kind: 'rate_limited', client: 'y' }),
+    ).resolves.toBeUndefined()
   })
 })
 
 describe('debounceNotifier', () => {
   it('suppresses repeats of the same kind+client within the window', async () => {
     let calls = 0
-    const inner: SecurityNotifier = { notify: async () => { calls += 1 } }
+    const inner: SecurityNotifier = {
+      notify: async () => {
+        calls += 1
+      },
+    }
     let t = 0
     const n = debounceNotifier(inner, 1000, () => t)
     const ev: SecurityEvent = { kind: 'auth_failure', client: 'a' }
@@ -57,7 +63,11 @@ describe('debounceNotifier', () => {
 
   it('does not suppress different clients', async () => {
     let calls = 0
-    const inner: SecurityNotifier = { notify: async () => { calls += 1 } }
+    const inner: SecurityNotifier = {
+      notify: async () => {
+        calls += 1
+      },
+    }
     const n = debounceNotifier(inner, 1000, () => 0)
     await n.notify({ kind: 'forbidden_scope', client: 'a', tool: 't' })
     await n.notify({ kind: 'forbidden_scope', client: 'b', tool: 't' })
