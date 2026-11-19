@@ -164,7 +164,10 @@ function toGeminiQuestions(
   for (const [key, question] of Object.entries(questions)) {
     const instructions = toGeminiInstructions(question.instructions)
     if (question.type === 'choice') {
-      const criteria: Record<string, string> = {}
+      // A null-prototype map so a caller option literally named `__proto__`
+      // (the core `choice()` helper preserves option keys) becomes an own data
+      // property instead of invoking the inherited `__proto__` setter.
+      const criteria: Record<string, string> = Object.create(null)
       for (const [option, description] of Object.entries(question.criteria)) {
         criteria[option] = description ?? ''
       }
@@ -242,7 +245,10 @@ export class GeminiEvaluateAdapter<
         },
         body: JSON.stringify({
           model,
-          input: state,
+          // The Decisions API `input` is a string. The shared `EvaluateState`
+          // permits JSON objects/arrays, so a non-string state is stringified
+          // while a plain string passes through unchanged.
+          input: typeof state === 'string' ? state : JSON.stringify(state),
           questions: toGeminiQuestions(questions),
         }),
         ...(abortSignal ? { signal: abortSignal } : {}),

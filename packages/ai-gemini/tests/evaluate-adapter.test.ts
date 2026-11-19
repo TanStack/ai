@@ -257,6 +257,79 @@ describe('GeminiEvaluateAdapter', () => {
     )
   })
 
+  it('serializes object and array state to a JSON string input', async () => {
+    const objectState = { subject: 'Payouts failing', priority: 'high' }
+    const arrayState = ['Payouts failing', 'for 3 days']
+
+    for (const value of [objectState, arrayState]) {
+      fetchMock.mockReset()
+      fetchMock.mockResolvedValue(
+        jsonResponse({
+          model: 'gemini-decision-1',
+          answers: { pick: { type: 'noul', noul: 0.5 } },
+          usage: {
+            total_input_tokens: 1,
+            total_output_tokens: 0,
+            total_tokens: 1,
+          },
+        }),
+      )
+
+      await decide({
+        adapter: adapter(),
+        state: value,
+        questions: {
+          pick: boolean({ instructions: 'Yes or no?' }),
+        },
+      })
+
+      const { body } = await capturedRequest()
+      // Gemini's `input` is a string; structured state is JSON-stringified.
+      expect(body.input).toBe(JSON.stringify(value))
+    }
+  })
+
+  it('preserves a choice option literally named __proto__', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        model: 'gemini-decision-1',
+        answers: {
+          team: {
+            type: 'choice',
+            choice: 'other',
+            probabilities: { other: 1 },
+            confidence: 0.6,
+          },
+        },
+        usage: {
+          total_input_tokens: 1,
+          total_output_tokens: 0,
+          total_tokens: 1,
+        },
+      }),
+    )
+
+    await decide({
+      adapter: adapter(),
+      state,
+      questions: {
+        team: choice({
+          instructions: 'Which team?',
+          options: { ['__proto__']: null, other: 'The other team' },
+        }),
+      },
+    })
+
+    const { body } = await capturedRequest()
+    // `__proto__` survives as an own property, not swallowed by the setter.
+    expect(Object.keys(body.questions.team.criteria)).toEqual([
+      '__proto__',
+      'other',
+    ])
+    expect(body.questions.team.criteria['__proto__']).toBe('')
+    expect(body.questions.team.criteria.other).toBe('The other team')
+  })
+
   it('throws with status on a non-OK response', async () => {
     fetchMock.mockResolvedValue(
       new Response('bad request', { status: 400, statusText: 'Bad Request' }),
