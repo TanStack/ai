@@ -5,6 +5,7 @@ import {
   isTerminalRunStatus,
 } from './activities/chat/middleware/run-store'
 import { wasRunDetached } from './delivery-detach'
+import { wasRunCompleted } from './delivery-completion'
 import { notifyRunDisconnected } from './delivery-disconnect'
 import { resolveResumeRunId } from './stream-durability'
 import { EventType } from './types'
@@ -715,14 +716,12 @@ export function durableStreamSource<TOffset extends string>(
 
   async function* produce(): AsyncIterable<StreamChunk> {
     let batch: Array<StreamChunk> = []
-    let terminalPersisted = false
-    // Whether a terminal event was actually delivered LIVE to the consumer (as
-    // opposed to only appended to the log). Distinguishes "the run already ended
-    // on the wire" from "the log has a terminal but the consumer never saw one",
-    // which governs whether a late durability-cleanup failure may be rethrown.
-    // Only ever assigned inside the nested flush() closure, which TS's
-    // control-flow analysis can't observe (see the disable at the read site).
-    let terminalForwarded = false
+    // A persisted terminal need not have reached the live consumer. Chat
+    // iteration terminals are provisional until the engine ends the run.
+    const terminals: {
+      persisted?: 'RUN_FINISHED' | 'RUN_ERROR'
+      forwarded?: 'RUN_FINISHED' | 'RUN_ERROR'
+    } = {}
     let failure: RecordedFailure | undefined
     let terminalCause: unknown
     let hasTerminalCause = false
@@ -756,17 +755,14 @@ export function durableStreamSource<TOffset extends string>(
         validateOffset(offset)
         idByChunk.set(chunk, offset)
       })
-      if (
-        toForward.some(
-          (chunk) =>
-            chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR',
-        )
-      ) {
-        terminalPersisted = true
+      for (const chunk of toForward) {
+        if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+          terminals.persisted = chunk.type
+        }
       }
       for (const chunk of toForward) {
         if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
-          terminalForwarded = true
+          terminals.forwarded = chunk.type
         }
         yield chunk
       }
@@ -908,7 +904,7 @@ export function durableStreamSource<TOffset extends string>(
       // What is ALREADY IN THE LOG is deliberately NOT a conjunct. An agent-loop
       // run emits one `RUN_FINISHED` PER ITERATION — the intermediate
       // `finishReason: 'tool_calls'` terminal is flushed at its boundary
-      // mid-run — so `terminalPersisted` means "some terminal is in the log",
+      // mid-run — so `terminals.persisted` means "some terminal is in the log",
       // never "the run ended". Gating on it terminalized the log of a healthy,
       // still-running agent for every tool-calling run. Nor can the sink
       // distinguish a final terminal from an intermediate one by its
@@ -922,6 +918,11 @@ export function durableStreamSource<TOffset extends string>(
         !hasTerminalCause &&
         wasRunDetached(stream)
 
+      const completed = wasRunCompleted(stream) !== false
+      const terminalPersisted =
+        terminals.persisted === 'RUN_ERROR' ||
+        (terminals.persisted === 'RUN_FINISHED' && completed)
+
       if (
         !detached &&
         needsTerminalPersistence(terminalPersisted, cancelled, hasTerminalCause)
@@ -933,7 +934,6 @@ export function durableStreamSource<TOffset extends string>(
         const cause = hasTerminalCause ? terminalCause : { name: 'AbortError' }
         try {
           await durability.append([runErrorChunk(cause)])
-          terminalPersisted = true
         } catch (terminalError) {
           // Rethrown to the live consumer below, but a joiner replaying the log
           // only ever sees a generic incomplete error — so record the real
@@ -982,7 +982,9 @@ export function durableStreamSource<TOffset extends string>(
       // provider that throws AFTER emitting its own terminal, whose error is
       // otherwise neither delivered nor logged.)
       if (failure !== undefined) {
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- terminalForwarded is set only inside the flush() closure, which TS CFA narrows away here
+        const terminalForwarded =
+          terminals.forwarded === 'RUN_ERROR' ||
+          (terminals.forwarded === 'RUN_FINISHED' && completed)
         if (!terminalForwarded) {
           // eslint-disable-next-line no-unsafe-finally
           throw failure.error
