@@ -6,7 +6,7 @@
  */
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { access, readFile, writeFile } from 'node:fs/promises'
+import { access, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { delimiter, extname, join, posix } from 'node:path'
 import { stripVTControlCharacters } from 'node:util'
 import type { SandboxHandle } from './contracts'
@@ -330,8 +330,16 @@ export async function mountHostLogin(
     mount = mounts.get(key)
   }
   if (mount === undefined) {
-    mount = { runs: 0, borrowed: borrowHostLogin(sandbox, options) }
+    mount = {
+      runs: 0,
+      hostPath: options.hostPath,
+      borrowed: borrowHostLogin(sandbox, options),
+    }
     mounts.set(key, mount)
+  } else if (mount.hostPath !== options.hostPath) {
+    throw new Error(
+      `The ${options.label} login in this sandbox is from ${mount.hostPath}, not ${options.hostPath}. Use one login file for each sandbox.`,
+    )
   }
   const shared = mount
   shared.runs += 1
@@ -343,6 +351,8 @@ export async function mountHostLogin(
     if (shared.runs === 0 && mounts.get(key) === shared) mounts.delete(key)
     throw error
   }
+  // A login that a durable run kept can still be in use. Do not remove it.
+  if (borrowed.kept) shared.keep = true
   let isReleased = false
   return {
     /** `keep: true` leaves the login in the sandbox for a host that attaches. */
@@ -376,10 +386,14 @@ interface HostLoginMountOptions {
   adopt?: boolean
 }
 
-/** The sandbox path of the login and the host content that was copied. */
+/**
+ * The sandbox path of the login and the host content that was copied.
+ * `kept`: a run found a login that a durable run kept, and shares it.
+ */
 interface BorrowedLogin {
   path: string
   content: string
+  kept?: boolean
 }
 
 /** The mounts in use, by sandbox and login file. */
@@ -387,6 +401,7 @@ const mounts = new Map<
   string,
   {
     runs: number
+    hostPath: string
     borrowed: Promise<BorrowedLogin>
     released?: Promise<void>
     keep?: boolean
@@ -430,6 +445,15 @@ async function borrowHostLogin(
         : await readHostFile(hostPath)) ?? (await sandbox.fs.read(path))
     return { path, content }
   }
+  // The sidecar is there only while a login that a durable run kept is in
+  // the sandbox. Share that login, which can hold a refreshed token.
+  // ponytail: it stays until a host attaches to that run, or the sandbox goes.
+  if (await sandbox.fs.exists(baselinePath)) {
+    if (await sandbox.fs.exists(path)) {
+      return { path, content: await sandbox.fs.read(baselinePath), kept: true }
+    }
+    await sandbox.fs.remove(baselinePath)
+  }
   const content = await readHostFile(hostPath)
   if (content === undefined) {
     throw new Error(`No ${label} login on this machine. Run ${connectCommand}.`)
@@ -456,14 +480,34 @@ async function returnHostLogin(
   hostPath: string,
   { path, content }: BorrowedLogin,
 ): Promise<void> {
-  try {
+  const copyBack = async () => {
     const after = await sandbox.fs.read(path)
     if (after === content) return
     // A sign-in on the host during the run is newer. Keep it.
     const hostNow = await readFile(hostPath, 'utf8').catch(() => undefined)
-    if (hostNow === content) await writeFile(hostPath, after, { mode: 0o600 })
-  } finally {
-    await sandbox.fs.remove(path)
-    await sandbox.fs.remove(hostBaselinePath(path)).catch(() => undefined)
+    if (hostNow === content) await replaceHostFile(hostPath, after)
+  }
+  const [copied] = await Promise.allSettled([copyBack()])
+  // Try both removals. The error of the login file wins.
+  const [login] = await Promise.allSettled([
+    sandbox.fs.remove(path),
+    sandbox.fs.remove(hostBaselinePath(path)),
+  ])
+  if (login.status === 'rejected') throw login.reason
+  if (copied.status === 'rejected') throw copied.reason
+}
+
+/**
+ * Write the whole file next to the login, then rename it over the login. A
+ * run that copies the login at the same time never reads half a file.
+ */
+async function replaceHostFile(hostPath: string, content: string) {
+  const temp = `${hostPath}.${process.pid}.${Date.now()}.tmp`
+  try {
+    await writeFile(temp, content, { mode: 0o600 })
+    await rename(temp, hostPath)
+  } catch (error) {
+    await rm(temp, { force: true })
+    throw error
   }
 }

@@ -132,13 +132,15 @@ For each run, the adapter does this:
 
 So a sandbox that stays alive, or a snapshot of it, does not keep the login. On a local-process sandbox, nothing is copied: the CLI reads the file of the machine.
 
-Runs on the same sandbox share one copy. The last run to end deletes it.
+Runs on the same sandbox share one copy. The last run to end deletes it. The count is kept in one server process, so run all the runs of one sandbox from one server.
 
 A [durable run](./durable-runs) is different, because its agent can run on after the host stops:
 
 - When the host stops reading before the agent ends, the login stays in the sandbox, so the agent can keep working.
 - The host that attaches to the run uses that login, and deletes it when the run ends.
-- If no host attaches, the login stays in the sandbox until the next run there ends.
+- If the agent refreshed the token, the attaching host writes it to the machine. If you signed in again on the machine before the attach, it keeps your new login.
+- A new run on that sandbox shares the kept login, and does not delete it.
+- If no host attaches, the login stays in the sandbox until you destroy the sandbox.
 
 The login files:
 

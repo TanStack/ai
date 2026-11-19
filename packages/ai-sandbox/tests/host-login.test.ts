@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -339,10 +339,59 @@ describe('mountHostLogin', () => {
     const login = await mountWith(sandbox)
     await login.release({ keep: true })
     expect(files.get(SANDBOX_FILE)).toBe('{"token":"old"}')
-    // The next run copies the host login again, and removes it at its end.
+    // The kept run refreshes its token. A new run shares that login, and
+    // leaves it for the kept run.
+    files.set(SANDBOX_FILE, '{"token":"refreshed"}')
     const next = await mountWith(sandbox)
+    expect(files.get(SANDBOX_FILE)).toBe('{"token":"refreshed"}')
     await next.release()
+    expect(files.get(SANDBOX_FILE)).toBe('{"token":"refreshed"}')
+    // The host that attaches to the kept run removes it at the end.
+    const attach = await mountWith(sandbox, { adopt: true })
+    await attach.release()
     expect(files.has(SANDBOX_FILE)).toBe(false)
+    expect(await readFile(join(dir, 'auth.json'), 'utf8')).toBe(
+      '{"token":"refreshed"}',
+    )
+  })
+
+  it('rejects a second mount with another host login file on one sandbox', async () => {
+    const { sandbox } = fakeSandbox()
+    const first = await mountWith(sandbox)
+    await expect(
+      mountHostLogin(sandbox, {
+        hostPath: join(dir, 'other-auth.json'),
+        sandboxHomePath: '.codex/auth.json',
+        label: 'Codex',
+        connectCommand: '/connect:codex',
+      }),
+    ).rejects.toThrow(/Use one login file for each sandbox/)
+    await first.release()
+  })
+
+  it('removes the saved copy when removing the login fails', async () => {
+    const { sandbox, files } = fakeSandbox()
+    const baseRemove = sandbox.fs.remove
+    sandbox.fs.remove = (path) =>
+      path === SANDBOX_FILE
+        ? Promise.reject(new Error('remove failed'))
+        : baseRemove(path)
+    const login = await mountWith(sandbox)
+    await expect(login.release()).rejects.toThrow('remove failed')
+    expect(files.has(`${SANDBOX_FILE}.tanstack-host`)).toBe(false)
+  })
+
+  it('replaces the host login file in one step and leaves no temp file', async () => {
+    const { sandbox, files } = fakeSandbox()
+    const login = await mountWith(sandbox)
+    files.set(SANDBOX_FILE, '{"token":"new"}')
+    await login.release()
+    expect(await readFile(join(dir, 'auth.json'), 'utf8')).toBe(
+      '{"token":"new"}',
+    )
+    expect(
+      (await readdir(dir)).filter((name) => name.endsWith('.tmp')),
+    ).toEqual([])
   })
 
   it('keeps the login when a shared run releases with keep before the last release', async () => {

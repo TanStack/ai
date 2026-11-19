@@ -117,11 +117,15 @@ import { createHarnessHost, membersOnly } from '@tanstack/ai-harness'
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 
+// A long random secret. The UI sends the same one.
+const token = process.env.HARNESS_TOKEN
+
 const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
+    // With no token set, nobody gets in.
     getUser: ({ request }) =>
-      request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
+      token && request.headers.get('authorization') === `Bearer ${token}`
         ? { id: 'me' }
         : null,
     rules: membersOnly(),
@@ -131,7 +135,7 @@ const host = createHarnessHost({
 export const handler = createHarnessHandler({ host, harness: lead })
 ```
 
-The plan login belongs to the machine, so let only the user of the machine in. See [Access and tenants](./access).
+The plan login belongs to the machine, so let only the user of the machine in. Set `HARNESS_TOKEN` on the server, and give the UI the same value. See [Access and tenants](./access).
 
 Then listen for `signIn` on the session view, and run the exposed command:
 
