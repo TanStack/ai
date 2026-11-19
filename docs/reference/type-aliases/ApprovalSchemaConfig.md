@@ -18,4 +18,4 @@ type ApprovalSchemaConfig =
 };
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:32](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L32)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:33](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L33)

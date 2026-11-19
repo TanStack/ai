@@ -9,7 +9,7 @@ title: mergeMetadata
 function mergeMetadata(current, incoming): MetadataRecord | undefined;
 ```
 
-Defined in: [packages/ai/src/utilities/merge-metadata.ts:12](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/merge-metadata.ts#L12)
+Defined in: [packages/ai/src/utilities/merge-metadata.ts:37](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/merge-metadata.ts#L37)
 
 ## Parameters
 
