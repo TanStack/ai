@@ -1516,7 +1516,9 @@ function withReservedMetadataOnly<
  * Removes the app metadata of tool results from the UIMessages that a
  * `ChatFetcher` or a `stream()` factory gets. Same rule as the wire rows of a connection adapter.
  */
-function withoutAppResultMetadata(messages: Array<UIMessage>) {
+function withoutAppResultMetadata(
+  messages: Array<UIMessage>,
+): Array<UIMessage> {
   return messages.map((message) => ({
     ...message,
     parts: message.parts.map((part) => {
