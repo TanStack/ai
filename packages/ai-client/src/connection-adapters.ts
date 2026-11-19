@@ -12,10 +12,12 @@ import {
 } from './response-stream'
 import { parseSseDataLine } from './sse-utils'
 import type {
+  AnyClientTool,
   ModelMessage,
   RunAgentInput,
   RunAgentResumeItem,
   RunErrorEvent,
+  SchemaInput,
   StreamChunk,
   UIMessage,
 } from '@tanstack/ai/client'
@@ -1002,6 +1004,22 @@ export interface RunAgentInputContext {
   forwardedProps?: Record<string, unknown>
   /** Extra request headers for this run (e.g. BYOK keys). POST only. */
   headers?: Record<string, string>
+  /** The chat config of this run. See {@link ChatRunConfig}. */
+  config?: ChatRunConfig
+}
+
+/**
+ * The chat config that the client gives the connection, so an adapter needs
+ * no copy of it. `connect` gets it as `runContext.config`, and `joinRun` gets
+ * it as its third argument. Fields are only added, never removed.
+ */
+export interface ChatRunConfig {
+  /** The chat `threadId`. */
+  threadId: string
+  /** The client tools, as passed to `useChat({ tools })`. */
+  tools: ReadonlyArray<AnyClientTool>
+  /** The schema passed to `useChat({ outputSchema })`. */
+  outputSchema?: SchemaInput
 }
 
 export interface ConnectConnectionAdapter {
@@ -1043,6 +1061,7 @@ export interface ConnectConnectionAdapter {
   joinRun?: (
     runId: string,
     abortSignal?: AbortSignal,
+    config?: ChatRunConfig,
   ) => AsyncIterable<StreamChunk>
   /**
    * Fetch server-driven hydration for a chat `threadId`: the stored transcript
@@ -1142,6 +1161,7 @@ export interface ResumableConnectConnectionAdapter extends ConnectConnectionAdap
   joinRun: (
     runId: string,
     abortSignal?: AbortSignal,
+    config?: ChatRunConfig,
   ) => AsyncIterable<StreamChunk>
   /**
    * Fetch server-authoritative hydration for `threadId`: the stored transcript,
@@ -1181,6 +1201,7 @@ export interface SubscribeConnectionAdapter {
   joinRun?: (
     runId: string,
     abortSignal?: AbortSignal,
+    config?: ChatRunConfig,
   ) => AsyncIterable<StreamChunk>
   /**
    * Server-authoritative hydration for a thread (transcript + in-flight-run
@@ -1397,10 +1418,15 @@ export function normalizeConnectionAdapter(
     ...(typeof (connection as ResumableConnectConnectionAdapter).joinRun ===
     'function'
       ? {
-          joinRun: (runId: string, abortSignal?: AbortSignal) =>
+          joinRun: (
+            runId: string,
+            abortSignal?: AbortSignal,
+            config?: ChatRunConfig,
+          ) =>
             (connection as ResumableConnectConnectionAdapter).joinRun(
               runId,
               abortSignal,
+              config,
             ),
         }
       : {}),

@@ -88,7 +88,8 @@ describe('AI SDK server, TanStack client: client features', () => {
     const partials: Array<unknown> = []
     const client = new ChatClient({
       threadId: 'thread-1',
-      connection: fromChatTransport(transport, { outputSchema: recipe }),
+      outputSchema: recipe,
+      connection: fromChatTransport(transport),
       onMessagesChange: (messages) => {
         const part = messages
           .at(-1)

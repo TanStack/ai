@@ -100,7 +100,7 @@ describe('TanStack client, AI SDK route: resume', () => {
         setItem: () => {},
         removeItem: () => {},
       },
-      connection: fromChatTransport(transport, { threadId: 'chat-1' }),
+      connection: fromChatTransport(transport),
     })
 
     client.attach()
@@ -133,7 +133,7 @@ describe('TanStack client, AI SDK route: resume', () => {
         setItem: (_id, state) => void writes.push(state),
         removeItem: () => {},
       },
-      connection: fromChatTransport(transport, { threadId: 'chat-1' }),
+      connection: fromChatTransport(transport),
     })
 
     client.attach()

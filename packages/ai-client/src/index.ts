@@ -187,6 +187,7 @@ export {
   type ReconnectOptions,
   type ResumableConnectConnectionAdapter,
   type RunAgentInputContext,
+  type ChatRunConfig,
   type StreamConnectionHandlers,
   type SubscribeConnectionAdapter,
   type WebSocketConnectionOptions,

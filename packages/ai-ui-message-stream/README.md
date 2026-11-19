@@ -86,7 +86,7 @@ export function Chat() {
 | `toResumableUIMessageStreamResponse(stream, durability)`                     | A `chat()` run that AI SDK `useChat({ resume: true })` can rejoin              |
 | `resumeUIMessageStreamResponse(durability)`                                  | The AI SDK resume `GET`                                                        |
 | `toChatTransport(connection)`                                                | A TanStack connection to an AI SDK `ChatTransport`, for a plain `chat()` route |
-| `fromChatTransport(transport, { threadId, tools, outputSchema, reconnect })` | AI SDK `ChatTransport` to a TanStack `useChat` connection                      |
+| `fromChatTransport(transport, { reconnect })`                                | AI SDK `ChatTransport` to a TanStack `useChat` connection                      |
 | `clientToolsFromAISDKBody(body, serverTools)`                                | On an AI SDK route: the client tools of the request, plus the server tools     |
 | `fromAISDKMessages` / `toAISDKMessages`                                      | Message history in each direction                                              |
 | `fromUIMessageStream(stream, { threadId, runId, tools, outputSchema })`      | AI SDK UI message stream to TanStack events                                    |

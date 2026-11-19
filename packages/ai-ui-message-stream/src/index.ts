@@ -2,6 +2,7 @@ import { modelMessagesToUIMessages } from '@tanstack/ai'
 import type { ModelMessage, UIMessage } from '@tanstack/ai'
 import { createReconnectTracker } from '@tanstack/ai-client'
 import type {
+  ChatRunConfig,
   ConnectConnectionAdapter,
   ReconnectOptions,
 } from '@tanstack/ai-client'
@@ -13,7 +14,6 @@ import type {
 } from 'ai'
 import { toAISDKMessages } from './messages'
 import { fromUIMessageStream } from './stream'
-import type { FromUIMessageStreamOptions } from './stream'
 
 export { fromAISDKMessages, toAISDKMessages } from './messages'
 export type { AISDKApprovalFields, AISDKToolCallMetadata } from './messages'
@@ -130,16 +130,7 @@ function reconnecting(
 }
 
 /** Options for {@link fromChatTransport}. */
-export interface FromChatTransportOptions extends Pick<
-  FromUIMessageStreamOptions,
-  'tools' | 'outputSchema'
-> {
-  /**
-   * The chat id, to rejoin a run after a page reload. The adapter has
-   * `joinRun` only when this is set and the transport replays the stream
-   * from its start (`resumeStreamIsReplay`).
-   */
-  threadId?: string
+export interface FromChatTransportOptions {
   /** Backoff and limits for reconnects after a dropped stream. */
   reconnect?: ReconnectOptions
 }
@@ -153,30 +144,31 @@ export interface FromChatTransportOptions extends Pick<
  * `sendMessage` goes in the request body, and per-run headers go on the
  * request.
  *
+ * The adapter reads `threadId`, `tools` and `outputSchema` from the
+ * `useChat` config, so do not pass them again:
+ *
+ * - A tool approval for a tool with `needsApproval: true` is a
+ *   `tool-approval` interrupt that `resolveInterrupt(true)` answers.
+ * - With `outputSchema`, the `Output.object({ schema })` answer of the route
+ *   is a typed `structured-output` part.
+ * - The client's tools (JSON Schema) go in the body as `clientTools`. Read
+ *   them on the route with `clientToolsFromAISDKBody`, so the route needs no
+ *   copy.
+ *
  * When the stream drops, the adapter reconnects with
  * `transport.reconnectToStream` and continues the run, with the same backoff
- * as the TanStack HTTP connections (`reconnect` sets it). Set `threadId` to also
- * rejoin a run after a page reload (`joinRun`), with a chat `persistence`
- * adapter on the client. For that, the transport must replay the stream from
- * its start (`resumeStreamIsReplay`, true for `DefaultChatTransport`).
- *
- * Pass the same `tools` as `useChat({ tools })`, so a tool approval is a
- * `tool-approval` interrupt that `resolveInterrupt(true)` answers.
- *
- * Pass the same `outputSchema` as `useChat({ outputSchema })` when the route
- * uses `Output.object({ schema })`, so the answer is a typed
- * `structured-output` part.
- *
- * The client's tools (JSON Schema) go in the body as `clientTools`. Read them
- * on the route with `clientToolsFromAISDKBody`, so the route needs no copy.
+ * as the TanStack HTTP connections (`reconnect` sets it). With a chat
+ * `persistence` adapter, it also rejoins a run after a page reload
+ * (`joinRun`). For that, the transport must replay the stream from its start
+ * (`resumeStreamIsReplay`, true for `DefaultChatTransport`).
  */
 export function fromChatTransport(
   transport: ChatTransport<AISDKUIMessage>,
-  { threadId, tools, outputSchema, reconnect }: FromChatTransportOptions = {},
+  { reconnect }: FromChatTransportOptions = {},
 ): ConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal, runContext) {
-      const { clientTools } = runContext
+      const { clientTools, config } = runContext
       const body = clientTools?.length ? { ...data, clientTools } : data
       const stream = await transport.sendMessages({
         trigger: 'submit-message',
@@ -198,27 +190,37 @@ export function fromChatTransport(
           },
           reconnect,
         ),
-        { ...runContext, tools, outputSchema },
+        {
+          threadId: runContext.threadId,
+          runId: runContext.runId,
+          tools: config?.tools,
+          outputSchema: config?.outputSchema,
+        },
       )
     },
     // A rejoin gets only the run id, and the AI SDK reconnects by chat id.
-    ...(threadId !== undefined &&
-      transport.resumeStreamIsReplay === true && {
-        async *joinRun(runId: string, abortSignal?: AbortSignal) {
-          const options = { chatId: threadId, abortSignal }
-          const stream = await transport.reconnectToStream(options)
-          // Thrown before the first event, so the client drops its resume pointer.
-          if (!stream) throw new Error(`No active stream for chat ${threadId}`)
-          yield* fromUIMessageStream(
-            reconnecting(transport, stream, options, reconnect),
-            {
-              threadId,
-              runId,
-              tools,
-              outputSchema,
-            },
-          )
-        },
-      }),
+    ...(transport.resumeStreamIsReplay === true && {
+      async *joinRun(
+        runId: string,
+        abortSignal?: AbortSignal,
+        config?: ChatRunConfig,
+      ) {
+        // Thrown before the first event, so the client drops its resume pointer.
+        if (!config) throw new Error('joinRun needs the chat config')
+        const options = { chatId: config.threadId, abortSignal }
+        const stream = await transport.reconnectToStream(options)
+        if (!stream)
+          throw new Error(`No active stream for chat ${config.threadId}`)
+        yield* fromUIMessageStream(
+          reconnecting(transport, stream, options, reconnect),
+          {
+            threadId: config.threadId,
+            runId,
+            tools: config.tools,
+            outputSchema: config.outputSchema,
+          },
+        )
+      },
+    }),
   }
 }

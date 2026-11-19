@@ -144,7 +144,7 @@ export async function POST(request: Request) {
 - A client tool has no `execute` on the route, so `streamText` stops at the call.
 - Browser tools from [WebMCP](../tools/webmcp) reach the route the same way.
 
-Pass the tools to `useChat`, and to `fromChatTransport` for approvals:
+Pass the tools to `useChat`. The connection gets them from `useChat`:
 
 - **Client tool:** give it a `.client()` implementation. When the route stops at the call, the client runs the tool and sends the output back.
 - **Tool approval:** declare the tool on the route with `needsApproval: true` and an `execute`, as `bookFlight` above. On the client, give it `needsApproval: true` and no implementation. The call shows up in `interrupts`. Resolve it with `interrupt.resolveInterrupt(true)` or `false`. The answer goes back to the route, and `streamText` runs or skips the tool.
@@ -173,7 +173,6 @@ const tools = [getLocation, bookFlight] as const
 
 const connection = fromChatTransport(
   new DefaultChatTransport({ api: '/api/chat' }),
-  { tools },
 )
 
 export function Chat() {
@@ -198,7 +197,7 @@ export function Chat() {
 
 ## 5. Get typed structured output
 
-When the route streams an object with `Output.object`, pass the same schema to `useChat` and to `fromChatTransport`. The answer is a `structured-output` part, with partial objects while it streams and the checked `data` at the end:
+When the route streams an object with `Output.object`, pass the same schema to `useChat` as `outputSchema`. The answer is a `structured-output` part, with partial objects while it streams and the checked `data` at the end:
 
 ```tsx
 import { useChat } from '@tanstack/ai-react'
@@ -210,7 +209,6 @@ const recipe = z.object({ name: z.string(), steps: z.array(z.string()) })
 
 const connection = fromChatTransport(
   new DefaultChatTransport({ api: '/api/recipe' }),
-  { outputSchema: recipe },
 )
 
 export function Recipe() {
@@ -268,30 +266,27 @@ A dropped connection needs nothing. The connection calls `reconnectToStream` on 
 
 A reply that ends before its `finish` chunk, for example at a proxy timeout, also reconnects. When the route has no resume `GET`, a dropped reply fails with its own error, and a reply that ended early stays as it is.
 
-To continue a reply after a page reload, add client persistence, and pass the `threadId` to `fromChatTransport`. The route must support the AI SDK resume `GET` (`/api/chat/<id>/stream`):
+To continue a reply after a page reload, add client persistence. The route must support the AI SDK resume `GET` (`/api/chat/<id>/stream`):
 
 ```tsx
 import { localStoragePersistence, useChat } from '@tanstack/ai-react'
 import { fromChatTransport } from '@tanstack/ai-ui-message-stream'
 import { DefaultChatTransport } from 'ai'
 
-const threadId = 'support-chat'
-
 const connection = fromChatTransport(
   new DefaultChatTransport({ api: '/api/chat' }),
-  { threadId },
 )
 
 export function useSupportChat() {
   return useChat({
     connection,
-    threadId,
+    threadId: 'support-chat',
     persistence: localStoragePersistence(),
   })
 }
 ```
 
-Use one connection for each thread. The rejoin after a reload needs a transport that replays the reply from its start, as `DefaultChatTransport` does.
+The rejoin after a reload needs a transport that replays the reply from its start, as `DefaultChatTransport` does.
 
 ## What does not go through
 

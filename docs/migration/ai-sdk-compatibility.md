@@ -49,7 +49,7 @@ Each row has one of these results:
 | Shared state                                                         | ➡️ One way, to a `data-state` part                        | ❌ Dropped (the AI SDK has no state)                                                               |
 | Structured output                                                    | ✅ Same (the JSON is text)                                | 🔄 Mapped to a typed `structured-output` part with `outputSchema`, and back to text in the history |
 | Custom events                                                        | 🔄 Mapped to a transient `data-<name>` chunk              | 🔄 Mapped from a transient `data-<name>` chunk                                                     |
-| Stream resume                                                        | ✅ Same, with a durability log                            | ✅ Same. A reload needs `threadId` on `fromChatTransport`.                                         |
+| Stream resume                                                        | ✅ Same, with a durability log                            | ✅ Same. A reload needs client `persistence`.                                                      |
 | System messages                                                      | ❌ Dropped. The server owns its system prompts.           | ❌ Dropped. `streamText` rejects them.                                                             |
 | Generated files                                                      | ❌ Dropped (`chat()` sends none)                          | 🔄 Mapped to custom events                                                                         |
 

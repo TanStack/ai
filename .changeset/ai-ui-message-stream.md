@@ -6,6 +6,6 @@ Add `@tanstack/ai-ui-message-stream`, a stop gap for porting an app from the Ver
 
 - Serve AI SDK `useChat` from `chat()` with `chatParamsFromAISDKRequest` and `toUIMessageStream`. Use `toResumableUIMessageStreamResponse` and `resumeUIMessageStreamResponse` for `useChat({ resume: true })`.
 - Or keep a plain `chat()` route and convert in the browser: pass `toChatTransport(fetchServerSentEvents('/api/chat'))` as the AI SDK `useChat` transport.
-- Point TanStack `useChat` at an AI SDK route with `fromChatTransport(new DefaultChatTransport({ api }), { threadId, tools })`.
+- Point TanStack `useChat` at an AI SDK route with `fromChatTransport(new DefaultChatTransport({ api }))`.
 
 Text, reasoning with its signature, tool calls and results, client tools, tool approvals, activity and stream resume cross in both directions. Subagents and shared state go from a TanStack server to an AI SDK client only.

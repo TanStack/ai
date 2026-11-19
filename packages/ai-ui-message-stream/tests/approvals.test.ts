@@ -272,7 +272,7 @@ describe('AI SDK server, TanStack client: approvals', () => {
 
   const tools = [deleteFile] as const
 
-  /** `bound`: the adapter gets the tools too, as the docs show. */
+  /** `bound`: `useChat` has the tool, so the adapter gets it in its config. */
   async function run(
     approved: boolean,
     answer: (client: ChatClient<typeof tools>) => void,
@@ -326,8 +326,8 @@ describe('AI SDK server, TanStack client: approvals', () => {
     }
     const client = new ChatClient({
       threadId: 'thread-1',
-      tools,
-      connection: fromChatTransport(transport, bound ? { tools } : {}),
+      tools: bound ? tools : undefined,
+      connection: fromChatTransport(transport),
     })
 
     await client.sendMessage('Delete a.txt')
@@ -397,7 +397,7 @@ describe('AI SDK server, TanStack client: approvals', () => {
     )
   })
 
-  it('falls back to a generic interrupt when the adapter has no tools', async () => {
+  it('falls back to a generic interrupt when useChat does not have the tool', async () => {
     const client = await run(
       true,
       (c) => {

@@ -49,7 +49,7 @@ place to stay: finish the port of the other side, then remove it.
   `toChatTransport(fetchServerSentEvents('/api/chat'))` as the AI SDK
   `useChat` transport. The conversion runs in the browser.
 - Client first: keep the `streamText` route and pass
-  `fromChatTransport(new DefaultChatTransport({ api }), { threadId, tools })`
+  `fromChatTransport(new DefaultChatTransport({ api }))`
   as the `connection` of TanStack `useChat`. On the route,
   `clientToolsFromAISDKBody(body, serverTools)` reads the client's tools, so
   they need no copy there.

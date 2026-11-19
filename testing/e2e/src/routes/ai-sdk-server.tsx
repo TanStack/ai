@@ -29,10 +29,7 @@ const guitar = z.object({ name: z.string(), price: z.number() })
 // TanStack `useChat` talks to the AI SDK route in `api.ai-sdk-server.ts`.
 // `?prompt=` sets the first user message, and its tag picks the scenario.
 const transport = new DefaultChatTransport({ api: '/api/ai-sdk-server' })
-const connection = fromChatTransport(transport, { tools })
-const structuredConnection = fromChatTransport(transport, {
-  outputSchema: guitar,
-})
+const connection = fromChatTransport(transport)
 
 const SCENARIOS: Array<[prompt: string, expect: string]> = [
   ['[chat] recommend a guitar', 'aimock streamText text about a Stratocaster'],
@@ -111,7 +108,7 @@ function ToolChat({ prompt }: { prompt: string }) {
 function StructuredChat({ prompt }: { prompt: string }) {
   const chat = useChat({
     threadId: 'ai-sdk-server-structured',
-    connection: structuredConnection,
+    connection,
     outputSchema: guitar,
   })
   return <ChatView prompt={prompt} {...chat} />
