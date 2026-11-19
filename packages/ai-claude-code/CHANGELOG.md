@@ -1,5 +1,11 @@
 # @tanstack/ai-claude-code
 
+## 1.0.2
+
+### Patch Changes
+
+- [#2106](https://github.com/TanStack/ai/pull/2106) [`ac2a303`](https://github.com/TanStack/ai/commit/ac2a30373f6049caa9409459732cc22c52b78ee5) - `@tanstack/ai-claude-code` now sets `"sideEffects": false`. When an app imports only `translateSdkStream`, a bundler can drop the unused adapter modules.
+
 ## 1.0.1
 
 ### Patch Changes

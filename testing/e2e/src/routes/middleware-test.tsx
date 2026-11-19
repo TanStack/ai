@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import {
   useChat,
@@ -116,6 +116,10 @@ function MiddlewareTestPage() {
   }>({ configs: [], saveCount: 0 })
   const [clientToolExecutions, setClientToolExecutions] = useState(0)
   const [clientToolWaiting, setClientToolWaiting] = useState(false)
+  // The server renders the controls disabled. They turn on when React has
+  // hydrated, so Playwright's actionability checks wait for the handlers.
+  const [hydrated, setHydrated] = useState(false)
+  useEffect(() => setHydrated(true), [])
   const clientToolResolver = useRef<
     ((value: { context: string }) => void) | null
   >(null)
@@ -250,6 +254,7 @@ function MiddlewareTestPage() {
         <select
           id="mw-scenario-select"
           value={scenario}
+          disabled={!hydrated}
           onChange={(e) => setScenario(e.target.value)}
           style={{
             backgroundColor: '#1e293b',
@@ -291,6 +296,7 @@ function MiddlewareTestPage() {
         <select
           id="mw-mode-select"
           value={middlewareMode}
+          disabled={!hydrated}
           onChange={(e) => setMiddlewareMode(e.target.value)}
           style={{
             backgroundColor: '#1e293b',
@@ -311,7 +317,7 @@ function MiddlewareTestPage() {
       <button
         id="mw-run-button"
         onClick={handleRun}
-        disabled={isLoading}
+        disabled={!hydrated || isLoading}
         style={{
           padding: '10px 20px',
           fontSize: '14px',

@@ -577,9 +577,8 @@ describe('StreamProcessor', () => {
       expect(user!.metadata).toEqual({
         author: { id: 'user-42', name: 'Dana' },
       })
-      expect(assistant!.metadata).toEqual({
-        tanstack: { model: 'gpt-5.5', createdAt: createdAtIso },
-      })
+      // The wire row's createdAt becomes the message's createdAt.
+      expect(assistant!.metadata).toEqual({ tanstack: { model: 'gpt-5.5' } })
       expect(user!.metadata).not.toHaveProperty('source')
       expect(assistant!.metadata).not.toHaveProperty('source')
       expect(assistant!.createdAt).toBeInstanceOf(Date)
@@ -1685,7 +1684,7 @@ describe('StreamProcessor', () => {
       ).toBe(true)
     })
 
-    it('should update a single ThinkingPart in-place for same stepId', () => {
+    it('should update a single ThinkingPart in-place for the same step', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
 
@@ -1693,14 +1692,14 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.reasoningContent('B'))
       processor.processChunk(ev.reasoningContent('C'))
 
-      // Only one thinking part, not three (same default stepId)
+      // Only one thinking part, not three (same default step)
       const parts = processor.getMessages()[0]!.parts
       const thinkingParts = parts.filter((p) => p.type === 'thinking')
       expect(thinkingParts).toHaveLength(1)
       expect((thinkingParts[0] as any).content).toBe('ABC')
     })
 
-    it('should create separate ThinkingParts for different stepIds', () => {
+    it('should create separate ThinkingParts for different steps', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
 
@@ -1715,12 +1714,10 @@ describe('StreamProcessor', () => {
       const thinkingParts = parts.filter((p) => p.type === 'thinking')
       expect(thinkingParts).toHaveLength(2)
       expect((thinkingParts[0] as any).content).toBe('First thought continued')
-      expect((thinkingParts[0] as any).stepId).toBe('step-1')
       expect((thinkingParts[1] as any).content).toBe('Second thought')
-      expect((thinkingParts[1] as any).stepId).toBe('step-2')
     })
 
-    it('should use the reasoning message id as the step id', () => {
+    it('should keep the step id off the thinking part', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
 
@@ -1728,9 +1725,9 @@ describe('StreamProcessor', () => {
 
       const parts = processor.getMessages()[0]!.parts
       const thinkingParts = parts.filter((p) => p.type === 'thinking')
-      expect(thinkingParts).toHaveLength(1)
-      expect((thinkingParts[0] as any).content).toBe('thinking...')
-      expect((thinkingParts[0] as any).stepId).toBe('auto-step')
+      expect(thinkingParts).toEqual([
+        { type: 'thinking', content: 'thinking...' },
+      ])
     })
 
     it('getResult().thinking should concatenate all steps in order', () => {
@@ -1859,6 +1856,22 @@ describe('StreamProcessor', () => {
         .getMessages()[0]!
         .parts.find((p) => p.type === 'tool-result') as ToolResultPart
       expect(toolResultPart.content).toBe('plain string output')
+    })
+
+    it('clears a stale text marker when addToolResult replaces a string with an object', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.toolStart('tc-1', 'getText'))
+      processor.processChunk(ev.toolEnd('tc-1', 'getText', { input: {} }))
+      processor.addToolResult('tc-1', '42')
+      processor.addToolResult('tc-1', { value: 42 })
+
+      const toolResultPart = processor
+        .getMessages()[0]!
+        .parts.find((p) => p.type === 'tool-result') as ToolResultPart
+      expect(toolResultPart.content).toBe('{"value":42}')
+      expect(toolResultPart.metadata).toBeUndefined()
     })
 
     it('addToolResult with error should set error state', () => {
@@ -4471,6 +4484,48 @@ describe('StreamProcessor', () => {
       })
     })
 
+    it('keeps a JSON-text string tool result as a string on MESSAGES_SNAPSHOT', () => {
+      // A snapshot that is the first source of a result (reconnect / snapshot-only
+      // hydrate) must honor metadata.tanstack.toolResultKind: 'text', matching
+      // live TOOL_CALL_RESULT and modelMessagesToUIMessages.
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          { id: 'u1', role: 'user', content: 'read the code' },
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: 'Reading.',
+            toolCalls: [
+              {
+                id: 'tc-1',
+                type: 'function',
+                function: { name: 'read_code', arguments: '{}' },
+              },
+            ],
+          },
+          {
+            id: 't1',
+            role: 'tool',
+            content: '42',
+            toolCallId: 'tc-1',
+            metadata: { tanstack: { toolResultKind: 'text' } },
+          },
+        ],
+        timestamp: Date.now(),
+      } as unknown as StreamChunk)
+
+      const call = processor
+        .getMessages()
+        .flatMap((m) => m.parts)
+        .find(
+          (p): p is ToolCallPart => p.type === 'tool-call' && p.id === 'tc-1',
+        )
+      expect(call?.output).toBe('42')
+    })
+
     it('should warn when a snapshot tool-result has no recoverable tool-call', () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
       const processor = new StreamProcessor()
@@ -5246,9 +5301,7 @@ describe('StreamProcessor', () => {
         return part
       }
       expect(thinking(0).content).toBe('think A')
-      expect(thinking(0).stepId).toBe('rs_A')
       expect(thinking(2).content).toBe('think B')
-      expect(thinking(2).stepId).toBe('rs_B')
     })
 
     it('puts a signature on the step it names, not the active step (#1533)', () => {
@@ -5287,14 +5340,11 @@ describe('StreamProcessor', () => {
         {
           type: 'thinking',
           content: 'first',
-          stepId: 'rs_A',
           signature: 'sig-a-late',
         },
-        { type: 'thinking', content: 'second', stepId: 'rs_B' },
+        { type: 'thinking', content: 'second' },
       ])
-      expect(second).toEqual([
-        { type: 'thinking', content: 'next', stepId: 'rs_C' },
-      ])
+      expect(second).toEqual([{ type: 'thinking', content: 'next' }])
     })
 
     it('keeps reasoning from a second open run off the first message (#1533)', () => {
@@ -6515,6 +6565,38 @@ describe('StreamProcessor', () => {
   // TOOL_CALL_RESULT event
   // ==========================================================================
   describe('TOOL_CALL_RESULT event', () => {
+    it('clears a stale text marker when a streamed object replaces a string result', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.toolStart('tc-1', 'get_weather'))
+      processor.processChunk(ev.toolEnd('tc-1', 'get_weather'))
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_RESULT, {
+          messageId: 'tool-result-1',
+          toolCallId: 'tc-1',
+          content: '42',
+          role: 'tool',
+          metadata: { tanstack: { toolResultKind: 'text' } },
+        }),
+      )
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_RESULT, {
+          messageId: 'tool-result-1',
+          toolCallId: 'tc-1',
+          content: '{"value":42}',
+          role: 'tool',
+        }),
+      )
+
+      const toolResultPart = processor
+        .getMessages()[0]
+        ?.parts.find((p) => p.type === 'tool-result') as ToolResultPart
+      expect(toolResultPart.content).toBe('{"value":42}')
+      expect(toolResultPart.metadata).toBeUndefined()
+    })
+
     it('should create tool-result part and update tool-call output', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })

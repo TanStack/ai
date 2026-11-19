@@ -2,7 +2,7 @@
   "name": "ag-ui",
   "private": true,
   "type": "module",
-  "version": "0.0.43",
+  "version": "0.0.44",
   "scripts": {
     "detect-servers": "node scripts/detect-servers.mjs",
     "predev": "node scripts/detect-servers.mjs",
@@ -28,11 +28,11 @@
     "@tailwindcss/vite": "^4.1.18",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.2.1",
+    "@vitejs/plugin-react": "^6.3.0",
     "concurrently": "^9.1.2",
     "dotenv": "^17.2.3",
     "tailwindcss": "^4.1.18",
     "typescript": "5.9.3",
-    "vite": "^8.2.1"
+    "vite": "^8.3.8"
   }
 }

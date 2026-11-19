@@ -31,8 +31,8 @@
     "@tanstack/store": "^0.11.1",
     "highlight.js": "^11.11.1",
     "lucide-solid": "^0.554.0",
-    "solid-js": "^1.9.10",
-    "solid-markdown": "^2.1.0",
+    "solid-js": "^1.9.19",
+    "solid-markdown": "^2.1.1",
     "tailwindcss": "^4.1.18",
     "zod": "^4.2.0"
   },
@@ -40,13 +40,13 @@
     "@solidjs/testing-library": "^0.8.10",
     "@tanstack/devtools-event-client": "^0.4.1",
     "@tanstack/devtools-vite": "^0.5.3",
-    "@testing-library/dom": "^10.4.1",
+    "@testing-library/dom": "^10.4.2",
     "@types/node": "^24.10.1",
     "jsdom": "^27.4.0",
     "typescript": "5.9.3",
-    "vite": "^8.2.1",
-    "vite-plugin-solid": "^2.11.14",
-    "vitest": "^4.1.10",
+    "vite": "^8.3.8",
+    "vite-plugin-solid": "^2.11.16",
+    "vitest": "^4.1.12",
     "web-vitals": "^5.1.0"
   }
 }

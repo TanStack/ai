@@ -235,7 +235,7 @@ const provider = openaiCompatible({
 });
 ```
 
-The types enforce the `input` modalities, the `modelOptions`, and the provider `tools` you declare. They do not read `features`. Function tools and structured output are always allowed on this path. If a provider rejects one of them at run time (for example, tools on a model without tool support), do not pass it for that model.
+The types enforce the `input` modalities, the `modelOptions`, the provider `tools`, and the `reasoning` levels you declare. They do not read `features`. For `reasoning`, see [Reasoning levels](./openai-compatible-advanced#reasoning-levels). Function tools and structured output are always allowed on this path. If a provider rejects one of them at run time (for example, tools on a model without tool support), do not pass it for that model.
 
 ### Providers
 
@@ -274,6 +274,7 @@ These topics are on [OpenAI-Compatible: Advanced](./openai-compatible-advanced):
 
 - Configuration: headers, query parameters, and `wrapFetch`.
 - The Responses API (`api: "responses"`).
+- Reasoning levels for `chat({ reasoning })`.
 - Azure OpenAI.
 - GitHub Copilot: let users pay with their Copilot plan.
 - ChatGPT plan: let users pay with their ChatGPT plan.
