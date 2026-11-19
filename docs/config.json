@@ -360,7 +360,7 @@
           "label": "Server Tools: Advanced",
           "to": "tools/server-tools-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Tool Result Metadata",
@@ -1524,7 +1524,8 @@
         {
           "label": "Takeover Internals",
           "to": "sandbox/takeover-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "Reaping & Retention",
@@ -1870,12 +1871,13 @@
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-18"
         },
         {
           "label": "OpenAI-Compatible: Advanced",
           "to": "adapters/openai-compatible-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-11-18"
         },
         {
           "label": "LLM Gateway",
