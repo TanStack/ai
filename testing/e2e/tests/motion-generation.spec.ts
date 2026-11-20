@@ -10,6 +10,10 @@ const FBX_URL = 'https://v3b.fal.media/files/e2e/swing.fbx'
 const JSON_URL = 'https://v3b.fal.media/files/e2e/swing.json'
 const PROMPT = 'A heavy two-handed overhead axe swing'
 const UTHANA_JOB_ID = 'uthana-job?character=orc-e2e&fps=30'
+// The fake Meshy in the route creates this task id.
+const MESHY_JOB_ID = 'motion-task-e2e'
+const MESHY_TASK_PATH = `/v1/text-to-motion/${MESHY_JOB_ID}`
+const MESHY_CLIP_URL = 'https://assets.meshy.ai/e2e/swing.fbx'
 
 interface StreamEvent {
   type: string
@@ -41,11 +45,14 @@ function customEvents(events: Array<StreamEvent>) {
   )
 }
 
-/** POST the AG-UI body that `useGeneration` sends, in stream mode. */
+/**
+ * POST the AG-UI body that `useGeneration` sends, in stream mode. `props`
+ * picks the fake fal scenario, or another provider.
+ */
 async function streamMotion(
   request: APIRequestContext,
   testId: string,
-  scenario: 'complete' | 'fail',
+  props: { scenario: 'complete' | 'fail' } | { provider: 'uthana' | 'meshy' },
 ) {
   const res = await request.post('/api/motion', {
     data: {
@@ -55,7 +62,7 @@ async function streamMotion(
       messages: [],
       tools: [],
       context: [],
-      forwardedProps: { prompt: PROMPT, mode: 'stream', scenario },
+      forwardedProps: { prompt: PROMPT, mode: 'stream', ...props },
     },
   })
   expect(res.ok()).toBe(true)
@@ -94,7 +101,9 @@ test.describe('generateMotion activity (fal)', () => {
     request,
     testId,
   }) => {
-    const events = await streamMotion(request, testId, 'complete')
+    const events = await streamMotion(request, testId, {
+      scenario: 'complete',
+    })
 
     expect(events[0]?.type).toBe('RUN_STARTED')
     expect(customEvents(events)).toEqual([
@@ -140,7 +149,7 @@ test.describe('generateMotion activity (fal)', () => {
     request,
     testId,
   }) => {
-    const events = await streamMotion(request, testId, 'fail')
+    const events = await streamMotion(request, testId, { scenario: 'fail' })
 
     const last = events.at(-1)
     expect(last?.type).toBe('RUN_ERROR')
@@ -242,19 +251,7 @@ test.describe('generateMotion activity (uthana)', () => {
     request,
     testId,
   }) => {
-    const res = await request.post('/api/motion', {
-      data: {
-        threadId: `uthana-thread-${testId}`,
-        runId: `uthana-run-${testId}`,
-        state: {},
-        messages: [],
-        tools: [],
-        context: [],
-        forwardedProps: { prompt: PROMPT, mode: 'stream', provider: 'uthana' },
-      },
-    })
-    expect(res.ok()).toBe(true)
-    const events = parseSse(await res.text())
+    const events = await streamMotion(request, testId, { provider: 'uthana' })
     const custom = customEvents(events)
 
     expect(custom.filter((e) => e.name === 'motion:status')).toEqual([
@@ -298,6 +295,97 @@ test.describe('generateMotion activity (uthana)', () => {
       ok: false,
       error:
         'The uthana motion adapter cannot cancel jobs: the provider has no cancel API.',
+    })
+  })
+})
+
+test.describe('generateMotion activity (meshy)', () => {
+  test('streams a Meshy text to motion task until the FBX clip is ready', async ({
+    request,
+    testId,
+  }) => {
+    const events = await streamMotion(request, testId, { provider: 'meshy' })
+
+    expect(customEvents(events)).toEqual([
+      {
+        name: 'motion:job:created',
+        value: { jobId: MESHY_JOB_ID, model: 'prime' },
+      },
+      {
+        name: 'motion:status',
+        value: { jobId: MESHY_JOB_ID, status: 'pending', progress: 0 },
+      },
+      {
+        name: 'generation:progress',
+        value: { progress: 0, message: 'pending' },
+      },
+      {
+        name: 'motion:status',
+        value: { jobId: MESHY_JOB_ID, status: 'processing', progress: 60 },
+      },
+      {
+        name: 'generation:progress',
+        value: { progress: 60, message: 'processing' },
+      },
+      {
+        name: 'motion:status',
+        value: { jobId: MESHY_JOB_ID, status: 'completed', progress: 100 },
+      },
+      {
+        name: 'generation:progress',
+        value: { progress: 100, message: 'completed' },
+      },
+      {
+        name: 'generation:result',
+        value: {
+          jobId: MESHY_JOB_ID,
+          model: 'prime',
+          assets: [
+            {
+              url: MESHY_CLIP_URL,
+              format: 'fbx',
+              fileName: 'meshy-motion-task-e2e.fbx',
+            },
+          ],
+        },
+      },
+      {
+        name: 'meshy:requests',
+        // Create, three status polls, and the read of the result.
+        value: [
+          {
+            method: 'POST',
+            path: '/v1/text-to-motion',
+            body: { prompt: PROMPT, mode: 'prime', duration: 4 },
+          },
+          { method: 'GET', path: MESHY_TASK_PATH },
+          { method: 'GET', path: MESHY_TASK_PATH },
+          { method: 'GET', path: MESHY_TASK_PATH },
+          { method: 'GET', path: MESHY_TASK_PATH },
+        ],
+      },
+    ])
+    expect(events.at(-1)?.type).toBe('RUN_FINISHED')
+  })
+
+  test('reports a clear error when the task starts before Meshy can cancel it', async ({
+    request,
+  }) => {
+    const res = await request.post('/api/motion', {
+      data: { provider: 'meshy', mode: 'cancel', jobId: MESHY_JOB_ID },
+    })
+
+    expect(res.status()).toBe(500)
+    expect(await res.json()).toEqual({
+      ok: false,
+      error:
+        'Meshy task motion-task-e2e is already running and cannot be canceled',
+      // The adapter reads the task first and deletes only a PENDING task.
+      // The fake answers PENDING, then 409 on the DELETE.
+      meshyRequests: [
+        { method: 'GET', path: MESHY_TASK_PATH },
+        { method: 'DELETE', path: MESHY_TASK_PATH },
+      ],
     })
   })
 })

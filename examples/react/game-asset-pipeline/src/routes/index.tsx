@@ -5,9 +5,11 @@ import {
   useGenerate3DModel,
   useGenerateImage,
 } from '@tanstack/ai-react'
-import { FalKeyForm } from '@/components/fal-key-form'
+import { falByok } from '@tanstack/ai-fal/byok'
+import { meshyByok } from '@tanstack/ai-meshy/byok'
+import { KeyForm } from '@/components/key-form'
 import { byok } from '@/lib/byok'
-import type { MediaPrompt, MediaPromptPart } from '@tanstack/ai'
+import type { MediaPrompt, MediaPromptPart, Model3DResult } from '@tanstack/ai'
 
 const imagePart = (url: string): MediaPromptPart => ({
   type: 'image',
@@ -16,6 +18,12 @@ const imagePart = (url: string): MediaPromptPart => ({
 const meshPart = (url: string): MediaPromptPart => ({
   type: 'model3d',
   source: { type: 'url', value: url },
+})
+// A mesh that Meshy made, by its job id. The animation step needs the
+// rigging job in this form.
+const meshyJobPart = (jobId: string): MediaPromptPart => ({
+  type: 'model3d',
+  source: { type: 'file', value: jobId, provider: 'meshy' },
 })
 
 const card = 'rounded-lg border border-orange-500/20 bg-gray-800 p-4'
@@ -31,13 +39,15 @@ interface ImageStepProps {
   // Turns the text into a prompt. null until the earlier steps are done.
   toPrompt: (text: string) => MediaPrompt | null
   onImage: (url: string) => void
+  onStart?: () => void
   // Show a file field, so the user can use an image of their own.
   allowUpload?: boolean
 }
 
 // One image step: a text field, a button, and the image.
 function ImageStep(props: ImageStepProps) {
-  const { id, title, label, initialText, action, toPrompt, onImage } = props
+  const { id, title, label, initialText, action, toPrompt, onImage, onStart } =
+    props
   const [text, setText] = useState(initialText)
   // The image on screen: the last drawn or uploaded image.
   const [url, setUrl] = useState<string | null>(null)
@@ -55,6 +65,7 @@ function ImageStep(props: ImageStepProps) {
     connection: fetchServerSentEvents('/api/concept'),
     threadId: `asset-${id}`,
     byok,
+    byokProvider: () => falByok.id,
     onResult: (image) => {
       const next = image.images[0]?.url
       if (next) showImage(next)
@@ -89,7 +100,11 @@ function ImageStep(props: ImageStepProps) {
         />
         <button
           type="button"
-          onClick={() => prompt && void generate({ prompt })}
+          onClick={() => {
+            if (!prompt) return
+            onStart?.()
+            void generate({ prompt })
+          }}
           disabled={!prompt || isLoading}
           className={button}
         >
@@ -124,34 +139,45 @@ function ImageStep(props: ImageStepProps) {
 }
 
 interface ModelStepProps {
-  step: 'mesh' | 'retexture'
+  step: 'mesh' | 'retexture' | 'rig' | 'animate'
   title: string
   action: string
   // The prompt parts for this step. null until the earlier steps are done.
   prompt: Array<MediaPromptPart> | null
-  onModel?: (url: string) => void
+  onModel?: (model: Model3DResult) => void
+  onStart?: () => void
+  // A short note under the title.
+  hint?: string
 }
 
 // One 3D step: a button, the job status, a preview, and a download link.
-function ModelStep({ step, title, action, prompt, onModel }: ModelStepProps) {
+function ModelStep(props: ModelStepProps) {
+  const { step, title, action, prompt, onModel, onStart, hint } = props
   const [status, setStatus] = useState('')
-  // POST to /api/model3d?step=... over SSE. The server polls fal and
+  // POST to /api/model3d?step=... over SSE. The server polls the job and
   // streams the job status, then the finished model.
   const { generate, result, isLoading, error, stop } = useGenerate3DModel({
     connection: fetchServerSentEvents(`/api/model3d?step=${step}`),
     threadId: `asset-${step}`,
     byok,
+    byokProvider: () =>
+      step === 'rig' || step === 'animate' ? meshyByok.id : falByok.id,
     onProgress: (_progress, message) => setStatus(message ?? ''),
-    onResult: (model) => onModel?.(model.url),
+    onResult: onModel,
   })
 
   return (
     <section className={card}>
       <h2 className="text-lg font-semibold text-white">{title}</h2>
+      {hint ? <p className="mt-1 text-sm text-gray-300">{hint}</p> : null}
       <div className="mt-3 flex items-center gap-3">
         <button
           type="button"
-          onClick={() => prompt && void generate({ prompt })}
+          onClick={() => {
+            if (!prompt) return
+            onStart?.()
+            void generate({ prompt })
+          }}
           disabled={!prompt || isLoading}
           className={button}
         >
@@ -201,6 +227,13 @@ function PipelinePage() {
   const [conceptUrl, setConceptUrl] = useState<string | null>(null)
   const [meshUrl, setMeshUrl] = useState<string | null>(null)
   const [skinUrl, setSkinUrl] = useState<string | null>(null)
+  const [retexturedUrl, setRetexturedUrl] = useState<string | null>(null)
+  const [rigJobId, setRigJobId] = useState<string | null>(null)
+  const rigStartedForUrlRef = useRef<string | null>(null)
+  const retextureStartedForMeshUrlRef = useRef<string | null>(null)
+  const retextureStartedForSkinUrlRef = useRef<string | null>(null)
+  const meshStartedForConceptUrlRef = useRef<string | null>(null)
+  const skinStartedForConceptUrlRef = useRef<string | null>(null)
 
   return (
     <div className="min-h-screen bg-gray-900 px-4 py-8">
@@ -208,7 +241,8 @@ function PipelinePage() {
         <h1 className="text-2xl font-semibold text-white">
           Game Asset Pipeline
         </h1>
-        <FalKeyForm />
+        <KeyForm provider={falByok} />
+        <KeyForm provider={meshyByok} />
 
         <ImageStep
           id="concept"
@@ -218,10 +252,12 @@ function PipelinePage() {
           action="Draw"
           toPrompt={(text) => text}
           onImage={(url) => {
-            // A new concept makes the old mesh and skin wrong for it.
+            // A new concept makes the old mesh, skin, and rig wrong for it.
             setConceptUrl(url)
             setMeshUrl(null)
             setSkinUrl(null)
+            setRetexturedUrl(null)
+            setRigJobId(null)
           }}
           allowUpload
         />
@@ -230,7 +266,16 @@ function PipelinePage() {
           title="2. Low-poly game mesh"
           action="Make mesh"
           prompt={conceptUrl ? [imagePart(conceptUrl)] : null}
-          onModel={setMeshUrl}
+          onStart={() => {
+            meshStartedForConceptUrlRef.current = conceptUrl
+          }}
+          onModel={(model) => {
+            if (meshStartedForConceptUrlRef.current === conceptUrl) {
+              setMeshUrl(model.url)
+              setRetexturedUrl(null)
+              setRigJobId(null)
+            }
+          }}
         />
         <ImageStep
           id="skin"
@@ -243,7 +288,16 @@ function PipelinePage() {
               ? [{ type: 'text', content: text }, imagePart(conceptUrl)]
               : null
           }
-          onImage={setSkinUrl}
+          onStart={() => {
+            skinStartedForConceptUrlRef.current = conceptUrl
+          }}
+          onImage={(url) => {
+            if (skinStartedForConceptUrlRef.current === conceptUrl) {
+              setSkinUrl(url)
+              setRetexturedUrl(null)
+              setRigJobId(null)
+            }
+          }}
         />
         <ModelStep
           step="retexture"
@@ -252,6 +306,40 @@ function PipelinePage() {
           prompt={
             meshUrl && skinUrl ? [meshPart(meshUrl), imagePart(skinUrl)] : null
           }
+          onStart={() => {
+            retextureStartedForMeshUrlRef.current = meshUrl
+            retextureStartedForSkinUrlRef.current = skinUrl
+          }}
+          onModel={(model) => {
+            if (
+              retextureStartedForMeshUrlRef.current === meshUrl &&
+              retextureStartedForSkinUrlRef.current === skinUrl
+            ) {
+              setRetexturedUrl(model.url)
+              setRigJobId(null)
+            }
+          }}
+        />
+        <ModelStep
+          step="rig"
+          title="5. Rig the character"
+          hint="Rigging works on a humanoid character with clear arms and legs, for example a knight in a T-pose."
+          action="Rig"
+          prompt={retexturedUrl ? [meshPart(retexturedUrl)] : null}
+          onStart={() => {
+            rigStartedForUrlRef.current = retexturedUrl
+          }}
+          onModel={(model) => {
+            if (rigStartedForUrlRef.current === retexturedUrl) {
+              setRigJobId(model.jobId)
+            }
+          }}
+        />
+        <ModelStep
+          step="animate"
+          title="6. Animate the character"
+          action="Animate"
+          prompt={rigJobId ? [meshyJobPart(rigJobId)] : null}
         />
       </div>
     </div>

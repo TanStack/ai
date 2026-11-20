@@ -38,6 +38,10 @@
       "types": "./dist/esm/ngrok.d.ts",
       "import": "./dist/esm/ngrok.js"
     },
+    "./host-login": {
+      "types": "./dist/esm/host-login.d.ts",
+      "import": "./dist/esm/host-login.js"
+    },
     "./testkit": {
       "types": "./dist/esm/testkit/conformance.d.ts",
       "import": "./dist/esm/testkit/conformance.js"

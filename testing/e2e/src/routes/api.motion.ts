@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
+  EventType,
   cancelMotionJob,
   generateMotion,
   generationParamsFromRequest,
@@ -7,8 +8,10 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { falMotion } from '@tanstack/ai-fal'
+import { meshyMotion } from '@tanstack/ai-meshy'
 import { uthanaMotion } from '@tanstack/ai-uthana'
 import { recordFromBody } from '@/lib/request-body'
+import type { StreamChunk } from '@tanstack/ai'
 
 /**
  * Motion generation through `falMotion` with a fake fal queue API.
@@ -22,6 +25,9 @@ import { recordFromBody } from '@/lib/request-body'
  *
  * With `provider: 'uthana'`, `stream` and `cancel` run `uthanaMotion` against a
  * fake Uthana GraphQL API and file endpoint instead (see `fakeUthana`).
+ *
+ * With `provider: 'meshy'`, `stream` and `cancel` run `meshyMotion('prime')`
+ * against a fake Meshy text to motion API instead (see `fakeMeshyMotion`).
  *
  * Each request builds its own fake fal, so parallel tests share no state.
  * Every JSON answer lists the fal requests the adapter made (`falCalls`).
@@ -237,6 +243,155 @@ async function handleUthana(
   return toServerSentEventsResponse(stream)
 }
 
+const MESHY_BASE_URL = 'https://api.meshy.ai/openapi'
+const MESHY_MOTION_PATH = '/v1/text-to-motion'
+const MESHY_JOB_ID = 'motion-task-e2e'
+const MESHY_TASK_PATH = `${MESHY_MOTION_PATH}/${MESHY_JOB_ID}`
+
+/** One request that the Meshy adapter sent to the fake Meshy. */
+interface MeshyRequest {
+  method: string
+  /** The path after the Meshy base URL. */
+  path: string
+  /** The JSON body. Only a `POST` has one. */
+  body?: unknown
+}
+
+// Meshy sends empty result fields until the task succeeds.
+const NO_MOTION_YET = {
+  motion_url: '',
+  motion_format: '',
+  duration_ms: 0,
+  mode: '',
+}
+
+/** The answers to a `GET` of the task, in order. The last one repeats. */
+const MESHY_MOTION_STATES = [
+  { id: MESHY_JOB_ID, status: 'PENDING', progress: 0, result: NO_MOTION_YET },
+  {
+    id: MESHY_JOB_ID,
+    status: 'IN_PROGRESS',
+    progress: 60,
+    result: NO_MOTION_YET,
+  },
+  {
+    id: MESHY_JOB_ID,
+    status: 'SUCCEEDED',
+    progress: 100,
+    result: {
+      motion_url: 'https://assets.meshy.ai/e2e/swing.fbx',
+      motion_format: 'fbx',
+      duration_ms: 4000,
+      mode: 'prime',
+    },
+  },
+]
+
+/**
+ * A fake Meshy text to motion API. A `POST` creates task `motion-task-e2e`.
+ * A `GET` of the task answers `PENDING`, then `IN_PROGRESS`, then
+ * `SUCCEEDED`. A `DELETE` answers 409, as Meshy does for a running task. It
+ * records each request, so the spec can check the bodies.
+ */
+function fakeMeshyMotion() {
+  const requests: Array<MeshyRequest> = []
+  let reads = 0
+  const fetch: typeof globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init)
+    const path = request.url.slice(MESHY_BASE_URL.length)
+    const text = await request.text()
+    requests.push({
+      method: request.method,
+      path,
+      ...(text ? { body: JSON.parse(text) } : {}),
+    })
+    const call = `${request.method} ${path}`
+    switch (call) {
+      case `POST ${MESHY_MOTION_PATH}`:
+        return Response.json({ result: MESHY_JOB_ID }, { status: 202 })
+      case `GET ${MESHY_TASK_PATH}`: {
+        const index = Math.min(reads, MESHY_MOTION_STATES.length - 1)
+        reads += 1
+        return Response.json(MESHY_MOTION_STATES[index])
+      }
+      case `DELETE ${MESHY_TASK_PATH}`:
+        return Response.json(
+          { message: 'Task is in progress' },
+          { status: 409 },
+        )
+      default:
+        return Response.json(
+          { message: `no fake Meshy route for ${call}` },
+          { status: 404 },
+        )
+    }
+  }
+  return { fetch, requests }
+}
+
+/**
+ * Passes the stream through. Before `RUN_FINISHED`, it sends a
+ * `meshy:requests` custom event with the Meshy requests, so the spec can
+ * check them.
+ */
+async function* withMeshyRequests(
+  stream: AsyncIterable<StreamChunk>,
+  requests: Array<MeshyRequest>,
+) {
+  for await (const chunk of stream) {
+    if (chunk.type === EventType.RUN_FINISHED) {
+      const requestsEvent: StreamChunk = {
+        type: EventType.CUSTOM,
+        name: 'meshy:requests',
+        value: requests,
+        timestamp: Date.now(),
+      }
+      yield requestsEvent
+    }
+    yield chunk
+  }
+}
+
+async function handleMeshy(request: Request, props: Record<string, unknown>) {
+  const meshy = fakeMeshyMotion()
+  const adapter = meshyMotion('prime', {
+    apiKey: 'meshy-e2e',
+    fetch: meshy.fetch,
+  })
+  if (props.mode === 'cancel' && typeof props.jobId === 'string') {
+    try {
+      await cancelMotionJob({ adapter, jobId: props.jobId })
+      return Response.json({ ok: true, meshyRequests: meshy.requests })
+    } catch (error) {
+      return Response.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+          meshyRequests: meshy.requests,
+        },
+        { status: 500 },
+      )
+    }
+  }
+  if (props.mode !== 'stream') {
+    return badRequest('meshy supports stream and cancel')
+  }
+  const { input, threadId, runId } = await generationParamsFromRequest(
+    'motion',
+    request,
+  )
+  const stream = generateMotion({
+    adapter,
+    threadId,
+    runId,
+    prompt: input.prompt,
+    duration: 4,
+    stream: true,
+    pollingInterval: 0,
+  })
+  return toServerSentEventsResponse(withMeshyRequests(stream, meshy.requests))
+}
+
 function badRequest(error: string) {
   return Response.json({ ok: false, error }, { status: 400 })
 }
@@ -247,6 +402,7 @@ export const Route = createFileRoute('/api/motion')({
       POST: async ({ request }) => {
         const props = recordFromBody(await request.clone().json())
         if (props.provider === 'uthana') return handleUthana(request, props)
+        if (props.provider === 'meshy') return handleMeshy(request, props)
         const { mode, scenario } = props
         if (!isMode(mode)) return badRequest(`Unknown mode: ${String(mode)}`)
         if (!isScenarioName(scenario)) {

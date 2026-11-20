@@ -1,0 +1,101 @@
+<div align="center">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
+      width="900"
+    />
+  </picture>
+</div>
+
+<br />
+
+# @tanstack/ai-vercel-compat
+
+Connect TanStack AI to the Vercel AI SDK UI message stream, the wire format of the AI SDK `useChat` hook.
+
+- Serve AI SDK `useChat` from TanStack AI `chat()`.
+- Call an AI SDK `streamText` route from TanStack AI `useChat`.
+
+This package is a stop gap while you port an app from the AI SDK one side at a time. Some features change shape or are dropped on the way. See the [compatibility table](https://tanstack.com/ai/latest/docs/migration/ai-sdk-compatibility). When both sides use TanStack AI, remove it.
+
+## Installation
+
+```bash
+pnpm add @tanstack/ai-vercel-compat @tanstack/ai @tanstack/ai-client ai @tanstack/ai-openai @tanstack/ai-react
+```
+
+## AI SDK client, TanStack AI server
+
+```ts
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import {
+  chatParamsFromAISDKRequest,
+  toUIMessageStreamResponse,
+} from '@tanstack/ai-vercel-compat'
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromAISDKRequest(request)
+  const abortController = new AbortController()
+
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    ...params,
+    abortController,
+  })
+
+  return toUIMessageStreamResponse(stream, { abortController })
+}
+```
+
+## TanStack AI client, AI SDK server
+
+```tsx
+import { useChat } from '@tanstack/ai-react'
+import { fromChatTransport } from '@tanstack/ai-vercel-compat'
+import { DefaultChatTransport } from 'ai'
+
+const connection = fromChatTransport(
+  new DefaultChatTransport({ api: '/api/chat' }),
+)
+
+export function Chat() {
+  const { messages, sendMessage } = useChat({
+    connection,
+    threadId: 'support-chat',
+  })
+  // render messages
+}
+```
+
+## API
+
+| Export                                                                  | Direction                                                                      |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `chatParamsFromAISDKRequest(request)`                                   | AI SDK `useChat` request to `chat()` params, approval answers included         |
+| `chatParamsFromAISDKRequestBody(body)`                                  | The same, from a body you already read                                         |
+| `toUIMessageStreamResponse(stream, { abortController })`                | A `chat()` run as an AI SDK `useChat` response                                 |
+| `toUIMessageStream(stream, { abortController })`                        | `chat()` events to an AI SDK UI message stream, to merge or pipe yourself      |
+| `toResumableUIMessageStreamResponse(stream, durability)`                | A `chat()` run that AI SDK `useChat({ resume: true })` can rejoin              |
+| `resumeUIMessageStreamResponse(durability)`                             | The AI SDK resume `GET`                                                        |
+| `toChatTransport(connection)`                                           | A TanStack connection to an AI SDK `ChatTransport`, for a plain `chat()` route |
+| `fromChatTransport(transport, { reconnect })`                           | AI SDK `ChatTransport` to a TanStack `useChat` connection                      |
+| `clientToolsFromAISDKBody(body, serverTools)`                           | On an AI SDK route: the client tools of the request, plus the server tools     |
+| `fromAISDKMessages` / `toAISDKMessages`                                 | Message history in each direction                                              |
+| `fromUIMessageStream(stream, { threadId, runId, tools, outputSchema })` | AI SDK UI message stream to TanStack events                                    |
+
+Text, reasoning, tools, tool approvals, activity and stream resume cross in both directions where the other side has them. Subagents and shared state go from a TanStack server to an AI SDK client only, because the AI SDK has neither.
+
+## Docs
+
+- [AI SDK useChat with a TanStack AI server](https://tanstack.com/ai/latest/docs/migration/ai-sdk-client-tanstack-server)
+- [TanStack useChat with an AI SDK server](https://tanstack.com/ai/latest/docs/migration/tanstack-client-ai-sdk-server)

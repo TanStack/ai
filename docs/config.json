@@ -995,17 +995,19 @@
           "label": "Motion Generation",
           "to": "media/motion-generation",
           "addedAt": "2026-11-19",
-          "updatedAt": "2026-11-19"
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "3D Model Generation",
           "to": "media/3d-model-generation",
-          "addedAt": "2026-11-18"
+          "addedAt": "2026-11-18",
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "3D Model Generation: Advanced",
           "to": "media/3d-model-generation-advanced",
-          "addedAt": "2026-11-18"
+          "addedAt": "2026-11-18",
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "Generation Hooks",
@@ -1047,7 +1049,7 @@
           "label": "Evaluate",
           "to": "evaluate/evaluate",
           "addedAt": "2026-09-18",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-13"
         }
       ],
       "tab": "guides"
@@ -1329,7 +1331,12 @@
           "label": "Connect model providers",
           "to": "harness/provider-keys",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-20"
+          "updatedAt": "2026-11-19"
+        },
+        {
+          "label": "Sign in with a ChatGPT or SuperGrok plan",
+          "to": "harness/plan-sign-in",
+          "addedAt": "2026-11-19"
         },
         {
           "label": "Build your own UI",
@@ -1424,7 +1431,7 @@
           "label": "Harness Auth",
           "to": "sandbox/auth",
           "addedAt": "2026-08-18",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "Workspace",
@@ -1793,7 +1800,7 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-09"
+          "updatedAt": "2026-11-13"
         },
         {
           "label": "Google Gemini: Advanced",
@@ -1879,6 +1886,16 @@
           "addedAt": "2026-11-19"
         },
         {
+          "label": "Meshy",
+          "to": "adapters/meshy",
+          "addedAt": "2026-11-20"
+        },
+        {
+          "label": "Meshy: Advanced",
+          "to": "adapters/meshy-advanced",
+          "addedAt": "2026-11-20"
+        },
+        {
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
@@ -1947,7 +1964,7 @@
           "label": "Codex",
           "to": "adapters/codex",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "OpenCode",
@@ -1959,7 +1976,7 @@
           "label": "Grok Build",
           "to": "adapters/grok-build",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "ACP-Compatible",
@@ -2054,12 +2071,28 @@
           "label": "From Vercel AI SDK",
           "to": "migration/migration-from-vercel-ai",
           "addedAt": "2026-04-20",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-10-23"
         },
         {
           "label": "Vercel AI SDK: full API mapping",
           "to": "migration/migration-from-vercel-ai-advanced",
           "addedAt": "2026-10-21"
+        },
+        {
+          "label": "AI SDK useChat with a TanStack AI server",
+          "to": "migration/ai-sdk-client-tanstack-server",
+          "addedAt": "2026-10-23",
+          "updatedAt": "2026-11-19"
+        },
+        {
+          "label": "TanStack useChat with an AI SDK server",
+          "to": "migration/tanstack-client-ai-sdk-server",
+          "addedAt": "2026-10-23"
+        },
+        {
+          "label": "AI SDK bridge compatibility",
+          "to": "migration/ai-sdk-compatibility",
+          "addedAt": "2026-10-23"
         },
         {
           "label": "AG-UI Client Compliance",

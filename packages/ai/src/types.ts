@@ -2814,7 +2814,14 @@ export interface VideoStreamResult {
  *
  * @experimental 3D model generation is experimental and may change.
  */
-export type Model3DFormat = 'glb' | 'gltf' | 'fbx' | 'obj' | 'usdz' | 'stl'
+export type Model3DFormat =
+  | 'glb'
+  | 'gltf'
+  | 'fbx'
+  | 'obj'
+  | 'usdz'
+  | 'stl'
+  | '3mf'
 
 /**
  * What one file of a 3D model result holds.

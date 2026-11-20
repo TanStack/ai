@@ -21,13 +21,15 @@ import {
 } from '@tanstack/ai-harness/plugins'
 import { workspaceTools } from '@tanstack/ai-harness/plugins/coding'
 import { agents, projectInstructions } from '@tanstack/ai-harness/plugins/node'
+import { codexPlanLogin } from '@tanstack/ai-codex'
+import { codexByok } from '@tanstack/ai-codex/byok'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import { openaiByok } from '@tanstack/ai-openai/byok'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import type { IsolateDriver } from '@tanstack/ai-code-mode'
 import type { AnyTextAdapter } from '@tanstack/ai'
-import type { HarnessHost } from '@tanstack/ai-harness'
+import type { AuthRequest, HarnessHost } from '@tanstack/ai-harness'
 import { LLMOCK_DEFAULT_BASE, createTextAdapter } from '@/lib/providers'
 
 const run = promisify(execFile)
@@ -262,6 +264,49 @@ async function connectedKey(host: HarnessHost, testId: string | undefined) {
 }
 
 /**
+ * `providerKeys()` with a plan `login`: `/connect:codex` runs the fake
+ * `codex` CLI of `fixtures/fake-codex-login.mjs` in a temporary
+ * `CODEX_HOME`. The route keeps the device URL and code of the
+ * `authRequired` event, then runs `/keys`.
+ */
+async function planConnect(host: HarnessHost, model: () => AnyTextAdapter) {
+  const codexHome = await mkdtemp(join(tmpdir(), 'e2e-codex-home-'))
+  // The dev server runs in testing/e2e, as for `./fixtures/recorded`.
+  const fakeCli = join(process.cwd(), 'fixtures', 'fake-codex-login.mjs')
+  try {
+    const codex = {
+      ...codexByok,
+      login: codexPlanLogin({
+        executable: [process.execPath, fakeCli],
+        env: { CODEX_HOME: codexHome },
+      }),
+    }
+    const session = await host.open(
+      defineHarness({
+        name: 'e2e/harness-plan-connect',
+        // No turn runs, so the model gets no call.
+        adapter: model(),
+        plugins: () => [providerKeys({ providers: [codex] })],
+      }),
+      {
+        threadId: 'e2e-plan-connect',
+        user: { id: 'ada' },
+      },
+    )
+    const auth: Array<AuthRequest> = []
+    const stop = session.onAuthRequired(({ operationId: _, ...request }) =>
+      auth.push(request),
+    )
+    const connected = await session.runCommand({ name: 'connect:codex' })
+    stop()
+    const keys = await session.runCommand({ name: 'keys' })
+    return { auth, connected, keys }
+  } finally {
+    await rm(codexHome, { recursive: true, force: true })
+  }
+}
+
+/**
  * `goal()`: `/goal` starts a turn, the judge says that the goal is met, and
  * no next turn starts.
  */
@@ -408,7 +453,7 @@ async function codeModeEdit(host: HarnessHost, model: () => AnyTextAdapter) {
 
 /**
  * First-party harness plugins, one scenario per request:
- * `?scenario=agents|plan-subagent|env|title|goal|provider-keys|code-mode|code-mode-edit&testId=...`.
+ * `?scenario=agents|plan-subagent|env|title|goal|provider-keys|plan-connect|code-mode|code-mode-edit&testId=...`.
  * The models are OpenAI adapters against aimock.
  */
 export const Route = createFileRoute('/api/harness-first-party')({
@@ -436,6 +481,8 @@ export const Route = createFileRoute('/api/harness-first-party')({
               return Response.json(await sessionTitle(host, model, nano()))
             case 'provider-keys':
               return Response.json(await connectedKey(host, testId))
+            case 'plan-connect':
+              return Response.json(await planConnect(host, model))
             case 'goal':
               return Response.json(await goalLoop(host, model, nano()))
             case 'code-mode':
