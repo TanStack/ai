@@ -9,7 +9,7 @@ title: Model3DFileRole
 type Model3DFileRole = "base" | "pbr" | "rigged" | "animation" | "texture" | "part";
 ```
 
-Defined in: [packages/ai/src/types.ts:2831](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2831)
+Defined in: [packages/ai/src/types.ts:2838](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2838)
 
 **`Experimental`**
 

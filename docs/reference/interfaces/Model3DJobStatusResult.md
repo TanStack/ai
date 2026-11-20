@@ -26,7 +26,7 @@ completed.
 optional error?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2929](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2929)
+Defined in: [packages/ai/src/types.ts:2936](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2936)
 
 **`Experimental`**
 
@@ -44,7 +44,7 @@ Error message if status is 'failed'
 jobId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2923](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2923)
+Defined in: [packages/ai/src/types.ts:2930](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2930)
 
 **`Experimental`**
 
@@ -62,7 +62,7 @@ Job identifier
 optional progress?: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:2927](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2927)
+Defined in: [packages/ai/src/types.ts:2934](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2934)
 
 **`Experimental`**
 
@@ -94,7 +94,7 @@ The finished model. Set only when `status` is `'completed'`.
 status: "pending" | "processing" | "completed" | "failed";
 ```
 
-Defined in: [packages/ai/src/types.ts:2925](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2925)
+Defined in: [packages/ai/src/types.ts:2932](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2932)
 
 **`Experimental`**
 
