@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-vercel-compat",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "A stop gap for porting from the Vercel AI SDK one side at a time: serve AI SDK useChat from chat(), or call an AI SDK route from TanStack useChat, over the AI SDK UI message stream.",
   "author": "",
   "license": "MIT",
