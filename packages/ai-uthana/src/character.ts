@@ -24,7 +24,7 @@ export interface UthanaCharacter {
 /**
  * Upload your own character to Uthana, so motions are generated for and
  * downloaded on its proportions. Pass the returned `characterId` as
- * `modelOptions.character_id` to `generateMotion()`.
+ * `modelOptions.character_id` to `generate3dMotion()`.
  *
  * Uploading the same file again returns the same character.
  *

@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useGeneration } from '@tanstack/ai-react'
-import type { MotionGenerationResult, MotionJobState } from '@tanstack/ai'
+import type { Motion3dGenerationResult, Motion3dJobState } from '@tanstack/ai'
 
 /**
- * Harness page for `generateMotion({ stream: true })`. `useGeneration`
+ * Harness page for `generate3dMotion({ stream: true })`. `useGeneration`
  * streams `/api/motion` (fake fal queue, `complete` scenario), shows each
- * `motion:status` it sees, and lists the finished motion assets.
+ * `motion3d:status` it sees, and lists the finished motion assets.
  */
 export const Route = createFileRoute('/motion-test')({
   component: MotionTestPage,
 })
 
-function motionStateOf(value: unknown): MotionJobState | null {
+function motionStateOf(value: unknown): Motion3dJobState | null {
   if (typeof value !== 'object' || value === null || !('status' in value)) {
     return null
   }
@@ -31,13 +31,13 @@ function MotionTestPage() {
   // The button stays disabled until React hydrates, so a click always lands.
   const [hydrated, setHydrated] = useState(false)
   useEffect(() => setHydrated(true), [])
-  const [statuses, setStatuses] = useState<Array<MotionJobState>>([])
-  const motion = useGeneration<{ prompt: string }, MotionGenerationResult>({
+  const [statuses, setStatuses] = useState<Array<Motion3dJobState>>([])
+  const motion = useGeneration<{ prompt: string }, Motion3dGenerationResult>({
     threadId: 'motion-test',
     connection: fetchServerSentEvents('/api/motion'),
     body: { mode: 'stream', scenario: 'complete' },
     onChunk: (chunk) => {
-      if (chunk.type !== 'CUSTOM' || chunk.name !== 'motion:status') return
+      if (chunk.type !== 'CUSTOM' || chunk.name !== 'motion3d:status') return
       const state = motionStateOf(chunk.value)
       if (state) setStatuses((previous) => [...previous, state])
     },

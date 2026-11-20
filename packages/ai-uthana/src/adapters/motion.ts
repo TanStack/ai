@@ -1,12 +1,12 @@
-import { BaseMotionAdapter } from '@tanstack/ai/adapters'
+import { BaseMotion3dAdapter } from '@tanstack/ai/adapters'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import { resolveUthanaConfig, uthanaGraphql } from '../client'
 import type {
-  MotionAsset,
-  MotionGenerationOptions,
-  MotionGenerationResult,
-  MotionJobResult,
-  MotionStatusResult,
+  Motion3dAsset,
+  Motion3dGenerationOptions,
+  Motion3dGenerationResult,
+  Motion3dJobResult,
+  Motion3dStatusResult,
 } from '@tanstack/ai'
 import type { ResolvedUthanaConfig, UthanaClientConfig } from '../client'
 
@@ -14,19 +14,19 @@ import type { ResolvedUthanaConfig, UthanaClientConfig } from '../client'
  * Uthana text-to-motion models that run as jobs. Any other model id is
  * passed through as a string.
  */
-export type UthanaMotionModel =
+export type UthanaMotion3dModel =
   | 'text-to-motion-3.0'
   | 'text-to-motion-3.0-lite'
   | 'text-to-motion-3.0-mini'
   | (string & {})
 
 /** File formats the Uthana download endpoint serves. */
-export type UthanaMotionFormat = 'fbx' | 'glb'
+export type UthanaMotion3dFormat = 'fbx' | 'glb'
 
 /** Uthana's built-in character "Tar", used when no `character_id` is set. */
 export const UTHANA_DEFAULT_CHARACTER_ID = 'cXi2eAP19XwQ'
 
-export interface UthanaMotionProviderOptions {
+export interface UthanaMotion3dProviderOptions {
   /**
    * Character to generate for and download on. Use an id from
    * `createUthanaCharacter()` to get the motion on your own rig, or a
@@ -34,7 +34,7 @@ export interface UthanaMotionProviderOptions {
    */
   character_id?: string
   /** Files to download for each motion. Default `['fbx']`. */
-  formats?: Array<UthanaMotionFormat>
+  formats?: Array<UthanaMotion3dFormat>
   /** Frame rate of the downloaded files. */
   fps?: 24 | 30 | 60
   /** Uthana's faster mode. Default false. */
@@ -52,7 +52,7 @@ interface UthanaJob {
   } | null
 }
 
-const CONTENT_TYPES: Record<UthanaMotionFormat, string> = {
+const CONTENT_TYPES: Record<UthanaMotion3dFormat, string> = {
   fbx: 'application/fbx',
   glb: 'model/gltf-binary',
 }
@@ -61,7 +61,7 @@ function jobError(job: UthanaJob): string | undefined {
   return job.result?.exc ?? undefined
 }
 
-function isFormat(value: string): value is UthanaMotionFormat {
+function isFormat(value: string): value is UthanaMotion3dFormat {
   return value === 'fbx' || value === 'glb'
 }
 
@@ -69,7 +69,7 @@ function isFormat(value: string): value is UthanaMotionFormat {
  * The job id carries the download options after a `?`, so a poll from any
  * process or adapter downloads on the same character, formats, and fps.
  */
-function encodeJobId(id: string, options: UthanaMotionProviderOptions) {
+function encodeJobId(id: string, options: UthanaMotion3dProviderOptions) {
   const params = new URLSearchParams()
   if (options.character_id) params.set('character', options.character_id)
   for (const format of options.formats ?? []) params.append('formats', format)
@@ -80,7 +80,7 @@ function encodeJobId(id: string, options: UthanaMotionProviderOptions) {
 
 function decodeJobId(jobId: string): {
   id: string
-  options: UthanaMotionProviderOptions
+  options: UthanaMotion3dProviderOptions
 } {
   const index = jobId.indexOf('?')
   if (index === -1) return { id: jobId, options: {} }
@@ -104,33 +104,33 @@ function decodeJobId(jobId: string): {
  *
  * Uthana serves files only with your API key, so the adapter downloads them
  * and returns each asset as a `data:` URL. Uthana has no cancel API, so this
- * adapter has no `cancelMotionJob`.
+ * adapter has no `cancel3dMotionJob`.
  *
  * @experimental Motion generation is an experimental feature and may change.
  */
-export class UthanaMotionAdapter<
-  TModel extends UthanaMotionModel,
-> extends BaseMotionAdapter<TModel, UthanaMotionProviderOptions> {
+export class UthanaMotion3dAdapter<
+  TModel extends UthanaMotion3dModel,
+> extends BaseMotion3dAdapter<TModel, UthanaMotion3dProviderOptions> {
   readonly name = 'uthana' as const
   private readonly config: ResolvedUthanaConfig
-  private readonly defaults: UthanaMotionProviderOptions
+  private readonly defaults: UthanaMotion3dProviderOptions
 
   constructor(
     model: TModel,
-    config?: UthanaClientConfig & { defaults?: UthanaMotionProviderOptions },
+    config?: UthanaClientConfig & { defaults?: UthanaMotion3dProviderOptions },
   ) {
     super(model)
     this.config = resolveUthanaConfig(config)
     this.defaults = config?.defaults ?? {}
   }
 
-  async createMotionJob(
-    options: MotionGenerationOptions<UthanaMotionProviderOptions>,
-  ): Promise<MotionJobResult> {
+  async create3dMotionJob(
+    options: Motion3dGenerationOptions<UthanaMotion3dProviderOptions>,
+  ): Promise<Motion3dJobResult> {
     const { logger } = options
     const modelOptions = { ...this.defaults, ...options.modelOptions }
     logger.request(
-      `activity=generateMotion provider=uthana model=${this.model}`,
+      `activity=generate3dMotion provider=uthana model=${this.model}`,
       { provider: 'uthana', model: this.model },
     )
     try {
@@ -157,9 +157,9 @@ export class UthanaMotionAdapter<
       )
       return { jobId, model: this.model }
     } catch (error) {
-      logger.errors('uthana.createMotionJob fatal', {
+      logger.errors('uthana.create3dMotionJob fatal', {
         error,
-        source: 'uthana.createMotionJob',
+        source: 'uthana.create3dMotionJob',
       })
       throw error
     }
@@ -176,10 +176,10 @@ export class UthanaMotionAdapter<
     return data.job
   }
 
-  async getMotionStatus(
+  async get3dMotionStatus(
     jobId: string,
     options?: { abortSignal?: AbortSignal },
-  ): Promise<MotionStatusResult> {
+  ): Promise<Motion3dStatusResult> {
     const job = await this.readJob(decodeJobId(jobId).id, options?.abortSignal)
     const error = jobError(job)
     switch (job.status) {
@@ -197,10 +197,10 @@ export class UthanaMotionAdapter<
     }
   }
 
-  async getMotion(
+  async get3dMotion(
     jobId: string,
     options?: { abortSignal?: AbortSignal },
-  ): Promise<MotionGenerationResult> {
+  ): Promise<Motion3dGenerationResult> {
     const { id, options: jobOptions } = decodeJobId(jobId)
     const job = await this.readJob(id, options?.abortSignal)
     const motionId = job.result?.result?.id
@@ -210,7 +210,7 @@ export class UthanaMotionAdapter<
       )
     }
     const characterId = jobOptions.character_id ?? UTHANA_DEFAULT_CHARACTER_ID
-    const assets: Array<MotionAsset> = []
+    const assets: Array<Motion3dAsset> = []
     for (const format of jobOptions.formats ?? ['fbx']) {
       const fileName = `uthana-${motionId}.${format}`
       const query = jobOptions.fps !== undefined ? `?fps=${jobOptions.fps}` : ''
@@ -245,14 +245,14 @@ export class UthanaMotionAdapter<
  *
  * @example
  * ```ts
- * const adapter = uthanaMotion('text-to-motion-3.0')
+ * const adapter = uthana3dMotion('text-to-motion-3.0')
  * ```
  *
  * @experimental Motion generation is an experimental feature and may change.
  */
-export function uthanaMotion<TModel extends UthanaMotionModel>(
+export function uthana3dMotion<TModel extends UthanaMotion3dModel>(
   model: TModel,
-  config?: UthanaClientConfig & { defaults?: UthanaMotionProviderOptions },
-): UthanaMotionAdapter<TModel> {
-  return new UthanaMotionAdapter(model, config)
+  config?: UthanaClientConfig & { defaults?: UthanaMotion3dProviderOptions },
+): UthanaMotion3dAdapter<TModel> {
+  return new UthanaMotion3dAdapter(model, config)
 }

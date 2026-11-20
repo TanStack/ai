@@ -8,8 +8,8 @@ keywords:
   - tutorial
   - game assets
   - 3d model generation
-  - generate3DModel
-  - useGenerate3DModel
+  - generate3dModel
+  - useGenerate3dModel
   - fal
   - meshy
   - tanstack start
@@ -252,12 +252,12 @@ The page sends earlier results as prompt parts. An `image` part carries an image
 ```typescript ignore
 import { createFileRoute } from '@tanstack/react-router'
 import {
-  generate3DModel,
+  generate3dModel,
   generationParamsFromRequest,
   resolveMediaPrompt,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { fal3DModel } from '@tanstack/ai-fal'
+import { fal3dModel } from '@tanstack/ai-fal'
 import { falByok } from '@tanstack/ai-fal/byok'
 import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 
@@ -284,8 +284,8 @@ export async function POST({ request }: { request: Request }) {
   // Smart Topology keeps to the triangle budget. @fal-ai/client has no types
   // for this model, so modelOptions is not typed here.
   if (step === 'mesh' && image) {
-    const stream = generate3DModel({
-      adapter: fal3DModel('meshy/t2.5/image-to-3d', { apiKey }),
+    const stream = generate3dModel({
+      adapter: fal3dModel('meshy/t2.5/image-to-3d', { apiKey }),
       prompt: [image],
       modelOptions: { target_polycount: 10_000, enable_pbr: true },
       stream: true,
@@ -299,8 +299,8 @@ export async function POST({ request }: { request: Request }) {
 
   // Step 4: paint the same mesh with the skin image. The UVs stay the same.
   if (step === 'retexture' && mesh && image) {
-    const stream = generate3DModel({
-      adapter: fal3DModel('meshy/v7/retexture', { apiKey }),
+    const stream = generate3dModel({
+      adapter: fal3dModel('meshy/v7/retexture', { apiKey }),
       prompt: [mesh, image],
       modelOptions: { enable_pbr: true, texture_resolution: '2k' },
       stream: true,
@@ -332,7 +332,7 @@ export const Route = createFileRoute('/api/model3d')({
 What the route does:
 
 - The route passes on only the parts that the step needs.
-- `stream: true` makes `generate3DModel` submit the fal job, poll it every 2 seconds, and stream each status to the page.
+- `stream: true` makes `generate3dModel` submit the fal job, poll it every 2 seconds, and stream each status to the page.
 - `timeout` gives each 3D job 20 minutes. The default is 10 minutes, and a Meshy job can take longer when the fal queue is busy.
 - `modelOptions` is typed for each model that `@fal-ai/client` has types for. It has no types for `meshy/t2.5` yet, so the [model page](https://fal.ai/models/meshy/t2.5/image-to-3d/api) lists its options. `target_polycount` sets the triangle budget, up to 30,000.
 - Do you need quad faces? Use `meshy/v7.1/image-to-3d` with `topology: 'quad'`. It has typed options, but it makes about twice as many triangles for the same budget.
@@ -342,7 +342,7 @@ What the route does:
 Replace `src/routes/index.tsx` with this file. It has two small components:
 
 - `ImageStep` is a text field and a button. It uses `useGenerateImage`. In step 1, it also has a file field for your own image.
-- `ModelStep` is a button, the job status, a preview, and a download link. It uses `useGenerate3DModel`.
+- `ModelStep` is a button, the job status, a preview, and a download link. It uses `useGenerate3dModel`.
 
 When a step finishes, its `onImage` or `onModel` callback gives the URL to the page, and the next card unlocks.
 
@@ -351,7 +351,7 @@ import { useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import {
   fetchServerSentEvents,
-  useGenerate3DModel,
+  useGenerate3dModel,
   useGenerateImage,
 } from '@tanstack/ai-react'
 import { FalKeyForm } from '@/components/fal-key-form'
@@ -486,7 +486,7 @@ function ModelStep({ step, title, action, prompt, onModel }: ModelStepProps) {
   const [status, setStatus] = useState('')
   // POST to /api/model3d?step=... over SSE. The server polls fal and
   // streams the job status, then the finished model.
-  const { generate, result, isLoading, error, stop } = useGenerate3DModel({
+  const { generate, result, isLoading, error, stop } = useGenerate3dModel({
     connection: fetchServerSentEvents(`/api/model3d?step=${step}`),
     threadId: `asset-${step}`,
     byok,

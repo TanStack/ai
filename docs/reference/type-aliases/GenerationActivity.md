@@ -20,7 +20,7 @@ type GenerationActivity =
   | "evaluate"
   | "summarize"
   | "world"
-  | "motion"
+  | "motion3d"
   | "liveVideo";
 ```
 

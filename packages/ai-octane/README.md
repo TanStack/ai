@@ -106,7 +106,7 @@ synthetic `onChange`.
 ## API
 
 The adapter includes `useChat`, `useRealtimeChat`, `useMcpAppBridge`,
-`useGeneration`, `useGenerateImage`, `useGenerate3DModel` (experimental),
+`useGeneration`, `useGenerateImage`, `useGenerate3dModel` (experimental),
 `useGenerateAudio`, `useGenerateSpeech`, `useGenerateVideo`, `useTranscription`,
 `useSummarize`, and `useAudioRecorder`. It also re-exports all 30
 `@tanstack/ai-client` convenience helpers and types (`fetchServerSentEvents`, `fetchHttpStream`,

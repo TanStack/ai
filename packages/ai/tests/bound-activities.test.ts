@@ -22,8 +22,8 @@ vi.mock('../src/activities/generateImage/index', () => ({
 vi.mock('../src/activities/generateVideo/index', () => ({
   generateVideo: record('video'),
 }))
-vi.mock('../src/activities/generate3DModel/index', () => ({
-  generate3DModel: record('3dModel'),
+vi.mock('../src/activities/generate3dModel/index', () => ({
+  generate3dModel: record('3dModel'),
 }))
 vi.mock('../src/activities/generateAudio/index', () => ({
   generateAudio: record('audio'),
@@ -77,7 +77,7 @@ const idActivities: Array<[Activity, string]> = [
   ['summarize', 'summarize'],
   ['generateImage', 'image'],
   ['generateVideo', 'video'],
-  ['generate3DModel', '3dModel'],
+  ['generate3dModel', '3dModel'],
   ['generateAudio', 'audio'],
   ['generateSpeech', 'speech'],
   ['generateVoice', 'voice'],

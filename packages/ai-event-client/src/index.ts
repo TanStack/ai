@@ -1121,7 +1121,7 @@ export interface WorldUsageEvent extends BaseEventContext {
  * Emitted when a motion request starts. `requestType` is `create` for a
  * submit (or a whole stream) and `status` for a poll.
  */
-export interface MotionRequestStartedEvent extends BaseEventContext {
+export interface Motion3dRequestStartedEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
@@ -1134,7 +1134,7 @@ export interface MotionRequestStartedEvent extends BaseEventContext {
 }
 
 /** Emitted when a motion request completes. */
-export interface MotionRequestCompletedEvent extends BaseEventContext {
+export interface Motion3dRequestCompletedEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
@@ -1150,7 +1150,7 @@ export interface MotionRequestCompletedEvent extends BaseEventContext {
 }
 
 /** Emitted when a motion request fails. */
-export interface MotionRequestErrorEvent extends BaseEventContext {
+export interface Motion3dRequestErrorEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
@@ -1163,7 +1163,7 @@ export interface MotionRequestErrorEvent extends BaseEventContext {
 }
 
 /** Emitted when motion usage metrics are available. */
-export interface MotionUsageEvent extends BaseEventContext {
+export interface Motion3dUsageEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
@@ -1629,10 +1629,10 @@ export interface AIDevtoolsEventMap {
   'world:usage': WorldUsageEvent
 
   // Motion events
-  'motion:request:started': MotionRequestStartedEvent
-  'motion:request:completed': MotionRequestCompletedEvent
-  'motion:request:error': MotionRequestErrorEvent
-  'motion:usage': MotionUsageEvent
+  'motion3d:request:started': Motion3dRequestStartedEvent
+  'motion3d:request:completed': Motion3dRequestCompletedEvent
+  'motion3d:request:error': Motion3dRequestErrorEvent
+  'motion3d:usage': Motion3dUsageEvent
 
   // Live events
   'liveVideo:request:started': LiveVideoRequestStartedEvent

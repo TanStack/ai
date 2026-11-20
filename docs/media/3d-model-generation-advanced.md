@@ -2,12 +2,12 @@
 title: "3D Model Generation: Advanced"
 id: 3d-model-generation-advanced
 order: 7.6
-description: "Chain concept art, a low-poly mesh, and new skins on the server with generate3DModel(). Rig characters with Meshy, poll jobs yourself, and handle errors."
+description: "Chain concept art, a low-poly mesh, and new skins on the server with generate3dModel(). Rig characters with Meshy, poll jobs yourself, and handle errors."
 keywords:
   - tanstack ai
   - 3d model generation
-  - generate3DModel
-  - get3DModelJobStatus
+  - generate3dModel
+  - get3dModelJobStatus
   - asset pipeline
   - low poly
   - retexture
@@ -26,14 +26,14 @@ Run each step of an asset pipeline on the server with `wait: true`. Pass the URL
 
 ## Wait for the model on the server
 
-`wait: true` runs the full job and returns the finished `Model3DResult`. No browser needs to wait for a stream. Use it in a script, a queue worker, or a pipeline:
+`wait: true` runs the full job and returns the finished `Model3dResult`. No browser needs to wait for a stream. Use it in a script, a queue worker, or a pipeline:
 
 ```typescript
-import { generate3DModel } from '@tanstack/ai'
-import { fal3DModel } from '@tanstack/ai-fal'
+import { generate3dModel } from '@tanstack/ai'
+import { fal3dModel } from '@tanstack/ai-fal'
 
-const model = await generate3DModel({
-  adapter: fal3DModel('fal-ai/hunyuan-3d/v3.1/pro/text-to-3d'),
+const model = await generate3dModel({
+  adapter: fal3dModel('fal-ai/hunyuan-3d/v3.1/pro/text-to-3d'),
   prompt: 'A stone well with a wooden roof, game asset',
   threadId: 'well',
   wait: true,
@@ -54,8 +54,8 @@ This function makes a low-poly treasure chest from one line of text, and then a 
 4. **Retexture.** Meshy 7 Retexture paints the mesh from step 2 with the gold skin.
 
 ```typescript
-import { generate3DModel, generateImage } from '@tanstack/ai'
-import { fal3DModel, falImage } from '@tanstack/ai-fal'
+import { generate3dModel, generateImage } from '@tanstack/ai'
+import { fal3dModel, falImage } from '@tanstack/ai-fal'
 import type { ImageGenerationResult } from '@tanstack/ai'
 
 function firstImageUrl(result: ImageGenerationResult) {
@@ -75,8 +75,8 @@ export async function buildTreasureChest(threadId: string) {
   const conceptUrl = firstImageUrl(concept)
 
   // 2. A low-poly mesh with quad faces and PBR textures
-  const mesh = await generate3DModel({
-    adapter: fal3DModel('meshy/v7.1/image-to-3d'),
+  const mesh = await generate3dModel({
+    adapter: fal3dModel('meshy/v7.1/image-to-3d'),
     prompt: [{ type: 'image', source: { type: 'url', value: conceptUrl } }],
     threadId,
     wait: true,
@@ -97,8 +97,8 @@ export async function buildTreasureChest(threadId: string) {
   })
 
   // 4. Paint the same mesh with the new skin
-  const golden = await generate3DModel({
-    adapter: fal3DModel('meshy/v7/retexture'),
+  const golden = await generate3dModel({
+    adapter: fal3dModel('meshy/v7/retexture'),
     prompt: [
       { type: 'model3d', source: { type: 'url', value: mesh.url } },
       { type: 'image', source: { type: 'url', value: firstImageUrl(skin) } },
@@ -112,7 +112,7 @@ export async function buildTreasureChest(threadId: string) {
 }
 ```
 
-Call `buildTreasureChest('chest-1')`. After about 10 minutes, it returns two `Model3DResult` values. Each `url` is a GLB of the same low-poly mesh with a different skin.
+Call `buildTreasureChest('chest-1')`. After about 10 minutes, it returns two `Model3dResult` values. Each `url` is a GLB of the same low-poly mesh with a different skin.
 
 How the parts reach fal:
 
@@ -132,13 +132,13 @@ Some changes to try:
 Meshy 7.1 can rig a humanoid character and add animations in the same job:
 
 ```typescript
-import { generate3DModel } from '@tanstack/ai'
-import { fal3DModel } from '@tanstack/ai-fal'
+import { generate3dModel } from '@tanstack/ai'
+import { fal3dModel } from '@tanstack/ai-fal'
 
 const characterUrl = 'https://example.com/concept/knight.png'
 
-const knight = await generate3DModel({
-  adapter: fal3DModel('meshy/v7.1/image-to-3d'),
+const knight = await generate3dModel({
+  adapter: fal3dModel('meshy/v7.1/image-to-3d'),
   prompt: [{ type: 'image', source: { type: 'url', value: characterUrl } }],
   threadId: 'knight',
   wait: true,
@@ -178,17 +178,17 @@ The roles that a file can have:
 
 ### Rig and animate with the Meshy API
 
-`meshy3DModel()` from `@tanstack/ai-meshy` runs the mesh, the rig, and each animation as separate jobs. Each job reads the result of the job before it from its Meshy task id, so you upload nothing:
+`meshy3dModel()` from `@tanstack/ai-meshy` runs the mesh, the rig, and each animation as separate jobs. Each job reads the result of the job before it from its Meshy task id, so you upload nothing:
 
 ```typescript
-import { generate3DModel } from '@tanstack/ai'
-import { meshy3DModel } from '@tanstack/ai-meshy'
+import { generate3dModel } from '@tanstack/ai'
+import { meshy3dModel } from '@tanstack/ai-meshy'
 
-// The jobId of an earlier meshy3DModel('image-to-3d') job
+// The jobId of an earlier meshy3dModel('image-to-3d') job
 const meshJobId = 'your-mesh-task-id'
 
-const rig = await generate3DModel({
-  adapter: meshy3DModel('rigging'),
+const rig = await generate3dModel({
+  adapter: meshy3dModel('rigging'),
   prompt: [
     {
       type: 'model3d',
@@ -206,30 +206,30 @@ console.log(rig.url) // The rigged GLB
 With this path, you can also:
 
 - Pick any action from the Meshy animation library, or up to 10 actions in one job.
-- Put a text-to-motion clip from `meshyMotion()` on the rig.
+- Put a text-to-motion clip from `meshy3dMotion()` on the rig.
 - Pick a skeleton for your engine, for example `'mixamo'` or `'ue5_mannequin'`.
 
 The full chain is in [Meshy: rig and animate a character](../adapters/meshy#rig-and-animate-a-character).
 
 ## Poll the job yourself
 
-Without `stream` or `wait`, `generate3DModel()` only submits the job and returns `{ jobId, model }`. Save the job id, then read the job later with `get3DModelJobStatus()`. Use this for your own queue, or for a cron job that checks many jobs:
+Without `stream` or `wait`, `generate3dModel()` only submits the job and returns `{ jobId, model }`. Save the job id, then read the job later with `get3dModelJobStatus()`. Use this for your own queue, or for a cron job that checks many jobs:
 
 ```typescript
-import { generate3DModel, get3DModelJobStatus } from '@tanstack/ai'
-import { fal3DModel } from '@tanstack/ai-fal'
+import { generate3dModel, get3dModelJobStatus } from '@tanstack/ai'
+import { fal3dModel } from '@tanstack/ai-fal'
 
-const adapter = fal3DModel('fal-ai/hunyuan-3d/v3.1/pro/text-to-3d')
+const adapter = fal3dModel('fal-ai/hunyuan-3d/v3.1/pro/text-to-3d')
 
 // 1. Submit the job, and save the id (for example in your database)
-const { jobId } = await generate3DModel({
+const { jobId } = await generate3dModel({
   adapter,
   prompt: 'A stone well with a wooden roof',
   threadId: 'well',
 })
 
 // 2. Later, in a queue worker
-const status = await get3DModelJobStatus({ adapter, jobId })
+const status = await get3dModelJobStatus({ adapter, jobId })
 if (status.status === 'completed' && status.result) {
   console.log('Model ready:', status.result.url)
 } else if (status.status === 'failed') {
@@ -237,17 +237,17 @@ if (status.status === 'completed' && status.result) {
 }
 ```
 
-`get3DModelJobStatus()` returns `{ jobId, status, progress?, error?, result? }`:
+`get3dModelJobStatus()` returns `{ jobId, status, progress?, error?, result? }`:
 
 - `status` is `'pending'`, `'processing'`, `'completed'`, or `'failed'`.
-- `result` is the `Model3DResult`. It is set only when `status` is `'completed'`.
+- `result` is the `Model3dResult`. It is set only when `status` is `'completed'`.
 - Use an adapter with the same model id as the submit call.
 
 Some more facts about this mode:
 
-- `get3DModelJobStatus()` runs no middleware. For one middleware run over the full job, use `wait` or `stream`.
+- `get3dModelJobStatus()` runs no middleware. For one middleware run over the full job, use `wait` or `stream`.
 - In submit mode, `timeout` covers only the submit request, and has no default.
-- To cancel a submitted job, call `adapter.cancel3DModelJob(jobId)`. fal can refuse to cancel a job that already runs.
+- To cancel a submitted job, call `adapter.cancel3dModelJob(jobId)`. fal can refuse to cancel a job that already runs.
 
 ## Stop a job
 
@@ -256,27 +256,27 @@ With `stream` or `wait`, two options stop the run:
 - `timeout`: milliseconds for the full job. The default is 10 minutes.
 - `abortSignal`: your own signal. The first of the two to fire stops the run.
 
-When the run stops after fal accepted the job, `generate3DModel()` asks fal to cancel the job. The cancel is best effort. A failed cancel goes to the error log.
+When the run stops after fal accepted the job, `generate3dModel()` asks fal to cancel the job. The cancel is best effort. A failed cancel goes to the error log.
 
 In a pipeline, each step has its own `timeout`. To stop all the steps at once, give every step the same signal:
 
 ```typescript
-import { generate3DModel } from '@tanstack/ai'
-import { fal3DModel } from '@tanstack/ai-fal'
+import { generate3dModel } from '@tanstack/ai'
+import { fal3dModel } from '@tanstack/ai-fal'
 
 // Stop the full pipeline after 30 minutes
 const signal = AbortSignal.timeout(30 * 60_000)
 
-const mesh = await generate3DModel({
-  adapter: fal3DModel('fal-ai/hunyuan3d-v3/text-to-3d'),
+const mesh = await generate3dModel({
+  adapter: fal3dModel('fal-ai/hunyuan3d-v3/text-to-3d'),
   prompt: 'A wooden barrel, game asset',
   threadId: 'barrel',
   wait: true,
   abortSignal: signal,
 })
 
-const snowy = await generate3DModel({
-  adapter: fal3DModel('fal-ai/trellis-2/retexture'),
+const snowy = await generate3dModel({
+  adapter: fal3dModel('fal-ai/trellis-2/retexture'),
   prompt: [
     { type: 'model3d', source: { type: 'url', value: mesh.url } },
     {
@@ -310,12 +310,12 @@ A job can also fail on fal:
 - If the finished job has no mesh file, the adapter throws. The message lists the output fields that fal returned.
 
 ```typescript
-import { generate3DModel } from '@tanstack/ai'
-import { fal3DModel } from '@tanstack/ai-fal'
+import { generate3dModel } from '@tanstack/ai'
+import { fal3dModel } from '@tanstack/ai-fal'
 
 try {
-  const model = await generate3DModel({
-    adapter: fal3DModel('fal-ai/hunyuan-3d/v3.1/pro/text-to-3d'),
+  const model = await generate3dModel({
+    adapter: fal3dModel('fal-ai/hunyuan-3d/v3.1/pro/text-to-3d'),
     prompt: 'A wooden barrel',
     threadId: 'barrel',
     wait: true,

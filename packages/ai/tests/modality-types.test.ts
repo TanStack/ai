@@ -15,7 +15,7 @@ import type {
   ImagePart,
   MediaPromptFor,
   Modality,
-  Model3DPart,
+  Model3dPart,
   TextPart,
   VideoPart,
 } from '../src/types'
@@ -359,7 +359,7 @@ describe('Multimodal Type Constraints', () => {
       ModelInputModalities[TModel][number]
     >
 
-    const mesh: Model3DPart = {
+    const mesh: Model3dPart = {
       type: 'model3d',
       source: { type: 'url', value: 'https://example.com/chair.glb' },
     }
@@ -375,14 +375,14 @@ describe('Multimodal Type Constraints', () => {
     it('should NOT allow a model3d part for a model that lists only image', () => {
       // @ts-expect-error - 'image-model' does not list 'model3d'
       imageModelPrompt([mesh])
-      expectTypeOf<Array<Model3DPart>>().not.toExtend<
+      expectTypeOf<Array<Model3dPart>>().not.toExtend<
         PromptFor<'image-model'>
       >()
     })
 
     it('should allow a model3d part for a model that lists model3d', () => {
       meshModelPrompt([{ type: 'text', content: 'retopology' }, mesh])
-      expectTypeOf<Array<TextPart | Model3DPart>>().toExtend<
+      expectTypeOf<Array<TextPart | Model3dPart>>().toExtend<
         PromptFor<'mesh-model'>
       >()
     })

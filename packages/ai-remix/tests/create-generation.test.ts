@@ -1,9 +1,9 @@
 import { EventType } from '@tanstack/ai/client'
 import { describe, expect, it, vi } from 'vitest'
-import { createGenerate3DModel } from '../src/create-generate-3d-model'
+import { createGenerate3dModel } from '../src/create-generate-3d-model'
 import { createGenerateImage } from '../src/create-generate-image'
 import { createGeneration } from '../src/create-generation'
-import type { ImageGenerationResult, Model3DResult } from '@tanstack/ai'
+import type { ImageGenerationResult, Model3dResult } from '@tanstack/ai'
 import type { StreamChunk } from '@tanstack/ai/client'
 
 function createMockHandle() {
@@ -62,10 +62,10 @@ describe('createGeneration', () => {
   })
 })
 
-describe('createGenerate3DModel', () => {
+describe('createGenerate3dModel', () => {
   it('reports each poll as progress, then stores the finished model', async () => {
     const handle = createMockHandle()
-    const model: Model3DResult = {
+    const model: Model3dResult = {
       jobId: 'job-1',
       url: 'https://example.com/fox.glb',
       format: 'glb',
@@ -73,7 +73,7 @@ describe('createGenerate3DModel', () => {
     }
     const progress: Array<[number, string | undefined]> = []
 
-    const gen = createGenerate3DModel(handle, {
+    const gen = createGenerate3dModel(handle, {
       threadId: 'thread-1',
       connection: createConnection([
         runChunk(EventType.RUN_STARTED),
@@ -111,7 +111,7 @@ describe('createGenerate3DModel', () => {
     const handle = createMockHandle()
     const onError = vi.fn()
 
-    const gen = createGenerate3DModel(handle, {
+    const gen = createGenerate3dModel(handle, {
       threadId: 'thread-1',
       connection: createConnection([
         runChunk(EventType.RUN_STARTED),

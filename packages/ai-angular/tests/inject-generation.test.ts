@@ -10,9 +10,9 @@ import { injectGeneration } from '../src/inject-generation'
 import { injectGenerateVideo } from '../src/inject-generate-video'
 import { injectGenerateImage } from '../src/inject-generate-image'
 import { injectGenerateSpeech } from '../src/inject-generate-speech'
-import { injectGenerate3DModel } from '../src/inject-generate-3d-model'
+import { injectGenerate3dModel } from '../src/inject-generate-3d-model'
 import type {
-  Model3DResult,
+  Model3dResult,
   PersistedArtifactRef,
   StreamChunk,
 } from '@tanstack/ai'
@@ -315,7 +315,7 @@ describe('injectGenerateSpeech', () => {
 })
 
 // RUN_STARTED, then the given chunks, as the 3D model server route streams them.
-function create3DModelChunks(chunks: Array<StreamChunk>): Array<StreamChunk> {
+function create3dModelChunks(chunks: Array<StreamChunk>): Array<StreamChunk> {
   return [
     {
       type: EventType.RUN_STARTED,
@@ -327,16 +327,16 @@ function create3DModelChunks(chunks: Array<StreamChunk>): Array<StreamChunk> {
   ]
 }
 
-describe('injectGenerate3DModel', () => {
+describe('injectGenerate3dModel', () => {
   it('reports progress, then stores the model result', async () => {
-    const model: Model3DResult = {
+    const model: Model3dResult = {
       jobId: 'job-3d',
       url: 'https://cdn.example.com/chair.glb',
       format: 'glb',
       previewImageUrl: 'https://cdn.example.com/chair.png',
     }
     const { adapter } = createRunContextCaptureAdapter(
-      create3DModelChunks([
+      create3dModelChunks([
         {
           type: EventType.CUSTOM,
           name: 'generation:progress',
@@ -359,7 +359,7 @@ describe('injectGenerate3DModel', () => {
     )
     const progressUpdates: Array<[number, string | undefined]> = []
     const { result, flush } = renderInjectable(() =>
-      injectGenerate3DModel({
+      injectGenerate3dModel({
         threadId: 'thread-3d',
         connection: adapter,
         onProgress: (progress, message) => {
@@ -384,7 +384,7 @@ describe('injectGenerate3DModel', () => {
 
   it('surfaces a RUN_ERROR as the error and keeps no result', async () => {
     const { adapter } = createRunContextCaptureAdapter(
-      create3DModelChunks([
+      create3dModelChunks([
         {
           type: EventType.RUN_ERROR,
           message: 'Provider job failed',
@@ -394,7 +394,7 @@ describe('injectGenerate3DModel', () => {
     )
     const onError = vi.fn()
     const { result, flush } = renderInjectable(() =>
-      injectGenerate3DModel({
+      injectGenerate3dModel({
         threadId: 'thread-3d-error',
         connection: adapter,
         onError,

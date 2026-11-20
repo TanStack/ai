@@ -2458,14 +2458,14 @@ export interface MediaInputMetadata {
  * content-part shapes: text parts carry the instruction, image / video /
  * audio parts carry conditioning inputs (with an optional
  * `metadata.role` hint — see {@link MediaInputRole}).
- * A {@link Model3DPart} carries an existing mesh for 3D model generation.
+ * A {@link Model3dPart} carries an existing mesh for 3D model generation.
  */
 export type MediaPromptPart =
   | TextPart
   | ImagePart<MediaInputMetadata>
   | VideoPart<MediaInputMetadata>
   | AudioPart<MediaInputMetadata>
-  | Model3DPart
+  | Model3dPart
 
 /**
  * Prompt accepted by `generateImage()` / `generateVideo()`: a plain string,
@@ -2491,7 +2491,7 @@ interface MediaPartByModality {
   image: ImagePart<MediaInputMetadata>
   video: VideoPart<MediaInputMetadata>
   audio: AudioPart<MediaInputMetadata>
-  model3d: Model3DPart
+  model3d: Model3dPart
 }
 
 /**
@@ -2823,7 +2823,7 @@ export interface VideoStreamResult {
  *
  * @experimental 3D model generation is experimental and may change.
  */
-export type Model3DFormat =
+export type Model3dFormat =
   | 'glb'
   | 'gltf'
   | 'fbx'
@@ -2844,7 +2844,7 @@ export type Model3DFormat =
  *
  * @experimental 3D model generation is experimental and may change.
  */
-export type Model3DFileRole =
+export type Model3dFileRole =
   | 'base'
   | 'pbr'
   | 'rigged'
@@ -2853,13 +2853,13 @@ export type Model3DFileRole =
   | 'part'
 
 /**
- * Metadata for a {@link Model3DPart} in a media prompt.
+ * Metadata for a {@link Model3dPart} in a media prompt.
  *
  * @experimental 3D model generation is experimental and may change.
  */
-export interface Model3DInputMetadata {
+export interface Model3dInputMetadata {
   /** File format of the mesh. Set it when the source URL has no file extension. */
-  format?: Model3DFormat
+  format?: Model3dFormat
 }
 
 /**
@@ -2869,7 +2869,7 @@ export interface Model3DInputMetadata {
  *
  * @example
  * ```ts
- * const mesh: Model3DPart = {
+ * const mesh: Model3dPart = {
  *   type: 'model3d',
  *   source: { type: 'url', value: 'https://example.com/chair.glb' },
  * }
@@ -2877,7 +2877,7 @@ export interface Model3DInputMetadata {
  *
  * @experimental 3D model generation is experimental and may change.
  */
-export interface Model3DPart<TMetadata = Model3DInputMetadata> {
+export interface Model3dPart<TMetadata = Model3dInputMetadata> {
   type: 'model3d'
   /** Where the mesh bytes come from: a URL, inline data, or a provider file. */
   source: ContentPartSource
@@ -2890,7 +2890,7 @@ export interface Model3DPart<TMetadata = Model3DInputMetadata> {
  *
  * @experimental 3D model generation is experimental and may change.
  */
-export interface Model3DGenerationOptions<
+export interface Model3dGenerationOptions<
   TProviderOptions extends object = object,
 > {
   /** The model to use for 3D model generation */
@@ -2905,7 +2905,7 @@ export interface Model3DGenerationOptions<
   /** Model-specific options for 3D model generation */
   modelOptions?: TProviderOptions
   /**
-   * Internal logger from the generate3DModel() entry point. Adapters must
+   * Internal logger from the generate3dModel() entry point. Adapters must
    * call logger.request() before the SDK call and logger.errors() in catch blocks.
    */
   logger: InternalLogger
@@ -2922,7 +2922,7 @@ export interface Model3DGenerationOptions<
  *
  * @experimental 3D model generation is experimental and may change.
  */
-export interface Model3DJobResult {
+export interface Model3dJobResult {
   /** Unique job identifier for polling status */
   jobId: string
   /** Model used for generation */
@@ -2934,7 +2934,7 @@ export interface Model3DJobResult {
  *
  * @experimental 3D model generation is experimental and may change.
  */
-export interface Model3DStatusResult {
+export interface Model3dStatusResult {
   /** Job identifier */
   jobId: string
   /** Current status of the job */
@@ -2950,16 +2950,16 @@ export interface Model3DStatusResult {
  *
  * @experimental 3D model generation is experimental and may change.
  */
-export interface Model3DFile {
+export interface Model3dFile {
   /** URL of the file */
   url: string
   /**
    * Set for mesh files. Not set for textures and other non-mesh files; use
    * `contentType`.
    */
-  format?: Model3DFormat
+  format?: Model3dFormat
   /** What the file holds, when the provider tells us */
-  role?: Model3DFileRole
+  role?: Model3dFileRole
   /** MIME type of the file, when known (e.g. `model/gltf-binary`) */
   contentType?: string
 }
@@ -2969,18 +2969,18 @@ export interface Model3DFile {
  *
  * @experimental 3D model generation is experimental and may change.
  */
-export interface Model3DResult {
+export interface Model3dResult {
   /** Job identifier */
   jobId: string
   /** URL of the main model file. The adapter picks a GLB when there is one. */
   url: string
   /** File format of `url` */
-  format: Model3DFormat
+  format: Model3dFormat
   /**
    * The files the provider returned: every mesh with its format, and the
    * texture files. Each file has a role when the provider tells us.
    */
-  files?: Array<Model3DFile>
+  files?: Array<Model3dFile>
   /** URL of a preview image of the model, when the provider makes one */
   previewImageUrl?: string
   /**
@@ -3107,7 +3107,7 @@ export interface WorldGenerationResult {
  *
  * @experimental Motion generation is an experimental feature and may change.
  */
-export interface MotionGenerationOptions<
+export interface Motion3dGenerationOptions<
   TProviderOptions extends object = object,
 > {
   /** The model to use for motion generation */
@@ -3122,7 +3122,7 @@ export interface MotionGenerationOptions<
   /** Provider-specific options (seed, guidance, output format, ...) */
   modelOptions?: TProviderOptions
   /**
-   * Internal logger threaded from the generateMotion() entry point. Adapters
+   * Internal logger threaded from the generate3dMotion() entry point. Adapters
    * must call logger.request() before the SDK call and logger.errors() in
    * catch blocks.
    */
@@ -3140,7 +3140,7 @@ export interface MotionGenerationOptions<
  *
  * @experimental Motion generation is an experimental feature and may change.
  */
-export interface MotionJobResult {
+export interface Motion3dJobResult {
   /** Provider job id. Use it to poll, cancel, or resume from another request. */
   jobId: string
   /** Model the job runs on */
@@ -3148,7 +3148,7 @@ export interface MotionJobResult {
 }
 
 /** Lifecycle state of a motion job. */
-export type MotionJobState = 'pending' | 'processing' | 'completed' | 'failed'
+export type Motion3dJobState = 'pending' | 'processing' | 'completed' | 'failed'
 
 /**
  * Status of a motion job, as the provider reports it. Fields the provider
@@ -3156,9 +3156,9 @@ export type MotionJobState = 'pending' | 'processing' | 'completed' | 'failed'
  *
  * @experimental Motion generation is an experimental feature and may change.
  */
-export interface MotionStatusResult {
+export interface Motion3dStatusResult {
   jobId: string
-  status: MotionJobState
+  status: Motion3dJobState
   /** Progress 0-100, only when the provider reports real progress */
   progress?: number
   /** Position in the provider queue, when the provider reports it */
@@ -3172,7 +3172,7 @@ export interface MotionStatusResult {
  * and `json` (raw provider motion data). Other strings pass through as the
  * provider names them.
  */
-export type MotionAssetFormat =
+export type Motion3dAssetFormat =
   | 'fbx'
   | 'bvh'
   | 'glb'
@@ -3185,10 +3185,10 @@ export type MotionAssetFormat =
  *
  * @experimental Motion generation is an experimental feature and may change.
  */
-export interface MotionAsset {
+export interface Motion3dAsset {
   /** Download URL. Provider URLs are often temporary: copy the file to keep it. */
   url: string
-  format: MotionAssetFormat
+  format: Motion3dAssetFormat
   contentType?: string
   fileName?: string
   /** Size in bytes, when the provider reports it */
@@ -3203,11 +3203,11 @@ export interface MotionAsset {
  *
  * @experimental Motion generation is an experimental feature and may change.
  */
-export interface MotionGenerationResult {
+export interface Motion3dGenerationResult {
   jobId: string
   model: string
   /** Every file the provider returned for this motion */
-  assets: Array<MotionAsset>
+  assets: Array<Motion3dAsset>
   /** Seed the provider used, when it reports one. Reuse it to repeat a take. */
   seed?: number
   /** Billing usage, when the adapter can report it */

@@ -1,4 +1,4 @@
-import { BaseMotionAdapter } from '@tanstack/ai/adapters'
+import { BaseMotion3dAdapter } from '@tanstack/ai/adapters'
 import {
   createAdapterFalClient,
   extractUrlExtension,
@@ -6,11 +6,11 @@ import {
 } from '../utils/client'
 import { buildFalUsage, takeBillableUnits } from '../utils/billing'
 import type {
-  MotionAsset,
-  MotionGenerationOptions,
-  MotionGenerationResult,
-  MotionJobResult,
-  MotionStatusResult,
+  Motion3dAsset,
+  Motion3dGenerationOptions,
+  Motion3dGenerationResult,
+  Motion3dJobResult,
+  Motion3dStatusResult,
 } from '@tanstack/ai'
 import type { FalModelInput } from '../model-meta'
 import type { FalClientConfig } from '../utils/client'
@@ -20,7 +20,7 @@ import type { FalClient } from '../client/index'
  * fal motion models. Both Hunyuan Motion endpoints return an FBX file and
  * take the same input. Any other fal endpoint id is accepted as a string.
  */
-export type FalMotionModel =
+export type FalMotion3dModel =
   | 'fal-ai/hunyuan-motion'
   | 'fal-ai/hunyuan-motion/fast'
   | (string & {})
@@ -28,7 +28,7 @@ export type FalMotionModel =
 /**
  * Hunyuan Motion options: `seed`, `guidance_scale` (1 to 10, default 5), and
  * `output_format` (`'fbx'` default, or `'dict'` for raw JSON). `prompt` and
- * `duration` are top-level `generateMotion()` options.
+ * `duration` are top-level `generate3dMotion()` options.
  */
 export type FalHunyuanMotionProviderOptions = Omit<
   FalModelInput<'fal-ai/hunyuan-motion'>,
@@ -36,7 +36,7 @@ export type FalHunyuanMotionProviderOptions = Omit<
 >
 
 /** Provider options for a fal motion model. */
-export type FalMotionProviderOptions<TModel extends string> = TModel extends
+export type FalMotion3dProviderOptions<TModel extends string> = TModel extends
   | 'fal-ai/hunyuan-motion'
   | 'fal-ai/hunyuan-motion/fast'
   ? FalHunyuanMotionProviderOptions
@@ -70,8 +70,8 @@ function isFalFile(value: unknown): value is FalFile {
  * the file name or URL extension, then from the field name
  * (`fbx_file` → `fbx`, `motion_json` → `json`).
  */
-function toMotionAssets(output: Record<string, unknown>): Array<MotionAsset> {
-  const assets: Array<MotionAsset> = []
+function toMotionAssets(output: Record<string, unknown>): Array<Motion3dAsset> {
+  const assets: Array<Motion3dAsset> = []
   for (const [field, value] of Object.entries(output)) {
     if (!isFalFile(value)) continue
     const extension = extractUrlExtension(value.file_name ?? value.url)
@@ -98,9 +98,9 @@ function toMotionAssets(output: Record<string, unknown>): Array<MotionAsset> {
  *
  * @experimental Motion generation is an experimental feature and may change.
  */
-export class FalMotionAdapter<
-  TModel extends FalMotionModel,
-> extends BaseMotionAdapter<TModel, FalMotionProviderOptions<TModel>> {
+export class FalMotion3dAdapter<
+  TModel extends FalMotion3dModel,
+> extends BaseMotion3dAdapter<TModel, FalMotion3dProviderOptions<TModel>> {
   readonly name = 'fal' as const
   private readonly client: FalClient
 
@@ -109,14 +109,17 @@ export class FalMotionAdapter<
     this.client = createAdapterFalClient(config)
   }
 
-  async createMotionJob(
-    options: MotionGenerationOptions<FalMotionProviderOptions<TModel>>,
-  ): Promise<MotionJobResult> {
+  async create3dMotionJob(
+    options: Motion3dGenerationOptions<FalMotion3dProviderOptions<TModel>>,
+  ): Promise<Motion3dJobResult> {
     const { logger } = options
-    logger.request(`activity=generateMotion provider=fal model=${this.model}`, {
-      provider: 'fal',
-      model: this.model,
-    })
+    logger.request(
+      `activity=generate3dMotion provider=fal model=${this.model}`,
+      {
+        provider: 'fal',
+        model: this.model,
+      },
+    )
     try {
       const { request_id } = await this.client.queue.submit(this.model, {
         // The fal SDK keys input types by endpoint id; a generic TModel
@@ -132,18 +135,18 @@ export class FalMotionAdapter<
       })
       return { jobId: request_id, model: this.model }
     } catch (error) {
-      logger.errors('fal.createMotionJob fatal', {
+      logger.errors('fal.create3dMotionJob fatal', {
         error,
-        source: 'fal.createMotionJob',
+        source: 'fal.create3dMotionJob',
       })
       throw error
     }
   }
 
-  async getMotionStatus(
+  async get3dMotionStatus(
     jobId: string,
     options?: { abortSignal?: AbortSignal },
-  ): Promise<MotionStatusResult> {
+  ): Promise<Motion3dStatusResult> {
     const response = (await this.client.queue.status(this.model, {
       requestId: jobId,
       logs: false,
@@ -168,10 +171,10 @@ export class FalMotionAdapter<
     }
   }
 
-  async getMotion(
+  async get3dMotion(
     jobId: string,
     options?: { abortSignal?: AbortSignal },
-  ): Promise<MotionGenerationResult> {
+  ): Promise<Motion3dGenerationResult> {
     let result
     try {
       result = await this.client.queue.result(this.model, {
@@ -207,7 +210,7 @@ export class FalMotionAdapter<
    * request that already runs gets a cancel request and may still finish.
    * fal rejects a cancel for a request that already completed.
    */
-  async cancelMotionJob(
+  async cancel3dMotionJob(
     jobId: string,
     options?: { abortSignal?: AbortSignal },
   ): Promise<void> {
@@ -224,14 +227,14 @@ export class FalMotionAdapter<
  *
  * @example
  * ```ts
- * const adapter = falMotion('fal-ai/hunyuan-motion')
+ * const adapter = fal3dMotion('fal-ai/hunyuan-motion')
  * ```
  *
  * @experimental Motion generation is an experimental feature and may change.
  */
-export function falMotion<TModel extends FalMotionModel>(
+export function fal3dMotion<TModel extends FalMotion3dModel>(
   model: TModel,
   config?: FalClientConfig,
-): FalMotionAdapter<TModel> {
-  return new FalMotionAdapter(model, config)
+): FalMotion3dAdapter<TModel> {
+  return new FalMotion3dAdapter(model, config)
 }

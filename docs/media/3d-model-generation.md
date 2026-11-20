@@ -2,12 +2,12 @@
 title: 3D Model Generation
 id: 3d-model-generation
 order: 7.5
-description: "Turn a concept image or a text prompt into a GLB file with generate3DModel() and fal.ai or Meshy. Show the job status while it runs, then load the model in your app."
+description: "Turn a concept image or a text prompt into a GLB file with generate3dModel() and fal.ai or Meshy. Show the job status while it runs, then load the model in your app."
 keywords:
   - tanstack ai
   - 3d model generation
-  - generate3DModel
-  - useGenerate3DModel
+  - generate3dModel
+  - useGenerate3dModel
   - image-to-3d
   - text-to-3d
   - glb
@@ -21,7 +21,7 @@ keywords:
   - experimental
 ---
 
-`generate3DModel()` turns a concept image or a text prompt into a 3D model file, for example a GLB. The job runs on the provider for a few minutes. With `stream: true`, the browser gets status updates, then the URL of the model.
+`generate3dModel()` turns a concept image or a text prompt into a 3D model file, for example a GLB. The job runs on the provider for a few minutes. With `stream: true`, the browser gets status updates, then the URL of the model.
 
 > [!WARNING]
 > 3D model generation is experimental. The API can change in a minor release. fal bills each 3D job, and the price depends on the model.
@@ -56,11 +56,11 @@ FAL_KEY=your-fal-api-key
 
 ```typescript
 import {
-  generate3DModel,
+  generate3dModel,
   generationParamsFromRequest,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { fal3DModel } from '@tanstack/ai-fal'
+import { fal3dModel } from '@tanstack/ai-fal'
 
 export async function POST(request: Request) {
   const { input, threadId } = await generationParamsFromRequest(
@@ -74,8 +74,8 @@ export async function POST(request: Request) {
     return new Response('Send one image.', { status: 400 })
   }
 
-  const stream = generate3DModel({
-    adapter: fal3DModel('fal-ai/hunyuan-3d/v3.1/pro/image-to-3d'),
+  const stream = generate3dModel({
+    adapter: fal3dModel('fal-ai/hunyuan-3d/v3.1/pro/image-to-3d'),
     prompt: images,
     threadId,
     stream: true,
@@ -142,14 +142,14 @@ Any glTF viewer works, for example `<model-viewer>`. A game engine loads the sam
 
 ```tsx
 import { useState } from 'react'
-import { fetchServerSentEvents, useGenerate3DModel } from '@tanstack/ai-react'
+import { fetchServerSentEvents, useGenerate3dModel } from '@tanstack/ai-react'
 import { GlbViewer } from './GlbViewer'
 
 const conceptUrl = 'https://example.com/concept/treasure-chest.png'
 
 export function ModelGenerator() {
   const [jobState, setJobState] = useState<string>()
-  const { generate, result, isLoading, error, stop } = useGenerate3DModel({
+  const { generate, result, isLoading, error, stop } = useGenerate3dModel({
     connection: fetchServerSentEvents('/api/generate/3d-model'),
     threadId: 'treasure-chest',
     onProgress: (_progress, message) => setJobState(message),
@@ -200,7 +200,7 @@ A 3D model is a job on the provider:
 2. **Poll the job.** The server asks fal for the status until the job is done or fails.
 3. **Get the model.** When the job is done, the adapter reads the file URLs.
 
-With `stream: true`, `generate3DModel()` does all three steps on the server. It sends these events:
+With `stream: true`, `generate3dModel()` does all three steps on the server. It sends these events:
 
 - `generation:progress` after each poll. The value is `{ progress, message }`. The hook calls `onProgress(progress, message)`.
 - `generation:result` when the model is ready. The hook sets `result`.
@@ -210,11 +210,11 @@ With `stream: true`, `generate3DModel()` does all three steps on the server. It 
 By default, the server polls every 2 seconds and stops after 10 minutes. Set `pollInterval` and `timeout` (both in milliseconds) to change this:
 
 ```typescript
-import { generate3DModel } from '@tanstack/ai'
-import { fal3DModel } from '@tanstack/ai-fal'
+import { generate3dModel } from '@tanstack/ai'
+import { fal3dModel } from '@tanstack/ai-fal'
 
-const stream = generate3DModel({
-  adapter: fal3DModel('fal-ai/hunyuan3d-v3/text-to-3d'),
+const stream = generate3dModel({
+  adapter: fal3dModel('fal-ai/hunyuan3d-v3/text-to-3d'),
   prompt: 'A low-poly wooden treasure chest with iron bands',
   threadId: 'thread-1',
   stream: true,
@@ -223,7 +223,7 @@ const stream = generate3DModel({
 })
 ```
 
-On a timeout or an abort, `generate3DModel()` asks fal to cancel the job. fal can refuse to cancel a job that already runs. The route in step 3 passes `request.signal`, so a closed browser request also cancels the job.
+On a timeout or an abort, `generate3dModel()` asks fal to cancel the job. fal can refuse to cancel a job that already runs. The route in step 3 passes `request.signal`, so a closed browser request also cancels the job.
 
 The hook has no `jobId` or status value. Read the job state in `onProgress`. The other hook options are in [Generation Hooks](./generation-hooks#usegenerate3dmodel).
 
@@ -232,11 +232,11 @@ The hook has no `jobId` or status value. Read the job state in `onProgress`. The
 Use a text-to-3D model and send a plain string:
 
 ```typescript
-import { generate3DModel } from '@tanstack/ai'
-import { fal3DModel } from '@tanstack/ai-fal'
+import { generate3dModel } from '@tanstack/ai'
+import { fal3dModel } from '@tanstack/ai-fal'
 
-const model = await generate3DModel({
-  adapter: fal3DModel('fal-ai/hunyuan-3d/v3.1/pro/text-to-3d'),
+const model = await generate3dModel({
+  adapter: fal3dModel('fal-ai/hunyuan-3d/v3.1/pro/text-to-3d'),
   prompt: 'A stylized wooden treasure chest with iron bands, game asset',
   threadId: 'thread-1',
   wait: true,
@@ -249,7 +249,7 @@ console.log(model.url) // The GLB file
 
 ## Pick a model
 
-Swap the id in `fal3DModel()`. The adapter reads `FAL_KEY` from the environment.
+Swap the id in `fal3dModel()`. The adapter reads `FAL_KEY` from the environment.
 
 | Model | Input | Use it for |
 | --- | --- | --- |
@@ -261,12 +261,12 @@ Swap the id in `fal3DModel()`. The adapter reads `FAL_KEY` from the environment.
 
 The full list, and the models that take a mesh as input, are in the [fal adapter](../adapters/fal#3d-model-endpoints).
 
-To call the Meshy API with your own Meshy key, use `meshy3DModel()` from `@tanstack/ai-meshy`. It reads `MESHY_API_KEY`:
+To call the Meshy API with your own Meshy key, use `meshy3dModel()` from `@tanstack/ai-meshy`. It reads `MESHY_API_KEY`:
 
 ```typescript
-import { meshy3DModel } from '@tanstack/ai-meshy'
+import { meshy3dModel } from '@tanstack/ai-meshy'
 
-const adapter = meshy3DModel('image-to-3d', 'meshy-7.1')
+const adapter = meshy3dModel('image-to-3d', 'meshy-7.1')
 ```
 
 The Meshy adapter also does these things:
@@ -283,13 +283,13 @@ TypeScript narrows the prompt for each model. For example, a `model3d` part on a
 Each model has its own `modelOptions`. Write the model id as a string literal, and TypeScript completes them:
 
 ```typescript
-import { generate3DModel } from '@tanstack/ai'
-import { fal3DModel } from '@tanstack/ai-fal'
+import { generate3dModel } from '@tanstack/ai'
+import { fal3dModel } from '@tanstack/ai-fal'
 
 const conceptUrl = 'https://example.com/concept/treasure-chest.png'
 
-const model = await generate3DModel({
-  adapter: fal3DModel('fal-ai/hunyuan-3d/v3.1/pro/image-to-3d'),
+const model = await generate3dModel({
+  adapter: fal3dModel('fal-ai/hunyuan-3d/v3.1/pro/image-to-3d'),
   prompt: [{ type: 'image', source: { type: 'url', value: conceptUrl } }],
   threadId: 'thread-1',
   wait: true,
@@ -306,11 +306,11 @@ More options for popular models:
 - **Meshy 7.1**: `topology` (`'quad'` or `'triangle'`), `target_polycount`, `should_remesh`, `enable_pbr`, and `texture_image_url` (an image that guides the textures). The rigging options are in [Rig and animate a character](./3d-model-generation-advanced#rig-and-animate-a-character).
 - **Tripo v2.5**: `face_limit`, `quad`, `pbr`, and `texture` (`'no'`, `'standard'`, or `'HD'`).
 
-The options of `generate3DModel()`:
+The options of `generate3dModel()`:
 
 | Option | Type | Description |
 | --- | --- | --- |
-| `adapter` | `Model3DAdapter` | The 3D adapter and model (required) |
+| `adapter` | `Model3dAdapter` | The 3D adapter and model (required) |
 | `prompt` | `string \| MediaPromptPart[]` | Text, or an array of text, image, and `model3d` parts (required) |
 | `threadId` | `string` | A stable id for this generation (required) |
 | `modelOptions` | `object` | Options for this model only |
@@ -322,12 +322,12 @@ The options of `generate3DModel()`:
 
 ## The result
 
-`result` on the hook, and the return value of `wait: true`, is a `Model3DResult`:
+`result` on the hook, and the return value of `wait: true`, is a `Model3dResult`:
 
 ```typescript
 import type { TokenUsage } from '@tanstack/ai'
 
-interface Model3DResult {
+interface Model3dResult {
   jobId: string
   url: string // the main file, a GLB when there is one
   format: 'glb' | 'gltf' | 'fbx' | 'obj' | 'usdz' | 'stl' | '3mf'

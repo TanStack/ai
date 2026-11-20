@@ -62,7 +62,7 @@ export type MeshyRigType = 'biped' | 'quadruped'
 
 /**
  * One preset action in the Meshy animation library. Pass `actionId` as
- * `modelOptions.action_id` to `meshy3DModel('animation')`.
+ * `modelOptions.action_id` to `meshy3dModel('animation')`.
  *
  * @experimental Meshy support is experimental and may change.
  */
@@ -222,7 +222,7 @@ export interface AnalyzeMeshyPrintabilityOptions extends MeshyClientConfig {
   /**
    * The model to analyze. A `url` source can be GLB, glTF, OBJ, FBX, or STL.
    * A `data` source can be only GLB or glTF. A `file` source is a Meshy task
-   * id, for example a `jobId` from `meshy3DModel()`.
+   * id, for example a `jobId` from `meshy3dModel()`.
    */
   model: ContentPartSource
   /**

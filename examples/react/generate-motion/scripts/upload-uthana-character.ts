@@ -2,7 +2,7 @@
 //
 //   UTHANA_API_KEY=... node scripts/upload-uthana-character.ts <model.glb|.fbx> <name>
 //
-// Prints the character id. Pass it as `character_id` to uthanaMotion().
+// Prints the character id. Pass it as `character_id` to uthana3dMotion().
 import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 import { createUthanaCharacter } from '@tanstack/ai-uthana'
