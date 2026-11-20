@@ -270,7 +270,9 @@ async function send(
   if (timeoutMs > 0) {
     const timeout = AbortSignal.timeout(timeoutMs)
     // A caller signal must not disable the configured timeout: abort on either.
-    init.signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout
+    init.signal = init.signal
+      ? AbortSignal.any([init.signal, timeout])
+      : timeout
   }
   const request = new Request(url, {
     ...init,
