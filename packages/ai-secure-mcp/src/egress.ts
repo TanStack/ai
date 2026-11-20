@@ -79,8 +79,13 @@ export function createEgress(options: {
       )
     }
     signal.addEventListener('abort', () => clearTimeout(timer), { once: true })
+    // Translate a transport error into the documented taxonomy. It does not
+    // touch the deadline: a body-method rejection (for example a second
+    // `text()` call that rejects because the body is already in use) must not
+    // clear the timer that still guards the first, still-running read. The
+    // timer is cleared only when the request genuinely settles: the fetch
+    // promise rejects below, the deadline fires, or the caller aborts.
     const fail = (error: unknown): SecureMcpError => {
-      clearTimeout(timer)
       const detail = error instanceof Error ? error.message : 'request failed'
       return new SecureMcpError(
         'backend_unavailable',
@@ -95,6 +100,9 @@ export function createEgress(options: {
         signal,
       })
     } catch (error) {
+      // The fetch promise rejected, so the request attempt is over: clear the
+      // deadline here, not inside `fail`.
+      clearTimeout(timer)
       throw fail(error)
     }
     // `fetch` resolves on headers, so a body that stalls past the deadline
@@ -153,13 +161,28 @@ function combineSignals(
   // so a caller signal on an older runtime does not throw before fetch runs.
   if (typeof AbortSignal.any === 'function') return AbortSignal.any([a, b])
   const controller = new AbortController()
-  const abort = (reason: unknown) => controller.abort(reason)
+  // Track both listeners so that when either input aborts we detach the other.
+  // `{ once: true }` only removes the listener that runs, so reusing a
+  // long-lived caller signal across requests would otherwise retain one dead
+  // listener (and this controller) per request on it.
+  const listeners: Array<{ signal: AbortSignal; handler: () => void }> = []
+  const cleanup = () => {
+    for (const { signal, handler } of listeners) {
+      signal.removeEventListener('abort', handler)
+    }
+  }
+  const abort = (reason: unknown) => {
+    cleanup()
+    controller.abort(reason)
+  }
   for (const s of [a, b]) {
     if (s.aborted) {
       abort(s.reason)
-      break
+      return controller.signal
     }
-    s.addEventListener('abort', () => abort(s.reason), { once: true })
+    const handler = () => abort(s.reason)
+    listeners.push({ signal: s, handler })
+    s.addEventListener('abort', handler, { once: true })
   }
   return controller.signal
 }

@@ -79,17 +79,30 @@ describe('createEgress', () => {
   })
 
   it('unrefs the deadline timer so a completed request does not hold the loop', async () => {
-    let timer: { unref?: () => void } | undefined
-    const spy = vi.spyOn(global, 'setTimeout')
+    // Spy on the timer's own `unref` before `createEgress` can call it, so the
+    // test fails if `timer.unref?.()` is dropped from the source. Wrapping
+    // `setTimeout` lets us attach the spy to the real timer it returns.
+    const realSetTimeout = global.setTimeout
+    const unrefSpy = vi.fn()
+    const spy = vi
+      .spyOn(global, 'setTimeout')
+      .mockImplementation(((...args: Parameters<typeof setTimeout>) => {
+        const timer = realSetTimeout(...args)
+        const original = (timer as { unref?: () => unknown }).unref
+        ;(timer as { unref?: () => unknown }).unref = function unref() {
+          unrefSpy()
+          return original?.call(this)
+        }
+        return timer
+      }) as typeof setTimeout)
     const egress = createEgress({
       allow: ['https://api.hue.local'],
       fetch: async () => new Response('body'),
     })
     await egress('https://api.hue.local/x')
-    timer = spy.mock.results[0]?.value
-    // Node timers expose `unref`; it must have been called so a finished
-    // request cannot delay process exit by the remaining timeout.
-    expect(typeof timer?.unref).toBe('function')
+    // The deadline timer must be unref'd so a finished request cannot delay
+    // process exit by the remaining timeout.
+    expect(unrefSpy).toHaveBeenCalledTimes(1)
     spy.mockRestore()
   })
 

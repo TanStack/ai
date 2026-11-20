@@ -122,8 +122,10 @@ The confirm step checks only that the confirming client id matches the client
 that made the proposal. It is not an independent approver: the same client, with
 the same token, can make both the proposal and the confirm. This two-phase flow
 adds a deliberate second step and an audit trail; it does not by itself prove a
-human reviewed the action. For real human-in-the-loop approval, route the
-confirm through a different client or an out-of-band channel.
+human reviewed the action. For real human-in-the-loop approval, drive the
+confirm from an out-of-band channel that acts under the proposer's identity, for
+example an approval service that the proposing client calls after a human signs
+off.
 
 ## Secure defaults
 
