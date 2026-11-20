@@ -3,8 +3,6 @@ import type { ClientRecord } from './types'
 /** What the preflight reads to decide whether the server is safe to expose. */
 export interface PreflightInput {
   clients: ReadonlyArray<ClientRecord>
-  /** True when egress is deny-by-default (an allowlist is set). */
-  egressDenyByDefault: boolean
   /** True when the audit log is on. */
   auditOn: boolean
   /** True when a real notifier is set (not the silent one). */
@@ -34,9 +32,6 @@ export function preflight(input: PreflightInput): PreflightResult {
         `Client "${client.id}" has a token that is not a SHA-256 hash.`,
       )
     }
-  }
-  if (!input.egressDenyByDefault) {
-    problems.push('Egress is not deny-by-default. Set an egress allowlist.')
   }
   if (!input.auditOn) {
     problems.push('The audit log is off. Turn it on before you go public.')

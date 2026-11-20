@@ -28,10 +28,10 @@ It wraps your server with:
 - **Hashed-token auth** — bearer tokens stored as SHA-256 hashes, constant-time compare.
 - **Scopes and a target allowlist** — a token holds scopes; a scope can be narrowed to named resources.
 - **Deny-by-default egress helper** — one allowlisted `egress` capability a tool uses on purpose. It is not an enforced network boundary: a tool that calls global `fetch` still reaches the network. For enforced isolation, run the server behind a separate execution or network boundary.
-- **Rate limits** — a per-client sliding window.
+- **Rate limits** — a per-client sliding window. Auth failures share one budget: only the first 10 per minute are audited and notified, so a scanner cannot fill the disk or flood your phone. Every failure still gets a 401.
 - **A redacted audit log** — append-only JSONL, args redacted to id-like fields. A field keeps its value only when its name ends in an id-like suffix (`id`, `name`, `title`, `kind`, `type`, `scope`, `origin`); every other field is replaced with `[redacted]`. This is name-based, not value-based: a secret passed in an id-like field such as `sessionId` is written in full. Keep secrets out of those fields.
 - **A tripwire notifier** — push a signal to your phone when someone pokes at the server.
-- **Two-phase approval** — a tool can return a proposal; a separate confirm runs the action.
+- **Two-phase approval** — a tool can return a proposal; a separate confirm runs the action. The same token can confirm its own proposal, so this is not human approval. See [Two-phase approval](#two-phase-approval).
 - **Go-live preflight** — refuses a public funnel while a secure default is off.
 
 ## Installation
@@ -144,8 +144,9 @@ exfiltration and SSRF only for a tool that reaches the network through
 network confinement needs a separate execution or network boundary around the
 server.
 
-The preflight refuses a public funnel while a token is unhashed, egress is open,
-or the audit log or notifier is off. The funnel URL is not a secret: auth stands
+The preflight refuses a public funnel while a token is unhashed, or the audit log
+or notifier is off. `silentNotifier()` counts as off. An empty egress allowlist
+is fine: it blocks every origin. The funnel URL is not a secret: auth stands
 on its own.
 
 The exposure guarantee covers only the Tailscale command this package

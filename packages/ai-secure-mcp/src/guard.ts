@@ -63,6 +63,36 @@ export function guardTools(
     ): Promise<unknown> => {
       const client = readClient(context)
 
+      const runAndAudit = async (): Promise<unknown> => {
+        let result: unknown
+        try {
+          result = await original?.(args, context)
+        } catch (error) {
+          await deps.audit?.record({
+            client: client.id,
+            event: 'tool_call',
+            tool: tool.name,
+            outcome: 'error',
+            code: error instanceof SecureMcpError ? error.code : undefined,
+            args,
+          })
+          throw error
+        }
+        // The action already ran. If this audit write fails, still return the
+        // result: an error here would make the client retry and run the
+        // action twice.
+        await deps.audit
+          ?.record({
+            client: client.id,
+            event: 'tool_call',
+            tool: tool.name,
+            outcome: 'ok',
+            args,
+          })
+          .catch(() => {})
+        return result
+      }
+
       const scope = deps.policy.scopes?.[tool.name]
       if (scope !== undefined && !client.scopes.includes(scope)) {
         return refuse(
@@ -95,32 +125,9 @@ export function guardTools(
         const envelope = deps.approvals.propose({
           owner: client.id,
           summary,
-          // Audit both outcomes of the confirmed run. The proposal is consumed
-          // single-use before this runs, so a throw here would otherwise leave
-          // no execution record for the failed approved action.
-          run: async () => {
-            try {
-              const result = await original?.(args, context)
-              await deps.audit?.record({
-                client: client.id,
-                event: 'tool_call',
-                tool: tool.name,
-                outcome: 'ok',
-                args,
-              })
-              return result
-            } catch (error) {
-              await deps.audit?.record({
-                client: client.id,
-                event: 'tool_call',
-                tool: tool.name,
-                outcome: 'error',
-                code: error instanceof SecureMcpError ? error.code : undefined,
-                args,
-              })
-              throw error
-            }
-          },
+          // The proposal is consumed single-use before this runs, so the run
+          // audits its own outcome.
+          run: runAndAudit,
         })
         await deps.audit?.record({
           client: client.id,
@@ -137,27 +144,7 @@ export function guardTools(
         return envelope
       }
 
-      try {
-        const result = await original?.(args, context)
-        await deps.audit?.record({
-          client: client.id,
-          event: 'tool_call',
-          tool: tool.name,
-          outcome: 'ok',
-          args,
-        })
-        return result
-      } catch (error) {
-        await deps.audit?.record({
-          client: client.id,
-          event: 'tool_call',
-          tool: tool.name,
-          outcome: 'error',
-          code: error instanceof SecureMcpError ? error.code : undefined,
-          args,
-        })
-        throw error
-      }
+      return runAndAudit()
     }
     // An approval-gated tool returns the `approval_required` envelope on the
     // first call, not its own output shape. Keeping an `outputSchema` would make

@@ -13,7 +13,6 @@ describe('preflight', () => {
   it('passes when every rule holds', () => {
     const r = preflight({
       clients: [good],
-      egressDenyByDefault: true,
       auditOn: true,
       notifierOn: true,
     })
@@ -21,16 +20,14 @@ describe('preflight', () => {
     expect(r.problems).toEqual([])
   })
 
-  it('flags unhashed tokens, open egress, and off audit/notifier', () => {
+  it('flags unhashed tokens and off audit/notifier', () => {
     const r = preflight({
       clients: [{ id: 'bob', tokenHash: 'plaintext', scopes: [] }],
-      egressDenyByDefault: false,
       auditOn: false,
       notifierOn: false,
     })
     expect(r.ok).toBe(false)
     expect(r.problems.join(' ')).toMatch(/SHA-256/)
-    expect(r.problems.join(' ')).toMatch(/Egress/)
     expect(r.problems.join(' ')).toMatch(/audit/)
     expect(r.problems.join(' ')).toMatch(/notifier/)
   })
@@ -38,7 +35,6 @@ describe('preflight', () => {
   it('flags an empty client list', () => {
     const r = preflight({
       clients: [],
-      egressDenyByDefault: true,
       auditOn: true,
       notifierOn: true,
     })

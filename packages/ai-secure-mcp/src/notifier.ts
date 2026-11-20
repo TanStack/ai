@@ -22,9 +22,19 @@ export function describeEvent(event: SecurityEvent): string {
   }
 }
 
-/** A notifier that does nothing. Use it to turn notifications off on purpose. */
+const SILENT: SecurityNotifier = Object.freeze({ notify: async () => {} })
+
+/**
+ * A notifier that does nothing. Use it to turn notifications off on purpose.
+ * The go-live preflight counts it as "notifier off".
+ */
 export function silentNotifier(): SecurityNotifier {
-  return { notify: async () => {} }
+  return SILENT
+}
+
+/** True for the notifier that {@link silentNotifier} returns. */
+export function isSilentNotifier(notifier: SecurityNotifier): boolean {
+  return notifier === SILENT
 }
 
 /**

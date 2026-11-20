@@ -1,4 +1,10 @@
-import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises'
+import {
+  appendFile,
+  mkdir,
+  readFile,
+  rename,
+  writeFile,
+} from 'node:fs/promises'
 import { dirname } from 'node:path'
 
 /** One line of the audit log. Secrets and tokens are never present. */
@@ -98,7 +104,11 @@ export function createAuditLog(options: {
           return false
         }
       })
-    await writeFile(options.path, kept.length ? kept.join('\n') + '\n' : '')
+    // Write a temp file and rename it over the log. `rename` is atomic on one
+    // file system, so a crash mid-write cannot lose the history.
+    const tmp = `${options.path}.tmp`
+    await writeFile(tmp, kept.length ? kept.join('\n') + '\n' : '')
+    await rename(tmp, options.path)
   }
   // Prune and ensure the directory once, lazily on the first `record`. Running
   // init eagerly here would leave its rejection unhandled until a later

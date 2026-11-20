@@ -4,7 +4,7 @@ import { createApprovalStore } from './approval'
 import { createAuditLog } from './audit'
 import { createEgress } from './egress'
 import { createConfirmTool, guardTools } from './guard'
-import { safeNotifier, silentNotifier } from './notifier'
+import { isSilentNotifier, safeNotifier, silentNotifier } from './notifier'
 import { createRateLimiter } from './rate-limit'
 import { preflight, tailscaleCommand } from './deploy'
 import { SecureMcpError } from './types'
@@ -56,6 +56,8 @@ export interface SecureMcpServer {
 }
 
 const FAR_FUTURE = 4_102_444_800 // 2100-01-01, for a token with no expiry
+/** The auth failures audited and notified per window. More only get a 401. */
+const AUTH_FAILURE_BUDGET = { limit: 10, windowMs: 60_000 }
 
 function jsonError(status: number, code: string, headers?: HeadersInit) {
   return new Response(JSON.stringify({ error: { code } }), {
@@ -130,9 +132,8 @@ export function createSecureMcpServer(
 
   const check = preflight({
     clients: config.clients,
-    egressDenyByDefault: allow.length > 0,
     auditOn: audit !== undefined,
-    notifierOn: config.notify !== undefined,
+    notifierOn: config.notify !== undefined && !isSilentNotifier(config.notify),
   })
   if (config.funnel?.public === true && !check.ok) {
     throw new SecureMcpError(
@@ -143,23 +144,30 @@ export function createSecureMcpServer(
 
   const nowSeconds = () => Math.floor(Date.now() / 1000)
 
-  const fetch = async (request: Request): Promise<Response> => {
-    const token = bearerToken(request.headers.get('authorization'))
-    if (token === undefined) {
+  // An unauthenticated caller has no client id to rate-limit, and each failure
+  // writes to disk and pings the notifier. Only the first failures in each
+  // window are audited and notified, so a scanner cannot fill the disk or
+  // flood the phone. Every failure still gets a 401.
+  // ponytail: one global budget, a per-IP budget if one scanner should not
+  // hide another.
+  const authFailures = createRateLimiter(AUTH_FAILURE_BUDGET)
+  const denyAuth = async (): Promise<Response> => {
+    if (authFailures.allow('*')) {
       void notify.notify({ kind: 'auth_failure' })
       await audit?.record({ event: 'auth_failure', outcome: 'denied' })
-      return jsonError(401, 'auth_failure', {
-        'www-authenticate': 'Bearer',
-      })
     }
+    return jsonError(401, 'auth_failure', { 'www-authenticate': 'Bearer' })
+  }
+
+  const fetch = async (request: Request): Promise<Response> => {
+    const token = bearerToken(request.headers.get('authorization'))
+    if (token === undefined) return denyAuth()
 
     let client: ClientRecord
     try {
       client = verifyToken(token, config.clients, nowSeconds())
     } catch {
-      void notify.notify({ kind: 'auth_failure' })
-      await audit?.record({ event: 'auth_failure', outcome: 'denied' })
-      return jsonError(401, 'auth_failure', { 'www-authenticate': 'Bearer' })
+      return denyAuth()
     }
 
     if (rl !== undefined && !rl.allow(client.id)) {

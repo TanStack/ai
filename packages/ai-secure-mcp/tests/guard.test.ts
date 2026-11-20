@@ -207,3 +207,29 @@ describe('guardTools — two-phase approval', () => {
     expect(guarded!.outputSchema).toBeUndefined()
   })
 })
+
+describe('guardTools — audit failure after the call', () => {
+  it('returns the result when the success audit write fails', async () => {
+    let calls = 0
+    const counted = toolDefinition({
+      name: 'counted',
+      description: 'Counts calls',
+      inputSchema: z.object({}),
+    }).server(async () => ({ calls: ++calls }))
+    const [guarded] = guardTools([counted], {
+      policy: {},
+      approvals: createApprovalStore(),
+      audit: {
+        record: async () => {
+          throw new Error('disk full')
+        },
+      },
+      notify: capturingNotifier(),
+      summarize: (name) => name,
+    })
+    await expect(guarded!.execute!({}, contextFor(control))).resolves.toEqual({
+      calls: 1,
+    })
+    expect(calls).toBe(1)
+  })
+})

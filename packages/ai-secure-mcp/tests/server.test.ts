@@ -1,9 +1,13 @@
+import { mkdtemp, readFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { describe, expect, it } from 'vitest'
 import { hashToken } from '../src/auth'
+import { silentNotifier } from '../src/notifier'
 import { createSecureMcpServer } from '../src/server'
-import type { ClientRecord } from '../src/types'
+import type { ClientRecord, SecurityEvent } from '../src/types'
 
 const ping = toolDefinition({
   name: 'ping',
@@ -92,5 +96,50 @@ describe('createSecureMcpServer — go-live safety', () => {
   it('exposes the tailscale command when funnel is set', () => {
     const server = createSecureMcpServer({ ...base(), funnel: { port: 8787 } })
     expect(server.tailscale?.command).toContain('tailscale serve')
+  })
+})
+
+describe('createSecureMcpServer — preflight rules', () => {
+  async function auditPath() {
+    return join(await mkdtemp(join(tmpdir(), 'secure-mcp-')), 'audit.jsonl')
+  }
+
+  it('allows a public funnel with an empty egress allowlist', async () => {
+    const server = createSecureMcpServer({
+      ...base(),
+      egress: [],
+      audit: { path: await auditPath() },
+      notify: { notify: async () => {} },
+      funnel: { port: 8787, public: true },
+    })
+    expect(server.preflight).toEqual({ ok: true, problems: [] })
+  })
+
+  it('counts silentNotifier() as notifier off', async () => {
+    const server = createSecureMcpServer({
+      ...base(),
+      audit: { path: await auditPath() },
+      notify: silentNotifier(),
+    })
+    expect(server.preflight.ok).toBe(false)
+    expect(server.preflight.problems.join(' ')).toMatch(/notifier/)
+  })
+})
+
+describe('createSecureMcpServer — auth failure flood', () => {
+  it('audits and notifies only the first failures in a window', async () => {
+    const path = join(await mkdtemp(join(tmpdir(), 'secure-mcp-')), 'a.jsonl')
+    const events: Array<SecurityEvent> = []
+    const server = createSecureMcpServer({
+      ...base(),
+      audit: { path },
+      notify: { notify: async (event) => void events.push(event) },
+    })
+    for (let i = 0; i < 25; i++) {
+      expect((await server.fetch(mcpRequest('wrong'))).status).toBe(401)
+    }
+    const lines = (await readFile(path, 'utf8')).trim().split('\n')
+    expect(lines).toHaveLength(10)
+    expect(events).toHaveLength(10)
   })
 })
