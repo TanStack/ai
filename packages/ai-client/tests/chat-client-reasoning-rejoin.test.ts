@@ -82,15 +82,32 @@ const hydratedTails: Array<{ name: string; tail: Array<UIMessage> }> = [
       },
     ],
   },
+  {
+    name: "an in-flight assistant with the replay's id",
+    tail: [
+      {
+        id: 'reply',
+        role: 'assistant',
+        parts: [{ type: 'text', content: 'Built' }],
+      },
+    ],
+  },
+]
+
+const visits = [
+  { name: 'the first join', joins: 1 },
+  { name: 'a join after the view left mid-run', joins: 2 },
 ]
 
 const cases = reasonings.flatMap((reasoning) =>
-  hydratedTails.map((hydrated) => ({ reasoning, hydrated })),
+  hydratedTails.flatMap((hydrated) =>
+    visits.map((visit) => ({ reasoning, hydrated, visit })),
+  ),
 )
 
 it.each(cases)(
-  'keeps the thread when replay starts with $reasoning.name and hydrate ends with $hydrated.name',
-  async ({ reasoning, hydrated }) => {
+  'keeps the thread when replay starts with $reasoning.name and hydrate ends with $hydrated.name on $visit.name',
+  async ({ reasoning, hydrated, visit }) => {
     const replay: Array<StreamChunk> = [
       {
         type: EventType.RUN_STARTED,
@@ -146,6 +163,7 @@ it.each(cases)(
         : { ...chunk, metadata: callMetadata },
     )
     let sent: Array<UIMessage> = []
+    let joins = 0
     const connection: ResumableConnectConnectionAdapter = {
       async hydrate() {
         return {
@@ -161,8 +179,18 @@ it.each(cases)(
           interrupts: null,
         }
       },
-      async *joinRun() {
-        yield* stamped
+      async *joinRun(_runId, signal) {
+        joins += 1
+        if (joins === visit.joins) {
+          yield* stamped
+        } else {
+          // The view leaves before the run ends, so the processor still
+          // holds this run's stream state when the next join replays it.
+          yield* stamped.slice(0, -1)
+          await new Promise((resolve) =>
+            signal?.addEventListener('abort', resolve),
+          )
+        }
       },
       async *connect(messages) {
         sent = messages as Array<UIMessage>
@@ -175,8 +203,20 @@ it.each(cases)(
     })
     try {
       client.attach()
+      if (visit.joins === 2) {
+        await vi.waitFor(() => {
+          expect(client.getMessages().at(-1)?.parts).toContainEqual(
+            expect.objectContaining({
+              type: 'text',
+              content: 'Built the app.',
+            }),
+          )
+        })
+        client.detach()
+        client.attach()
+      }
       await vi.waitFor(() => {
-        expect(client.getMessages()).not.toHaveLength(0)
+        expect(joins).toBe(visit.joins)
         expect(client.getIsLoading()).toBe(false)
       })
       await client.sendMessage('Change the title.')
