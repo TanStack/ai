@@ -55,4 +55,20 @@ describe('generateCatalog', () => {
     expect(listed).toEqual(await skillDirectory(root).list())
     expect(listed[0]?.metadata).toEqual({ tags: 'files' })
   })
+
+  it('changes the revision when only frontmatter changes', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ai-skills-'))
+    tempDirs.push(root)
+    await mkdir(join(root, 'tagged'))
+    const write = (tags: string) =>
+      writeFile(
+        join(root, 'tagged', 'SKILL.md'),
+        `---\nname: tagged\ndescription: has metadata\nmetadata:\n  tags: ${tags}\n---\n\nBody.\n`,
+      )
+    await write('files')
+    const first = await generateCatalog(root)
+    expect((await generateCatalog(root)).revision).toBe(first.revision)
+    await write('mail')
+    expect((await generateCatalog(root)).revision).not.toBe(first.revision)
+  })
 })
