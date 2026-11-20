@@ -39,13 +39,15 @@ interface ImageStepProps {
   // Turns the text into a prompt. null until the earlier steps are done.
   toPrompt: (text: string) => MediaPrompt | null
   onImage: (url: string) => void
+  onStart?: () => void
   // Show a file field, so the user can use an image of their own.
   allowUpload?: boolean
 }
 
 // One image step: a text field, a button, and the image.
 function ImageStep(props: ImageStepProps) {
-  const { id, title, label, initialText, action, toPrompt, onImage } = props
+  const { id, title, label, initialText, action, toPrompt, onImage, onStart } =
+    props
   const [text, setText] = useState(initialText)
   // The image on screen: the last drawn or uploaded image.
   const [url, setUrl] = useState<string | null>(null)
@@ -98,7 +100,11 @@ function ImageStep(props: ImageStepProps) {
         />
         <button
           type="button"
-          onClick={() => prompt && void generate({ prompt })}
+          onClick={() => {
+            if (!prompt) return
+            onStart?.()
+            void generate({ prompt })
+          }}
           disabled={!prompt || isLoading}
           className={button}
         >
@@ -226,6 +232,8 @@ function PipelinePage() {
   const rigStartedForUrlRef = useRef<string | null>(null)
   const retextureStartedForMeshUrlRef = useRef<string | null>(null)
   const retextureStartedForSkinUrlRef = useRef<string | null>(null)
+  const meshStartedForConceptUrlRef = useRef<string | null>(null)
+  const skinStartedForConceptUrlRef = useRef<string | null>(null)
 
   return (
     <div className="min-h-screen bg-gray-900 px-4 py-8">
@@ -258,10 +266,15 @@ function PipelinePage() {
           title="2. Low-poly game mesh"
           action="Make mesh"
           prompt={conceptUrl ? [imagePart(conceptUrl)] : null}
+          onStart={() => {
+            meshStartedForConceptUrlRef.current = conceptUrl
+          }}
           onModel={(model) => {
-            setMeshUrl(model.url)
-            setRetexturedUrl(null)
-            setRigJobId(null)
+            if (meshStartedForConceptUrlRef.current === conceptUrl) {
+              setMeshUrl(model.url)
+              setRetexturedUrl(null)
+              setRigJobId(null)
+            }
           }}
         />
         <ImageStep
@@ -275,10 +288,15 @@ function PipelinePage() {
               ? [{ type: 'text', content: text }, imagePart(conceptUrl)]
               : null
           }
+          onStart={() => {
+            skinStartedForConceptUrlRef.current = conceptUrl
+          }}
           onImage={(url) => {
-            setSkinUrl(url)
-            setRetexturedUrl(null)
-            setRigJobId(null)
+            if (skinStartedForConceptUrlRef.current === conceptUrl) {
+              setSkinUrl(url)
+              setRetexturedUrl(null)
+              setRigJobId(null)
+            }
           }}
         />
         <ModelStep
