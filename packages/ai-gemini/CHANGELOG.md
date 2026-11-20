@@ -1,5 +1,16 @@
 # @tanstack/ai-gemini
 
+## 1.3.0
+
+### Minor Changes
+
+- [#2151](https://github.com/TanStack/ai/pull/2151) [`4c483e6`](https://github.com/TanStack/ai/commit/4c483e6d1dc8fd78386d5e42108a5a157eafa3a5) - Add `geminiDecider` and `createGeminiDecider` so `decide()` can ask typed choice, score, and boolean questions through Gemini's Decisions API (`POST /v1beta/decisions`) with `gemini-decision-1`.
+
+### Patch Changes
+
+- Updated dependencies [[`4b00243`](https://github.com/TanStack/ai/commit/4b002432487ce34547162b6f3f0492b4b936aa61)]:
+  - @tanstack/ai@1.8.0
+
 ## 1.2.3
 
 ### Patch Changes
