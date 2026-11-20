@@ -192,21 +192,23 @@ function setPath(
   cur[last] = value
 }
 
-/** Visit every string leaf reachable through plain-object keys. Does NOT
- *  descend into arrays — array elements are not individually addressable. */
-function walkStringLeaves(
+/** Visit every leaf reachable through plain-object keys: each string, and
+ *  each array as one leaf (array elements are not individually addressable,
+ *  so an array is projected by its serialized form, the same as an explicit
+ *  rule on an array field). */
+function walkLeaves(
   node: Record<string, unknown>,
   prefix: string,
-  visit: (path: string, value: string) => string | undefined,
+  visit: (path: string, value: unknown) => string | undefined,
 ): void {
   for (const key of Object.keys(node)) {
     const value = node[key]
     const path = prefix ? `${prefix}.${key}` : key
-    if (typeof value === 'string') {
+    if (typeof value === 'string' || Array.isArray(value)) {
       const replacement = visit(path, value)
       if (replacement !== undefined) node[key] = replacement
     } else if (isPlainObject(value)) {
-      walkStringLeaves(value, path, visit)
+      walkLeaves(value, path, visit)
     }
   }
 }
@@ -246,8 +248,8 @@ function structuredField(
 
   const dflt = policy.default
   if (dflt?.mode === 'leaves') {
-    // Every un-ruled oversized string leaf, truncated on its own.
-    walkStringLeaves(clone, '', (path, value) => {
+    // Every un-ruled oversized leaf (string or array), truncated on its own.
+    walkLeaves(clone, '', (path, value) => {
       if (policy.fields[path]) return undefined // explicit rule already handled it
       const res = truncateValue({
         raw: value,

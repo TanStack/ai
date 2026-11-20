@@ -73,9 +73,11 @@ describe('createContextRuntime middleware (author-optimized)', () => {
       ctx,
       stubConfig(messages, [optimizedReadFile]),
     )
-    const retrieved = await callTool(runtime.retrieveTool, {
-      ref: 'ctx_call1_result_content',
-    })
+    const retrieved = await callTool(
+      runtime.retrieveTool,
+      { ref: 'ctx_call1_result_content' },
+      ctx,
+    )
     expect(retrieved).toBe(big)
   })
 
@@ -237,31 +239,125 @@ describe('optimize() middleware (consumer / MCP)', () => {
       opt.tools.find((t) => t.name === 'retrieve_context'),
     )
     // Distinct refs: the args original and the result original are both intact.
-    const fromArgs = await callTool(retrieveTool, { ref: 'ctx_c_args_content' })
-    const fromResult = await callTool(retrieveTool, {
-      ref: 'ctx_c_result_content',
-    })
+    const fromArgs = await callTool(
+      retrieveTool,
+      { ref: 'ctx_c_args_content' },
+      ctx,
+    )
+    const fromResult = await callTool(
+      retrieveTool,
+      { ref: 'ctx_c_result_content' },
+      ctx,
+    )
     expect(fromArgs).toBe(argContent)
     expect(fromResult).toBe(resultContent)
   })
 
-  it('onStart clears per-run state so a reused runtime does not leak', async () => {
-    const runtime = createContextRuntime()
-    const messages = [
-      assistantCall('call1', 'read_file'),
-      toolResult('call1', 'read_file', { content: big }),
+  it('one shared runtime keeps concurrent runs apart', async () => {
+    const events: Array<{ type: string; toolCallId: string }> = []
+    const runtime = createContextRuntime({ onEvent: (e) => events.push(e) })
+    const runA = stubCtx()
+    const runB = stubCtx()
+    const messagesA = [
+      assistantCall('callA', 'read_file'),
+      toolResult('callA', 'read_file', { content: big }),
     ]
+    const messagesB = [
+      assistantCall('callB', 'read_file'),
+      toolResult('callB', 'read_file', { content: big }),
+    ]
+    await runtime.middleware.onStart?.(runA)
     runConfig(
       runtime.middleware,
-      ctx,
-      stubConfig(messages, [optimizedReadFile]),
+      runA,
+      stubConfig(messagesA, [optimizedReadFile]),
     )
-    expect(runtime.stash.size).toBe(1)
-    await runtime.middleware.onStart?.(stubCtx())
-    expect(runtime.stash.size).toBe(0)
+    // Run B starts while run A is still in flight.
+    await runtime.middleware.onStart?.(runB)
+    runConfig(
+      runtime.middleware,
+      runB,
+      stubConfig(messagesB, [optimizedReadFile]),
+    )
+
+    // Run A can still retrieve its own original.
+    expect(
+      await callTool(
+        runtime.retrieveTool,
+        { ref: 'ctx_callA_result_content' },
+        runA,
+      ),
+    ).toBe(big)
+    // A run never sees the originals of another run.
     await expect(
-      callTool(runtime.retrieveTool, { ref: 'ctx_call1_result_content' }),
+      callTool(runtime.retrieveTool, { ref: 'ctx_callA_result_content' }, runB),
     ).rejects.toThrow(/Unknown context ref/)
+    // Outside a run there is no stash.
+    await expect(
+      callTool(runtime.retrieveTool, { ref: 'ctx_callA_result_content' }),
+    ).rejects.toThrow(/Unknown context ref/)
+    // Each run emits its own projection, even with the same field path.
+    expect(events.map((e) => `${e.type}:${e.toolCallId}`)).toEqual([
+      'projected:callA',
+      'projected:callB',
+      'retrieved:callA',
+    ])
+  })
+
+  it('a text result that looks like JSON stays text', async () => {
+    const opt = optimize([], {
+      defaults: {
+        projection: aboveTokens(100, truncateHead({ maxTokens: 50 })),
+      },
+    })
+    const fileText = `{\n  "name": "demo",\n  "blob": "${big}"\n}\n`
+    const messages: Array<ModelMessage> = [
+      assistantCall('c', 'read_file'),
+      {
+        role: 'tool',
+        toolCallId: 'c',
+        content: fileText,
+        // What chat() puts on a tool message when the tool returned a string.
+        metadata: { tanstack: { toolResultKind: 'text' } },
+      },
+    ]
+    const out = must(runConfig(opt.middleware, ctx, stubConfig(messages, [])))
+    const projected = at(out.providerMessages, 1).content as string
+    // One whole-value marker, and the kept head is the file text as written.
+    expect(projected.startsWith('[Truncated for context: $,')).toBe(true)
+    expect(projected).toContain('{\n  "name": "demo",')
+    const retrieveTool = must(
+      opt.tools.find((t) => t.name === 'retrieve_context'),
+    )
+    expect(
+      await callTool(retrieveTool, { ref: 'ctx_c_result_root' }, ctx),
+    ).toBe(fileText)
+  })
+
+  it('leaves mode projects an oversized array as one leaf', async () => {
+    const opt = optimize([], {
+      defaults: {
+        projection: aboveTokens(100, truncateHeadTail({ maxTokens: 50 })),
+        mode: 'leaves',
+      },
+    })
+    const results = [{ snippet: big }, { snippet: big }]
+    const messages = [
+      assistantCall('c', 'search'),
+      toolResult('c', 'search', { query: 'q', results }),
+    ]
+    const out = must(runConfig(opt.middleware, ctx, stubConfig(messages, [])))
+    const projected = JSON.parse(at(out.providerMessages, 1).content as string)
+    expect(projected.query).toBe('q')
+    expect(
+      projected.results.startsWith('[Truncated for context: results,'),
+    ).toBe(true)
+    const retrieveTool = must(
+      opt.tools.find((t) => t.name === 'retrieve_context'),
+    )
+    expect(
+      await callTool(retrieveTool, { ref: 'ctx_c_result_results' }, ctx),
+    ).toEqual(results)
   })
 
   it('pending (no result yet) calls are not args-projected', () => {

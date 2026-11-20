@@ -17,6 +17,7 @@ export { createContextRuntime } from './runtime'
 export type { ContextRuntime } from './runtime'
 
 export { createRetrieveTool, RETRIEVE_TOOL_NAME } from './retrieve-tool'
+export type { RetrieveRunResolver } from './retrieve-tool'
 
 export { PolicyResolver } from './policies'
 export type { PolicyTool } from './policies'

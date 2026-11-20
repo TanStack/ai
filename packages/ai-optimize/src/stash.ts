@@ -1,5 +1,5 @@
 /**
- * Run-scoped stash (§5.3). One `Stash` per runtime. Populated at projection
+ * Run-scoped stash (§5.3). One `Stash` per chat() run. Populated at projection
  * time with the *original* field value (not a serialization) so `retrieve_context`
  * returns full fidelity.
  *

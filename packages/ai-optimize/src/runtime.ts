@@ -1,4 +1,4 @@
-import { getLogRecords } from '@tanstack/ai'
+import { createCapability, getLogRecords } from '@tanstack/ai'
 import { PolicyResolver } from './policies'
 import { projectToolCallArgs, projectToolResult } from './project'
 import { createStash } from './stash'
@@ -18,60 +18,86 @@ function safeParse(content: string): unknown {
   }
 }
 
-/** A projection runtime: one stash, the middleware, and the retrieval tool. */
+/** The tool output behind a tool message's string content. chat() marks a
+ *  result whose tool returned a string with `toolResultKind: 'text'`; that
+ *  content is text, even when it looks like JSON (a `.json` file, `'42'`). */
+function toolOutput(m: ModelMessage): unknown {
+  if (typeof m.content !== 'string') return undefined
+  if (m.metadata?.tanstack?.toolResultKind === 'text') return m.content
+  return safeParse(m.content)
+}
+
+/** The state of one run: its stash and its events. */
+interface RunState {
+  stash: Stash
+  collected: Array<OptimizationEvent>
+  emittedProjections: Set<string>
+}
+
+/** A projection runtime: the middleware and the retrieval tool. */
 export interface ContextRuntime {
   middleware: ChatMiddleware
   retrieveTool: ReturnType<typeof createRetrieveTool>
-  stash: Stash
 }
 
 /**
- * Build a projection runtime over a shared stash. `optimize()` builds one of
- * these internally; call `createContextRuntime()` directly for the
- * author-optimized path (no `optimize()` config needed).
+ * Build a projection runtime. `optimize()` builds one of these internally;
+ * call `createContextRuntime()` directly for the author-optimized path (no
+ * `optimize()` config needed).
+ *
+ * One runtime is safe to share across requests: each `chat()` run keeps its
+ * own stash and events, so concurrent runs never see or clear each other's
+ * originals.
  */
 export function createContextRuntime(
   config: OptimizeConfig = {},
 ): ContextRuntime {
   const resolver = new PolicyResolver(config)
-  const stash = createStash()
 
-  // Run-scoped observability. Projection re-runs identically each iteration
-  // (cache honesty), so dedupe projected events by field; retrievals are
-  // distinct actions and always pass through. Accumulate for the log record.
-  const collected: Array<OptimizationEvent> = []
-  const emittedProjections = new Set<string>()
-  const emit = (e: OptimizationEvent) => {
+  // Run state lives in a capability: chat() keys it on the run's context,
+  // and gives tools of the same run `getOptional`, so retrieve_context reads
+  // the stash of its own run.
+  const runCapability = createCapability<RunState>()('tanstack.optimize.run')
+  const [getRun, provideRun] = runCapability
+
+  // Projection re-runs identically each iteration (cache honesty), so dedupe
+  // projected events by field; retrievals are distinct actions and always
+  // pass through. Accumulate for the log record.
+  const emit = (run: RunState, e: OptimizationEvent) => {
     if (e.type === 'projected') {
       // Keyed by origin too, so an args projection and a result projection on
       // the same field path of the same call are both recorded.
       const key = `${e.origin}|${e.toolCallId}|${e.fieldPath}`
-      if (emittedProjections.has(key)) return
-      emittedProjections.add(key)
+      if (run.emittedProjections.has(key)) return
+      run.emittedProjections.add(key)
     }
-    collected.push(e)
+    run.collected.push(e)
     config.onEvent?.(e)
   }
 
-  const retrieveTool = createRetrieveTool(stash, emit)
+  const retrieveTool = createRetrieveTool((context) => {
+    const run = context?.getOptional?.(runCapability)
+    return run && { stash: run.stash, onEvent: (e) => emit(run, e) }
+  })
 
   const middleware: ChatMiddleware = {
     name: 'optimize',
+    provides: [runCapability],
 
-    onStart() {
-      // The stash, event log, and dedup set are run-scoped. Clear them when a
-      // run starts so a reused runtime never leaks a prior run's originals,
-      // events, or dedup keys. Each onConfig re-projects the full history, so
-      // the stash refills before the model uses any projected ref.
-      stash.clear()
-      collected.length = 0
-      emittedProjections.clear()
+    setup(ctx) {
+      provideRun(ctx, {
+        stash: createStash(),
+        collected: [],
+        emittedProjections: new Set(),
+      })
     },
 
     onConfig(ctx, mwConfig) {
       // init is discarded by the engine rebuild and can run before the thread
       // hydrates. Project only on model-bound phases (compaction precedent).
       if (ctx.phase === 'init') return
+      const run = getRun(ctx)
+      const { stash } = run
       const source = mwConfig.providerMessages ?? mwConfig.messages
 
       // Map toolCallId → toolName and collect which calls have completed.
@@ -99,8 +125,7 @@ export function createContextRuntime(
           if (!policy) return m
           const state: ToolResultState =
             m.error !== undefined ? 'error' : 'complete'
-          const output =
-            typeof m.content === 'string' ? safeParse(m.content) : undefined
+          const output = toolOutput(m)
           const { content, events } = projectToolResult({
             toolName,
             toolCallId: m.toolCallId,
@@ -111,7 +136,7 @@ export function createContextRuntime(
             stash,
           })
           if (events.length === 0) return m
-          for (const e of events) emit(e)
+          for (const e of events) emit(run, e)
           changed = true
           return { ...m, content }
         }
@@ -131,7 +156,7 @@ export function createContextRuntime(
               stash,
             })
             if (events.length === 0) return tc
-            for (const e of events) emit(e)
+            for (const e of events) emit(run, e)
             localChanged = true
             return {
               ...tc,
@@ -151,11 +176,12 @@ export function createContextRuntime(
     },
 
     async onFinish(ctx) {
-      if (collected.length === 0) return
+      const run = getRun(ctx, { optional: true })
+      if (!run || run.collected.length === 0) return
       const logRecords = getLogRecords(ctx, { optional: true })
-      if (logRecords) await logRecords.append([optimizeRecord(collected)])
+      if (logRecords) await logRecords.append([optimizeRecord(run.collected)])
     },
   }
 
-  return { middleware, retrieveTool, stash }
+  return { middleware, retrieveTool }
 }

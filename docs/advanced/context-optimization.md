@@ -138,7 +138,7 @@ chat({ adapter, messages, tools: opt.tools, middleware: [opt.middleware] })
 
 `defaults.mode` picks how un-ruled content shrinks:
 
-- `leaves` (default): each oversized string leaf in the result is truncated on its own. Short leaves like IDs and statuses fall under the threshold and pass through whole.
+- `leaves` (default): each oversized string leaf in the result is truncated on its own. An array counts as one leaf, so a long `results` list is truncated as one serialized value. Short leaves like IDs and statuses fall under the threshold and pass through whole.
 - `flatten`: the whole result is serialized and truncated as one string.
 
 ### Trim the arguments of a completed call
@@ -254,6 +254,8 @@ The model calls `retrieve_context(ref="ctx_call_17_result_content")` and gets th
 Retrieval is also a tuning signal. If a field is retrieved on most turns, it was the wrong field to truncate. Watch for it through `onEvent` or the `tanstack.optimize` log record, which carries one entry per projection and per retrieval.
 
 The stash that backs retrieval is scoped to a single run. Within the run that truncated a field, retrieval is guaranteed. The canonical saved messages still hold every original, so projected history rebuilds identically on the next run.
+
+Each run keeps its own stash, so you can create one `optimize()` result at module level and share it across requests. Concurrent runs never see or clear each other's originals.
 
 ## When it helps, and when it hurts
 
