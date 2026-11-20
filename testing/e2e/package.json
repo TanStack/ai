@@ -29,6 +29,7 @@
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-cloudflare": "workspace:*",
     "@tanstack/ai-code-mode": "workspace:*",
+    "@tanstack/ai-codex": "workspace:*",
     "@tanstack/ai-compaction": "workspace:*",
     "@tanstack/ai-computer-local": "workspace:*",
     "@tanstack/ai-computer-playwright": "workspace:*",

@@ -1331,7 +1331,12 @@
           "label": "Connect model providers",
           "to": "harness/provider-keys",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-20"
+          "updatedAt": "2026-11-19"
+        },
+        {
+          "label": "Sign in with a ChatGPT or SuperGrok plan",
+          "to": "harness/plan-sign-in",
+          "addedAt": "2026-11-19"
         },
         {
           "label": "Build your own UI",
@@ -1426,7 +1431,7 @@
           "label": "Harness Auth",
           "to": "sandbox/auth",
           "addedAt": "2026-08-18",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "Workspace",
@@ -1959,7 +1964,7 @@
           "label": "Codex",
           "to": "adapters/codex",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "OpenCode",
@@ -1971,7 +1976,7 @@
           "label": "Grok Build",
           "to": "adapters/grok-build",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "ACP-Compatible",
