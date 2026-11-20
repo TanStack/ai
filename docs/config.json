@@ -103,7 +103,13 @@
           "label": "Computer Use",
           "to": "tutorials/computer-use",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-03"
+        },
+        {
+          "label": "Sign In Without the Model",
+          "to": "tutorials/computer-use-login",
+          "addedAt": "2026-11-03",
+          "updatedAt": "2026-11-06"
         },
         {
           "label": "Subscribe to MCP Events",
@@ -170,6 +176,11 @@
           "label": "Computer Use",
           "to": "framework/react/examples/computer-use",
           "addedAt": "2026-10-21"
+        },
+        {
+          "label": "Computer Use Login",
+          "to": "framework/react/examples/computer-use-login",
+          "addedAt": "2026-11-03"
         },
         {
           "label": "MCP Events",
@@ -1104,7 +1115,7 @@
           "label": "Drivers",
           "to": "computer-use/drivers",
           "addedAt": "2026-10-20",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-03"
         },
         {
           "label": "Safety Checks",
