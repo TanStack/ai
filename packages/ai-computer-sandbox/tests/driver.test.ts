@@ -437,6 +437,36 @@ describe('sandboxComputer', () => {
     expect(second.files.has('/p/Cache/data')).toBe(false)
   })
 
+  it('with snapshots, a new sandbox waits for the save of the closing one', async () => {
+    const first = fakeSandbox({ files: { '/p/Cookies': 'signed-in' } })
+    const second = fakeSandbox()
+    let releaseSave = () => {}
+    const saving = new Promise<void>((resolve) => {
+      releaseSave = resolve
+    })
+    const factory = sandboxComputer({
+      provider: fakeProvider([first, second]),
+      snapshots: {
+        store: await memorySandboxSnapshots(),
+        root: '/p',
+        // The save of the first sandbox is slow.
+        before: (sandbox) =>
+          sandbox.id === first.sandbox.id ? saving : Promise.resolve(),
+      },
+    })
+
+    const driver = await factory.create({ threadId: 'a' })
+    // The thread goes idle, and the next call of the thread comes during the save.
+    const closing = driver.close?.()
+    const creating = factory.create({ threadId: 'a' })
+    releaseSave()
+    await Promise.all([closing, creating])
+
+    expect(new TextDecoder().decode(second.files.get('/p/Cookies'))).toBe(
+      'signed-in',
+    )
+  })
+
   it('with snapshots and sandboxIds, restores into a resumed sandbox only when its disk is new', async () => {
     const kept = fakeSandbox({ files: { '/p/Cookies': 'live' } })
     const store = await memorySandboxSnapshots()

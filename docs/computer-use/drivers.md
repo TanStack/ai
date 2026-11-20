@@ -241,7 +241,7 @@ With `snapshots`, the driver works like this:
 
 - When a thread closes or goes idle, the driver runs `before`, saves the files under `root`, then runs `after`.
 - When the driver creates a new sandbox for a thread with a saved snapshot, it runs `before`, restores the files, then runs `after`.
-- A sandbox that the driver reconnects to with `sandboxIds` keeps its own files. The driver restores nothing into it.
+- A sandbox that the driver reconnects to with `sandboxIds` keeps its own files. The driver restores into it only when its disk is empty, like a Cloudflare sandbox after a restart.
 - Each save becomes the newest checkpoint of the thread. Use these stores only for computers.
 
 To save at a moment that you must keep, like right after a sign-in, call `saveComputerSnapshot(sandbox, threadId, snapshots)` with the same options. The [sign-in tutorial](../tutorials/computer-use-login) does this.

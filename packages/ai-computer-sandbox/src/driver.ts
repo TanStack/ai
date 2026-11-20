@@ -402,19 +402,22 @@ function hasRestored(
   return sandbox.fs.exists(markerPath(root))
 }
 
-// One save or restore at a time on each sandbox. Two at once would stop and
-// start the programs of `root` in the middle of each other.
+// One save or restore at a time for each thread. Two at once on one sandbox
+// would stop and start the programs of `root` in the middle of each other.
+// The key is the thread, not the sandbox: when a thread goes idle and its next
+// call comes during the save, the restore into the new sandbox must wait for
+// that save, or it restores an older snapshot.
 // ponytail: one process. With more servers, the provider must lock.
 const snapshotQueues = new Map<string, Promise<unknown>>()
 
-function oneAtATime<T>(sandbox: SandboxHandle, task: () => Promise<T>) {
-  const previous = snapshotQueues.get(sandbox.id) ?? Promise.resolve()
+function oneAtATime<T>(threadId: string, task: () => Promise<T>) {
+  const previous = snapshotQueues.get(threadId) ?? Promise.resolve()
   const next = previous.then(task, task)
   const settled = next.catch(() => {})
-  snapshotQueues.set(sandbox.id, settled)
+  snapshotQueues.set(threadId, settled)
   void settled.then(() => {
-    if (snapshotQueues.get(sandbox.id) === settled) {
-      snapshotQueues.delete(sandbox.id)
+    if (snapshotQueues.get(threadId) === settled) {
+      snapshotQueues.delete(threadId)
     }
   })
   return next
@@ -430,7 +433,7 @@ export function saveComputerSnapshot(
   threadId: string,
   { store, root, policy, before, after }: SandboxComputerSnapshots,
 ) {
-  return oneAtATime(sandbox, async () => {
+  return oneAtATime(threadId, async () => {
     try {
       // In the try, so `after` starts the programs again when `before` fails.
       await before?.(sandbox)
@@ -472,7 +475,7 @@ function restoreComputerSnapshot(
   threadId: string,
   { store, root, policy, before, after }: SandboxComputerSnapshots,
 ) {
-  return oneAtATime(sandbox, async () => {
+  return oneAtATime(threadId, async () => {
     const head = await store.checkpoints.getHead(threadId)
     if (head !== null) {
       const checkpoint = await store.checkpoints.get(head)
@@ -483,6 +486,8 @@ function restoreComputerSnapshot(
       }
       try {
         await before?.(sandbox)
+        // A new sandbox may not have the folder yet, and the restore needs it.
+        await sandbox.fs.mkdir(root)
         await restoreSandboxFiles(
           sandbox,
           { blobs: store.persistence.stores.blobs, workspaceRoot: root },
