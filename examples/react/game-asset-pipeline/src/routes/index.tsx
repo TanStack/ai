@@ -224,6 +224,8 @@ function PipelinePage() {
   const [retexturedUrl, setRetexturedUrl] = useState<string | null>(null)
   const [rigJobId, setRigJobId] = useState<string | null>(null)
   const rigStartedForUrlRef = useRef<string | null>(null)
+  const retextureStartedForMeshUrlRef = useRef<string | null>(null)
+  const retextureStartedForSkinUrlRef = useRef<string | null>(null)
 
   return (
     <div className="min-h-screen bg-gray-900 px-4 py-8">
@@ -286,10 +288,18 @@ function PipelinePage() {
           prompt={
             meshUrl && skinUrl ? [meshPart(meshUrl), imagePart(skinUrl)] : null
           }
+          onStart={() => {
+            retextureStartedForMeshUrlRef.current = meshUrl
+            retextureStartedForSkinUrlRef.current = skinUrl
+          }}
           onModel={(model) => {
-            // A new mesh needs a new rig.
-            setRetexturedUrl(model.url)
-            setRigJobId(null)
+            if (
+              retextureStartedForMeshUrlRef.current === meshUrl &&
+              retextureStartedForSkinUrlRef.current === skinUrl
+            ) {
+              setRetexturedUrl(model.url)
+              setRigJobId(null)
+            }
           }}
         />
         <ModelStep
