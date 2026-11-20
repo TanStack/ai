@@ -193,3 +193,40 @@ export function mapMeshyStatus(task: MeshyTask): {
     }
   }
 }
+
+/**
+ * Cancels a Meshy task without losing paid work. Meshy cancels and refunds
+ * only a `PENDING` task, and a `DELETE` on a finished task erases its files.
+ * So this reads the task first:
+ *
+ * - `PENDING`: sends `DELETE`.
+ * - `IN_PROGRESS`, or a 409 on the `DELETE`: throws. The task finishes and
+ *   is billed.
+ * - Finished: does nothing.
+ *
+ * @param client - The Meshy client.
+ * @param taskPath - The task path, for example `/v1/rigging/<id>`.
+ * @param jobId - The task id, for the error message.
+ * @param abortSignal - Stops the requests.
+ */
+export async function cancelMeshyTask(
+  client: MeshyClient,
+  taskPath: string,
+  jobId: string,
+  abortSignal?: AbortSignal,
+) {
+  const runningError = (cause?: unknown) =>
+    new Error(
+      `Meshy task ${jobId} is already running and cannot be canceled`,
+      cause === undefined ? undefined : { cause },
+    )
+  const task = await client.get<MeshyTask>(taskPath, { signal: abortSignal })
+  if (task.status === 'IN_PROGRESS') throw runningError()
+  if (task.status !== 'PENDING') return
+  try {
+    await client.delete(taskPath, abortSignal)
+  } catch (error) {
+    const isRunning = error instanceof MeshyApiError && error.status === 409
+    throw isRunning ? runningError(error) : error
+  }
+}

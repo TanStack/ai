@@ -218,7 +218,7 @@ describe('analyzeMeshyPrintability', () => {
     })
   })
 
-  it('analyzeMeshyPrintability sends a data source as an octet-stream data URI', async () => {
+  it('analyzeMeshyPrintability sends a GLB data source as a model/gltf-binary data URI', async () => {
     const fetch = fakeFetch(
       { result: 'pa-1' },
       { id: 'pa-1', status: 'SUCCEEDED', printability: report },
@@ -229,9 +229,33 @@ describe('analyzeMeshyPrintability', () => {
     })
 
     expect(requestBody(fetch, 0)).toEqual({
-      model_url: 'data:application/octet-stream;base64,Z2xURg==',
+      model_url: 'data:model/gltf-binary;base64,Z2xURg==',
       printer_type: 'fdm',
     })
+  })
+
+  it('analyzeMeshyPrintability sends no printer_type when it is not set', async () => {
+    const fetch = fakeFetch(
+      { result: 'pa-1' },
+      { id: 'pa-1', status: 'SUCCEEDED', printability: report },
+    )
+
+    await analyze(fetch, { printerType: undefined })
+
+    expect(requestBody(fetch, 0)).toEqual({
+      model_url: 'https://cdn.test/chest.glb',
+    })
+  })
+
+  it('analyzeMeshyPrintability rejects an OBJ data source before any request', async () => {
+    const fetch = fakeFetch()
+
+    await expect(
+      analyze(fetch, {
+        model: { type: 'data', value: 'eA==', mimeType: 'model/obj' },
+      }),
+    ).rejects.toThrow(/only GLB or glTF/)
+    expect(fetch).not.toHaveBeenCalled()
   })
 
   it('analyzeMeshyPrintability throws before any request when both sizes are set', async () => {

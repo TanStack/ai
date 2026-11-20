@@ -32,17 +32,20 @@ interface MeshyRequest {
 
 /**
  * A fake Meshy API behind the injected `fetch`. It records every request and
- * answers with `respond`. By default it creates task `task-1`.
+ * answers with `respond`, which gets the request. By default it creates
+ * task `task-1`.
  */
 function fakeMeshy(
-  respond: () => Response = () => json({ result: 'task-1' }, 202),
+  respond: (request: MeshyRequest) => Response = () =>
+    json({ result: 'task-1' }, 202),
 ) {
   const requests: Array<MeshyRequest> = []
   const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
     const body =
       typeof init?.body === 'string' ? JSON.parse(init.body) : undefined
-    requests.push({ method: init?.method ?? 'GET', url: String(input), body })
-    return respond()
+    const request = { method: init?.method ?? 'GET', url: String(input), body }
+    requests.push(request)
+    return respond(request)
   })
   return { fetch, requests }
 }
@@ -361,16 +364,160 @@ describe('meshy3DModel create3DModelJob', () => {
     expect(requests).toEqual([])
   })
 
-  it('throws before POST when print-split target_formats is only blend', async () => {
-    const { error, requests } = await submitError(
-      'print-split',
-      [meshyTask('mesh-1')],
+  it('sends print-split with target_formats blend, because Meshy always adds a GLB', async () => {
+    const requests = await submit(
+      (config) => meshy3DModel('print-split', config),
+      [meshyTask('mesh-1'), text('head, body, base')],
       { target_formats: ['blend'] },
     )
+    expect(requests).toEqual(
+      post('/v1/print/split', {
+        target_formats: ['blend'],
+        prompt: 'head, body, base',
+        input_task_id: 'mesh-1',
+      }),
+    )
+  })
+
+  it('refine maps an image part to texture_image_url', async () => {
+    const requests = await submit(
+      (config) => meshy3DModel('text-to-3d-refine', config),
+      [meshyTask('preview-1'), image(IMAGE_URL)],
+    )
+    expect(requests).toEqual(
+      post('/v2/text-to-3d', {
+        texture_image_url: IMAGE_URL,
+        preview_task_id: 'preview-1',
+        mode: 'refine',
+      }),
+    )
+  })
+
+  it('relief maps one image part to image_url', async () => {
+    const requests = await submit(
+      (config) => meshy3DModel('relief', config),
+      [image(IMAGE_URL)],
+      { size_mm: 80 },
+    )
+    expect(requests).toEqual(
+      post('/v1/relief', { size_mm: 80, image_url: IMAGE_URL }),
+    )
+  })
+
+  it('sends model_type smart-topology for meshy-t2.5, and modelOptions wins', async () => {
+    const requests = await submit(
+      (config) => meshy3DModel('image-to-3d', 'meshy-t2.5', config),
+      [image(IMAGE_URL)],
+    )
+    expect(requests).toEqual(
+      post('/v1/image-to-3d', {
+        model_type: 'smart-topology',
+        image_url: IMAGE_URL,
+        ai_model: 'meshy-t2.5',
+      }),
+    )
+
+    const standard = await submit(
+      (config) => meshy3DModel('image-to-3d', 'meshy-t2.5', config),
+      [image(IMAGE_URL)],
+      { model_type: 'standard' },
+    )
+    expect(standard[0]?.body).toMatchObject({ model_type: 'standard' })
+  })
+
+  it('throws before POST for retexture views without meshy-7 or meshy-n1', async () => {
+    const { error, requests } = await submitError('retexture', [
+      mesh(MESH_URL),
+      image('https://x/front.png'),
+      image('https://x/back.png'),
+    ])
+    expect(String(error)).toMatch(/2 to 4 images needs/)
+    expect(requests).toEqual([])
+  })
+
+  it('throws before POST for retexture views with a text style', async () => {
+    const meshy = fakeMeshy()
+    const adapter = meshy3DModel('retexture', 'meshy-7', {
+      apiKey: 'key',
+      fetch: meshy.fetch,
+    })
+    const create = adapter.create3DModelJob({
+      model: adapter.model,
+      prompt: [
+        mesh(MESH_URL),
+        text('gold'),
+        image('https://x/front.png'),
+        image('https://x/back.png'),
+      ],
+      logger,
+    })
+    await expect(create).rejects.toThrow(/not both/)
+    expect(meshy.requests).toEqual([])
+  })
+
+  it('throws before POST for retexture with 5 images', async () => {
+    const { error, requests } = await submitError('retexture', [
+      mesh(MESH_URL),
+      ...[1, 2, 3, 4, 5].map((n) => image(`https://x/${n}.png`)),
+    ])
     expect(String(error)).toMatch(
-      /print-split with target_formats: \['blend'\] returns no 3D model file/,
+      /1 style image or 2 to 4 views \(received 5\)/,
     )
     expect(requests).toEqual([])
+  })
+
+  it.each([
+    ['print-repair', 'model/gltf+json', 'model/gltf+json'],
+    ['print-repair', 'application/octet-stream', 'model/gltf-binary'],
+    ['print-multi-color', 'model/gltf-binary', 'model/gltf-binary'],
+  ] as const)(
+    '%s keeps a %s data mesh as %s',
+    async (endpoint, mimeType, sentMimeType) => {
+      const requests = await submit(
+        (config) => meshy3DModel(endpoint, config),
+        [
+          {
+            type: 'model3d',
+            source: { type: 'data', value: 'Z2xURg==', mimeType },
+          },
+        ],
+      )
+      expect(requests[0]?.body).toEqual({
+        model_url: `data:${sentMimeType};base64,Z2xURg==`,
+      })
+    },
+  )
+
+  it.each([
+    ['print-repair', 'model/obj', /only GLB or glTF/],
+    ['print-multi-color', 'model/gltf+json', /only GLB as inline data/],
+  ] as const)(
+    '%s rejects a %s data mesh before POST',
+    async (endpoint, mimeType, message) => {
+      const { error, requests } = await submitError(endpoint, [
+        { type: 'model3d', source: { type: 'data', value: 'eA==', mimeType } },
+      ])
+      expect(String(error)).toMatch(message)
+      expect(requests).toEqual([])
+    },
+  )
+
+  it('passes the abort signal to the create request', async () => {
+    const meshy = fakeMeshy()
+    const adapter = meshy3DModel('rigging', {
+      apiKey: 'key',
+      fetch: meshy.fetch,
+    })
+    const controller = new AbortController()
+    await adapter.create3DModelJob({
+      model: adapter.model,
+      prompt: [mesh(MESH_URL)],
+      logger,
+      abortSignal: controller.signal,
+    })
+    const init = meshy.fetch.mock.calls[0]?.[1]
+    controller.abort()
+    expect(init?.signal?.aborted).toBe(true)
   })
 
   it('throws before POST when relief should_generate_model is false', async () => {
@@ -458,7 +605,7 @@ describe('meshy3DModel get3DModel', () => {
         { url: 'https://m/a.fbx', format: 'fbx', role: 'base' },
         { url: 'https://m/a.obj', format: 'obj', role: 'base' },
         { url: 'https://m/raw.glb', format: 'glb', role: 'base' },
-        { url: 'https://m/a.mtl', role: 'base' },
+        { url: 'https://m/a.mtl', role: 'texture' },
         { url: 'https://m/base.png', role: 'texture' },
         { url: 'https://m/normal.png', role: 'texture' },
       ],
@@ -568,24 +715,50 @@ describe('meshy3DModel get3DModel', () => {
 })
 
 describe('meshy3DModel cancel3DModelJob', () => {
-  it('cancel sends DELETE and throws a clear error on 409', async () => {
-    const pending = fakeMeshy(() => new Response(null, { status: 200 }))
-    await meshy3DModel('rigging', {
-      apiKey: 'key',
-      fetch: pending.fetch,
-    }).cancel3DModelJob('task-9')
-    expect(pending.requests).toEqual([
-      { method: 'DELETE', url: `${BASE}/v1/rigging/task-9`, body: undefined },
-    ])
+  const TASK_URL = `${BASE}/v1/rigging/task-9`
+  const RUNNING = 'Meshy task task-9 is already running and cannot be canceled'
 
-    const running = fakeMeshy(() => json({ message: 'Task is running' }, 409))
+  /** A fake Meshy where GET answers `status` and DELETE answers `onDelete`. */
+  function cancelWith(status: string, onDelete: () => Response) {
+    const meshy = fakeMeshy((request) =>
+      request.method === 'DELETE' ? onDelete() : json({ id: 'task-9', status }),
+    )
     const cancel = meshy3DModel('rigging', {
       apiKey: 'key',
-      fetch: running.fetch,
+      fetch: meshy.fetch,
     }).cancel3DModelJob('task-9')
-    await expect(cancel).rejects.toThrow(
-      'Meshy task task-9 is already running and cannot be canceled',
+    return { cancel, requests: meshy.requests }
+  }
+
+  it('cancel deletes a PENDING task', async () => {
+    const { cancel, requests } = cancelWith(
+      'PENDING',
+      () => new Response(null, { status: 200 }),
     )
-    expect(running.fetch).toHaveBeenCalledTimes(1)
+    await cancel
+    expect(requests.map((r) => `${r.method} ${r.url}`)).toEqual([
+      `GET ${TASK_URL}`,
+      `DELETE ${TASK_URL}`,
+    ])
+  })
+
+  it('cancel throws for a running task and sends no DELETE', async () => {
+    const { cancel, requests } = cancelWith('IN_PROGRESS', () => json({}))
+    await expect(cancel).rejects.toThrow(RUNNING)
+    expect(requests.map((r) => r.method)).toEqual(['GET'])
+  })
+
+  it('cancel keeps a finished task: no DELETE', async () => {
+    const { cancel, requests } = cancelWith('SUCCEEDED', () => json({}))
+    await cancel
+    expect(requests.map((r) => r.method)).toEqual(['GET'])
+  })
+
+  it('cancel throws a clear error when the task starts before the DELETE (409)', async () => {
+    const { cancel, requests } = cancelWith('PENDING', () =>
+      json({ message: 'Task is running' }, 409),
+    )
+    await expect(cancel).rejects.toThrow(RUNNING)
+    expect(requests.map((r) => r.method)).toEqual(['GET', 'DELETE'])
   })
 })

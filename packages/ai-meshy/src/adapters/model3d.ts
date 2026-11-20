@@ -4,7 +4,7 @@ import {
   isFileSource,
   resolveMediaPrompt,
 } from '@tanstack/ai'
-import { MeshyApiError, createMeshyClient, mapMeshyStatus } from '../client'
+import { cancelMeshyTask, createMeshyClient, mapMeshyStatus } from '../client'
 import { MESHY_ENDPOINT_PATHS, MESHY_PROMPT_ROUTES } from '../model-meta'
 import type {
   ContentPartSource,
@@ -20,6 +20,7 @@ import type {
 import type { MeshyClient, MeshyClientConfig, MeshyTask } from '../client'
 import type {
   MeshyAiModelFor,
+  MeshyInlineMeshData,
   MeshyMeshFileField,
   MeshyModel3DEndpoint,
   MeshyModel3DInputModalities,
@@ -30,15 +31,17 @@ import type {
  * Maps a mesh source to Meshy request fields.
  *
  * - A `url` source goes to `model_url`.
- * - A `data` source goes to `model_url` as
- *   `data:application/octet-stream;base64,<value>`. Meshy wants this MIME type
- *   for every mesh, so the source `mimeType` is not used.
+ * - A `data` source goes to `model_url` as a data URI. With `inlineData`
+ *   `'any'`, the URI is `data:application/octet-stream;base64,<value>` for
+ *   every format. With `'gltf'` or `'glb'`, the URI keeps the glTF MIME type,
+ *   and any other format throws (send it as a URL).
  * - A `file` source is a Meshy task id and goes to `fileField`. A handle from
  *   another provider throws.
  *
  * @param source - The source of a `model3d` part.
  * @param fileField - The field for a Meshy task id, for example
  *   `'input_task_id'`.
+ * @param inlineData - The mesh formats that the endpoint takes in a data URI.
  *
  * @example
  * meshyMeshSourceFields(
@@ -52,12 +55,35 @@ import type {
 export function meshyMeshSourceFields(
   source: ContentPartSource,
   fileField: MeshyMeshFileField,
+  inlineData: MeshyInlineMeshData = 'any',
 ) {
   if (isFileSource(source)) {
     return { [fileField]: fileReferenceFor(source, 'meshy') }
   }
   if (source.type === 'url') return { model_url: source.value }
-  return { model_url: `data:application/octet-stream;base64,${source.value}` }
+  if (inlineData === 'any') {
+    return { model_url: `data:application/octet-stream;base64,${source.value}` }
+  }
+  return {
+    model_url: `data:${gltfMimeType(source.mimeType, inlineData)};base64,${source.value}`,
+  }
+}
+
+const GLB_MIME_TYPE = 'model/gltf-binary'
+const GLTF_MIME_TYPE = 'model/gltf+json'
+
+// The MIME type for a GLB or glTF data URI. A generic binary type counts as
+// GLB. Other mesh formats throw, because Meshy reads them only from a URL.
+function gltfMimeType(mimeType: string, inlineData: 'gltf' | 'glb') {
+  const isGenericBinary =
+    mimeType === '' || mimeType === 'application/octet-stream'
+  if (mimeType === GLB_MIME_TYPE || isGenericBinary) return GLB_MIME_TYPE
+  if (mimeType === GLTF_MIME_TYPE && inlineData === 'gltf')
+    return GLTF_MIME_TYPE
+  const accepted = inlineData === 'gltf' ? 'GLB or glTF' : 'GLB'
+  throw new Error(
+    `meshy: this endpoint takes only ${accepted} as inline data (received ${mimeType}). Send other formats as a url source.`,
+  )
 }
 
 // An image as a URL or a data URI. Meshy has no file handles for images.
@@ -150,7 +176,7 @@ function mapMesh(
       `meshy: ${endpoint} takes the mesh only as a Meshy task id. Pass { type: 'file', value: '<task id>', provider: 'meshy' }.`,
     )
   }
-  return meshyMeshSourceFields(mesh.source, route.fileField)
+  return meshyMeshSourceFields(mesh.source, route.fileField, route.inlineData)
 }
 
 // Maps a prompt to the request fields of an endpoint. It throws for a part
@@ -174,32 +200,61 @@ function mapPromptToMeshyFields(
   }
 }
 
-// A Blender-only convert and a depth-map relief succeed at Meshy with no
-// `Model3DFormat` file. Reject those options before the create POST.
+// A Blender-only remesh or convert, and a depth-map relief, succeed at Meshy
+// with no `Model3DFormat` file. Reject those options before the create POST.
+// print-split always returns a GLB too, so it is not checked.
 function assertCreatesRepresentableMesh(
   endpoint: MeshyModel3DEndpoint,
   modelOptions: object | undefined,
 ) {
-  if (!modelOptions) return
-  const options = modelOptions as {
-    should_generate_model?: boolean
-    target_formats?: ReadonlyArray<string>
-  }
-  if (options.should_generate_model === false) {
+  if (!modelOptions || endpoint === 'print-split') return
+  const skipsModel =
+    'should_generate_model' in modelOptions &&
+    modelOptions.should_generate_model === false
+  if (skipsModel) {
     throw new Error(
       `meshy: ${endpoint} with should_generate_model: false returns no 3D model file.`,
     )
   }
-  const formats = options.target_formats
+  const formats =
+    'target_formats' in modelOptions &&
+    Array.isArray(modelOptions.target_formats)
+      ? modelOptions.target_formats
+      : []
   const isBlendOnly =
-    formats !== undefined &&
-    formats.length > 0 &&
-    formats.every((format) => format === 'blend')
+    formats.length > 0 && formats.every((format) => format === 'blend')
   if (isBlendOnly) {
     throw new Error(
       `meshy: ${endpoint} with target_formats: ['blend'] returns no 3D model file.`,
     )
   }
+}
+
+// Meshy reads 2 to 4 retexture views only with an explicit `meshy-7` or
+// `meshy-n1`, and never together with a text style.
+function assertMultiviewRetexture(
+  aiModel: string | undefined,
+  promptFields: Record<string, unknown>,
+) {
+  if (!('multiview_image_urls' in promptFields)) return
+  if (aiModel !== 'meshy-7' && aiModel !== 'meshy-n1') {
+    throw new Error(
+      `meshy: retexture with 2 to 4 images needs meshy3DModel('retexture', 'meshy-7') or 'meshy-n1'.`,
+    )
+  }
+  if ('text_style_prompt' in promptFields) {
+    throw new Error(
+      'meshy: retexture takes 2 to 4 images or a text style, not both.',
+    )
+  }
+}
+
+// `meshy-t2` and `meshy-t2.5` run only as Smart Topology models. A
+// `model_type` in modelOptions still wins.
+function smartTopologyDefault(aiModel: string | undefined) {
+  const isSmartTopologyModel =
+    aiModel === 'meshy-t2' || aiModel === 'meshy-t2.5'
+  return isSmartTopologyModel ? { model_type: 'smart-topology' } : {}
 }
 
 const TEXT_TO_3D_MODES: Partial<
@@ -221,7 +276,6 @@ interface MeshyModel3DTask extends MeshyTask {
   model_urls?: Partial<Record<MeshyModelUrlKey, string>>
   texture_urls?: Array<Partial<Record<string, string>>>
   thumbnail_url?: string
-  enable_pbr?: boolean
   result?: {
     rigged_character_glb_url?: string
     rigged_character_fbx_url?: string
@@ -277,10 +331,11 @@ function collectFiles(task: MeshyModel3DTask) {
     files.push({ url, role, ...(format ? { format } : {}) })
   }
 
-  const modelRole = task.enable_pbr === true ? 'pbr' : 'base'
+  // Meshy does not say whether a mesh has PBR maps, so every mesh is 'base'.
+  // The OBJ material file (mtl) goes with the textures.
   const modelUrls = task.model_urls ?? {}
   for (const [key, format] of MODEL_URL_KEYS) {
-    add(modelUrls[key], modelRole, format)
+    add(modelUrls[key], key === 'mtl' ? 'texture' : 'base', format)
   }
 
   const result = task.result ?? {}
@@ -386,9 +441,12 @@ export class MeshyModel3DAdapter<
     try {
       assertCreatesRepresentableMesh(this.model, modelOptions)
       const mode = TEXT_TO_3D_MODES[this.model]
+      const promptFields = mapPromptToMeshyFields(this.model, options.prompt)
+      assertMultiviewRetexture(this.aiModel, promptFields)
       const body = {
+        ...smartTopologyDefault(this.aiModel),
         ...modelOptions,
-        ...mapPromptToMeshyFields(this.model, options.prompt),
+        ...promptFields,
         ...(this.aiModel ? { ai_model: this.aiModel } : {}),
         ...(mode ? { mode } : {}),
       }
@@ -433,23 +491,23 @@ export class MeshyModel3DAdapter<
   }
 
   /**
-   * Cancels a task. Meshy cancels only a `PENDING` task. A running task
-   * answers 409, and then this throws an `Error` that says so.
+   * Cancels a task. Meshy cancels and refunds only a `PENDING` task, so this
+   * reads the task first:
+   *
+   * - `PENDING`: sends `DELETE`.
+   * - Running: throws an `Error` that says so. The task finishes and is billed.
+   * - Finished: does nothing. A `DELETE` would erase the paid model.
    */
   async cancel3DModelJob(
     jobId: string,
     options?: { abortSignal?: AbortSignal },
   ) {
-    try {
-      await this.client.delete(this.taskPath(jobId), options?.abortSignal)
-    } catch (error) {
-      const isRunning = error instanceof MeshyApiError && error.status === 409
-      if (!isRunning) throw error
-      throw new Error(
-        `Meshy task ${jobId} is already running and cannot be canceled`,
-        { cause: error },
-      )
-    }
+    await cancelMeshyTask(
+      this.client,
+      this.taskPath(jobId),
+      jobId,
+      options?.abortSignal,
+    )
   }
 }
 

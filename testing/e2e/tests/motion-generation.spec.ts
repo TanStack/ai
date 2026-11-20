@@ -368,7 +368,7 @@ test.describe('generateMotion activity (meshy)', () => {
     expect(events.at(-1)?.type).toBe('RUN_FINISHED')
   })
 
-  test('reports a clear error when Meshy refuses to cancel a running task', async ({
+  test('reports a clear error when the task starts before Meshy can cancel it', async ({
     request,
   }) => {
     const res = await request.post('/api/motion', {
@@ -380,7 +380,12 @@ test.describe('generateMotion activity (meshy)', () => {
       ok: false,
       error:
         'Meshy task motion-task-e2e is already running and cannot be canceled',
-      meshyRequests: [{ method: 'DELETE', path: MESHY_TASK_PATH }],
+      // The adapter reads the task first and deletes only a PENDING task.
+      // The fake answers PENDING, then 409 on the DELETE.
+      meshyRequests: [
+        { method: 'GET', path: MESHY_TASK_PATH },
+        { method: 'DELETE', path: MESHY_TASK_PATH },
+      ],
     })
   })
 })

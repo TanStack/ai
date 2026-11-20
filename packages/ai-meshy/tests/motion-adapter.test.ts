@@ -175,19 +175,32 @@ describe('meshyMotion', () => {
     })
   })
 
-  it('cancel throws a clear error on 409', async () => {
+  it('cancel deletes a PENDING task', async () => {
     const { adapter, requests } = adapterWith(
-      Response.json(
-        { message: 'Task is IN_PROGRESS and cannot be deleted.' },
-        { status: 409 },
-      ),
+      Response.json(motionTask({ status: 'PENDING' })),
+      new Response(null, { status: 200 }),
     )
+
+    await cancelMotionJob({ adapter, jobId: 'task-1' })
+    expect(requests.map(({ method, url }) => `${method} ${url}`)).toEqual([
+      `GET ${MOTION_URL}/task-1`,
+      `DELETE ${MOTION_URL}/task-1`,
+    ])
+  })
+
+  it('cancel throws a clear error for a running task and sends no DELETE', async () => {
+    const { adapter, requests } = adapterWith(Response.json(motionTask()))
 
     await expect(cancelMotionJob({ adapter, jobId: 'task-1' })).rejects.toThrow(
       'Meshy task task-1 is already running and cannot be canceled',
     )
-    expect(requests.map(({ method, url }) => `${method} ${url}`)).toEqual([
-      `DELETE ${MOTION_URL}/task-1`,
-    ])
+    expect(requests.map(({ method }) => method)).toEqual(['GET'])
+  })
+
+  it('cancel keeps a finished clip: no DELETE', async () => {
+    const { adapter, requests } = adapterWith(Response.json(succeededTask))
+
+    await cancelMotionJob({ adapter, jobId: 'task-1' })
+    expect(requests.map(({ method }) => method)).toEqual(['GET'])
   })
 })

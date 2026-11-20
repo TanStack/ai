@@ -1,5 +1,5 @@
 import { BaseMotionAdapter } from '@tanstack/ai/adapters'
-import { MeshyApiError, createMeshyClient, mapMeshyStatus } from '../client'
+import { cancelMeshyTask, createMeshyClient, mapMeshyStatus } from '../client'
 import type { MotionGenerationOptions } from '@tanstack/ai'
 import type { MeshyClient, MeshyClientConfig, MeshyTask } from '../client'
 
@@ -30,9 +30,8 @@ interface MeshyMotionTask extends MeshyTask {
  *
  * Meshy needs `duration`: 2 to 10 seconds, in steps of 0.5.
  *
- * `cancelMotionJob` sends `DELETE`. Meshy cancels and refunds only a
- * `PENDING` task. A running task cannot be canceled. A finished task is
- * deleted with its clip.
+ * `cancelMotionJob` cancels and refunds only a `PENDING` task. A running
+ * task cannot be canceled. A finished task is kept.
  *
  * @experimental Motion generation is an experimental feature and may change.
  */
@@ -118,30 +117,22 @@ export class MeshyMotionAdapter<
   }
 
   /**
-   * Deletes the Meshy task. A `PENDING` task is canceled and refunded.
+   * Cancels the Meshy task with `cancelMeshyTask`: a `PENDING` task is
+   * canceled and refunded, a finished task is kept.
    *
-   * @throws {Error} When the task is already running (Meshy answers 409).
+   * @throws {Error} When the task is already running.
    * @throws {MeshyApiError} For any other response that is not 2xx.
    */
   async cancelMotionJob(
     jobId: string,
     options?: { abortSignal?: AbortSignal },
   ) {
-    try {
-      await this.client.delete(
-        `${MOTION_PATH}/${encodeURIComponent(jobId)}`,
-        options?.abortSignal,
-      )
-    } catch (error) {
-      const isRunning = error instanceof MeshyApiError && error.status === 409
-      if (isRunning) {
-        throw new Error(
-          `Meshy task ${jobId} is already running and cannot be canceled`,
-          { cause: error },
-        )
-      }
-      throw error
-    }
+    await cancelMeshyTask(
+      this.client,
+      `${MOTION_PATH}/${encodeURIComponent(jobId)}`,
+      jobId,
+      options?.abortSignal,
+    )
   }
 }
 

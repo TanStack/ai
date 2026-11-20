@@ -54,7 +54,8 @@ export const MESHY_ENDPOINT_PATHS: Record<MeshyModel3DEndpoint, string> = {
  *   `image_style_url` and 2 to 4 images to `multiview_image_urls`. `null` for
  *   no images.
  * - `mesh`: the field for a Meshy task id (a `file` source), and `fileOnly`
- *   when the endpoint takes no `model_url`. `null` for no mesh.
+ *   when the endpoint takes no `model_url`. `inlineData` says which mesh
+ *   formats a data URI can hold. `null` for no mesh.
  */
 interface MeshyPromptRoute {
   text: 'prompt' | 'texture_prompt' | 'text_style_prompt' | null
@@ -62,8 +63,22 @@ interface MeshyPromptRoute {
   mesh: {
     fileField: MeshyMeshFileField
     fileOnly: boolean
+    inlineData: MeshyInlineMeshData
   } | null
 }
+
+/**
+ * How an endpoint takes a mesh as a data URI.
+ *
+ * - `'any'`: every mesh format, as `data:application/octet-stream`.
+ * - `'gltf'`: only GLB (`model/gltf-binary`) or glTF (`model/gltf+json`).
+ * - `'glb'`: only GLB (`model/gltf-binary`).
+ *
+ * Send other formats as a URL.
+ *
+ * @experimental Meshy support is experimental and may change.
+ */
+export type MeshyInlineMeshData = 'any' | 'gltf' | 'glb'
 
 /**
  * The request field that takes a Meshy task id for a mesh.
@@ -75,7 +90,11 @@ export type MeshyMeshFileField =
   | 'rig_task_id'
   | 'preview_task_id'
 
-const ANY_MESH = { fileField: 'input_task_id', fileOnly: false } as const
+const ANY_MESH = {
+  fileField: 'input_task_id',
+  fileOnly: false,
+  inlineData: 'any',
+} as const
 
 /**
  * The prompt routes of every endpoint. The prompt modality types below come
@@ -86,7 +105,7 @@ export const MESHY_PROMPT_ROUTES = {
   'text-to-3d-refine': {
     text: 'texture_prompt',
     image: 'texture_image_url',
-    mesh: { fileField: 'preview_task_id', fileOnly: true },
+    mesh: { fileField: 'preview_task_id', fileOnly: true, inlineData: 'any' },
   },
   'image-to-3d': { text: 'texture_prompt', image: 'image_url', mesh: null },
   'multi-image-to-3d': {
@@ -103,14 +122,22 @@ export const MESHY_PROMPT_ROUTES = {
   animation: {
     text: null,
     image: null,
-    mesh: { fileField: 'rig_task_id', fileOnly: true },
+    mesh: { fileField: 'rig_task_id', fileOnly: true, inlineData: 'any' },
   },
-  'print-multi-color': { text: null, image: null, mesh: ANY_MESH },
-  'print-repair': { text: null, image: null, mesh: ANY_MESH },
+  'print-multi-color': {
+    text: null,
+    image: null,
+    mesh: { fileField: 'input_task_id', fileOnly: false, inlineData: 'glb' },
+  },
+  'print-repair': {
+    text: null,
+    image: null,
+    mesh: { fileField: 'input_task_id', fileOnly: false, inlineData: 'gltf' },
+  },
   'print-split': {
     text: 'prompt',
     image: null,
-    mesh: { fileField: 'input_task_id', fileOnly: true },
+    mesh: { fileField: 'input_task_id', fileOnly: true, inlineData: 'any' },
   },
   relief: { text: null, image: 'image_url', mesh: null },
 } as const satisfies Record<MeshyModel3DEndpoint, MeshyPromptRoute>

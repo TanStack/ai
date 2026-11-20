@@ -150,7 +150,7 @@ export async function listMeshyAnimations(
 }
 
 /**
- * The printer that sets the minimum wall thickness for the size check.
+ * The printer that sets the minimum wall thickness for the wall check.
  *
  * @experimental Meshy support is experimental and may change.
  */
@@ -171,7 +171,7 @@ export type MeshyPrintabilityStatus =
 /**
  * The printability report from Meshy. The field names are the raw Meshy
  * names. `intended_print` and `thin_walls` are set only when you send a
- * print size.
+ * printer type or a print size.
  *
  * @experimental Meshy support is experimental and may change.
  */
@@ -220,12 +220,17 @@ export interface MeshyPrintabilityReport {
  */
 export interface AnalyzeMeshyPrintabilityOptions extends MeshyClientConfig {
   /**
-   * The model to analyze. A `url` or `data` source is sent as `model_url`
-   * (GLB, glTF, OBJ, FBX, or STL). A `file` source is a Meshy task id, for
-   * example a `jobId` from `meshy3DModel()`.
+   * The model to analyze. A `url` source can be GLB, glTF, OBJ, FBX, or STL.
+   * A `data` source can be only GLB or glTF. A `file` source is a Meshy task
+   * id, for example a `jobId` from `meshy3DModel()`.
    */
   model: ContentPartSource
-  printerType: MeshyPrinterType
+  /**
+   * The printer for the wall check. With a printer type or a print size,
+   * Meshy also checks the wall thickness, which takes about 10 seconds.
+   * With a print size only, Meshy uses `fdm`.
+   */
+  printerType?: MeshyPrinterType
   /** The print height in mm, 1 to 1000. Do not set it with `intendedPrintLongestSideMm`. */
   intendedPrintHeightMm?: number
   /** The longest side of the print in mm, 1 to 1000. Do not set it with `intendedPrintHeightMm`. */
@@ -264,13 +269,15 @@ function sleep(ms: number, signal: AbortSignal | undefined) {
  * waits until the task is done, and returns the report. The analysis costs
  * no credits.
  *
- * Send a print size (`intendedPrintHeightMm` or `intendedPrintLongestSideMm`)
- * to also check the wall thickness for `printerType`.
+ * With no `printerType` and no print size, Meshy checks only the mesh, which
+ * takes about 1 second. Send `printerType`, a print size
+ * (`intendedPrintHeightMm` or `intendedPrintLongestSideMm`), or both to also
+ * check the wall thickness. Without a size, Meshy uses its default size.
  *
  * This function has no time limit. It polls until the task succeeds or fails.
  * To set a limit, pass `abortSignal: AbortSignal.timeout(ms)`.
  *
- * @param options - The `model`, the `printerType`, an optional print size,
+ * @param options - The `model`, an optional `printerType` and print size,
  * `pollInterval`, `abortSignal`, and the client settings.
  * @throws {Error} When both print sizes are set, before any request.
  * @throws {Error} When the task fails or is canceled.
@@ -306,9 +313,9 @@ export async function analyzeMeshyPrintability(
   const created = await client.post<{ result: string }>(
     '/v1/print/analyze',
     {
-      ...meshyMeshSourceFields(options.model, 'input_task_id'),
+      ...meshyMeshSourceFields(options.model, 'input_task_id', 'gltf'),
+      // JSON drops the fields that are undefined.
       printer_type: options.printerType,
-      // JSON drops the size that is undefined.
       intended_print_height_mm: options.intendedPrintHeightMm,
       intended_print_longest_side_mm: options.intendedPrintLongestSideMm,
     },
