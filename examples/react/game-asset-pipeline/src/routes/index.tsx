@@ -63,6 +63,7 @@ function ImageStep(props: ImageStepProps) {
     connection: fetchServerSentEvents('/api/concept'),
     threadId: `asset-${id}`,
     byok,
+    byokProvider: () => falByok.id,
     onResult: (image) => {
       const next = image.images[0]?.url
       if (next) showImage(next)
@@ -152,6 +153,8 @@ function ModelStep(props: ModelStepProps) {
     connection: fetchServerSentEvents(`/api/model3d?step=${step}`),
     threadId: `asset-${step}`,
     byok,
+    byokProvider: () =>
+      step === 'rig' || step === 'animate' ? meshyByok.id : falByok.id,
     onProgress: (_progress, message) => setStatus(message ?? ''),
     onResult: onModel,
   })
@@ -247,7 +250,11 @@ function PipelinePage() {
           title="2. Low-poly game mesh"
           action="Make mesh"
           prompt={conceptUrl ? [imagePart(conceptUrl)] : null}
-          onModel={(model) => setMeshUrl(model.url)}
+          onModel={(model) => {
+            setMeshUrl(model.url)
+            setRetexturedUrl(null)
+            setRigJobId(null)
+          }}
         />
         <ImageStep
           id="skin"
