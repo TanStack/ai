@@ -383,7 +383,10 @@ Last, the harness and its HTTP handler:
 
 ```typescript ignore
 const computer = computerUse({
-  driver: sandboxComputer({ provider, sandboxIds, snapshots }),
+  driver: sandboxComputer({
+    provider,
+    persist: { sandboxIds, snapshots },
+  }),
   screenshotDelay: 1000,
 })
 
@@ -407,7 +410,7 @@ export const handler = createHarnessHandler({
 })
 ```
 
-- `sandboxComputer` makes one container for each thread. With `sandboxIds`, it keeps the container and reconnects to it later. With `snapshots`, a new container gets the saved profile.
+- `sandboxComputer` makes one container for each thread. With `persist.sandboxIds`, it keeps the container and reconnects to it later. With `persist.snapshots`, a new container gets the saved profile.
 - `memoryPersistence()` keeps the chat in memory. A server restart loses the chat, but not the container. For a user who comes back the next day, use a persistence store in your database. See [Chat persistence](../persistence/chat-persistence).
 - `openAccess` serves every request with no login. Use it only on your own machine. See [Serve with no login](../harness/access#serve-with-no-login).
 

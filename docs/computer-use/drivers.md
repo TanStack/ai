@@ -130,13 +130,14 @@ const computerUse = createComputerUse({
 
 - `provider`: the sandbox provider. It makes one sandbox for each thread.
 - `display`: the screen size of each desktop in pixels. The default is 1024 x 768.
-- `sandboxIds`: keep the desktop of each thread and reconnect to it later. See [Keep the desktop for later](#keep-the-desktop-for-later).
-- `snapshots`: save the files of a folder, and restore them into the next new sandbox of the thread. See [Restore files into a new sandbox](#restore-files-into-a-new-sandbox).
+- `persist`: keep the state of each thread after the thread closes or goes idle. Set one or both:
+  - `sandboxIds`: keep the desktop of each thread and reconnect to it later. See [Keep the desktop for later](#keep-the-desktop-for-later).
+  - `snapshots`: save the files of a folder, and restore them into the next new sandbox of the thread. See [Restore files into a new sandbox](#restore-files-into-a-new-sandbox).
 
 How the sandbox driver behaves:
 
 - There is no `navigate` tool, because a desktop has no address. The model opens the browser on the desktop.
-- When a thread closes or goes idle, `createComputerUse` destroys its sandbox, unless you set `sandboxIds`. With `snapshots`, the driver saves the files first.
+- When a thread closes or goes idle, `createComputerUse` destroys its sandbox, unless you set `persist.sandboxIds`. With `persist.snapshots`, the driver saves the files first.
 - One scroll step is 100 pixels.
 - The driver quotes every key name and all typed text before they go to the shell.
 
@@ -159,7 +160,7 @@ If a tool is missing, the driver throws an error with its name.
 
 ### Keep the desktop for later
 
-Give `sandboxComputer()` a `sandboxIds` store. A user who comes back to a thread a day later gets the same desktop, for example with the browser still signed in.
+Give `sandboxComputer()` a `persist.sandboxIds` store. A user who comes back to a thread a day later gets the same desktop, for example with the browser still signed in.
 
 1. Store one sandbox id for each thread, next to your threads.
 2. Set the provider to pause the sandbox, not to kill it. With E2B, use `onTimeout: 'pause'`.
@@ -181,15 +182,17 @@ const computerUse = createComputerUse({
       timeoutMs: 15 * 60_000,
       onTimeout: 'pause',
     }),
-    sandboxIds: {
-      get: (threadId) => db.getSandboxId(threadId),
-      set: (threadId, sandboxId) => db.setSandboxId(threadId, sandboxId),
+    persist: {
+      sandboxIds: {
+        get: (threadId) => db.getSandboxId(threadId),
+        set: (threadId, sandboxId) => db.setSandboxId(threadId, sandboxId),
+      },
     },
   }),
 })
 ```
 
-With `sandboxIds`, the driver works like this:
+With `persist.sandboxIds`, the driver works like this:
 
 - The first call of a thread creates a sandbox and stores its id.
 - A later call reconnects to that sandbox with `provider.resume`. If the sandbox is gone, the driver creates a new one and stores the new id.
@@ -206,7 +209,7 @@ What each provider keeps:
 
 ### Restore files into a new sandbox
 
-Give `sandboxComputer()` a `snapshots` option. The driver saves the files of one folder, like the browser profile. When the sandbox of a thread is gone, the next new sandbox gets those files, so the browser is still signed in. This works with every provider, also when its disk does not last, like Cloudflare.
+Give `sandboxComputer()` a `persist.snapshots` option. The driver saves the files of one folder, like the browser profile. When the sandbox of a thread is gone, the next new sandbox gets those files, so the browser is still signed in. This works with every provider, also when its disk does not last, like Cloudflare.
 
 ```ts
 import { createComputerUse } from '@tanstack/ai-computer-use'
@@ -223,28 +226,30 @@ async function run(sandbox: SandboxHandle, command: string) {
 const computerUse = createComputerUse({
   driver: sandboxComputer({
     provider: e2bSandbox({ template: 'my-desktop' }),
-    snapshots: {
-      store: await memorySandboxSnapshots(),
-      root: '/home/user/browser-profile',
-      // Skip the caches. They are large, and the browser makes them again.
-      policy: { exclude: (path) => path.includes('Cache') },
-      // The browser writes its profile all the time. Close it cleanly during
-      // a save. A kill signal can stop it before it writes its cookies.
-      before: (sandbox) => run(sandbox, 'stop-browser'),
-      after: (sandbox) => run(sandbox, 'start-browser'),
+    persist: {
+      snapshots: {
+        store: await memorySandboxSnapshots(),
+        root: '/home/user/browser-profile',
+        // Skip the caches. They are large, and the browser makes them again.
+        policy: { exclude: (path) => path.includes('Cache') },
+        // The browser writes its profile all the time. Close it cleanly during
+        // a save. A kill signal can stop it before it writes its cookies.
+        before: (sandbox) => run(sandbox, 'stop-browser'),
+        after: (sandbox) => run(sandbox, 'start-browser'),
+      },
     },
   }),
 })
 ```
 
-With `snapshots`, the driver works like this:
+With `persist.snapshots`, the driver works like this:
 
 - When a thread closes or goes idle, the driver runs `before`, saves the files under `root`, then runs `after`.
 - When the driver creates a new sandbox for a thread with a saved snapshot, it runs `before`, restores the files, then runs `after`.
-- A sandbox that the driver reconnects to with `sandboxIds` keeps its own files. The driver restores into it only when its disk is empty, like a Cloudflare sandbox after a restart.
+- A sandbox that the driver reconnects to with `persist.sandboxIds` keeps its own files. The driver restores into it only when its disk is empty, like a Cloudflare sandbox after a restart.
 - Each save becomes the newest checkpoint of the thread. Use these stores only for computers.
 
-To save at a moment that you must keep, like right after a sign-in, call `saveComputerSnapshot(sandbox, threadId, snapshots)` with the same options. The [sign-in tutorial](../tutorials/computer-use-login) does this.
+To save at a moment that you must keep, like right after a sign-in, call `saveComputerSnapshot(sandbox, threadId, snapshots)` with the same `persist.snapshots` options. The [sign-in tutorial](../tutorials/computer-use-login) does this.
 
 `memorySandboxSnapshots()` keeps the files in memory, so they are lost when the server stops. For a user who comes back the next day, build the stores with `createSandboxSnapshots` on your database.
 

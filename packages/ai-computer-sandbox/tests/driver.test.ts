@@ -378,7 +378,7 @@ describe('sandboxComputer', () => {
     const kept = fakeSandbox()
     const provider = fakeProvider([], [kept])
     const sandboxIds = memoryIds({ a: kept.sandbox.id })
-    const factory = sandboxComputer({ provider, sandboxIds })
+    const factory = sandboxComputer({ provider, persist: { sandboxIds } })
     const driver = await factory.create({ threadId: 'a' })
     expect(provider.create).not.toHaveBeenCalled()
     expect(driver.close).toBeUndefined()
@@ -389,7 +389,7 @@ describe('sandboxComputer', () => {
     const created = fakeSandbox()
     const provider = fakeProvider([created])
     const sandboxIds = memoryIds({ a: 'gone' })
-    const factory = sandboxComputer({ provider, sandboxIds })
+    const factory = sandboxComputer({ provider, persist: { sandboxIds } })
     await factory.create({ threadId: 'a' })
     expect(provider.resume).toHaveBeenCalledWith({ id: 'gone' })
     expect(sandboxIds.ids.get('a')).toBe(created.sandbox.id)
@@ -403,15 +403,17 @@ describe('sandboxComputer', () => {
     const log: Array<string> = []
     const factory = sandboxComputer({
       provider: fakeProvider([first, second]),
-      snapshots: {
-        store: await memorySandboxSnapshots(),
-        root: '/p',
-        policy: { exclude: (path) => path.split('/')[0] === 'Cache' },
-        before: async (sandbox) => {
-          log.push(`before ${sandbox.id}`)
-        },
-        after: async (sandbox) => {
-          log.push(`after ${sandbox.id}`)
+      persist: {
+        snapshots: {
+          store: await memorySandboxSnapshots(),
+          root: '/p',
+          policy: { exclude: (path) => path.split('/')[0] === 'Cache' },
+          before: async (sandbox) => {
+            log.push(`before ${sandbox.id}`)
+          },
+          after: async (sandbox) => {
+            log.push(`after ${sandbox.id}`)
+          },
         },
       },
     })
@@ -446,12 +448,14 @@ describe('sandboxComputer', () => {
     })
     const factory = sandboxComputer({
       provider: fakeProvider([first, second]),
-      snapshots: {
-        store: await memorySandboxSnapshots(),
-        root: '/p',
-        // The save of the first sandbox is slow.
-        before: (sandbox) =>
-          sandbox.id === first.sandbox.id ? saving : Promise.resolve(),
+      persist: {
+        snapshots: {
+          store: await memorySandboxSnapshots(),
+          root: '/p',
+          // The save of the first sandbox is slow.
+          before: (sandbox) =>
+            sandbox.id === first.sandbox.id ? saving : Promise.resolve(),
+        },
       },
     })
 
@@ -472,8 +476,10 @@ describe('sandboxComputer', () => {
     const store = await memorySandboxSnapshots()
     const factory = sandboxComputer({
       provider: fakeProvider([], [kept]),
-      sandboxIds: memoryIds({ a: kept.sandbox.id }),
-      snapshots: { store, root: '/p' },
+      persist: {
+        sandboxIds: memoryIds({ a: kept.sandbox.id }),
+        snapshots: { store, root: '/p' },
+      },
     })
     const driver = await factory.create({ threadId: 'a' })
     await driver.close?.()

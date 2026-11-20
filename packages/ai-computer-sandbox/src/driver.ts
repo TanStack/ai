@@ -33,10 +33,19 @@ export interface SandboxComputerOptions {
   /** The screen size in pixels. The default is `{ width: 1024, height: 768 }`. */
   display?: { width: number; height: number }
   /**
+   * Keep the state of each thread after the thread closes or goes idle.
+   * Without this option, the driver destroys the sandbox, and the next call
+   * of the thread gets a new, empty one. Set one or both ways.
+   */
+  persist?: SandboxComputerPersist
+}
+
+/** How the state of a thread survives. See {@link SandboxComputerOptions.persist}. */
+export interface SandboxComputerPersist {
+  /**
    * Keep the sandbox of each thread, and reconnect to it later. Store the ids
-   * where your threads persist. With this option, the driver does not destroy
-   * a sandbox when its thread closes or goes idle. The provider timeout
-   * pauses or removes it, like E2B `onTimeout: 'pause'`.
+   * where your threads persist. The driver does not destroy a kept sandbox.
+   * The provider timeout pauses or removes it, like E2B `onTimeout: 'pause'`.
    */
   sandboxIds?: {
     get: (threadId: string) => Promise<string | undefined>
@@ -292,10 +301,10 @@ export async function createSandboxComputerDriver({
  *
  * Each sandbox comes from `provider.create`. When `createComputerUse` closes
  * a thread, or the thread goes idle, the sandbox of that thread is
- * destroyed. With `sandboxIds`, the sandbox is kept, and the next call of the
- * thread reconnects to it with `provider.resume`. With `snapshots`, the files
- * of one folder are saved first, and restored into the next new sandbox of
- * the thread. The drivers have `cursorPosition`. They have no `zoom` and no
+ * destroyed. With `persist.sandboxIds`, the sandbox is kept, and the next call
+ * of the thread reconnects to it with `provider.resume`. With
+ * `persist.snapshots`, the files of one folder are saved first, and restored
+ * into the next new sandbox of the thread. The drivers have `cursorPosition`. They have no `zoom` and no
  * `navigate`, because a desktop has no address. The model opens the browser
  * on the desktop.
  *
@@ -309,8 +318,7 @@ export async function createSandboxComputerDriver({
 export function sandboxComputer({
   provider,
   display = DEFAULT_DISPLAY,
-  sandboxIds,
-  snapshots,
+  persist: { sandboxIds, snapshots } = {},
 }: SandboxComputerOptions) {
   /** The sandbox of the thread: its stored sandbox, when it still exists, or a new one. */
   async function open(threadId: string, signal: AbortSignal | undefined) {

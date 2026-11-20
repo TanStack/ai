@@ -249,7 +249,10 @@ const handOff = handOffTool.server(
 
 // One time, outside `plugins`, so every session shares the containers.
 const computer = computerUse({
-  driver: sandboxComputer({ provider, sandboxIds, snapshots }),
+  driver: sandboxComputer({
+    provider,
+    persist: { sandboxIds, snapshots },
+  }),
   // Pages load in a real browser. Give each one time to draw.
   screenshotDelay: 1000,
 })
