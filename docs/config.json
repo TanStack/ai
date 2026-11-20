@@ -965,7 +965,8 @@
         {
           "label": "Image Generation: Advanced",
           "to": "media/image-generation-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "Video Generation",
@@ -1769,7 +1770,7 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-11"
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "OpenAI: Advanced",

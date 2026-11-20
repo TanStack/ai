@@ -147,7 +147,7 @@ const result = await generateImage({
 console.log(result.images);
 ```
 
-`quality` takes `low`, `medium`, `high`, or `auto`. The `gpt-image-2.5` models also take `xhigh` and `max`. See [Image Generation](../media/image-generation).
+`quality` takes `low`, `medium`, `high`, or `auto`. The `gpt-image-2.6` and `gpt-image-2.5` models also take `xhigh` and `max`. See [Image Generation](../media/image-generation).
 
 ## Speech
 
@@ -408,7 +408,7 @@ Newest first. The package exports the full lists, for example `OPENAI_CHAT_MODEL
 | Activity | Factory | Models |
 | --- | --- | --- |
 | Chat | `openaiText` | `gpt-6.1-sol`, `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, the `gpt-5.6` models, `gpt-5.5`, `gpt-4.1`, `gpt-4o`, the `o` models, and more |
-| Images | `openaiImage` | `gpt-image-2.5-flare`, `gpt-image-2.5-sunburst`, `gpt-image-2`, `gpt-image-1`, `gpt-image-1-mini` |
+| Images | `openaiImage` | `gpt-image-2.6-flare`, `gpt-image-2.6-sunburst`, `gpt-image-2.5-flare`, `gpt-image-2.5-sunburst`, `gpt-image-2`, `gpt-image-1`, `gpt-image-1-mini` |
 | Speech | `openaiSpeech` | `tts-1`, `tts-1-hd`, `gpt-4o-mini-tts` |
 | Transcription | `openaiTranscription` | `whisper-1`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `gpt-4o-transcribe-diarize` |
 | Embeddings | `openaiEmbedding` | `text-embedding-3-small`, `text-embedding-3-large` |
