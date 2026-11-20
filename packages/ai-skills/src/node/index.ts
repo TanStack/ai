@@ -227,6 +227,7 @@ export async function generateCatalog(
         description: meta.description,
         body: stripFrontmatter(raw),
         ...(meta.compatibility && { compatibility: meta.compatibility }),
+        ...(meta.metadata && { metadata: meta.metadata }),
         ...(Object.keys(resources).length && { resources }),
       })
     }
