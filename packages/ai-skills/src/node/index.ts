@@ -5,6 +5,7 @@
  */
 import { readFile, readdir, realpath, stat } from 'node:fs/promises'
 import { basename, join, relative, sep } from 'node:path'
+import { stableJson } from '@tanstack/ai'
 import { walkSkillDirs } from '../walk'
 import { parseSkill, stripFrontmatter } from '../parse'
 import { assertSafeResourcePath, stableHash } from '../util'
@@ -233,10 +234,7 @@ export async function generateCatalog(
     }
   }
   skills.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
-  const revision = stableHash(
-    skills.map((s) => `${s.name}:${stableHash(s.body)}`).join('|'),
-  )
-  return { revision, skills }
+  return { revision: stableHash(stableJson(skills)), skills }
 }
 
 /** Structural Vite plugin (no `vite` type dependency). */
