@@ -10,7 +10,8 @@
     "examples/**",
     "testing/**",
     "tools/**",
-    "packages/ai-code-mode/models-eval"
+    "packages/ai-code-mode/models-eval",
+    "evals/harbor"
   ],
   "ignore": [
     "kiira.config.ts",
