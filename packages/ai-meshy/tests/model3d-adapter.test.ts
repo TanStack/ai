@@ -374,9 +374,13 @@ describe('meshy3DModel create3DModelJob', () => {
   })
 
   it('throws before POST when relief should_generate_model is false', async () => {
-    const { error, requests } = await submitError('relief', [image(IMAGE_URL)], {
-      should_generate_model: false,
-    })
+    const { error, requests } = await submitError(
+      'relief',
+      [image(IMAGE_URL)],
+      {
+        should_generate_model: false,
+      },
+    )
     expect(String(error)).toMatch(
       /relief with should_generate_model: false returns no 3D model file/,
     )
