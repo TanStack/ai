@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { skillDirectory } from '../src/node'
+import { generateCatalog, skillDirectory } from '../src/node'
+import { staticSkills } from '../src/static'
 
 const fixtures = fileURLToPath(new URL('./fixtures/skills', import.meta.url))
 
@@ -38,5 +39,20 @@ describe('skillDirectory', () => {
     expect((await source.list()).map((s) => s.name)).toEqual(['bar'])
     expect(await source.load('bar')).toContain('Body.')
     await expect(source.load('foo')).rejects.toThrow('no skill named "foo"')
+  })
+})
+
+describe('generateCatalog', () => {
+  it('lists the same metadata through staticSkills as skillDirectory', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ai-skills-'))
+    tempDirs.push(root)
+    await mkdir(join(root, 'tagged'))
+    await writeFile(
+      join(root, 'tagged', 'SKILL.md'),
+      '---\nname: tagged\ndescription: has metadata\nmetadata:\n  tags: files\n---\n\nBody.\n',
+    )
+    const listed = await staticSkills(await generateCatalog(root)).list()
+    expect(listed).toEqual(await skillDirectory(root).list())
+    expect(listed[0]?.metadata).toEqual({ tags: 'files' })
   })
 })
