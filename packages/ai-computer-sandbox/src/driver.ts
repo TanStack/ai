@@ -43,11 +43,13 @@ export interface SandboxComputerOptions {
 /** How the state of a thread survives. See {@link SandboxComputerOptions.persist}. */
 export interface SandboxComputerPersist {
   /**
-   * Keep the sandbox of each thread, and reconnect to it later. Store the ids
-   * where your threads persist. The driver does not destroy a kept sandbox.
-   * The provider timeout pauses or removes it, like E2B `onTimeout: 'pause'`.
+   * Keep the sandbox of each thread, and reconnect to the same sandbox later
+   * with `provider.resume`. `get` and `set` store the sandbox id of each
+   * thread, where your threads persist. The driver does not destroy a kept
+   * sandbox. The provider timeout pauses or removes it, like E2B
+   * `onTimeout: 'pause'`.
    */
-  sandboxIds?: {
+  reconnect?: {
     get: (threadId: string) => Promise<string | undefined>
     set: (threadId: string, sandboxId: string) => Promise<void>
   }
@@ -301,7 +303,7 @@ export async function createSandboxComputerDriver({
  *
  * Each sandbox comes from `provider.create`. When `createComputerUse` closes
  * a thread, or the thread goes idle, the sandbox of that thread is
- * destroyed. With `persist.sandboxIds`, the sandbox is kept, and the next call
+ * destroyed. With `persist.reconnect`, the sandbox is kept, and the next call
  * of the thread reconnects to it with `provider.resume`. With
  * `persist.snapshots`, the files of one folder are saved first, and restored
  * into the next new sandbox of the thread. The drivers have `cursorPosition`. They have no `zoom` and no
@@ -318,11 +320,11 @@ export async function createSandboxComputerDriver({
 export function sandboxComputer({
   provider,
   display = DEFAULT_DISPLAY,
-  persist: { sandboxIds, snapshots } = {},
+  persist: { reconnect, snapshots } = {},
 }: SandboxComputerOptions) {
   /** The sandbox of the thread: its stored sandbox, when it still exists, or a new one. */
   async function open(threadId: string, signal: AbortSignal | undefined) {
-    const id = await sandboxIds?.get(threadId)
+    const id = await reconnect?.get(threadId)
     const resumed =
       id === undefined
         ? null
@@ -330,7 +332,7 @@ export function sandboxComputer({
     if (resumed) return { sandbox: resumed, isNew: false }
     const sandbox = await provider.create(signal ? { signal } : {})
     try {
-      await sandboxIds?.set(threadId, sandbox.id)
+      await reconnect?.set(threadId, sandbox.id)
     } catch (error) {
       await destroyAfterFailure(sandbox)
       throw error
@@ -362,16 +364,16 @@ export function sandboxComputer({
           await restoreComputerSnapshot(sandbox, threadId, snapshots)
         }
         // A kept sandbox outlives its thread. The provider timeout ends it.
-        if (sandboxIds && !snapshots) return driver
+        if (reconnect && !snapshots) return driver
         return {
           ...driver,
           close: async () => {
             try {
               if (snapshots) {
-                await saveComputerSnapshot(sandbox, threadId, snapshots)
+                await saveComputerSnapshot({ sandbox, threadId, snapshots })
               }
             } finally {
-              if (!sandboxIds) await sandbox.destroy()
+              if (!reconnect) await sandbox.destroy()
             }
           },
         }
@@ -436,11 +438,16 @@ function oneAtATime<T>(threadId: string, task: () => Promise<T>) {
  * `sandboxComputer` calls it when a thread closes or goes idle. Call it
  * yourself after a step that you must keep, like a sign-in.
  */
-export function saveComputerSnapshot(
-  sandbox: SandboxHandle,
-  threadId: string,
-  { store, root, policy, before, after }: SandboxComputerSnapshots,
-) {
+export function saveComputerSnapshot({
+  sandbox,
+  threadId,
+  snapshots: { store, root, policy, before, after },
+}: {
+  sandbox: SandboxHandle
+  threadId: string
+  /** The same options as `persist.snapshots` of `sandboxComputer`. */
+  snapshots: SandboxComputerSnapshots
+}) {
   return oneAtATime(threadId, async () => {
     try {
       // In the try, so `after` starts the programs again when `before` fails.

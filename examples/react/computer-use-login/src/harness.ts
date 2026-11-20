@@ -237,7 +237,7 @@ const requestLogin = requestLoginTool.server(async ({ site }, context) => {
     )
   }
   // Save the signed-in profile now. A server that stops skips the idle save.
-  await saveComputerSnapshot(sandbox, threadId, snapshots)
+  await saveComputerSnapshot({ sandbox, threadId, snapshots })
   return `Signed in. The browser shows ${pageAddress(page.url)}. Take a screenshot to see it.`
 })
 
@@ -251,7 +251,7 @@ const handOff = handOffTool.server(
 const computer = computerUse({
   driver: sandboxComputer({
     provider,
-    persist: { sandboxIds, snapshots },
+    persist: { reconnect: sandboxIds, snapshots },
   }),
   // Pages load in a real browser. Give each one time to draw.
   screenshotDelay: 1000,

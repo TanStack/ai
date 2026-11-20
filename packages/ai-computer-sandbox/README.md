@@ -68,7 +68,7 @@ When a tool is missing, the driver throws an error with its name.
 
 ## Keep the desktop for later
 
-Give `sandboxComputer()` a `persist.sandboxIds` store, and set the provider to pause the sandbox. A user who comes back to a thread later gets the same desktop.
+Give `sandboxComputer()` a `persist.reconnect` store, and set the provider to pause the sandbox. A user who comes back to a thread later gets the same desktop.
 
 ```typescript
 import { createComputerUse } from '@tanstack/ai-computer-use'
@@ -85,7 +85,7 @@ const computerUse = createComputerUse({
   driver: sandboxComputer({
     provider: e2bSandbox({ template: 'desktop', onTimeout: 'pause' }),
     persist: {
-      sandboxIds: {
+      reconnect: {
         get: (threadId) => db.getSandboxId(threadId),
         set: (threadId, sandboxId) => db.setSandboxId(threadId, sandboxId),
       },
@@ -128,7 +128,7 @@ const computerUse = createComputerUse({
 ```
 
 - `before` runs before each save and restore. Stop the programs that write in `root`. `after` starts them again.
-- To save right away, like after a sign-in, call `saveComputerSnapshot(sandbox, threadId, snapshots)` with the same `persist.snapshots` options.
+- To save right away, like after a sign-in, call `saveComputerSnapshot({ sandbox, threadId, snapshots })`. `snapshots` takes the same options as `persist.snapshots`.
 - A snapshot of a browser profile holds its session cookies. Keep the store secret.
 - `memorySandboxSnapshots()` keeps the snapshots in memory. A server restart deletes them. For a durable store, use `createSandboxSnapshots` with your database.
 

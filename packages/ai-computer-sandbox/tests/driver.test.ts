@@ -154,7 +154,7 @@ function fakeProvider(
   return provider
 }
 
-/** An in-memory `sandboxIds` store. */
+/** An in-memory `persist.reconnect` store. */
 function memoryIds(initial: Record<string, string> = {}) {
   const ids = new Map(Object.entries(initial))
   return {
@@ -374,22 +374,28 @@ describe('sandboxComputer', () => {
     error.mockRestore()
   })
 
-  it('with sandboxIds, resumes the stored sandbox and never destroys it', async () => {
+  it('with reconnect, resumes the stored sandbox and never destroys it', async () => {
     const kept = fakeSandbox()
     const provider = fakeProvider([], [kept])
     const sandboxIds = memoryIds({ a: kept.sandbox.id })
-    const factory = sandboxComputer({ provider, persist: { sandboxIds } })
+    const factory = sandboxComputer({
+      provider,
+      persist: { reconnect: sandboxIds },
+    })
     const driver = await factory.create({ threadId: 'a' })
     expect(provider.create).not.toHaveBeenCalled()
     expect(driver.close).toBeUndefined()
     expect(kept.destroy).not.toHaveBeenCalled()
   })
 
-  it('with sandboxIds, creates and stores a sandbox when the stored one is gone', async () => {
+  it('with reconnect, creates and stores a sandbox when the stored one is gone', async () => {
     const created = fakeSandbox()
     const provider = fakeProvider([created])
     const sandboxIds = memoryIds({ a: 'gone' })
-    const factory = sandboxComputer({ provider, persist: { sandboxIds } })
+    const factory = sandboxComputer({
+      provider,
+      persist: { reconnect: sandboxIds },
+    })
     await factory.create({ threadId: 'a' })
     expect(provider.resume).toHaveBeenCalledWith({ id: 'gone' })
     expect(sandboxIds.ids.get('a')).toBe(created.sandbox.id)
@@ -471,13 +477,13 @@ describe('sandboxComputer', () => {
     )
   })
 
-  it('with snapshots and sandboxIds, restores into a resumed sandbox only when its disk is new', async () => {
+  it('with snapshots and reconnect, restores into a resumed sandbox only when its disk is new', async () => {
     const kept = fakeSandbox({ files: { '/p/Cookies': 'live' } })
     const store = await memorySandboxSnapshots()
     const factory = sandboxComputer({
       provider: fakeProvider([], [kept]),
       persist: {
-        sandboxIds: memoryIds({ a: kept.sandbox.id }),
+        reconnect: memoryIds({ a: kept.sandbox.id }),
         snapshots: { store, root: '/p' },
       },
     })

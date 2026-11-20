@@ -159,7 +159,7 @@ export const requestLoginTool = toolDefinition({
 
 Create `src/harness.ts`. It has the Docker provider, three stores, the tool, and the harness.
 
-First the provider and the sandbox ids. `sandboxIds` keeps the container of each thread, so the thread finds its signed-in browser again later:
+First the provider and the sandbox ids. `sandboxIds` stores the container of each thread. With it, the driver reconnects to the same container later, so the thread finds its signed-in browser again:
 
 ```typescript ignore
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
@@ -225,7 +225,7 @@ const sandboxIds = {
 }
 ```
 
-Then the snapshots of the Chromium profile. `sandboxIds` brings back a container that still exists. A snapshot brings the profile into a new container, when the old one is gone. This also works with providers whose disk does not last, like Cloudflare:
+Then the snapshots of the Chromium profile. `persist.reconnect` brings back a container that still exists. A snapshot brings the profile into a new container, when the old one is gone. This also works with providers whose disk does not last, like Cloudflare:
 
 ```typescript ignore
 const PROFILE = '/root/chromium-profile'
@@ -371,7 +371,7 @@ const requestLogin = requestLoginTool.server(async ({ site }, context) => {
     )
   }
   // Save the signed-in profile now. A server that stops skips the idle save.
-  await saveComputerSnapshot(sandbox, threadId, snapshots)
+  await saveComputerSnapshot({ sandbox, threadId, snapshots })
   return `Signed in. The browser shows ${pageAddress(page.url)}. Take a screenshot to see it.`
 })
 ```
@@ -385,7 +385,7 @@ Last, the harness and its HTTP handler:
 const computer = computerUse({
   driver: sandboxComputer({
     provider,
-    persist: { sandboxIds, snapshots },
+    persist: { reconnect: sandboxIds, snapshots },
   }),
   screenshotDelay: 1000,
 })
@@ -410,7 +410,7 @@ export const handler = createHarnessHandler({
 })
 ```
 
-- `sandboxComputer` makes one container for each thread. With `persist.sandboxIds`, it keeps the container and reconnects to it later. With `persist.snapshots`, a new container gets the saved profile.
+- `sandboxComputer` makes one container for each thread. With `persist.reconnect`, it keeps the container and reconnects to it later. With `persist.snapshots`, a new container gets the saved profile.
 - `memoryPersistence()` keeps the chat in memory. A server restart loses the chat, but not the container. For a user who comes back the next day, use a persistence store in your database. See [Chat persistence](../persistence/chat-persistence).
 - `openAccess` serves every request with no login. Use it only on your own machine. See [Serve with no login](../harness/access#serve-with-no-login).
 

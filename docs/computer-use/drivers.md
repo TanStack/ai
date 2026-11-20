@@ -131,13 +131,13 @@ const computerUse = createComputerUse({
 - `provider`: the sandbox provider. It makes one sandbox for each thread.
 - `display`: the screen size of each desktop in pixels. The default is 1024 x 768.
 - `persist`: keep the state of each thread after the thread closes or goes idle. Set one or both:
-  - `sandboxIds`: keep the desktop of each thread and reconnect to it later. See [Keep the desktop for later](#keep-the-desktop-for-later).
+  - `reconnect`: keep the desktop of each thread and reconnect to it later. See [Keep the desktop for later](#keep-the-desktop-for-later).
   - `snapshots`: save the files of a folder, and restore them into the next new sandbox of the thread. See [Restore files into a new sandbox](#restore-files-into-a-new-sandbox).
 
 How the sandbox driver behaves:
 
 - There is no `navigate` tool, because a desktop has no address. The model opens the browser on the desktop.
-- When a thread closes or goes idle, `createComputerUse` destroys its sandbox, unless you set `persist.sandboxIds`. With `persist.snapshots`, the driver saves the files first.
+- When a thread closes or goes idle, `createComputerUse` destroys its sandbox, unless you set `persist.reconnect`. With `persist.snapshots`, the driver saves the files first.
 - One scroll step is 100 pixels.
 - The driver quotes every key name and all typed text before they go to the shell.
 
@@ -160,7 +160,7 @@ If a tool is missing, the driver throws an error with its name.
 
 ### Keep the desktop for later
 
-Give `sandboxComputer()` a `persist.sandboxIds` store. A user who comes back to a thread a day later gets the same desktop, for example with the browser still signed in.
+Give `sandboxComputer()` a `persist.reconnect` store. A user who comes back to a thread a day later gets the same desktop, for example with the browser still signed in.
 
 1. Store one sandbox id for each thread, next to your threads.
 2. Set the provider to pause the sandbox, not to kill it. With E2B, use `onTimeout: 'pause'`.
@@ -183,7 +183,7 @@ const computerUse = createComputerUse({
       onTimeout: 'pause',
     }),
     persist: {
-      sandboxIds: {
+      reconnect: {
         get: (threadId) => db.getSandboxId(threadId),
         set: (threadId, sandboxId) => db.setSandboxId(threadId, sandboxId),
       },
@@ -192,7 +192,7 @@ const computerUse = createComputerUse({
 })
 ```
 
-With `persist.sandboxIds`, the driver works like this:
+With `persist.reconnect`, the driver works like this:
 
 - The first call of a thread creates a sandbox and stores its id.
 - A later call reconnects to that sandbox with `provider.resume`. If the sandbox is gone, the driver creates a new one and stores the new id.
@@ -246,10 +246,10 @@ With `persist.snapshots`, the driver works like this:
 
 - When a thread closes or goes idle, the driver runs `before`, saves the files under `root`, then runs `after`.
 - When the driver creates a new sandbox for a thread with a saved snapshot, it runs `before`, restores the files, then runs `after`.
-- A sandbox that the driver reconnects to with `persist.sandboxIds` keeps its own files. The driver restores into it only when its disk is empty, like a Cloudflare sandbox after a restart.
+- A sandbox that the driver reconnects to with `persist.reconnect` keeps its own files. The driver restores into it only when its disk is empty, like a Cloudflare sandbox after a restart.
 - Each save becomes the newest checkpoint of the thread. Use these stores only for computers.
 
-To save at a moment that you must keep, like right after a sign-in, call `saveComputerSnapshot(sandbox, threadId, snapshots)` with the same `persist.snapshots` options. The [sign-in tutorial](../tutorials/computer-use-login) does this.
+To save at a moment that you must keep, like right after a sign-in, call `saveComputerSnapshot({ sandbox, threadId, snapshots })`. `snapshots` takes the same options as `persist.snapshots`. The [sign-in tutorial](../tutorials/computer-use-login) does this.
 
 `memorySandboxSnapshots()` keeps the files in memory, so they are lost when the server stops. For a user who comes back the next day, build the stores with `createSandboxSnapshots` on your database.
 
