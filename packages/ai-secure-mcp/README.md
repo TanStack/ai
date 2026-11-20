@@ -29,7 +29,7 @@ It wraps your server with:
 - **Scopes and a target allowlist** — a token holds scopes; a scope can be narrowed to named resources.
 - **Deny-by-default egress helper** — one allowlisted `egress` capability a tool uses on purpose. It is not an enforced network boundary: a tool that calls global `fetch` still reaches the network. For enforced isolation, run the server behind a separate execution or network boundary.
 - **Rate limits** — a per-client sliding window.
-- **A redacted audit log** — append-only JSONL, args redacted to id-like fields, no secrets.
+- **A redacted audit log** — append-only JSONL, args redacted to id-like fields. A field keeps its value only when its name ends in an id-like suffix (`id`, `name`, `title`, `kind`, `type`, `scope`, `origin`); every other field is replaced with `[redacted]`. This is name-based, not value-based: a secret passed in an id-like field such as `sessionId` is written in full. Keep secrets out of those fields.
 - **A tripwire notifier** — push a signal to your phone when someone pokes at the server.
 - **Two-phase approval** — a tool can return a proposal; a separate confirm runs the action.
 - **Go-live preflight** — refuses a public funnel while a secure default is off.
@@ -118,6 +118,13 @@ A separate, authenticated call to the `approve_proposal` tool with that
 `proposalId` runs the action. Proposals are in memory, single-use, and expire,
 so a crash cannot leave a ghost approval.
 
+The confirm step checks only that the confirming client id matches the client
+that made the proposal. It is not an independent approver: the same client, with
+the same token, can make both the proposal and the confirm. This two-phase flow
+adds a deliberate second step and an audit trail; it does not by itself prove a
+human reviewed the action. For real human-in-the-loop approval, route the
+confirm through a different client or an out-of-band channel.
+
 ## Secure defaults
 
 | Concern        | Default                                          | Footgun it prevents                                                            |
@@ -127,7 +134,7 @@ so a crash cannot leave a ghost approval.
 | Tokens         | hash-only, constant-time                         | replay from a leaked store                                                     |
 | Secrets        | never in the audit log or a notification         | prompt/response exfiltration                                                   |
 | Approval state | in memory, fail-closed on restart                | a ghost approval after a crash                                                 |
-| Exposure       | tailnet-only unless you opt into a public funnel | accidental internet                                                            |
+| Exposure       | the _generated Tailscale command_ is tailnet-only unless you opt into a public funnel | accidental internet _through that command_                         |
 
 The egress allowlist is a helper, not an enforced boundary. It stops
 exfiltration and SSRF only for a tool that reaches the network through
@@ -138,6 +145,14 @@ server.
 The preflight refuses a public funnel while a token is unhashed, egress is open,
 or the audit log or notifier is off. The funnel URL is not a secret: auth stands
 on its own.
+
+The exposure guarantee covers only the Tailscale command this package
+generates. The package returns a `fetch` handler; it does not create, bind, or
+restrict the HTTP listener. If you serve `server.fetch` yourself on a public
+interface, it is reachable from the internet whether or not you set
+`funnel.public`, and the public-funnel preflight does not run. For any public
+deployment that does not go through the generated Tailscale funnel, restrict the
+listener yourself and run `server.preflight` before you expose it.
 
 ## License
 

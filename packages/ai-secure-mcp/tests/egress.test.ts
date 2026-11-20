@@ -77,4 +77,55 @@ describe('createEgress', () => {
     controller.abort()
     expect(seen?.aborted).toBe(true)
   })
+
+  it('unrefs the deadline timer so a completed request does not hold the loop', async () => {
+    let timer: { unref?: () => void } | undefined
+    const spy = vi.spyOn(global, 'setTimeout')
+    const egress = createEgress({
+      allow: ['https://api.hue.local'],
+      fetch: async () => new Response('body'),
+    })
+    await egress('https://api.hue.local/x')
+    timer = spy.mock.results[0]?.value
+    // Node timers expose `unref`; it must have been called so a finished
+    // request cannot delay process exit by the remaining timeout.
+    expect(typeof timer?.unref).toBe('function')
+    spy.mockRestore()
+  })
+
+  it('maps a body-read transport failure to backend_unavailable', async () => {
+    // Headers arrive, but reading the body rejects (a stalled body the deadline
+    // aborts behaves this way). The error must keep the documented taxonomy.
+    const egress = createEgress({
+      allow: ['https://api.hue.local'],
+      fetch: async () => {
+        const res = new Response('ok')
+        res.text = async () => {
+          throw new Error('aborted')
+        }
+        return res
+      },
+    })
+    const res = await egress('https://api.hue.local/x')
+    expect(res.status).toBe(200)
+    await expect(res.text()).rejects.toMatchObject({
+      code: 'backend_unavailable',
+    })
+  })
+
+  it('leaves status, headers, and streaming body on the wrapped response', async () => {
+    const egress = createEgress({
+      allow: ['https://api.hue.local'],
+      fetch: async () =>
+        new Response('hello', {
+          status: 201,
+          headers: { 'x-test': 'yes' },
+        }),
+    })
+    const res = await egress('https://api.hue.local/x')
+    expect(res.status).toBe(201)
+    expect(res.headers.get('x-test')).toBe('yes')
+    expect(res.body).toBeInstanceOf(ReadableStream)
+    expect(await res.text()).toBe('hello')
+  })
 })

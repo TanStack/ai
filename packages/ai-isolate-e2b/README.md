@@ -27,7 +27,7 @@ Run the TypeScript that the model writes in an E2B sandbox, while your tools sta
 ## Installation
 
 ```bash
-pnpm add @tanstack/ai-isolate-e2b @tanstack/ai-isolate e2b
+pnpm add @tanstack/ai-isolate-e2b @tanstack/ai-code-mode @tanstack/ai-isolate e2b
 ```
 
 ## Usage

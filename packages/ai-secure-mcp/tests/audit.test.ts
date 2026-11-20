@@ -68,6 +68,27 @@ describe('createAuditLog', () => {
     expect(text).toContain('"new"')
   })
 
+  it('rejects an invalid retentionDays before touching the log', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'audit-'))
+    const path = join(dir, 'audit.jsonl')
+    // Seed an existing history that a bad cutoff would wipe.
+    await writeFile(path, JSON.stringify({ time: 0, event: 'old' }) + '\n')
+    for (const bad of [Number.NaN, -1, Infinity, -Infinity]) {
+      expect(() => createAuditLog({ path, retentionDays: bad })).toThrow(
+        RangeError,
+      )
+    }
+    // The existing log is untouched because construction threw first.
+    expect(await readFile(path, 'utf8')).toContain('"old"')
+  })
+
+  it('accepts zero and omitted retentionDays', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'audit-'))
+    const path = join(dir, 'audit.jsonl')
+    expect(() => createAuditLog({ path, retentionDays: 0 })).not.toThrow()
+    expect(() => createAuditLog({ path })).not.toThrow()
+  })
+
   it('does not start init until the first record, so a failure cannot float', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'audit-'))
     // A path whose parent is an existing file. mkdir is best-effort, but the

@@ -65,6 +65,18 @@ export function createAuditLog(options: {
   now?: () => number
 }): AuditLog {
   const now = options.now ?? (() => Date.now())
+  // Reject a bad retention up front. A NaN or non-finite value makes `cutoff`
+  // NaN, and then every `t >= cutoff` is false, so the first `record` would
+  // wipe the whole history before appending. A negative value would prune
+  // future entries. Validate at construction, before any file is touched.
+  if (
+    options.retentionDays !== undefined &&
+    (!Number.isFinite(options.retentionDays) || options.retentionDays < 0)
+  ) {
+    throw new RangeError(
+      `retentionDays must be a finite, non-negative number, got ${options.retentionDays}`,
+    )
+  }
   const init = async () => {
     await mkdir(dirname(options.path), { recursive: true }).catch(() => {})
     if (options.retentionDays === undefined) return

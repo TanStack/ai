@@ -59,7 +59,11 @@ export function createEgress(options: {
     // The deadline stays armed until the caller's combined signal settles, so it
     // still aborts a slow body stream: `fetch` resolves on headers, not on body
     // completion. The timer fires at most once and is cleared on cancellation.
+    // `unref` keeps the deadline live for an unfinished body but does not hold
+    // the event loop open on its own, so a completed request can let the process
+    // exit without waiting out the remaining `timeoutMs`.
     const timer = setTimeout(() => controller.abort(), timeoutMs)
+    timer.unref?.()
     // Combine the caller's signal with the timeout so caller cancellation still
     // aborts the request and an already-aborted caller signal is honored,
     // instead of replacing `init.signal` with a fresh active one.
@@ -75,21 +79,66 @@ export function createEgress(options: {
       )
     }
     signal.addEventListener('abort', () => clearTimeout(timer), { once: true })
+    const fail = (error: unknown): SecureMcpError => {
+      clearTimeout(timer)
+      const detail = error instanceof Error ? error.message : 'request failed'
+      return new SecureMcpError(
+        'backend_unavailable',
+        `Egress to ${origin} failed: ${detail}`,
+      )
+    }
+    let response: Response
     try {
-      return await fetchImpl(url, {
+      response = await fetchImpl(url, {
         ...init,
         redirect: 'error',
         signal,
       })
     } catch (error) {
-      clearTimeout(timer)
-      const detail = error instanceof Error ? error.message : 'request failed'
-      throw new SecureMcpError(
-        'backend_unavailable',
-        `Egress to ${origin} failed: ${detail}`,
-      )
+      throw fail(error)
     }
+    // `fetch` resolves on headers, so a body that stalls past the deadline
+    // aborts during the body read, which happens after this function returns.
+    // Wrap the body reads so that failure keeps the documented
+    // `backend_unavailable` taxonomy instead of surfacing a raw abort error.
+    return wrapBody(response, fail)
   }
+}
+
+/**
+ * Wraps the body-consuming methods of a `Response` so a transport failure
+ * during the body read (for example a stalled body that the deadline aborts)
+ * is translated the same way as a failure of the fetch promise. Streaming,
+ * status, and headers pass through unchanged.
+ */
+function wrapBody(
+  response: Response,
+  fail: (error: unknown) => SecureMcpError,
+): Response {
+  return new Proxy(response, {
+    get(target, prop, receiver) {
+      if (
+        prop === 'text' ||
+        prop === 'json' ||
+        prop === 'arrayBuffer' ||
+        prop === 'blob' ||
+        prop === 'formData' ||
+        prop === 'bytes'
+      ) {
+        const method = Reflect.get(target, prop, target) as unknown
+        if (typeof method !== 'function') {
+          return Reflect.get(target, prop, receiver)
+        }
+        const fn = method as (...a: Array<unknown>) => Promise<unknown>
+        return (...args: Array<unknown>) =>
+          fn.apply(target, args).catch((error: unknown) => {
+            throw fail(error)
+          })
+      }
+      const value = Reflect.get(target, prop, target)
+      return typeof value === 'function' ? value.bind(target) : value
+    },
+  })
 }
 
 /** Combines abort signals; aborts the result when any input aborts. */
@@ -98,8 +147,19 @@ function combineSignals(
   b: AbortSignal,
 ): AbortSignal {
   if (a === undefined) return b
-  // `AbortSignal.any` is available on every runtime this package targets
-  // (Node 18.17+, modern browsers). It aborts as soon as either input aborts
-  // and carries the first abort reason.
-  return AbortSignal.any([a, b])
+  // `AbortSignal.any` is the fast path, but `engines.node` allows 18.16 where
+  // it does not exist yet (added in 18.17). The lib types assume it is always
+  // present, so guard with a runtime check and fall back to a manual combiner
+  // so a caller signal on an older runtime does not throw before fetch runs.
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any([a, b])
+  const controller = new AbortController()
+  const abort = (reason: unknown) => controller.abort(reason)
+  for (const s of [a, b]) {
+    if (s.aborted) {
+      abort(s.reason)
+      break
+    }
+    s.addEventListener('abort', () => abort(s.reason), { once: true })
+  }
+  return controller.signal
 }
