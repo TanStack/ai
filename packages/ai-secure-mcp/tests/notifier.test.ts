@@ -73,6 +73,27 @@ describe('debounceNotifier', () => {
     await n.notify({ kind: 'forbidden_scope', client: 'b', tool: 't' })
     expect(calls).toBe(2)
   })
+
+  it('sends each approval_pending proposal, but not a repeat of one', async () => {
+    const sent: Array<SecurityEvent> = []
+    const n = debounceNotifier(
+      { notify: async (event) => void sent.push(event) },
+      1000,
+      () => 0,
+    )
+    const p1: SecurityEvent = {
+      kind: 'approval_pending',
+      proposalId: 'p1',
+      summary: 'Run buyMovie',
+    }
+    await n.notify(p1)
+    await n.notify({ ...p1, proposalId: 'p2' })
+    await n.notify(p1)
+    expect(sent.map((e) => 'proposalId' in e && e.proposalId)).toEqual([
+      'p1',
+      'p2',
+    ])
+  })
 })
 
 describe('silentNotifier', () => {

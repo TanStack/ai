@@ -118,6 +118,7 @@ export function webhookNotifier(
 /**
  * Wraps a notifier so the same event kind for the same client is sent at most
  * once per window. A scanner cannot turn the tripwire into a self-DoS.
+ * `approval_pending` is keyed by `proposalId`, so every proposal is sent.
  *
  * @param inner - The notifier to protect
  * @param windowMs - The quiet window per key, 60000 ms by default
@@ -131,8 +132,14 @@ export function debounceNotifier(
   const lastSent = new Map<string, number>()
   return {
     notify: async (event) => {
-      const client = 'client' in event ? event.client : ''
-      const key = `${event.kind}:${client ?? ''}`
+      // Each approval is its own request for a human, so it is never merged.
+      const id =
+        event.kind === 'approval_pending'
+          ? event.proposalId
+          : 'client' in event
+            ? event.client
+            : ''
+      const key = `${event.kind}:${id ?? ''}`
       const at = now()
       const prev = lastSent.get(key)
       if (prev !== undefined && at - prev < windowMs) return
