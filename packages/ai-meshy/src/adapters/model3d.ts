@@ -497,6 +497,9 @@ export class MeshyModel3DAdapter<
    * - `PENDING`: sends `DELETE`.
    * - Running: throws an `Error` that says so. The task finishes and is billed.
    * - Finished: does nothing. A `DELETE` would erase the paid model.
+   *
+   * A task that finishes between the read and the `DELETE` is still
+   * deleted. This window is one request long.
    */
   async cancel3DModelJob(
     jobId: string,

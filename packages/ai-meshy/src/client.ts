@@ -204,6 +204,10 @@ export function mapMeshyStatus(task: MeshyTask): {
  *   is billed.
  * - Finished: does nothing.
  *
+ * A task that finishes between the read and the `DELETE` is still deleted.
+ * This window is one request long. Meshy has no cancel that skips a
+ * finished task.
+ *
  * @param client - The Meshy client.
  * @param taskPath - The task path, for example `/v1/rigging/<id>`.
  * @param jobId - The task id, for the error message.

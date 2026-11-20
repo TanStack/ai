@@ -264,6 +264,22 @@ function sleep(ms: number, signal: AbortSignal | undefined) {
   })
 }
 
+// Runs one Meshy request. An abort throws `signal.reason`, the same error
+// that the poll wait throws, so the caller sees one abort error in every
+// phase. Other request errors stay as they are.
+async function abortable<T>(
+  signal: AbortSignal | undefined,
+  request: () => Promise<T>,
+) {
+  signal?.throwIfAborted()
+  try {
+    return await request()
+  } catch (error) {
+    if (signal?.aborted) throw signal.reason
+    throw error
+  }
+}
+
 /**
  * Checks if a model can be 3D printed. It starts a Meshy printability task,
  * waits until the task is done, and returns the report. The analysis costs
@@ -310,22 +326,25 @@ export async function analyzeMeshyPrintability(
   const signal = options.abortSignal
   const pollInterval = options.pollInterval ?? 2000
   const client = createMeshyClient(options)
-  const created = await client.post<{ result: string }>(
-    '/v1/print/analyze',
-    {
-      ...meshyMeshSourceFields(options.model, 'input_task_id', 'gltf'),
-      // JSON drops the fields that are undefined.
-      printer_type: options.printerType,
-      intended_print_height_mm: options.intendedPrintHeightMm,
-      intended_print_longest_side_mm: options.intendedPrintLongestSideMm,
-    },
-    signal,
+  const created = await abortable(signal, () =>
+    client.post<{ result: string }>(
+      '/v1/print/analyze',
+      {
+        ...meshyMeshSourceFields(options.model, 'input_task_id', 'gltf'),
+        // JSON drops the fields that are undefined.
+        printer_type: options.printerType,
+        intended_print_height_mm: options.intendedPrintHeightMm,
+        intended_print_longest_side_mm: options.intendedPrintLongestSideMm,
+      },
+      signal,
+    ),
   )
 
   for (;;) {
-    const task = await client.get<MeshyPrintAnalyzeTask>(
-      `/v1/print/analyze/${created.result}`,
-      { signal },
+    const task = await abortable(signal, () =>
+      client.get<MeshyPrintAnalyzeTask>(`/v1/print/analyze/${created.result}`, {
+        signal,
+      }),
     )
     const { status, error } = mapMeshyStatus(task)
     if (status === 'failed') {

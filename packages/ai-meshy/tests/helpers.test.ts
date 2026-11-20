@@ -201,6 +201,41 @@ describe('analyzeMeshyPrintability', () => {
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
+  it('analyzeMeshyPrintability throws the abort reason before the POST', async () => {
+    const fetch = fakeFetch()
+    const reason = new Error('stopped early')
+
+    const outcome = analyze(fetch, {
+      abortSignal: AbortSignal.abort(reason),
+    }).catch((error: unknown) => error)
+
+    expect(await outcome).toBe(reason)
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('analyzeMeshyPrintability throws the abort reason during a status GET', async () => {
+    // The POST answers. The GET waits until the signal aborts, then rejects
+    // the way a real fetch does.
+    const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+      if (init?.method === 'POST') return jsonResponse({ result: 'pa-1' })
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () =>
+          reject(new DOMException('aborted', 'AbortError')),
+        )
+      })
+    })
+    const controller = new AbortController()
+    const reason = new Error('stopped during GET')
+
+    const outcome = analyze(fetch, { abortSignal: controller.signal }).catch(
+      (error: unknown) => error,
+    )
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
+    controller.abort(reason)
+
+    expect(await outcome).toBe(reason)
+  })
+
   it('analyzeMeshyPrintability sends a file source as input_task_id', async () => {
     const fetch = fakeFetch(
       { result: 'pa-1' },

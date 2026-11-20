@@ -194,7 +194,7 @@ export function MeshyModel() {
 
 Click **Generate model**. The progress goes up to 100%, then the download link shows. To show the model in the page, use the three.js viewer from [3D Model Generation](../media/3d-model-generation#make-your-first-model).
 
-If the browser closes the request, `generate3DModel()` asks Meshy to cancel the task. Meshy cancels only a task that waits in the queue. A running task finishes, and Meshy charges for it. A finished model is never deleted.
+If the browser closes the request, `generate3DModel()` asks Meshy to cancel the task. Meshy cancels only a task that waits in the queue. A running task finishes, and Meshy charges for it. The adapter reads the task before it cancels, so it almost never deletes a finished model. A task that finishes between that read and the cancel request can still be deleted.
 
 A Meshy job can take longer than the default `timeout` of 10 minutes when Meshy is busy. Meshy says to wait up to 60 minutes. For long jobs, set a larger `timeout`, for example `timeout: 30 * 60_000`. A timeout does not stop a running task, so Meshy still charges for it.
 

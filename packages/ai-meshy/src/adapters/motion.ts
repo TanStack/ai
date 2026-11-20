@@ -31,7 +31,8 @@ interface MeshyMotionTask extends MeshyTask {
  * Meshy needs `duration`: 2 to 10 seconds, in steps of 0.5.
  *
  * `cancelMotionJob` cancels and refunds only a `PENDING` task. A running
- * task cannot be canceled. A finished task is kept.
+ * task cannot be canceled. A finished task is kept, unless it finishes in
+ * the short time between the status read and the cancel request.
  *
  * @experimental Motion generation is an experimental feature and may change.
  */
@@ -118,7 +119,8 @@ export class MeshyMotionAdapter<
 
   /**
    * Cancels the Meshy task with `cancelMeshyTask`: a `PENDING` task is
-   * canceled and refunded, a finished task is kept.
+   * canceled and refunded, and a finished task is kept. A task that finishes
+   * between the read and the `DELETE` is still deleted.
    *
    * @throws {Error} When the task is already running.
    * @throws {MeshyApiError} For any other response that is not 2xx.

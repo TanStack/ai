@@ -270,7 +270,7 @@ The endpoint sets the Meshy URL of the task, so use the same endpoint in both re
 
 ## Cancel a job
 
-Meshy cancels only a task that waits in the queue (`'pending'`). Then Meshy gives back the credits. The adapter reads the task first, so a cancel never deletes a finished model.
+Meshy cancels only a task that waits in the queue (`'pending'`). Then Meshy gives back the credits. The adapter reads the task first and cancels only a `'pending'` task.
 
 ```ts
 import { meshy3DModel } from '@tanstack/ai-meshy'
@@ -288,6 +288,7 @@ What to know:
 
 - For a running task, the cancel throws `Meshy task <id> is already running and cannot be canceled`. The task finishes, and Meshy charges for it.
 - For a finished task, the cancel does nothing. The model and its files stay.
+- A task can finish between the read and the cancel request. Then Meshy deletes the finished model. This window is one request long, so it is rare.
 - `cancelMotionJob()` from `@tanstack/ai` works in the same way for `meshyMotion()` jobs.
 - With `stream` or `wait`, an abort or a `timeout` also asks Meshy to cancel. If the task already runs, the failed cancel goes to the error log.
 
