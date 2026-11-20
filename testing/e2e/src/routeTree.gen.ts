@@ -11,6 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActivityTestRouteImport } from './routes/activity-test'
+import { Route as AiSdkClientRouteImport } from './routes/ai-sdk-client'
+import { Route as AiSdkClientBridgeRouteImport } from './routes/ai-sdk-client-bridge'
+import { Route as AiSdkResumeRouteImport } from './routes/ai-sdk-resume'
+import { Route as AiSdkServerRouteImport } from './routes/ai-sdk-server'
 import { Route as ByokRouteImport } from './routes/byok'
 import { Route as CallOwnershipRouteImport } from './routes/call-ownership'
 import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
@@ -56,6 +60,9 @@ import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature
 import { Route as Api3dModelRouteImport } from './routes/api.3d-model'
 import { Route as ApiActivityTestRouteImport } from './routes/api.activity-test'
 import { Route as ApiAdapterInputModalitiesRouteImport } from './routes/api.adapter-input-modalities'
+import { Route as ApiAiSdkClientRouteImport } from './routes/api.ai-sdk-client'
+import { Route as ApiAiSdkClientBridgeRouteImport } from './routes/api.ai-sdk-client-bridge'
+import { Route as ApiAiSdkServerRouteImport } from './routes/api.ai-sdk-server'
 import { Route as ApiAnthropicAuthWireRouteImport } from './routes/api.anthropic-auth-wire'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
 import { Route as ApiAnthropicComputerToolsetWireRouteImport } from './routes/api.anthropic-computer-toolset-wire'
@@ -222,6 +229,7 @@ import { Route as ApiVoiceRouteImport } from './routes/api.voice'
 import { Route as ApiWebMcpPageToolsRouteImport } from './routes/api.web-mcp-page-tools'
 import { Route as ApiWorldRouteImport } from './routes/api.world'
 import { Route as ApiWrapFetchWireRouteImport } from './routes/api.wrap-fetch-wire'
+import { Route as ApiAiSdkResumeSplatRouteImport } from './routes/api.ai-sdk-resume.$'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 import { Route as ApiGeminiIncompleteStreamSplatRouteImport } from './routes/api.gemini-incomplete-stream.$'
 import { Route as ApiHarnessHandoffSplatRouteImport } from './routes/api.harness-handoff.$'
@@ -242,6 +250,26 @@ const IndexRoute = IndexRouteImport.update({
 const ActivityTestRoute = ActivityTestRouteImport.update({
   id: '/activity-test',
   path: '/activity-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiSdkClientRoute = AiSdkClientRouteImport.update({
+  id: '/ai-sdk-client',
+  path: '/ai-sdk-client',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiSdkClientBridgeRoute = AiSdkClientBridgeRouteImport.update({
+  id: '/ai-sdk-client-bridge',
+  path: '/ai-sdk-client-bridge',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiSdkResumeRoute = AiSdkResumeRouteImport.update({
+  id: '/ai-sdk-resume',
+  path: '/ai-sdk-resume',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiSdkServerRoute = AiSdkServerRouteImport.update({
+  id: '/ai-sdk-server',
+  path: '/ai-sdk-server',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ByokRoute = ByokRouteImport.update({
@@ -473,6 +501,21 @@ const ApiAdapterInputModalitiesRoute =
     path: '/api/adapter-input-modalities',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAiSdkClientRoute = ApiAiSdkClientRouteImport.update({
+  id: '/api/ai-sdk-client',
+  path: '/api/ai-sdk-client',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAiSdkClientBridgeRoute = ApiAiSdkClientBridgeRouteImport.update({
+  id: '/api/ai-sdk-client-bridge',
+  path: '/api/ai-sdk-client-bridge',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAiSdkServerRoute = ApiAiSdkServerRouteImport.update({
+  id: '/api/ai-sdk-server',
+  path: '/api/ai-sdk-server',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAnthropicAuthWireRoute = ApiAnthropicAuthWireRouteImport.update({
   id: '/api/anthropic-auth-wire',
   path: '/api/anthropic-auth-wire',
@@ -1351,6 +1394,11 @@ const ApiWrapFetchWireRoute = ApiWrapFetchWireRouteImport.update({
   path: '/api/wrap-fetch-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAiSdkResumeSplatRoute = ApiAiSdkResumeSplatRouteImport.update({
+  id: '/api/ai-sdk-resume/$',
+  path: '/api/ai-sdk-resume/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
   id: '/stream',
   path: '/stream',
@@ -1413,6 +1461,10 @@ const ApiVideoStreamRoute = ApiVideoStreamRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
+  '/ai-sdk-client': typeof AiSdkClientRoute
+  '/ai-sdk-client-bridge': typeof AiSdkClientBridgeRoute
+  '/ai-sdk-resume': typeof AiSdkResumeRoute
+  '/ai-sdk-server': typeof AiSdkServerRoute
   '/byok': typeof ByokRoute
   '/call-ownership': typeof CallOwnershipRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
@@ -1457,6 +1509,9 @@ export interface FileRoutesByFullPath {
   '/api/3d-model': typeof Api3dModelRoute
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
+  '/api/ai-sdk-client': typeof ApiAiSdkClientRoute
+  '/api/ai-sdk-client-bridge': typeof ApiAiSdkClientBridgeRoute
+  '/api/ai-sdk-server': typeof ApiAiSdkServerRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-computer-toolset-wire': typeof ApiAnthropicComputerToolsetWireRoute
@@ -1624,6 +1679,7 @@ export interface FileRoutesByFullPath {
   '/api/world': typeof ApiWorldRoute
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
+  '/api/ai-sdk-resume/$': typeof ApiAiSdkResumeSplatRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/gemini-incomplete-stream/$': typeof ApiGeminiIncompleteStreamSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
@@ -1639,6 +1695,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
+  '/ai-sdk-client': typeof AiSdkClientRoute
+  '/ai-sdk-client-bridge': typeof AiSdkClientBridgeRoute
+  '/ai-sdk-resume': typeof AiSdkResumeRoute
+  '/ai-sdk-server': typeof AiSdkServerRoute
   '/byok': typeof ByokRoute
   '/call-ownership': typeof CallOwnershipRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
@@ -1683,6 +1743,9 @@ export interface FileRoutesByTo {
   '/api/3d-model': typeof Api3dModelRoute
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
+  '/api/ai-sdk-client': typeof ApiAiSdkClientRoute
+  '/api/ai-sdk-client-bridge': typeof ApiAiSdkClientBridgeRoute
+  '/api/ai-sdk-server': typeof ApiAiSdkServerRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-computer-toolset-wire': typeof ApiAnthropicComputerToolsetWireRoute
@@ -1850,6 +1913,7 @@ export interface FileRoutesByTo {
   '/api/world': typeof ApiWorldRoute
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider': typeof ProviderIndexRoute
+  '/api/ai-sdk-resume/$': typeof ApiAiSdkResumeSplatRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/gemini-incomplete-stream/$': typeof ApiGeminiIncompleteStreamSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
@@ -1866,6 +1930,10 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/activity-test': typeof ActivityTestRoute
+  '/ai-sdk-client': typeof AiSdkClientRoute
+  '/ai-sdk-client-bridge': typeof AiSdkClientBridgeRoute
+  '/ai-sdk-resume': typeof AiSdkResumeRoute
+  '/ai-sdk-server': typeof AiSdkServerRoute
   '/byok': typeof ByokRoute
   '/call-ownership': typeof CallOwnershipRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
@@ -1910,6 +1978,9 @@ export interface FileRoutesById {
   '/api/3d-model': typeof Api3dModelRoute
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
+  '/api/ai-sdk-client': typeof ApiAiSdkClientRoute
+  '/api/ai-sdk-client-bridge': typeof ApiAiSdkClientBridgeRoute
+  '/api/ai-sdk-server': typeof ApiAiSdkServerRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-computer-toolset-wire': typeof ApiAnthropicComputerToolsetWireRoute
@@ -2077,6 +2148,7 @@ export interface FileRoutesById {
   '/api/world': typeof ApiWorldRoute
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
+  '/api/ai-sdk-resume/$': typeof ApiAiSdkResumeSplatRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/gemini-incomplete-stream/$': typeof ApiGeminiIncompleteStreamSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
@@ -2094,6 +2166,10 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/activity-test'
+    | '/ai-sdk-client'
+    | '/ai-sdk-client-bridge'
+    | '/ai-sdk-resume'
+    | '/ai-sdk-server'
     | '/byok'
     | '/call-ownership'
     | '/chat-client-default-bridge'
@@ -2138,6 +2214,9 @@ export interface FileRouteTypes {
     | '/api/3d-model'
     | '/api/activity-test'
     | '/api/adapter-input-modalities'
+    | '/api/ai-sdk-client'
+    | '/api/ai-sdk-client-bridge'
+    | '/api/ai-sdk-server'
     | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-computer-toolset-wire'
@@ -2305,6 +2384,7 @@ export interface FileRouteTypes {
     | '/api/world'
     | '/api/wrap-fetch-wire'
     | '/$provider/'
+    | '/api/ai-sdk-resume/$'
     | '/api/audio/stream'
     | '/api/gemini-incomplete-stream/$'
     | '/api/harness-handoff/$'
@@ -2320,6 +2400,10 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/activity-test'
+    | '/ai-sdk-client'
+    | '/ai-sdk-client-bridge'
+    | '/ai-sdk-resume'
+    | '/ai-sdk-server'
     | '/byok'
     | '/call-ownership'
     | '/chat-client-default-bridge'
@@ -2364,6 +2448,9 @@ export interface FileRouteTypes {
     | '/api/3d-model'
     | '/api/activity-test'
     | '/api/adapter-input-modalities'
+    | '/api/ai-sdk-client'
+    | '/api/ai-sdk-client-bridge'
+    | '/api/ai-sdk-server'
     | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-computer-toolset-wire'
@@ -2531,6 +2618,7 @@ export interface FileRouteTypes {
     | '/api/world'
     | '/api/wrap-fetch-wire'
     | '/$provider'
+    | '/api/ai-sdk-resume/$'
     | '/api/audio/stream'
     | '/api/gemini-incomplete-stream/$'
     | '/api/harness-handoff/$'
@@ -2546,6 +2634,10 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/activity-test'
+    | '/ai-sdk-client'
+    | '/ai-sdk-client-bridge'
+    | '/ai-sdk-resume'
+    | '/ai-sdk-server'
     | '/byok'
     | '/call-ownership'
     | '/chat-client-default-bridge'
@@ -2590,6 +2682,9 @@ export interface FileRouteTypes {
     | '/api/3d-model'
     | '/api/activity-test'
     | '/api/adapter-input-modalities'
+    | '/api/ai-sdk-client'
+    | '/api/ai-sdk-client-bridge'
+    | '/api/ai-sdk-server'
     | '/api/anthropic-auth-wire'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-computer-toolset-wire'
@@ -2757,6 +2852,7 @@ export interface FileRouteTypes {
     | '/api/world'
     | '/api/wrap-fetch-wire'
     | '/$provider/'
+    | '/api/ai-sdk-resume/$'
     | '/api/audio/stream'
     | '/api/gemini-incomplete-stream/$'
     | '/api/harness-handoff/$'
@@ -2773,6 +2869,10 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActivityTestRoute: typeof ActivityTestRoute
+  AiSdkClientRoute: typeof AiSdkClientRoute
+  AiSdkClientBridgeRoute: typeof AiSdkClientBridgeRoute
+  AiSdkResumeRoute: typeof AiSdkResumeRoute
+  AiSdkServerRoute: typeof AiSdkServerRoute
   ByokRoute: typeof ByokRoute
   CallOwnershipRoute: typeof CallOwnershipRoute
   ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
@@ -2817,6 +2917,9 @@ export interface RootRouteChildren {
   Api3dModelRoute: typeof Api3dModelRoute
   ApiActivityTestRoute: typeof ApiActivityTestRoute
   ApiAdapterInputModalitiesRoute: typeof ApiAdapterInputModalitiesRoute
+  ApiAiSdkClientRoute: typeof ApiAiSdkClientRoute
+  ApiAiSdkClientBridgeRoute: typeof ApiAiSdkClientBridgeRoute
+  ApiAiSdkServerRoute: typeof ApiAiSdkServerRoute
   ApiAnthropicAuthWireRoute: typeof ApiAnthropicAuthWireRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
   ApiAnthropicComputerToolsetWireRoute: typeof ApiAnthropicComputerToolsetWireRoute
@@ -2984,6 +3087,7 @@ export interface RootRouteChildren {
   ApiWorldRoute: typeof ApiWorldRoute
   ApiWrapFetchWireRoute: typeof ApiWrapFetchWireRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
+  ApiAiSdkResumeSplatRoute: typeof ApiAiSdkResumeSplatRoute
   ApiGeminiIncompleteStreamSplatRoute: typeof ApiGeminiIncompleteStreamSplatRoute
   ApiHarnessHandoffSplatRoute: typeof ApiHarnessHandoffSplatRoute
   ApiHarnessObservabilitySplatRoute: typeof ApiHarnessObservabilitySplatRoute
@@ -3006,6 +3110,34 @@ declare module '@tanstack/react-router' {
       path: '/activity-test'
       fullPath: '/activity-test'
       preLoaderRoute: typeof ActivityTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai-sdk-client': {
+      id: '/ai-sdk-client'
+      path: '/ai-sdk-client'
+      fullPath: '/ai-sdk-client'
+      preLoaderRoute: typeof AiSdkClientRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai-sdk-client-bridge': {
+      id: '/ai-sdk-client-bridge'
+      path: '/ai-sdk-client-bridge'
+      fullPath: '/ai-sdk-client-bridge'
+      preLoaderRoute: typeof AiSdkClientBridgeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai-sdk-resume': {
+      id: '/ai-sdk-resume'
+      path: '/ai-sdk-resume'
+      fullPath: '/ai-sdk-resume'
+      preLoaderRoute: typeof AiSdkResumeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai-sdk-server': {
+      id: '/ai-sdk-server'
+      path: '/ai-sdk-server'
+      fullPath: '/ai-sdk-server'
+      preLoaderRoute: typeof AiSdkServerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/byok': {
@@ -3321,6 +3453,27 @@ declare module '@tanstack/react-router' {
       path: '/api/adapter-input-modalities'
       fullPath: '/api/adapter-input-modalities'
       preLoaderRoute: typeof ApiAdapterInputModalitiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ai-sdk-client': {
+      id: '/api/ai-sdk-client'
+      path: '/api/ai-sdk-client'
+      fullPath: '/api/ai-sdk-client'
+      preLoaderRoute: typeof ApiAiSdkClientRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ai-sdk-client-bridge': {
+      id: '/api/ai-sdk-client-bridge'
+      path: '/api/ai-sdk-client-bridge'
+      fullPath: '/api/ai-sdk-client-bridge'
+      preLoaderRoute: typeof ApiAiSdkClientBridgeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ai-sdk-server': {
+      id: '/api/ai-sdk-server'
+      path: '/api/ai-sdk-server'
+      fullPath: '/api/ai-sdk-server'
+      preLoaderRoute: typeof ApiAiSdkServerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-auth-wire': {
@@ -4485,6 +4638,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWrapFetchWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ai-sdk-resume/$': {
+      id: '/api/ai-sdk-resume/$'
+      path: '/api/ai-sdk-resume/$'
+      fullPath: '/api/ai-sdk-resume/$'
+      preLoaderRoute: typeof ApiAiSdkResumeSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/audio/stream': {
       id: '/api/audio/stream'
       path: '/stream'
@@ -4626,6 +4786,10 @@ const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityTestRoute: ActivityTestRoute,
+  AiSdkClientRoute: AiSdkClientRoute,
+  AiSdkClientBridgeRoute: AiSdkClientBridgeRoute,
+  AiSdkResumeRoute: AiSdkResumeRoute,
+  AiSdkServerRoute: AiSdkServerRoute,
   ByokRoute: ByokRoute,
   CallOwnershipRoute: CallOwnershipRoute,
   ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,
@@ -4670,6 +4834,9 @@ const rootRouteChildren: RootRouteChildren = {
   Api3dModelRoute: Api3dModelRoute,
   ApiActivityTestRoute: ApiActivityTestRoute,
   ApiAdapterInputModalitiesRoute: ApiAdapterInputModalitiesRoute,
+  ApiAiSdkClientRoute: ApiAiSdkClientRoute,
+  ApiAiSdkClientBridgeRoute: ApiAiSdkClientBridgeRoute,
+  ApiAiSdkServerRoute: ApiAiSdkServerRoute,
   ApiAnthropicAuthWireRoute: ApiAnthropicAuthWireRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
   ApiAnthropicComputerToolsetWireRoute: ApiAnthropicComputerToolsetWireRoute,
@@ -4843,6 +5010,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWorldRoute: ApiWorldRoute,
   ApiWrapFetchWireRoute: ApiWrapFetchWireRoute,
   ProviderIndexRoute: ProviderIndexRoute,
+  ApiAiSdkResumeSplatRoute: ApiAiSdkResumeSplatRoute,
   ApiGeminiIncompleteStreamSplatRoute: ApiGeminiIncompleteStreamSplatRoute,
   ApiHarnessHandoffSplatRoute: ApiHarnessHandoffSplatRoute,
   ApiHarnessObservabilitySplatRoute: ApiHarnessObservabilitySplatRoute,

@@ -1185,6 +1185,13 @@ export interface ChatClientBaseOptions<
    */
   tools?: TTools
 
+  /**
+   * The schema of the structured answer, as passed to
+   * `useChat({ outputSchema })`. The client gives it to the connection in
+   * `runContext.config`. It does not validate the answer.
+   */
+  outputSchema?: SchemaInput
+
   /** First-party generic interrupts this client can type and resolve. */
   interrupts?: TInterrupts
 
