@@ -24,7 +24,7 @@ Native QuickJS driver for TanStack AI Code Mode on the [Bun](https://bun.sh) run
 
 ## Requirements
 
-- Bun `>= 1.3.14` — the driver throws a descriptive error when used on Node.js (use `@tanstack/ai-isolate-node` or `@tanstack/ai-isolate-quickjs` there).
+- Bun `>= 1.4.0` — the driver throws a descriptive error when used on Node.js (use `@tanstack/ai-isolate-node` or `@tanstack/ai-isolate-quickjs` there).
 - macOS or Linux on `x86_64`/`aarch64` work out of the box ([`quickjs-bun`](https://github.com/superpowerdotcom/quickjs-bun) compiles the vendored QuickJS sources on the fly with Bun's embedded TinyCC — no build tools needed). On Windows, point the `QUICKJS_BUN_NATIVE_LIBRARY` environment variable at a prebuilt QuickJS dynamic library.
 
 > **Dependency note:** this driver is built against [`quickjs-bun`](https://github.com/superpowerdotcom/quickjs-bun) `0.1.2` and pins it exactly, because `quickjs-bun` is an early-stage package (pre-1.0) that compiles QuickJS through TinyCC/`bun:ffi` — its API and platform support may change between patch releases. The version is intentionally not widened to a `^`/`~` range until the upstream API stabilizes. Consumers inherit `quickjs-bun`'s supply-chain and platform-support surface (notably the Windows `QUICKJS_BUN_NATIVE_LIBRARY` requirement above).

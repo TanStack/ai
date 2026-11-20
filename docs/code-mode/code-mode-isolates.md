@@ -149,7 +149,7 @@ octane: @tanstack/ai-isolate-quickjs-bun
 
 <!-- ::end:tabs -->
 
-The driver needs Bun 1.3.14 or later. On Node.js, it throws an error when it creates a context, so use the Node or QuickJS WASM driver there. On Windows, set the `QUICKJS_BUN_NATIVE_LIBRARY` environment variable to a prebuilt QuickJS dynamic library.
+The driver needs Bun 1.4.0 or later. On Node.js, it throws an error when it creates a context, so use the Node or QuickJS WASM driver there. On Windows, set the `QUICKJS_BUN_NATIVE_LIBRARY` environment variable to a prebuilt QuickJS dynamic library.
 
 ```typescript
 import { createQuickJSBunIsolateDriver } from '@tanstack/ai-isolate-quickjs-bun'

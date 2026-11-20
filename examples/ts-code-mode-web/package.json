@@ -44,7 +44,7 @@
     "motion": "^11.15.0",
     "nitro": "3.0.260610-beta",
     "puppeteer": "^24.34.0",
-    "quickjs-bun": "0.1.2",
+    "quickjs-bun": "0.2.0",
     "quickjs-emscripten": "^0.31.0",
     "quickjs-emscripten-core": "^0.31.0",
     "react": "^19.2.3",
