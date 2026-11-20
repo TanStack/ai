@@ -123,3 +123,5 @@ The tests are guarded with `describe.skipIf(typeof Bun === 'undefined')`, so the
 ## License
 
 MIT
+
+<!-- ci: Bun test check on main, do not merge -->
