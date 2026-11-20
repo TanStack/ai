@@ -2228,6 +2228,9 @@ export class ChatClient<
       const connectTimer = setTimeout(() => {
         if (!attached) controller.abort()
       }, REJOIN_CONNECT_DEADLINE_MS)
+      // The replay starts the run over. Stream state from an earlier pass
+      // over it would send chunks to rows that hydration or the drop removed.
+      this.processor.prepareAssistantMessage()
       // Captured before the replay: chunks before the first rebuild trigger
       // (reasoning start with metadata) can already append the replay's own
       // assistant message, which must survive the drop.
