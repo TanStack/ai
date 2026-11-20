@@ -30,7 +30,7 @@ schema defaults or transforms yet, and possibly invalid. In
 
 ```ts
 tool: 
-  | Tool<SchemaInput, SchemaInput, string, unknown>
+  | Tool<SchemaInput, SchemaInput, string, unknown, SchemaInput | undefined>
   | undefined;
 ```
 

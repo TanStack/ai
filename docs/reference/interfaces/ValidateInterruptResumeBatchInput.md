@@ -72,7 +72,7 @@ Defined in: [packages/ai/src/interrupt-resume.ts:61](https://github.com/TanStack
 ### tools
 
 ```ts
-tools: Tool<SchemaInput, SchemaInput, string, unknown>[];
+tools: Tool<SchemaInput, SchemaInput, string, unknown, SchemaInput | undefined>[];
 ```
 
 Defined in: [packages/ai/src/interrupt-resume.ts:66](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L66)

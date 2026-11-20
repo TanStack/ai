@@ -148,7 +148,7 @@ option. A call with no tools sends no tool choice.
 ### tools
 
 ```ts
-tools: Tool<SchemaInput, SchemaInput, string, unknown>[];
+tools: Tool<SchemaInput, SchemaInput, string, unknown, SchemaInput | undefined>[];
 ```
 
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:365](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L365)

@@ -9,7 +9,7 @@ title: extendAdapter
 function extendAdapter<TFactory, TDefs>(factory, _customModels): ExtendedFactory<TFactory, TDefs>;
 ```
 
-Defined in: [packages/ai/src/extend-adapter.ts:247](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L247)
+Defined in: [packages/ai/src/extend-adapter.ts:264](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L264)
 
 Extends an existing adapter factory with additional custom models.
 
@@ -27,7 +27,12 @@ The original factory's signature is fully preserved, including any config parame
 
 ### TDefs
 
-`TDefs` *extends* readonly [`ExtendedModelDef`](../interfaces/ExtendedModelDef.md)\<`string`, readonly (`"text"` \| `"image"` \| `"audio"` \| `"video"` \| `"document"`)[], `unknown`, readonly `string`[], readonly `string`[]\>[]
+`TDefs` *extends* readonly [`ExtendedModelDef`](../interfaces/ExtendedModelDef.md)\<`string`, readonly (`"text"` \| `"image"` \| `"audio"` \| `"video"` \| `"document"`)[], `unknown`, readonly `string`[], readonly `string`[], 
+  \| \{
+  `budget`: `boolean`;
+  `levels`: [`ReasoningLevels`](../type-aliases/ReasoningLevels.md);
+\}
+  \| `undefined`\>[]
 
 ## Parameters
 
