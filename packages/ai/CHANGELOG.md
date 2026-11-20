@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 1.8.0
+
+### Minor Changes
+
+- [#2210](https://github.com/TanStack/ai/pull/2210) [`4b00243`](https://github.com/TanStack/ai/commit/4b002432487ce34547162b6f3f0492b4b936aa61) - Add `'3mf'` to `Model3DFormat` for 3D print results.
+
 ## 1.7.0
 
 ### Minor Changes

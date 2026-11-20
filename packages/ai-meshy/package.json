@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-meshy",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Meshy adapter for TanStack AI 3D model and motion generation.",
   "author": "Tanner Linsley",
   "license": "MIT",
