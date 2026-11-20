@@ -176,6 +176,41 @@ The roles that a file can have:
 | `'animation'` | An animated version of the mesh |
 | `'part'` | One part of a mesh that the provider split into parts |
 
+### Rig and animate with the Meshy API
+
+`meshy3DModel()` from `@tanstack/ai-meshy` runs the mesh, the rig, and each animation as separate jobs. Each job reads the result of the job before it from its Meshy task id, so you upload nothing:
+
+```typescript
+import { generate3DModel } from '@tanstack/ai'
+import { meshy3DModel } from '@tanstack/ai-meshy'
+
+// The jobId of an earlier meshy3DModel('image-to-3d') job
+const meshJobId = 'your-mesh-task-id'
+
+const rig = await generate3DModel({
+  adapter: meshy3DModel('rigging'),
+  prompt: [
+    {
+      type: 'model3d',
+      source: { type: 'file', value: meshJobId, provider: 'meshy' },
+    },
+  ],
+  threadId: 'knight',
+  wait: true,
+  modelOptions: { skeleton_template: 'ue5_mannequin' },
+})
+
+console.log(rig.url) // The rigged GLB
+```
+
+With this path, you can also:
+
+- Pick any action from the Meshy animation library, or up to 10 actions in one job.
+- Put a text-to-motion clip from `meshyMotion()` on the rig.
+- Pick a skeleton for your engine, for example `'mixamo'` or `'ue5_mannequin'`.
+
+The full chain is in [Meshy: rig and animate a character](../adapters/meshy#rig-and-animate-a-character).
+
 ## Poll the job yourself
 
 Without `stream` or `wait`, `generate3DModel()` only submits the job and returns `{ jobId, model }`. Save the job id, then read the job later with `get3DModelJobStatus()`. Use this for your own queue, or for a cron job that checks many jobs:

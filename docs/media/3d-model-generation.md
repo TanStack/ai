@@ -2,7 +2,7 @@
 title: 3D Model Generation
 id: 3d-model-generation
 order: 7.5
-description: "Turn a concept image or a text prompt into a GLB file with generate3DModel() and fal.ai. Show the job status while it runs, then load the model in your app."
+description: "Turn a concept image or a text prompt into a GLB file with generate3DModel() and fal.ai or Meshy. Show the job status while it runs, then load the model in your app."
 keywords:
   - tanstack ai
   - 3d model generation
@@ -261,6 +261,21 @@ Swap the id in `fal3DModel()`. The adapter reads `FAL_KEY` from the environment.
 
 The full list, and the models that take a mesh as input, are in the [fal adapter](../adapters/fal#3d-model-endpoints).
 
+To call the Meshy API with your own Meshy key, use `meshy3DModel()` from `@tanstack/ai-meshy`. It reads `MESHY_API_KEY`:
+
+```typescript
+import { meshy3DModel } from '@tanstack/ai-meshy'
+
+const adapter = meshy3DModel('image-to-3d', 'meshy-7.1')
+```
+
+The Meshy adapter also does these things:
+
+- It chains jobs from a Meshy task id, so a mesh goes to rigging and animation with no upload.
+- It prepares a model for a 3D printer, and returns a 3MF file for a multi-color print.
+
+See [Meshy](../adapters/meshy).
+
 TypeScript narrows the prompt for each model. For example, a `model3d` part on an image-to-3D model is a compile error.
 
 ## Options
@@ -315,10 +330,10 @@ import type { TokenUsage } from '@tanstack/ai'
 interface Model3DResult {
   jobId: string
   url: string // the main file, a GLB when there is one
-  format: 'glb' | 'gltf' | 'fbx' | 'obj' | 'usdz' | 'stl'
+  format: 'glb' | 'gltf' | 'fbx' | 'obj' | 'usdz' | 'stl' | '3mf'
   files?: Array<{
     url: string
-    format?: 'glb' | 'gltf' | 'fbx' | 'obj' | 'usdz' | 'stl' // not set on textures
+    format?: 'glb' | 'gltf' | 'fbx' | 'obj' | 'usdz' | 'stl' | '3mf' // not set on textures
     role?: 'base' | 'pbr' | 'rigged' | 'animation' | 'texture' | 'part'
     contentType?: string
   }>

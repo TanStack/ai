@@ -995,17 +995,19 @@
           "label": "Motion Generation",
           "to": "media/motion-generation",
           "addedAt": "2026-11-19",
-          "updatedAt": "2026-11-19"
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "3D Model Generation",
           "to": "media/3d-model-generation",
-          "addedAt": "2026-11-18"
+          "addedAt": "2026-11-18",
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "3D Model Generation: Advanced",
           "to": "media/3d-model-generation-advanced",
-          "addedAt": "2026-11-18"
+          "addedAt": "2026-11-18",
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "Generation Hooks",
@@ -1877,6 +1879,16 @@
           "label": "Uthana",
           "to": "adapters/uthana",
           "addedAt": "2026-11-19"
+        },
+        {
+          "label": "Meshy",
+          "to": "adapters/meshy",
+          "addedAt": "2026-11-20"
+        },
+        {
+          "label": "Meshy: Advanced",
+          "to": "adapters/meshy-advanced",
+          "addedAt": "2026-11-20"
         },
         {
           "label": "OpenRouter Adapter",

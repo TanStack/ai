@@ -2,7 +2,7 @@
 title: Motion Generation
 id: motion-generation
 order: 7.5
-description: "Make a skeletal animation clip (FBX) from a prompt with generateMotion(). Download it and import it into Unity, Unreal, Godot, or Blender. Works with fal Hunyuan Motion and Uthana."
+description: "Make a skeletal animation clip (FBX) from a prompt with generateMotion(). Download it and import it into Unity, Unreal, Godot, or Blender. Works with fal Hunyuan Motion, Uthana, and Meshy."
 keywords:
   - tanstack ai
   - motion generation
@@ -14,6 +14,7 @@ keywords:
   - hunyuan motion
   - fal
   - uthana
+  - meshy
   - game assets
   - experimental
 ---
@@ -105,6 +106,8 @@ A fal clip is on fal's skeleton, so you retarget it in your engine. Uthana can m
 2. Pass the character id as `modelOptions.character_id` to `uthanaMotion()`.
 
 See [Uthana: use your own character](../adapters/uthana#use-your-own-character).
+
+Meshy puts a `meshyMotion()` clip on a character that Meshy rigged. See [Meshy: put the clip on your rig](../adapters/meshy#put-the-clip-on-your-rig).
 
 ## What you get back
 
@@ -377,7 +380,7 @@ Ask the agent for "an orc attack clip". It calls `generate_motion_clip`, then `c
 | Provider | Files | Notes | In TanStack AI |
 | --- | --- | --- | --- |
 | fal Hunyuan Motion | FBX, JSON | Seed control. Cancel for queued jobs. No input for your own character. | `falMotion()`. See [fal.ai](../adapters/fal#motion). |
-| Meshy text-to-motion | FBX (prime mode), BVH (swift mode) | 2 to 10 second clips. A running task cannot be cancelled. Needs a paid plan. | Not built in yet |
+| Meshy text-to-motion | FBX (`'prime'`), BVH (`'swift'`) | `duration` is required: 2 to 10 seconds, in steps of 0.5. Cancel only for queued jobs. Puts the clip on a rig that Meshy made. | `meshyMotion()`. See [Meshy](../adapters/meshy#make-a-motion-clip). |
 | Uthana | FBX, GLB | Upload your own character, and Uthana makes the clip on it. 3.0 takes the motion from a generated video. No seed. No cancel. | `uthanaMotion()`. See [Uthana](../adapters/uthana). |
 
 To use a provider that is not built in, write an adapter.
