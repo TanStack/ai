@@ -3,6 +3,7 @@ import fs from 'fs'
 import http from 'http'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { isDeepStrictEqual } from 'node:util'
 import { EventStreamCodec } from '@smithy/eventstream-codec'
 import type { Mountable } from '@copilotkit/aimock'
 
@@ -178,6 +179,7 @@ export default async function globalSetup() {
   // which request sections ended with a `cachePoint` block and answers with
   // Bedrock's cache usage counters; the companion spec asserts both.
   mock.mount('/bedrock-converse-cache', bedrockConverseCacheMount())
+  mock.mount('/bedrock-rerank', bedrockRerankMount())
 
   // decide() usage on a failed answer mapping. aimock has no OpenAI Decisions
   // endpoint, so this mount hand-crafts a `/v1/decisions` response with valid
@@ -200,6 +202,11 @@ export default async function globalSetup() {
   // aimock has no OpenAI Decisions API route, so this mount answers
   // `/v1/decisions` with a refusal plus usage for the evaluate-refusal spec.
   mock.mount('/evaluate-refusal', evaluateRefusalMount())
+
+  // aimock has no Gemini Decisions API route, so this mount answers
+  // `/v1beta/decisions` with a happy-path choice/score/boolean answer plus
+  // Gemini-shaped usage for the evaluate-gemini spec.
+  mock.mount('/evaluate-gemini', geminiDecisionsMount())
 
   // BytePlus. Ark (chat, Seedream image, Seedance video) serves its whole data
   // plane under /api/v3, and Seed Speech (TTS/ASR) mounts its own endpoints at
@@ -2434,6 +2441,56 @@ function evaluateRefusalMount(): Mountable {
   }
 }
 
+/**
+ * Mounts the Gemini Decisions `/v1beta/decisions` response for the
+ * `evaluate-gemini` spec: a choice, a score, and a boolean answer plus the
+ * endpoint's `total_*` usage shape (output tokens are always 0). The Gemini
+ * evaluate adapter maps these to the unified `decide()` result.
+ */
+function geminiDecisionsMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST' || pathname !== '/v1beta/decisions') {
+        return false
+      }
+      await drainBody(req)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          model: 'gemini-decision-1',
+          answers: {
+            queue: {
+              type: 'choice',
+              choice: 'billing',
+              probabilities: { billing: 0.82, tech: 0.12, sales: 0.06 },
+              confidence: 0.88,
+            },
+            urgency: {
+              type: 'score',
+              score: 1.5,
+              legend: { '0': 'low', '1': 'medium', '2': 'high' },
+              probabilities: { '0': 0.1, '1': 0.4, '2': 0.5 },
+              confidence: 0.77,
+            },
+            refund: { type: 'noul', noul: 0.93 },
+          },
+          usage: {
+            total_input_tokens: 48,
+            total_output_tokens: 0,
+            total_tokens: 48,
+          },
+        }),
+      )
+      return true
+    },
+  }
+}
+
 function buildToolPlusServerToolEvents(): Array<Record<string, unknown>> {
   const messageId = 'msg_bug_604'
   const model = 'claude-sonnet-4-5'
@@ -2609,6 +2666,8 @@ function bedrockConverseCacheMount(): Mountable {
       const toolConfig = body.toolConfig as { tools?: unknown } | undefined
       const messages = body.messages as Array<{ content?: unknown }> | undefined
       const observed = {
+        requestMetadata: body.requestMetadata,
+        serviceTier: body.serviceTier,
         tools: endsWithCachePoint(toolConfig?.tools),
         system: endsWithCachePoint(body.system),
         lastMessage: endsWithCachePoint(
@@ -2641,6 +2700,96 @@ function bedrockConverseCacheMount(): Mountable {
         }),
       )
       res.end()
+      return true
+    },
+  }
+}
+
+/** Validate the Bedrock Rerank wire format before serving stateless result pages. */
+function bedrockRerankMount(): Mountable {
+  return {
+    async handleRequest(req, res, pathname) {
+      if (req.method !== 'POST' || pathname !== '/rerank') return false
+      const body = await readJsonRequestBody(req)
+      const config = asRecord(
+        asRecord(body?.rerankingConfiguration)?.bedrockRerankingConfiguration,
+      )
+      const modelArn = asRecord(config?.modelConfiguration)?.modelArn
+      const count = config?.numberOfResults
+      const token = body?.nextToken
+      const authorization = req.headers.authorization ?? ''
+      const modelAllowed =
+        modelArn ===
+          'arn:aws:bedrock:us-west-2::foundation-model/cohere.rerank-v3-5:0' ||
+        modelArn ===
+          'arn:aws:bedrock:us-west-2::foundation-model/amazon.rerank-v1:0'
+      const expectedBody = {
+        queries: [{ type: 'TEXT', textQuery: { text: 'talk about rain' } }],
+        sources: [
+          '{"id":"sun","text":"sunny day at the beach"}',
+          '{"id":"rain","text":"rainy afternoon in the city"}',
+          '{"id":"snow","text":"snow in the mountains"}',
+        ].map((text) => ({
+          type: 'INLINE',
+          inlineDocumentSource: { type: 'TEXT', textDocument: { text } },
+        })),
+        rerankingConfiguration: {
+          type: 'BEDROCK_RERANKING_MODEL',
+          bedrockRerankingConfiguration: {
+            modelConfiguration: { modelArn },
+            numberOfResults: count,
+          },
+        },
+        ...(token === undefined ? {} : { nextToken: token }),
+      }
+      res.setHeader('Content-Type', 'application/json')
+      if (
+        !modelAllowed ||
+        (count !== 1 && count !== 3) ||
+        (token !== undefined &&
+          ((token !== 'rain-page-2' && token !== 'rain-page-3') ||
+            count !== 3)) ||
+        !isDeepStrictEqual(body, expectedBody) ||
+        !authorization.startsWith(
+          'AWS4-HMAC-SHA256 Credential=AKIA_BEDROCK_E2E/',
+        ) ||
+        !authorization.includes('/us-west-2/bedrock/aws4_request') ||
+        !authorization.includes('x-test-id') ||
+        !req.headers['x-test-id'] ||
+        !/^[a-f0-9]{64}$/.test(String(req.headers['x-amz-content-sha256'])) ||
+        req.headers['content-type'] !== 'application/json'
+      ) {
+        res.statusCode = 400
+        res.end(
+          JSON.stringify({
+            message: 'Invalid Bedrock rerank request or signing scope',
+          }),
+        )
+        return true
+      }
+      res.setHeader(
+        'x-amzn-requestid',
+        token ? token.replace('rain-', 'rerank-') : 'rerank-page-1',
+      )
+      if (token === 'rain-page-2') {
+        res.end(JSON.stringify({ results: [], nextToken: 'rain-page-3' }))
+        return true
+      }
+      res.end(
+        JSON.stringify(
+          token
+            ? {
+                results: [
+                  { index: 2, relevanceScore: 0.3 },
+                  { index: 0, relevanceScore: 0.1 },
+                ],
+              }
+            : {
+                results: [{ index: 1, relevanceScore: 0.98 }],
+                ...(count === 3 ? { nextToken: 'rain-page-2' } : {}),
+              },
+        ),
+      )
       return true
     },
   }

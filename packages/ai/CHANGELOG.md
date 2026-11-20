@@ -1,5 +1,90 @@
 # @tanstack/ai
 
+## 1.8.0
+
+### Minor Changes
+
+- [#2210](https://github.com/TanStack/ai/pull/2210) [`4b00243`](https://github.com/TanStack/ai/commit/4b002432487ce34547162b6f3f0492b4b936aa61) - Add `'3mf'` to `Model3DFormat` for 3D print results.
+
+## 1.7.0
+
+### Minor Changes
+
+- [#2186](https://github.com/TanStack/ai/pull/2186) [`1aa7227`](https://github.com/TanStack/ai/commit/1aa722707deca4d567efafe0830471222d558b62) - Add the experimental `generate3DModel()` activity. It turns text, images, or an existing mesh into a 3D model file, and returns the main model URL plus every mesh and texture file. A media prompt can now carry a `model3d` part, so a step such as retexture can take the mesh of an earlier step. `fal3DModel()` in `@tanstack/ai-fal` runs the fal 3D endpoints, and `useGenerate3DModel` (`injectGenerate3DModel` in Angular, `createGenerate3DModel` in Svelte and Remix) streams the job to the UI.
+
+- [#2194](https://github.com/TanStack/ai/pull/2194) [`0a84ac2`](https://github.com/TanStack/ai/commit/0a84ac22cbd29ac49997091713ca9da81bb3e553) - Add experimental motion generation. `generateMotion()` makes skeletal animation files (FBX first) from a text prompt. `getMotionJobStatus()` polls a job from any request, and `cancelMotionJob()` asks the provider to stop it. Aborting a stream stops local observation only. `falMotion()` runs fal Hunyuan Motion (`fal-ai/hunyuan-motion`, `fal-ai/hunyuan-motion/fast`).
+
+- [#2184](https://github.com/TanStack/ai/pull/2184) [`4288b7a`](https://github.com/TanStack/ai/commit/4288b7aaa80e085df899e2bebb597a9f85d6fb71) - A server tool can now send result metadata: app data that the UI and middleware see and the model never sees. Call `context?.setResultMetadata?.(value)` in the tool. Add `resultMetadataSchema` to the tool definition to type and check the value. The client reads it as a typed `part.resultMetadata` on the tool-call part, also after a reload with persistence.
+  - `onAfterToolCall` gets `info.metadata`. A `replaceResult` or `skip` decision can set `metadata`. `toolCacheMiddleware` keeps the metadata on a cache hit.
+  - `@tanstack/ai-mcp` copies the `_meta` of an MCP tool result into the result metadata. A `tanstack` key is dropped.
+  - `@tanstack/ai-persistence` keeps the stored app metadata when a client copy replaces a stored tool message. The `'messages.metadata'` conformance check now also tests a tool message with nested app metadata.
+  - The server owns the result metadata. `chatParamsFromRequest` keeps only the `tanstack` key on the tool rows of a request.
+  - Client tools and WebMCP tools throw when they call `setResultMetadata`.
+  - `@tanstack/ai-effect` accepts tool definitions that have `resultMetadataSchema`.
+  - `@tanstack/ai-event-client` adds `metadata` to the tool result event. The devtools show it as "Result metadata" on each tool result.
+
+### Patch Changes
+
+- Updated dependencies [[`0a84ac2`](https://github.com/TanStack/ai/commit/0a84ac22cbd29ac49997091713ca9da81bb3e553), [`4288b7a`](https://github.com/TanStack/ai/commit/4288b7aaa80e085df899e2bebb597a9f85d6fb71)]:
+  - @tanstack/ai-event-client@1.1.0
+
+## 1.6.0
+
+### Minor Changes
+
+- [#2110](https://github.com/TanStack/ai/pull/2110) [`95c1d78`](https://github.com/TanStack/ai/commit/95c1d781c92904612e0d675a9ca38f1a8d9a1c09) - Undo strict-mode `null`s on tool arguments before the input check. An approved call whose history still has those `null`s now runs when `repairToolInput` is off.
+
+- [#2156](https://github.com/TanStack/ai/pull/2156) [`df6f5a9`](https://github.com/TanStack/ai/commit/df6f5a9f5ff782db85c8a36715bac18a7f090180) - The OpenAI-compatible adapters support `chat({ reasoning })`. Add the levels of a model to its `createModel` definition (`reasoning: { levels, budget }`), or to the `reasoning` config of `openaiCompatibleText`. The adapter sends the level as `reasoning_effort` on Chat Completions, or as `reasoning: { effort, summary }` on Responses. `chat()` accepts only the levels of the model.
+
+  `OpenAICompatibleChatAdapter` and `OpenAICompatibleResponsesAdapter` take the same levels in a new `reasoning` constructor option, and in their last type parameter. TypeScript shows an error when the option is missing or its levels are different from the type parameter. The new `OpenAICompatibleAdapterOptions` type is exported from `@tanstack/ai-openai/compatible`.
+
+### Patch Changes
+
+- [#2163](https://github.com/TanStack/ai/pull/2163) [`40d1c61`](https://github.com/TanStack/ai/commit/40d1c61c6bdf1957bd124d09b1f07617a05e759d) - A chat loaded from stored messages now looks the same as the chat the user saw live.
+  - A tool result that is a string stays a string, also when the string is JSON text. Before, a tool that returned `'42'` showed the number `42`, live or after a reload. This applies to server tools, client tools, middleware skip results, and MCP text results from tools without an `outputSchema`. A server tool that returns `JSON.stringify(value)` now gives that string as `part.output`. Return the value itself to get it as an object.
+  - Live messages no longer get the snapshot wire fields `tanstack.createdAt` and `toolCallMetadata` in their metadata.
+  - A reload drops an assistant answer that holds only whitespace, as the live chat does.
+  - When a run stops for a client tool, the messages that `chat()` stores keep the ids of the snapshot, so a reload gives tool results the same ids.
+  - `ThinkingPart.stepId` is deprecated and is no longer set. Parts are the same live, stored, and reloaded.
+
+## 1.5.0
+
+### Minor Changes
+
+- [#2107](https://github.com/TanStack/ai/pull/2107) [`fde4e09`](https://github.com/TanStack/ai/commit/fde4e09b0170017394ff2874847d416777920b2e) - `withCompaction({ native })` now passes the tools, the model options, and the reasoning of the chat call into `compact`. The Anthropic text adapter implements `compact` as an on-demand Messages request (`compaction: { type: "summarize" }`, beta `compact-2026-09-04`). The signed compaction block stays on the assistant message and goes back on later requests to the same model. A result with no signed block uses the configured strategy.
+
+## 1.4.1
+
+### Patch Changes
+
+- [#2098](https://github.com/TanStack/ai/pull/2098) [`1888233`](https://github.com/TanStack/ai/commit/1888233ddb501d14b17aa9a5f3497373a0e9242e) - A `chat()` consumer that stops iterating (`break` or `return()`) now runs the middleware `onAbort` hook, so every run gets exactly one terminal hook. Stopping at a client-tool or approval pause's `RUN_FINISHED` chunk runs `onFinish`, as a drained pause does, so the paused state (such as a `withSandbox` sandbox) is kept. Stopping at a `RUN_ERROR` chunk runs `onError`.
+
+## 1.4.0
+
+### Minor Changes
+
+- [#2116](https://github.com/TanStack/ai/pull/2116) [`702d639`](https://github.com/TanStack/ai/commit/702d639c36b7564875595845ebb7ec6ad437e484) - Send request context to MCP servers as `_meta`. Set `requestMeta` on `chat({ mcp })` or `tools()`, or pass `meta` to `callTool`, `readResource`, `getPrompt`, and the MCP Apps call handler.
+
+  `createMCPClients().readResource(uri, { serverId })` now reads only from the server with that key.
+
+## 1.3.0
+
+### Minor Changes
+
+- [#2071](https://github.com/TanStack/ai/pull/2071) [`e8546f9`](https://github.com/TanStack/ai/commit/e8546f90834ace0129c4e2b5491909ea87e07f20) - A run that the agent loop stops before the model finished now says so. When `agentLoopStrategy` (for example `maxIterations`) or a middleware `onShouldContinue` returns `false` while tool results wait for the next model call, `chat()` ends the stream with a `RUN_FINISHED` that has `metadata.tanstack.loopStopped: true`, and the last stored assistant message gets the same field. `finishReason` stays the reason of the last model call (`tool_calls`, or `length` for a cut answer). A run that the model ends has no `loopStopped`.
+
+  In `@tanstack/ai-harness`, a turn that the loop stops settles with `{ outcome: 'completed', loopStopped: true }`. `session.settled()`, the `harness.input.settled` event of `createHarnessClient().events()`, and the transcript all carry it.
+
+- [#2087](https://github.com/TanStack/ai/pull/2087) [`5fd5355`](https://github.com/TanStack/ai/commit/5fd535501784df0102880470835913ceec3a8e1e) - Keep Responses item ids and phases when adjacent answer text is merged. Save each item's text length so replay can restore its boundary.
+
+### Patch Changes
+
+- [#2056](https://github.com/TanStack/ai/pull/2056) [`9393839`](https://github.com/TanStack/ai/commit/9393839d380dde91fa91e81b5e92448610e9782a) - `@tanstack/ai` exports `stableJson`: JSON text with the keys of every object in sorted order, for values that come back from a store with their keys reordered. `@tanstack/ai-harness` now imports it and no longer keeps its own copy.
+
+- [#2086](https://github.com/TanStack/ai/pull/2086) [`215e339`](https://github.com/TanStack/ai/commit/215e3396eb907054baddbf3423da8bc3e90ecf50) - Stop a long-running server tool from leaking memory. While a tool ran, the event poll subscribed to the tool's promise again every 10 ms and kept every subscription until the tool finished. Memory grew by about 100 MB per hour while a tool stayed pending. The poll now subscribes once.
+
+- [#2069](https://github.com/TanStack/ai/pull/2069) [`7157ef3`](https://github.com/TanStack/ai/commit/7157ef3e8556ac23c350822ba0f3c4bbf0abb118) - Preserve metadata from live AG-UI TOOL_CALL_RESULT events on ToolResultPart.
+
 ## 1.2.0
 
 ### Minor Changes

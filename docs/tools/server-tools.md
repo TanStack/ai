@@ -217,3 +217,5 @@ const getUserData = toolDefinition({
 ## Advanced
 
 For input checks and repair, JSON Schema tools, progress events, long-running hosts, and file layout, see [Server Tools: Advanced](./server-tools-advanced).
+
+To send data to your UI that the model must not see, such as the sources of a search, see [Tool Result Metadata](./tool-result-metadata).

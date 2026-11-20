@@ -3,7 +3,8 @@ import { test, expect } from './fixtures'
 /**
  * `@tanstack/ai-effect` against aimock. The route runs `AI.chat` with an
  * Effect tool that reads a `Weather` service from a `Layer`, and
- * `AI.generateImage` as an Effect. Fixtures: `fixtures/effect-chat/basic.json`.
+ * `AI.generateImage` as an Effect. Fixtures: `fixtures/effect-chat/basic.json`,
+ * and the slow story in `fixtures/abort/basic.json`.
  */
 
 const PIXEL_PNG =
@@ -22,7 +23,7 @@ function eventsOf(sse: string): Array<WireEvent> {
     .map((line) => JSON.parse(line.slice('data: '.length)))
 }
 
-function routeUrl(testId: string, aimockPort: number, kind?: 'image') {
+function routeUrl(testId: string, aimockPort: number, kind?: 'image' | 'stop') {
   const params = new URLSearchParams({
     testId,
     aimockPort: String(aimockPort),
@@ -66,5 +67,15 @@ test.describe('ai-effect', () => {
     expect(result.images).toEqual([
       expect.objectContaining({ b64Json: PIXEL_PNG }),
     ])
+  })
+
+  test('stopping the chat Stream early runs middleware onAbort', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const res = await request.post(routeUrl(testId, aimockPort, 'stop'))
+    expect(res.ok()).toBe(true)
+    expect(await res.json()).toEqual({ aborts: 1 })
   })
 })

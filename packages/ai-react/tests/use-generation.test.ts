@@ -3,6 +3,7 @@ import { renderHook, waitFor, act } from '@testing-library/react'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { useGeneration } from '../src/use-generation'
 import { useGenerateImage } from '../src/use-generate-image'
+import { useGenerate3DModel } from '../src/use-generate-3d-model'
 import { useGenerateAudio } from '../src/use-generate-audio'
 import { useGenerateSpeech } from '../src/use-generate-speech'
 import { useTranscription } from '../src/use-transcription'
@@ -10,6 +11,7 @@ import { useSummarize } from '../src/use-summarize'
 import { useGenerateVideo } from '../src/use-generate-video'
 import { createMockConnectionAdapter } from './test-utils'
 import type {
+  Model3DResult,
   PersistedArtifactRef,
   StreamChunk,
   TTSResult,
@@ -647,6 +649,79 @@ describe('useGenerateImage', () => {
       artifacts: [artifact],
     })
     expect(result.current.runId).toBeNull()
+  })
+})
+
+describe('useGenerate3DModel', () => {
+  const modelResult: Model3DResult = {
+    jobId: 'job-3d',
+    url: 'https://example.com/fox.glb',
+    format: 'glb',
+  }
+
+  // One `generation:progress` chunk per provider poll, before the result.
+  function create3DModelChunks(): Array<StreamChunk> {
+    const chunks = createGenerationChunks(modelResult)
+    const progressChunks: Array<StreamChunk> = [
+      { progress: 10, message: 'pending' },
+      { progress: 60, message: 'processing' },
+    ].map((value) => ({
+      type: EventType.CUSTOM,
+      name: 'generation:progress',
+      value,
+      timestamp: Date.now(),
+    }))
+    // Insert after RUN_STARTED.
+    chunks.splice(1, 0, ...progressChunks)
+    return chunks
+  }
+
+  it('streams progress and exposes the finished model', async () => {
+    const onProgress = vi.fn()
+    const adapter = createMockConnectionAdapter({
+      chunks: create3DModelChunks(),
+    })
+
+    const { result } = renderHook(() =>
+      useGenerate3DModel({
+        threadId: 'thread-1',
+        connection: adapter,
+        onProgress,
+      }),
+    )
+
+    await act(async () => {
+      await result.current.generate({ prompt: 'A low-poly fox' })
+    })
+
+    expect(onProgress.mock.calls).toEqual([
+      [10, 'pending'],
+      [60, 'processing'],
+    ])
+    expect(result.current.result).toEqual({
+      jobId: 'job-3d',
+      url: 'https://example.com/fox.glb',
+      format: 'glb',
+    })
+    expect(result.current.status).toBe('success')
+  })
+
+  it('sets the error when the stream fails', async () => {
+    const adapter = createMockConnectionAdapter({
+      chunks: createErrorChunks('3D generation failed'),
+    })
+
+    const { result } = renderHook(() =>
+      useGenerate3DModel({ threadId: 'thread-1', connection: adapter }),
+    )
+
+    await act(async () => {
+      await result.current.generate({ prompt: 'A low-poly fox' })
+    })
+
+    expect(result.current.status).toBe('error')
+    expect(result.current.error?.message).toBe('3D generation failed')
+    expect(result.current.result).toBeNull()
   })
 })
 

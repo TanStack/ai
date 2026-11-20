@@ -41,7 +41,12 @@ function durationMap<
 
 const KLING_5_10 = { kind: 'discrete', values: ['5', '10'] } as const
 const VEO_4_6_8 = { kind: 'discrete', values: ['4s', '6s', '8s'] } as const
-const LTX_6_8_10 = { kind: 'discrete', values: ['6', '8', '10'] } as const
+const LTX_6_8_10 = { kind: 'discrete', values: [6, 8, 10] } as const
+// Durations over 10 seconds need 25 FPS and 1080p.
+const LTX_FAST_6_20 = {
+  kind: 'discrete',
+  values: [6, 8, 10, 12, 14, 16, 18, 20],
+} as const
 const KLING_3_15 = {
   kind: 'discrete',
   values: [
@@ -78,11 +83,6 @@ const FAL_VIDEO_DURATIONS = durationMap({
   'fal-ai/kling-video/v2.6/pro/image-to-video': KLING_5_10,
   'fal-ai/kling-video/v3/pro/text-to-video': KLING_3_15,
   'fal-ai/kling-video/v3/pro/image-to-video': KLING_3_15,
-  'fal-ai/pika/v2.2/text-to-video': KLING_5_10,
-  'fal-ai/luma-dream-machine/ray-2': {
-    kind: 'discrete',
-    values: ['5s', '9s'],
-  },
   'fal-ai/veo3': VEO_4_6_8,
   'fal-ai/veo3/image-to-video': VEO_4_6_8,
   'fal-ai/veo3.1': VEO_4_6_8,
@@ -90,28 +90,10 @@ const FAL_VIDEO_DURATIONS = durationMap({
   'fal-ai/veo3.1/fast': VEO_4_6_8,
   'fal-ai/veo3.1/fast/image-to-video': VEO_4_6_8,
   'fal-ai/ltx-2.3/text-to-video': LTX_6_8_10,
-  'fal-ai/ltx-2.3/text-to-video/fast': LTX_6_8_10,
+  'fal-ai/ltx-2.3/text-to-video/fast': LTX_FAST_6_20,
   'fal-ai/ltx-2.3/image-to-video': LTX_6_8_10,
-  'fal-ai/ltx-2.3/image-to-video/fast': LTX_6_8_10,
-  'fal-ai/wan-25-preview/text-to-video': {
-    kind: 'discrete',
-    values: [
-      '2',
-      '3',
-      '4',
-      '5',
-      '6',
-      '7',
-      '8',
-      '9',
-      '10',
-      '11',
-      '12',
-      '13',
-      '14',
-      '15',
-    ],
-  },
+  'fal-ai/ltx-2.3/image-to-video/fast': LTX_FAST_6_20,
+  'fal-ai/wan-25-preview/text-to-video': KLING_5_10,
   'fal-ai/minimax/video-01': { kind: 'none' },
   'fal-ai/hunyuan-video-v1.5/text-to-video': { kind: 'none' },
 })

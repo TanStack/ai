@@ -4,6 +4,7 @@ import type {
   AnyTextAdapter,
   DefinedAgent,
   InferSchemaType,
+  InferToolResultMetadata,
   InterruptDefinition,
   SchemaInput,
   StandardJSONSchemaV1,
@@ -16,7 +17,7 @@ import type { Context } from 'effect'
 import { toEffect, toStream } from './lift'
 import type { AIError } from './lift'
 
-type AnyToolDefinition = ToolDefinition<any, any, string, boolean, any>
+type AnyToolDefinition = ToolDefinition<any, any, string, boolean, any, any>
 
 /**
  * A server tool whose `execute` returns an Effect. Make it with
@@ -27,7 +28,7 @@ export interface EffectServerTool<TDef extends AnyToolDefinition, R> {
   readonly def: TDef
   readonly execute: (
     input: InferSchemaType<TDef['inputSchema']>,
-    ctx: ToolExecutionContext,
+    ctx: ToolExecutionContext<unknown, InferToolResultMetadata<TDef>>,
   ) => Effect.Effect<InferSchemaType<TDef['outputSchema']>, unknown, R>
 }
 
@@ -49,7 +50,7 @@ export const serverTool = <TDef extends AnyToolDefinition, E, R>(
   def: TDef,
   execute: (
     input: InferSchemaType<TDef['inputSchema']>,
-    ctx: ToolExecutionContext,
+    ctx: ToolExecutionContext<unknown, InferToolResultMetadata<TDef>>,
   ) => Effect.Effect<InferSchemaType<TDef['outputSchema']>, E, R>,
 ) => {
   const tool: EffectServerTool<TDef, R> = {

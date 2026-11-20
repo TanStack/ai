@@ -193,7 +193,10 @@ describe('dispose stops a late hydration from opening a tail', () => {
     // have survived the detach for this to work.
     client.attach()
     await vi.waitFor(() => expect(opens).toBe(2))
-    expect(joinRun).toHaveBeenLastCalledWith('r1', expect.anything())
+    expect(joinRun).toHaveBeenLastCalledWith('r1', expect.anything(), {
+      threadId: 't1',
+      tools: [],
+    })
 
     client.dispose()
   })
@@ -403,7 +406,11 @@ describe('dispose stops a late hydration from opening a tail', () => {
     })
 
     await vi.waitFor(() => {
-      expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
+      expect(joinRun).toHaveBeenCalledWith(
+        'r1',
+        expect.anything(),
+        expect.objectContaining({ tools: expect.any(Array) }),
+      )
     })
     client.dispose()
   })

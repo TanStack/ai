@@ -1,5 +1,44 @@
 # @tanstack/ai-gemini
 
+## 1.3.0
+
+### Minor Changes
+
+- [#2151](https://github.com/TanStack/ai/pull/2151) [`4c483e6`](https://github.com/TanStack/ai/commit/4c483e6d1dc8fd78386d5e42108a5a157eafa3a5) - Add `geminiDecider` and `createGeminiDecider` so `decide()` can ask typed choice, score, and boolean questions through Gemini's Decisions API (`POST /v1beta/decisions`) with `gemini-decision-1`.
+
+### Patch Changes
+
+- Updated dependencies [[`4b00243`](https://github.com/TanStack/ai/commit/4b002432487ce34547162b6f3f0492b4b936aa61)]:
+  - @tanstack/ai@1.8.0
+
+## 1.2.3
+
+### Patch Changes
+
+- [#2124](https://github.com/TanStack/ai/pull/2124) [`3d40cc4`](https://github.com/TanStack/ai/commit/3d40cc433313b1c808409010ac53130889241d85) - Report `truncated-stream` when a Gemini chat stream ends without a `finishReason`. Before, the run had no terminal event and `onFinish` got the partial text as a success. The adapter now closes the open tool calls, reasoning, and text, then emits `RUN_ERROR`. Structured output already reported this case. An abort is not reported.
+
+- Updated dependencies [[`1888233`](https://github.com/TanStack/ai/commit/1888233ddb501d14b17aa9a5f3497373a0e9242e)]:
+  - @tanstack/ai@1.4.1
+
+## 1.2.2
+
+### Patch Changes
+
+- [#2113](https://github.com/TanStack/ai/pull/2113) [`c1c22e7`](https://github.com/TanStack/ai/commit/c1c22e74e7767d4ff17a806011cc5eea4eae74f9) - Send Gemini API requests through `httpOptions.fetch` again when the client has an `apiKey`. Since 1.1.1 the adapters called the global `fetch` and ignored a custom one, also for image generation through the Interactions API. The `httpOptions.fetch` type is in `@google/genai` 2.23.0 and later.
+
+## 1.2.1
+
+### Patch Changes
+
+- [#2083](https://github.com/TanStack/ai/pull/2083) [`548ec42`](https://github.com/TanStack/ai/commit/548ec42d8f552a8cd7443b37cb7a665baa1cdf9f) - Gemini Live (realtime) `usage` events now include `thoughtsTokenCount` in `completionTokens`, matching how the text adapters report usage.
+
+- [#2053](https://github.com/TanStack/ai/pull/2053) [`925a505`](https://github.com/TanStack/ai/commit/925a50536ee4ea43f8446d271eede7df8dd032fc) - Send a multimodal tool result's parts to Gemini once, inside its `functionResponse`. Before, the adapter also put them beside the `functionResponse` in the same turn, so each image was sent and billed twice.
+
+- [#2088](https://github.com/TanStack/ai/pull/2088) [`9bcdd41`](https://github.com/TanStack/ai/commit/9bcdd4115eaf80ceca78edd99d71aec02bb77f09) - Report Gemini content filter stops (SAFETY, RECITATION, BLOCKLIST, PROHIBITED_CONTENT, SPII, IMAGE_SAFETY, IMAGE_PROHIBITED_CONTENT, IMAGE_RECITATION) as `finishReason: "content_filter"` on chat streams, and as a `content_filter` error from `structuredOutput` and `structuredOutputStream`.
+
+- Updated dependencies [[`e8546f9`](https://github.com/TanStack/ai/commit/e8546f90834ace0129c4e2b5491909ea87e07f20), [`5fd5355`](https://github.com/TanStack/ai/commit/5fd535501784df0102880470835913ceec3a8e1e), [`9393839`](https://github.com/TanStack/ai/commit/9393839d380dde91fa91e81b5e92448610e9782a), [`215e339`](https://github.com/TanStack/ai/commit/215e3396eb907054baddbf3423da8bc3e90ecf50), [`7157ef3`](https://github.com/TanStack/ai/commit/7157ef3e8556ac23c350822ba0f3c4bbf0abb118)]:
+  - @tanstack/ai@1.3.0
+
 ## 1.2.0
 
 ### Minor Changes

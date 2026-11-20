@@ -1,5 +1,43 @@
 # @tanstack/ai-bedrock
 
+## 1.4.1
+
+### Patch Changes
+
+- [#2078](https://github.com/TanStack/ai/pull/2078) [`fc93edc`](https://github.com/TanStack/ai/commit/fc93edc9ed5873209e20bd8fb14f483b1e1f6a7e) - Report a Converse stream that stops with `stopReason: 'model_context_window_exceeded'` as a `RUN_ERROR` with the `context_overflow` code. It was reported as a clean `RUN_FINISHED` with `finishReason: 'stop'`, although the answer was cut off. This matches the Anthropic adapter.
+
+- Updated dependencies [[`95c1d78`](https://github.com/TanStack/ai/commit/95c1d781c92904612e0d675a9ca38f1a8d9a1c09), [`df6f5a9`](https://github.com/TanStack/ai/commit/df6f5a9f5ff782db85c8a36715bac18a7f090180), [`40d1c61`](https://github.com/TanStack/ai/commit/40d1c61c6bdf1957bd124d09b1f07617a05e759d)]:
+  - @tanstack/ai@1.6.0
+  - @tanstack/openai-base@1.1.0
+
+## 1.4.0
+
+### Minor Changes
+
+- [#2123](https://github.com/TanStack/ai/pull/2123) [`0c0c86d`](https://github.com/TanStack/ai/commit/0c0c86d179ce839c1e581c70cb28c83ca9ab0e93) - Add `modelOptions.requestMetadata` for invocation log metadata and `modelOptions.serviceTier` to choose an inference tier. Both work with Converse and ConverseStream, including structured output.
+
+### Patch Changes
+
+- Updated dependencies [[`1888233`](https://github.com/TanStack/ai/commit/1888233ddb501d14b17aa9a5f3497373a0e9242e)]:
+  - @tanstack/ai@1.4.1
+  - @tanstack/openai-base@1.0.4
+
+## 1.3.0
+
+### Minor Changes
+
+- [#2125](https://github.com/TanStack/ai/pull/2125) [`9bd6d7b`](https://github.com/TanStack/ai/commit/9bd6d7b803453b1c0f4d24728ccee31a920dcf2e) - Add `bedrockRerank()` for Amazon Rerank and Cohere Rerank models through the Bedrock Rerank API. Supports the existing `rerank()` activity with pagination and cancellation. Uses AWS credentials (SigV4), not Bedrock API keys.
+
+## 1.2.1
+
+### Patch Changes
+
+- [#2057](https://github.com/TanStack/ai/pull/2057) [`844496a`](https://github.com/TanStack/ai/commit/844496a616f3858f21ed300662f7642d87dae063) - A Bedrock Converse chat stream that ends with `stopReason: 'guardrail_intervened'` now reports `finishReason: 'content_filter'` on `RUN_FINISHED`. Before, it was a normal `stop`. The structured-output stream uses the same finish reason when the body is valid JSON. When a guardrail leaves no JSON, that stream reports `RUN_ERROR` with code `content_filter` instead of `empty-response` or `parse-error`.
+
+- Updated dependencies [[`e8546f9`](https://github.com/TanStack/ai/commit/e8546f90834ace0129c4e2b5491909ea87e07f20), [`5fd5355`](https://github.com/TanStack/ai/commit/5fd535501784df0102880470835913ceec3a8e1e), [`9393839`](https://github.com/TanStack/ai/commit/9393839d380dde91fa91e81b5e92448610e9782a), [`215e339`](https://github.com/TanStack/ai/commit/215e3396eb907054baddbf3423da8bc3e90ecf50), [`7157ef3`](https://github.com/TanStack/ai/commit/7157ef3e8556ac23c350822ba0f3c4bbf0abb118)]:
+  - @tanstack/ai@1.3.0
+  - @tanstack/openai-base@1.0.3
+
 ## 1.2.0
 
 ### Minor Changes

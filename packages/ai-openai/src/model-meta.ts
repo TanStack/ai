@@ -643,6 +643,48 @@ const GPT_IMAGE_1_MINI = {
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
 >
 
+const GPT_IMAGE_2_6_FLARE = {
+  name: 'gpt-image-2.6-flare',
+  pricing: {
+    input: {
+      normal: 5,
+      cached: 1.25,
+    },
+    output: {
+      normal: 30,
+    },
+  },
+  supports: {
+    input: ['text', 'image'],
+    output: ['image'],
+    endpoints: ['image-generation', 'image-edit'],
+    features: [],
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
+>
+
+const GPT_IMAGE_2_6_SUNBURST = {
+  name: 'gpt-image-2.6-sunburst',
+  pricing: {
+    input: {
+      normal: 5,
+      cached: 1.25,
+    },
+    output: {
+      normal: 30,
+    },
+  },
+  supports: {
+    input: ['text', 'image'],
+    output: ['image'],
+    endpoints: ['image-generation', 'image-edit'],
+    features: [],
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
+>
+
 const GPT_IMAGE_2_5_FLARE = {
   name: 'gpt-image-2.5-flare',
   pricing: {
@@ -2809,6 +2851,8 @@ export function openAIModelUsesExplicitPromptCache(model: string) {
 
 // Image generation models (based on endpoints: "image-generation" or "image-edit")
 export const OPENAI_IMAGE_MODELS = [
+  GPT_IMAGE_2_6_FLARE.name,
+  GPT_IMAGE_2_6_SUNBURST.name,
   GPT_IMAGE_2_5_FLARE.name,
   GPT_IMAGE_2_5_SUNBURST.name,
   GPT_IMAGE_2.name,

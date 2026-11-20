@@ -26,8 +26,8 @@ const PROVIDER_MODELS: Record<
     { value: 'gpt-5.2', label: 'GPT-5.2 (frontier)' },
     { value: 'gpt-5.2-pro', label: 'GPT-5.2 Pro' },
     { value: 'gpt-5.1', label: 'GPT-5.1' },
-    { value: 'gpt-5', label: 'GPT-5' },
-    { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
+    { value: 'gpt-5.6-sol', label: 'GPT-5.6 Sol' },
+    { value: 'gpt-5.6-terra', label: 'GPT-5.6 Terra' },
     { value: 'gpt-4o', label: 'GPT-4o' },
   ],
   // OpenAI Chat Completions: same model surface, older `/v1/chat/completions`
@@ -36,8 +36,8 @@ const PROVIDER_MODELS: Record<
   // is still doing it under the hood.
   'openai-chat': [
     { value: 'gpt-4o', label: 'GPT-4o' },
-    { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
-    { value: 'gpt-5', label: 'GPT-5' },
+    { value: 'gpt-5.6-terra', label: 'GPT-5.6 Terra' },
+    { value: 'gpt-5.6-sol', label: 'GPT-5.6 Sol' },
     { value: 'gpt-5.1', label: 'GPT-5.1' },
     { value: 'gpt-5.2', label: 'GPT-5.2 (frontier)' },
   ],

@@ -19,6 +19,7 @@ export type {
   GrokBuildUsage,
 } from './stream/sdk-types'
 export { GROK_CLI_INSTALL_COMMAND } from './install'
+export { grokBuildPlanLogin } from './login'
 export { resolveGrokExecutable } from './process/resolve-executable'
 export { buildPrompt } from './messages/prompt'
 export type { BuiltPrompt } from './messages/prompt'

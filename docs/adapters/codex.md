@@ -51,6 +51,8 @@ The sandbox in step 3 gives this key to the `codex` process as a workspace secre
 
 Did the machine already run `codex login`? Then you can use that login and no key. See [Harness Auth](../sandbox/auth).
 
+Do you ship a harness to users? They can sign in with their own ChatGPT plan. See [Sign in with a ChatGPT or SuperGrok plan](../harness/plan-sign-in).
+
 ## 3. Run the agent from the server
 
 Define the sandbox once. It clones your repo into a Docker container and installs the `codex` CLI:
@@ -395,7 +397,7 @@ Pass these as the second argument of `codexText`:
 | `networkAccessEnabled` | Allow network access inside the `workspace-write` sandbox. |
 | `webSearchMode` | `'disabled'` or `'live'`. |
 | `additionalDirectories` | More writable directories next to `cwd`. |
-| `authMode` | `'api-key'` (default) expects `CODEX_API_KEY`. `'host'` uses `codex login`. See [Harness Auth](../sandbox/auth). |
+| `authMode` | `'api-key'` (default) expects `CODEX_API_KEY`. `'host'` uses `codex login` or a [ChatGPT plan sign-in](../harness/plan-sign-in), and runs `codex` without `CODEX_API_KEY` and `OPENAI_API_KEY`. See [Harness Auth](../sandbox/auth). |
 | `codexExecutable` | The path or name of the `codex` executable in the sandbox. Default `codex`. |
 | `env` | More environment variables for the `codex` process. |
 | `config` | More `--config key=value` overrides for the Codex CLI, for example more `mcp_servers` entries. Values go through as TOML. |

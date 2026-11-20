@@ -77,6 +77,7 @@ const OPERATION_NAME: Record<GenerationActivity, string> = {
   chat: 'chat',
   image: 'image_generation',
   video: 'video_generation',
+  '3dModel': '3d_model_generation',
   audio: 'audio_generation',
   tts: 'text_to_speech',
   voice: 'voice_generation',
@@ -86,6 +87,7 @@ const OPERATION_NAME: Record<GenerationActivity, string> = {
   evaluate: 'evaluate',
   summarize: 'summarize',
   world: 'world_generation',
+  motion: 'motion_generation',
   liveVideo: 'live_video_generation',
 }
 
@@ -312,10 +314,13 @@ function mediaOutputParts(
   if (r.audio !== undefined) {
     parts.push(mediaPart('audio', (r.audio as { url?: unknown } | null)?.url))
   }
-  // Only video puts its asset on a top-level `url`. A world `url` is a viewer
+  // Video and 3D put the asset on a top-level `url`. A world `url` is a viewer
   // page, not media.
   if (activity === 'video' && typeof r.url === 'string') {
     parts.push(mediaPart('video', r.url))
+  }
+  if (activity === '3dModel' && typeof r.url === 'string') {
+    parts.push(mediaPart('model3d', r.url))
   }
   if (typeof r.text === 'string') parts.push({ type: 'text', content: r.text })
   return parts

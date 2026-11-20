@@ -85,6 +85,8 @@ export interface ToolCall {
   approvalRequired?: boolean
   approvalId?: string
   approvalApproved?: boolean
+  /** App metadata of the tool result, without the `tanstack` key */
+  resultMetadata?: Record<string, unknown>
   /** Duration of tool execution in milliseconds */
   duration?: number
 }
@@ -144,6 +146,8 @@ export interface Chunk {
   arguments?: string
   /** Tool result data for tool_result chunks */
   result?: unknown
+  /** App metadata of the tool result for tool_result chunks */
+  resultMetadata?: Record<string, unknown>
   /** Duration in ms for tool execution */
   duration?: number
   /** Number of raw chunks that were merged into this consolidated chunk */
@@ -2184,6 +2188,7 @@ export const AIProvider: ParentComponent = (props) => {
           messageId: e.payload.messageId,
           toolCallId: e.payload.toolCallId,
           result: e.payload.result,
+          resultMetadata: e.payload.metadata,
           timestamp: e.payload.timestamp,
           chunkCount: 1,
         }
@@ -2212,6 +2217,7 @@ export const AIProvider: ParentComponent = (props) => {
             if (toolCallIndex >= 0) {
               updateToolCall(conversationId, i, toolCallIndex, {
                 result: e.payload.result,
+                resultMetadata: e.payload.metadata,
                 state: 'complete',
               })
               break
