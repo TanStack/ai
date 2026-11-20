@@ -110,6 +110,7 @@ export type {
   TranscriptionGenerateInput,
   SummarizeGenerateInput,
   VideoGenerateInput,
+  Model3DGenerateInput,
   GenerationRestoredResult,
 } from './generation-types'
 export { GENERATION_EVENTS } from './generation-types'
@@ -175,6 +176,8 @@ export {
   StreamTruncatedError,
   DurableStreamIncompleteError,
   StreamReconnectLimitError,
+  createReconnectTracker,
+  type ReconnectTracker,
   type ConnectConnectionAdapter,
   type ChatHydrateOptions,
   type ChatHydrationResult,
@@ -185,6 +188,7 @@ export {
   type ReconnectOptions,
   type ResumableConnectConnectionAdapter,
   type RunAgentInputContext,
+  type ChatRunConfig,
   type StreamConnectionHandlers,
   type SubscribeConnectionAdapter,
   type WebSocketConnectionOptions,

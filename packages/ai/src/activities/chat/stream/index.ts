@@ -6,6 +6,7 @@
 
 // Core processor
 export { StreamProcessor, createReplayStream } from './processor'
+export { copyThinkingStepOf } from './message-updaters'
 export type { StreamProcessorEvents, StreamProcessorOptions } from './processor'
 
 // Strategies

@@ -1,5 +1,11 @@
 # @tanstack/ai-llmgateway
 
+## 1.0.2
+
+### Patch Changes
+
+- [#2055](https://github.com/TanStack/ai/pull/2055) [`af23e5d`](https://github.com/TanStack/ai/commit/af23e5d12042a989ed8a931207f05992b8a81279) - Update model metadata from OpenRouter API
+
 ## 1.0.1
 
 ### Patch Changes

@@ -37,11 +37,11 @@ export const serverTools = {
       component: z.string().optional(),
     }),
   }).server(async (args) => {
-    return JSON.stringify({
+    return {
       status: 'ok',
       component: args.component || 'all',
       timestamp: Date.now(),
-    })
+    }
   }),
 
   get_weather: toolDefinition({
@@ -51,11 +51,11 @@ export const serverTools = {
       city: z.string(),
     }),
   }).server(async (args) => {
-    return JSON.stringify({
+    return {
       city: args.city,
       temperature: 72,
       condition: 'sunny',
-    })
+    }
   }),
 
   fetch_data: toolDefinition({
@@ -65,10 +65,10 @@ export const serverTools = {
       source: z.string(),
     }),
   }).server(async (args) => {
-    return JSON.stringify({
+    return {
       source: args.source,
       data: [1, 2, 3, 4, 5],
-    })
+    }
   }),
 
   get_time: toolDefinition({
@@ -78,10 +78,10 @@ export const serverTools = {
       timezone: z.string(),
     }),
   }).server(async (args) => {
-    return JSON.stringify({
+    return {
       timezone: args.timezone,
       time: '14:30:00',
-    })
+    }
   }),
 
   get_screenshot: toolDefinition({
@@ -110,10 +110,10 @@ export const serverTools = {
     }),
     needsApproval: true,
   }).server(async (args) => {
-    return JSON.stringify({
+    return {
       deleted: true,
       path: args.path,
-    })
+    }
   }),
 }
 
@@ -126,7 +126,7 @@ function timedServerTool(name: string) {
   }).server(async () => {
     const startedAt = Date.now()
     await new Promise((resolve) => setTimeout(resolve, 300))
-    return JSON.stringify({ startedAt, endedAt: Date.now() })
+    return { startedAt, endedAt: Date.now() }
   })
 }
 
@@ -196,11 +196,18 @@ export const searchInventory = toolDefinition({
   }),
   lazy: true,
 }).server(async (args) => {
-  return JSON.stringify({
+  return {
     query: args.query,
     results: [{ id: 1, name: 'Fender Stratocaster', match: 'name' }],
-  })
+  }
 })
+
+/** A server tool whose result is a string that is also JSON text. */
+export const readCodeTool = toolDefinition({
+  name: 'read_code',
+  description: 'Read the access code',
+  inputSchema: z.object({}),
+}).server(async () => '42')
 
 export const failingTool = toolDefinition({
   name: 'failing_tool',
@@ -230,12 +237,12 @@ export const processOrder = toolDefinition({
     message: `Processing ${args.quantity} items`,
   })
 
-  return JSON.stringify({
+  return {
     orderId: 'ORD-123',
     guitarId: args.guitarId,
     quantity: args.quantity,
     status: 'completed',
-  })
+  }
 })
 
 // Available test scenarios (UI list with id/label/category)
@@ -300,6 +307,11 @@ export const SCENARIO_LIST = [
   {
     id: 'client-tool-error',
     label: 'Client Tool Throws Error',
+    category: 'basic',
+  },
+  {
+    id: 'server-tool-text-result',
+    label: 'Server Tool Returns JSON-Text String',
     category: 'basic',
   },
   {
@@ -467,6 +479,9 @@ export function getToolsForScenario(scenario: string) {
 
     case 'tool-error':
       return [failingTool]
+
+    case 'server-tool-text-result':
+      return [readCodeTool]
 
     case 'null-tool-input':
       return [serverTools.check_status]

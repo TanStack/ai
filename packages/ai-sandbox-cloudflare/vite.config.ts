@@ -46,9 +46,15 @@ const externalCloudflareWorkers = {
 export default mergeConfig(
   mergeConfig(config, { plugins: [externalCloudflareWorkers] }),
   tanstackViteConfig({
-    // The node-importable provider entry, the Workers-only `/agent` entry, and
-    // the node-importable in-container `/runner` entry.
-    entry: ['./src/index.ts', './src/agent.ts', './src/runner.ts'],
+    // The node-importable provider entry, the Workers-only `/agent` entry, the
+    // `/container` entry for an app-owned container, and the node-importable
+    // in-container `/runner` entry.
+    entry: [
+      './src/index.ts',
+      './src/agent.ts',
+      './src/container.ts',
+      './src/runner.ts',
+    ],
     srcDir: './src',
     cjs: false,
   }),

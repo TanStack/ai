@@ -43,13 +43,13 @@
     "zod": "^4.2.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.57.0",
+    "@playwright/test": "^1.65.1",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.2.1",
+    "@vitejs/plugin-react": "^6.3.0",
     "dotenv": "^17.2.3",
     "typescript": "5.9.3",
-    "vite": "^8.2.1"
+    "vite": "^8.3.8"
   }
 }

@@ -20,6 +20,7 @@
     "**/snap/**",
     "**/vite.config.*.timestamp-*.*",
     "**/src/generated/**",
+    "**/src/model3d/generated/**",
     "**/*.tsrx.d.ts"
   ],
   "rules": {

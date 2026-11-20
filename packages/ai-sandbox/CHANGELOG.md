@@ -1,5 +1,52 @@
 # @tanstack/ai-sandbox
 
+## 1.4.0
+
+### Minor Changes
+
+- [#2180](https://github.com/TanStack/ai/pull/2180) [`e5d9e0f`](https://github.com/TanStack/ai/commit/e5d9e0f5fe6695bdb6ff94b7b489d9416231c63d) - Delete native sandbox snapshots once nothing references them.
+
+  `SandboxProvider` has a new optional `deleteSnapshot({ snapshotId, signal })`. `defineSandbox` calls it, best effort, when a sandbox record's `latestSnapshotId` is replaced (a re-create or a new `after-run` snapshot) and when the sandbox is torn down through `destroy` or `reclaimSandbox`. A failed delete is logged and never fails the run or the teardown. Providers that don't implement it behave as before.
+
+  `railwaySandbox()` implements `deleteSnapshot`, so its `tsai-*` checkpoints are deleted once nothing references them instead of staying in the environment until pruned by hand.
+
+### Patch Changes
+
+- [#2109](https://github.com/TanStack/ai/pull/2109) [`2ed7e21`](https://github.com/TanStack/ai/commit/2ed7e21c676e4d8e308d724d074755942051b661) - A reconnect during a long tool call no longer writes the rest of a durable sandbox run twice. The host that started the run holds the driver claim until the run ends, so the reconnect tails the log.
+
+- [#2108](https://github.com/TanStack/ai/pull/2108) [`8813243`](https://github.com/TanStack/ai/commit/88132439cb41df8fd4b40248a571550505d65921) - Keep text and tool calls the first host already delivered in the saved transcript after a sandbox takeover. The event log still stores that prefix once.
+
+- Updated dependencies [[`95c1d78`](https://github.com/TanStack/ai/commit/95c1d781c92904612e0d675a9ca38f1a8d9a1c09), [`df6f5a9`](https://github.com/TanStack/ai/commit/df6f5a9f5ff782db85c8a36715bac18a7f090180), [`40d1c61`](https://github.com/TanStack/ai/commit/40d1c61c6bdf1957bd124d09b1f07617a05e759d)]:
+  - @tanstack/ai@1.6.0
+  - @tanstack/ai-harness@0.3.0
+  - @tanstack/ai-persistence@1.0.1
+
+## 1.3.0
+
+### Minor Changes
+
+- [#2136](https://github.com/TanStack/ai/pull/2136) [`701ec9c`](https://github.com/TanStack/ai/commit/701ec9c01e1007657088286a2f06ee191e9a214d) - Checkpoint a sandbox workspace at any time, and restore it after a crash.
+  - `@tanstack/ai-sandbox`:
+    - New `captureSandboxCheckpoint`, `restoreSandboxCheckpoint` and `sweepSandboxBlobs`. They work on any `SandboxHandle`, also with `sandboxWorkspaceBackend`.
+    - Snapshots now keep file permission bits (for example `+x` scripts) and symlinks. A link that points outside the workspace fails the capture. `exclude` now runs before this check, so an excluded path never fails a capture.
+    - `withSandbox` with portable snapshots now also writes a checkpoint when a run fails or is aborted. This is best effort: a failed capture is logged and the run error stays.
+    - New optional `deleteCheckpoints` on `SandboxCheckpointStore`, implemented by `InMemorySandboxCheckpointStore`, with conformance cases.
+  - `@tanstack/ai-sandbox-cloudflare`:
+    - New `@tanstack/ai-sandbox-cloudflare/container` entry with `containerSandbox`. It works over a container that your Durable Object starts (`ctx.container` plus `Files` from `@cloudflare/sandbox` 1.x). It never starts or stops the container and sets no egress. Pass a `DirectoryBackup` to get native snapshots.
+    - `@tanstack/ai-sandbox-local-process` is now an optional peer dependency.
+
+## 1.2.1
+
+### Patch Changes
+
+- [#2060](https://github.com/TanStack/ai/pull/2060) [`2753972`](https://github.com/TanStack/ai/commit/275397292ef5c2d88f77b7e6d33ced6ae5762a5c) - Keep the harness tool calls of earlier runs in a saved thread. Before, `withSandbox` removed them from the chat transcript instead of only from the model request, so with `withPersistence` each run's save dropped the tool calls of the runs before it, and a reload showed those runs without their tool cards.
+
+- Updated dependencies [[`e8546f9`](https://github.com/TanStack/ai/commit/e8546f90834ace0129c4e2b5491909ea87e07f20), [`5fd5355`](https://github.com/TanStack/ai/commit/5fd535501784df0102880470835913ceec3a8e1e), [`9393839`](https://github.com/TanStack/ai/commit/9393839d380dde91fa91e81b5e92448610e9782a), [`215e339`](https://github.com/TanStack/ai/commit/215e3396eb907054baddbf3423da8bc3e90ecf50), [`7157ef3`](https://github.com/TanStack/ai/commit/7157ef3e8556ac23c350822ba0f3c4bbf0abb118)]:
+  - @tanstack/ai@1.3.0
+  - @tanstack/ai-harness@0.3.0
+  - @tanstack/ai-persistence@1.0.1
+  - @tanstack/ai-skills@1.0.2
+
 ## 1.2.0
 
 ### Minor Changes

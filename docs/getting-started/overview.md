@@ -86,6 +86,8 @@ Each tutorial builds one small app from start to finish:
 
 - [Basic Chat](../tutorials/basic-chat): a streaming React chat. The key stays in the browser tab.
 - [Generate Image](../tutorials/generate-image): an image from a prompt.
+- [Generate Motion](../tutorials/generate-motion): two FBX animation clips for a game ability, with live job status.
+- [Game Asset Pipeline](../tutorials/game-asset-pipeline): a game-ready 3D model from one line of text.
 - [Streaming Structured Table](../tutorials/streaming-structured-table): a typed table that fills in from `chat({ outputSchema })`.
 - [Subagents](../tutorials/subagents): a researcher, an SEO agent, and a writer in one blog-writing chat.
 - [Build an MCP Server](../tutorials/mcp-server): serve a tool, a resource, and a prompt.

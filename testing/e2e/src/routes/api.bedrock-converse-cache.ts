@@ -31,7 +31,7 @@ class Http1ConverseAdapter extends BedrockConverseTextAdapter<typeof MODEL> {
 export const Route = createFileRoute('/api/bedrock-converse-cache')({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
         const adapter = new Http1ConverseAdapter(
           {
             apiKey: DUMMY_KEY,
@@ -55,6 +55,17 @@ export const Route = createFileRoute('/api/bedrock-converse-cache')({
           for await (const chunk of chat({
             threadId: 'bedrock-converse-cache',
             ...createChatOptions({ adapter }),
+            modelOptions: new URL(request.url).searchParams.has(
+              'request-options',
+            )
+              ? {
+                  requestMetadata: {
+                    application: 'my-app',
+                    environment: 'production',
+                  },
+                  serviceTier: 'default',
+                }
+              : undefined,
             systemPrompts: [
               {
                 content: 'Stable instructions.',

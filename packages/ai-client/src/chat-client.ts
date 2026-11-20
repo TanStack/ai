@@ -4,6 +4,7 @@ import {
   StreamProcessor,
   cloneAndDeepFreezeJson,
   convertSchemaToJsonSchema,
+  copyThinkingStepOf,
   generateMessageId,
   hashSchemaInput,
   isStandardSchema,
@@ -44,11 +45,13 @@ import type {
   InterruptSubmissionError,
   ModelMessage,
   RunAgentResumeItem,
+  SchemaInput,
   StreamChunk,
 } from '@tanstack/ai/client'
 import type { ByokClient } from './byok'
 import type {
   ChatHydrateOptions,
+  ChatRunConfig,
   ChatHydrationResult,
   ConnectionAdapter,
   SubscribeConnectionAdapter,
@@ -105,6 +108,17 @@ interface InternalQueuedMessage extends QueuedMessage {
 }
 
 const STREAM_PROCESSING_BUDGET_MS = 8
+
+/**
+ * The `setResultMetadata` of a client tool context. Result metadata works
+ * only in server tools, so this setter always throws. The tool call then
+ * gets an error result.
+ */
+export function rejectClientResultMetadata() {
+  throw new Error(
+    'setResultMetadata works only in server tools. A client tool can return the data in its output or keep it in app state.',
+  )
+}
 
 type SchedulerWithYield = {
   yield?: () => Promise<void>
@@ -220,6 +234,8 @@ function connectionDrainsOnSend(connection: ConnectionAdapter): boolean {
 function isIntermediateToolTurn(chunk: StreamChunk): boolean {
   if (chunk.type !== 'RUN_FINISHED') return false
   if (chunk.outcome?.type === 'interrupt') return false
+  // A loop stop keeps finishReason tool_calls. That event ends the stream.
+  if (tanstackMetadata(chunk)?.loopStopped === true) return false
   const extra = chunk as StreamChunk & { finishReason?: unknown }
   if (extra.finishReason !== undefined) {
     return extra.finishReason === 'tool_calls'
@@ -460,14 +476,19 @@ function thawMessages(messages: ReadonlyArray<UIMessage>): Array<UIMessage> {
     ...message,
     parts: message.parts.map((part) => {
       if (!Object.isFrozen(part)) return part
-      if (part.type !== 'subagent') return { ...part }
-      return {
-        ...part,
-        subagent: {
-          ...part.subagent,
-          messages: thawMessages(part.subagent.messages),
-        },
+      if (part.type === 'subagent') {
+        return {
+          ...part,
+          subagent: {
+            ...part.subagent,
+            messages: thawMessages(part.subagent.messages),
+          },
+        }
       }
+      if (part.type !== 'thinking') return { ...part }
+      const next = { ...part }
+      copyThinkingStepOf(part, next)
+      return next
     }),
   }))
 }
@@ -524,6 +545,7 @@ export class ChatClient<
   private readonly stoppedSubagentIds = new Set<string>()
   private connection: SubscribeConnectionAdapter
   private readonly threadId: string
+  private readonly outputSchema: SchemaInput | undefined
   // Durable chat persistence (optional): messages + resume snapshot as one
   // combined record, so a full page reload restores the transcript, rehydrates
   // pending interrupts, and rejoins an in-flight run. Clear-during-stream
@@ -745,6 +767,7 @@ export class ChatClient<
       throw new Error('ChatClient: threadId is required (a non-empty string).')
     }
     this.threadId = options.threadId
+    this.outputSchema = options.outputSchema
     // `persistence` is `false`/omitted (ephemeral, in-memory), `true`
     // (server-authoritative: cache nothing client-side, hydrate the thread from
     // the server by `threadId` on mount), or a storage adapter
@@ -935,7 +958,11 @@ export class ChatClient<
             this.events.textUpdated(this.currentStreamId, messageId, content)
           }
         },
-        onThinkingUpdate: (messageId: string, content: string) => {
+        onThinkingUpdate: (
+          messageId: string,
+          _stepId: string,
+          content: string,
+        ) => {
           // Emit thinking update to devtools
           if (this.currentStreamId) {
             this.events.thinkingUpdated(
@@ -2164,6 +2191,17 @@ export class ChatClient<
    * so the buffered prefix snaps in and only the genuinely-live tail streams at
    * network speed — a reload looks like the run continued, not like it re-typed.
    */
+  /** The chat config that the connection gets for a run. */
+  private runConfig(tools: Map<string, AnyClientTool>): ChatRunConfig {
+    return {
+      threadId: this.threadId,
+      tools: [...tools.values()],
+      ...(this.outputSchema !== undefined && {
+        outputSchema: this.outputSchema,
+      }),
+    }
+  }
+
   private resumeInFlightRun(runId: string): void {
     const joinRun = this.connection.joinRun
     if (!joinRun) return
@@ -2191,7 +2229,11 @@ export class ChatClient<
         if (!attached) controller.abort()
       }, REJOIN_CONNECT_DEADLINE_MS)
       try {
-        for await (const chunk of joinRun(runId, controller.signal)) {
+        for await (const chunk of joinRun(
+          runId,
+          controller.signal,
+          this.runConfig(this.clientToolsRef.current),
+        )) {
           if (controller.signal.aborted) break
           if (!attached) {
             attached = true
@@ -2845,6 +2887,7 @@ export class ChatClient<
         forwardedProps: { ...mergedBody },
         ...(resumeItems ? { resume: resumeItems } : {}),
         ...(byokHeaders ? { headers: byokHeaders } : {}),
+        config: this.runConfig(clientTools),
       }
       this.devtoolsBridge.beginRun(runContext.runId, runContext.threadId)
       activeDevtoolsRunId = runContext.runId
@@ -3195,6 +3238,7 @@ export class ChatClient<
           context: context as TContext,
           abortSignal: this.clientToolAbortController.signal,
           emitCustomEvent: () => {},
+          setResultMetadata: rejectClientResultMetadata,
         })
         await this.addToolResultForClientTool(
           {
@@ -3208,6 +3252,10 @@ export class ChatClient<
           runEventContext,
         )
       } catch (error: any) {
+        // A sync throw (for example setResultMetadata) runs before
+        // observeInterruptState hydrates a client_tool interrupt. Yield so
+        // the chunk handler can register it first.
+        await Promise.resolve()
         await this.addToolResultForClientTool(
           {
             toolCallId: args.toolCallId,

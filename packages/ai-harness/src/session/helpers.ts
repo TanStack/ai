@@ -5,9 +5,9 @@ import {
   genericInterruptContinuationFromDescriptor,
   provideDetachableRun,
   readInterruptBinding,
+  stableJson,
   wrapGenericInterruptContinuation,
 } from '@tanstack/ai'
-import { stableJson } from '../log'
 import { isRecord, jsonCopy } from '../utils'
 import { interruptExpiry, signInOf, snapshotWaits } from '../waits'
 import type {

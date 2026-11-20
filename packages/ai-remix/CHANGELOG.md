@@ -1,5 +1,32 @@
 # @tanstack/ai-remix
 
+## 1.1.1
+
+### Patch Changes
+
+- [#1893](https://github.com/TanStack/ai/pull/1893) [`56d9f96`](https://github.com/TanStack/ai/commit/56d9f960bae57357cfe0b8e231a9523dc9016c9f) - TanStack `useChat` gets more from an AI SDK route through `fromChatTransport`:
+  - Client tools go to the route in the request body. Read them on the route with `clientToolsFromAISDKBody(body, serverTools)`, so the route needs no copy.
+  - With `outputSchema`, an `Output.object` answer is a typed `structured-output` part with partial objects.
+  - A dropped stream reconnects with the backoff of the TanStack HTTP connections. Set it with the `reconnect` option.
+  - The connection reads `threadId`, `tools` and `outputSchema` from `useChat`. Do not pass them to `fromChatTransport`.
+
+  `@tanstack/ai-client` exports `createReconnectTracker` and its `ReconnectTracker` type. A connection now gets the chat config of the run as `runContext.config`, and `joinRun` gets it as its third argument (`ChatRunConfig`: `threadId`, `tools`, `outputSchema`). `ChatClient` takes an `outputSchema` option, and each chat hook passes its `outputSchema` to it.
+
+- Updated dependencies [[`56d9f96`](https://github.com/TanStack/ai/commit/56d9f960bae57357cfe0b8e231a9523dc9016c9f)]:
+  - @tanstack/ai-client@1.2.1
+
+## 1.1.0
+
+### Minor Changes
+
+- [#2186](https://github.com/TanStack/ai/pull/2186) [`1aa7227`](https://github.com/TanStack/ai/commit/1aa722707deca4d567efafe0830471222d558b62) - Add the experimental `generate3DModel()` activity. It turns text, images, or an existing mesh into a 3D model file, and returns the main model URL plus every mesh and texture file. A media prompt can now carry a `model3d` part, so a step such as retexture can take the mesh of an earlier step. `fal3DModel()` in `@tanstack/ai-fal` runs the fal 3D endpoints, and `useGenerate3DModel` (`injectGenerate3DModel` in Angular, `createGenerate3DModel` in Svelte and Remix) streams the job to the UI.
+
+### Patch Changes
+
+- Updated dependencies [[`1aa7227`](https://github.com/TanStack/ai/commit/1aa722707deca4d567efafe0830471222d558b62), [`0a84ac2`](https://github.com/TanStack/ai/commit/0a84ac22cbd29ac49997091713ca9da81bb3e553), [`4288b7a`](https://github.com/TanStack/ai/commit/4288b7aaa80e085df899e2bebb597a9f85d6fb71)]:
+  - @tanstack/ai@1.7.0
+  - @tanstack/ai-client@1.2.0
+
 ## 1.0.0
 
 ### Major Changes

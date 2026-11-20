@@ -119,6 +119,9 @@ export function useChat<
         ...transport,
         initialMessages: messagesToUse,
         threadId: initialOptions.threadId,
+        ...(initialOptions.outputSchema !== undefined && {
+          outputSchema: initialOptions.outputSchema,
+        }),
         ...(persistence === true
           ? {
               persistence: true,

@@ -3,7 +3,7 @@
     "package": "@tanstack/ai-react",
     "version": "0.21.1"
   },
-  "surface": "Ports the current @tanstack/ai-react hook surface (useChat, useRealtimeChat, useGeneration, useGenerateImage/Audio/Speech/Video, useTranscription, useSummarize, useAudioRecorder, useMcpAppBridge) while reusing @tanstack/ai and @tanstack/ai-client unchanged. useChat matches the current ChatClient shape: threadId identity, queue, runId, interrupts, attach/detach, and SendMessageOptions.",
+  "surface": "Ports the current @tanstack/ai-react hook surface (useChat, useRealtimeChat, useGeneration, useGenerateImage/Audio/Speech/Video, useGenerate3DModel (experimental), useTranscription, useSummarize, useAudioRecorder, useMcpAppBridge) while reusing @tanstack/ai and @tanstack/ai-client unchanged. useChat matches the current ChatClient shape: threadId identity, queue, runId, interrupts, attach/detach, and SendMessageOptions.",
   "divergences": [
     "The `./mcp-apps` subpath and its `MCPAppResource` component are not ported: they render `AppRenderer` from the React-only `@mcp-ui/client`, which has no Octane equivalent. The framework-agnostic `useMcpAppBridge` hook is ported and available on the main entry.",
     "Octane uses native events: text/file/recorder inputs drive updates via `onInput`; there is no synthetic `onChange` layer.",

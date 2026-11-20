@@ -341,9 +341,11 @@ describe('Fal Video Adapter', () => {
     })
 
     it('types duration as the model-specific union at compile time', () => {
-      const veo3 = falVideo('fal-ai/veo3', { apiKey: 'test' })
-      expectTypeOf(veo3.snapDuration).returns.toEqualTypeOf<
-        '4s' | '6s' | '8s' | undefined
+      const kling = falVideo('fal-ai/kling-video/v2.6/pro/text-to-video', {
+        apiKey: 'test',
+      })
+      expectTypeOf(kling.snapDuration).returns.toEqualTypeOf<
+        '5' | '10' | undefined
       >()
       expectTypeOf<
         FalModelVideoDuration<'fal-ai/minimax/video-01'>

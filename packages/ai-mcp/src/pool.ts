@@ -29,15 +29,22 @@ export interface MCPClients<
    */
   tools: (options?: ToolsOptions) => Promise<Array<McpServerTool>>
   /**
-   * Reads an MCP resource by URI, routing to the owning client. A `ui://`
-   * resource read must hit the server that owns it; since the pool does not
-   * track ownership, each underlying client is tried in turn and the first
-   * success is returned. If every client fails, the last error is thrown.
+   * Reads an MCP resource by URI from the server that owns it. A `ui://`
+   * read must reach that server.
+   *
+   * - `options.serverId`: when it equals a client's prefix, only that client
+   *   is read, and its error is thrown as is. Otherwise each client is tried
+   *   in turn and the first result that contains `uri` is returned. If all
+   *   clients fail, the thrown error has every client error as its cause.
+   * - `options.meta`: sent as the request `_meta` to each server that is read.
    *
    * Required so a pool source emits `ui-resource` events for MCP Apps widgets
    * (the chat manager binds `readResource` only when the source exposes it).
    */
-  readResource: (uri: string) => Promise<ReadResourceResult>
+  readResource: (
+    uri: string,
+    options?: { serverId?: string; meta?: Record<string, unknown> },
+  ) => Promise<ReadResourceResult>
   /**
    * The connection descriptors for every server in the pool, keyed by config
    * key (the serverId / default prefix). Used by `createMcpAppCallHandler` to
@@ -172,22 +179,37 @@ export async function createMCPClients<
         Object.entries(clients).map(([key, c]) => [key, c.getInfo()]),
       )
     },
-    async readResource(uri: string): Promise<ReadResourceResult> {
-      // Ownership isn't tracked, so try each client. A non-owning server may
-      // resolve an unrelated URI, so only accept a result whose `contents`
-      // actually include the requested `uri`; otherwise keep trying. A ui://
-      // read must reach the server that owns it.
-      const errors: Array<unknown> = []
+    async readResource(
+      uri: string,
+      options?: { serverId?: string; meta?: Record<string, unknown> },
+    ): Promise<ReadResourceResult> {
+      // A serverId that equals a client prefix names the owner: read only it.
+      // Without an owner, try each client. A non-owning server may resolve an
+      // unrelated URI, so only accept a result whose `contents` actually
+      // include the requested `uri`; otherwise keep trying.
+      // ponytail: a client with `prefix: ''` has no serverId, so its reads
+      // still try each client, and its meta then reaches every server.
+      // Upgrade path: track resource ownership.
+      const serverId = options?.serverId
       const all = Object.values(clients)
-      for (const c of all) {
+      const owner =
+        serverId === undefined
+          ? undefined
+          : all.find((c) => c.getInfo().prefix === serverId)
+      const candidates = owner === undefined ? all : [owner]
+      const errors: Array<unknown> = []
+      for (const c of candidates) {
         try {
           const result = await (c as MCPClient<ServerDescriptor>).readResource(
             uri,
+            { meta: options?.meta },
           )
           if (result.contents.some((entry) => entry.uri === uri)) {
             return result
           }
         } catch (err) {
+          // The owner's error is the real failure: throw it as is.
+          if (owner !== undefined) throw err
           errors.push(err)
         }
       }

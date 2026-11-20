@@ -130,14 +130,12 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'google/gemini-3-flash-batch',
   'google/gemini-3-pro-image',
   'google/gemini-3.1-flash-image',
-  'google/gemini-3.1-flash-image-preview',
   'google/gemini-3.1-flash-lite',
   'google/gemini-3.1-flash-lite-batch',
   'google/gemini-3.1-flash-lite-image',
   'google/gemini-3.1-pro-preview',
   'google/gemini-3.1-pro-preview-batch',
   'google/gemini-3.5-flash',
-  'google/gemini-3.5-flash-batch',
   'google/gemini-3.5-flash-lite',
   'google/gemini-3.5-flash-lite-batch',
   'google/gemini-3.5-transcribe',
@@ -145,7 +143,6 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'google/gemini-3.6-flash',
   'google/gemini-3.6-flash-batch',
   'google/gemini-3.7-flash',
-  'google/gemini-3.7-flash-batch',
   'google/gemini-3.8-flash',
   'google/gemini-3.8-flash-lite-tts',
   'google/gemini-3.8-flash-tts',
@@ -153,6 +150,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'google/gemini-3.8-live-extended-thinking',
   'google/gemini-4-argon',
   'google/gemini-nano-banana-2.1',
+  'google/gemini-omni-1.2-flash',
   'google/gemini-omni-flash-preview',
   'google/gemma-4-26b-a4b-it',
   'google/gemma-4-31b-it',
@@ -365,7 +363,6 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'spacexai/grok-stt',
   'spacexai/grok-tts',
   'spacexai/grok-voice-3.0',
-  'spacexai/grok-voice-think-fast-2.0',
   'stealth/glyph-cluster',
   'stepfun/step-3.7-flash',
   'stepfun/step-5-preview',
@@ -545,6 +542,8 @@ export const VERCEL_GATEWAY_IMAGE_MODELS = [
   'openai/gpt-image-2',
   'openai/gpt-image-2.5-flare',
   'openai/gpt-image-2.5-sunburst',
+  'openai/gpt-image-2.6-flare',
+  'openai/gpt-image-2.6-sunburst',
   'prodia/flux-fast-schnell',
   'recraft/recraft-v2',
   'recraft/recraft-v3',
@@ -1411,16 +1410,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'response_format'
       | 'structured_outputs'
     >
-  'google/gemini-3.1-flash-image-preview': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'response_format'
-      | 'structured_outputs'
-    >
   'google/gemini-3.1-flash-lite': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -1467,16 +1456,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'structured_outputs'
     >
   'google/gemini-3.5-flash': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'response_format'
-      | 'structured_outputs'
-    >
-  'google/gemini-3.5-flash-batch': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
       | 'max_tokens'
@@ -1538,16 +1517,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'response_format'
       | 'structured_outputs'
     >
-  'google/gemini-3.7-flash-batch': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'response_format'
-      | 'structured_outputs'
-    >
   'google/gemini-3.8-flash': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -1589,6 +1558,11 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'stop'
       | 'response_format'
       | 'structured_outputs'
+    >
+  'google/gemini-omni-1.2-flash': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'google/gemini-omni-flash-preview': VercelGatewayCommonOptions &
     Pick<
@@ -3321,11 +3295,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       VercelGatewayBaseOptions,
       'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
-  'spacexai/grok-voice-think-fast-2.0': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
-    >
   'stealth/glyph-cluster': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -3741,19 +3710,12 @@ export type VercelGatewayModelInputModalitiesByName = {
   'google/gemini-3-flash-batch': readonly ['text', 'image', 'document']
   'google/gemini-3-pro-image': readonly ['text', 'image']
   'google/gemini-3.1-flash-image': readonly ['text', 'image']
-  'google/gemini-3.1-flash-image-preview': readonly ['text', 'image']
   'google/gemini-3.1-flash-lite': readonly ['text', 'image', 'document']
   'google/gemini-3.1-flash-lite-batch': readonly ['text', 'image', 'document']
   'google/gemini-3.1-flash-lite-image': readonly ['text', 'image']
   'google/gemini-3.1-pro-preview': readonly ['text', 'image', 'document']
   'google/gemini-3.1-pro-preview-batch': readonly ['text', 'image', 'document']
   'google/gemini-3.5-flash': readonly ['text', 'image', 'document', 'video']
-  'google/gemini-3.5-flash-batch': readonly [
-    'text',
-    'image',
-    'document',
-    'video',
-  ]
   'google/gemini-3.5-flash-lite': readonly [
     'text',
     'image',
@@ -3776,12 +3738,6 @@ export type VercelGatewayModelInputModalitiesByName = {
     'video',
   ]
   'google/gemini-3.7-flash': readonly ['text', 'image', 'document', 'video']
-  'google/gemini-3.7-flash-batch': readonly [
-    'text',
-    'image',
-    'document',
-    'video',
-  ]
   'google/gemini-3.8-flash': readonly ['text', 'image', 'document', 'video']
   'google/gemini-3.8-flash-lite-tts': readonly ['text']
   'google/gemini-3.8-flash-tts': readonly ['text']
@@ -3789,6 +3745,12 @@ export type VercelGatewayModelInputModalitiesByName = {
   'google/gemini-3.8-live-extended-thinking': readonly ['text', 'audio']
   'google/gemini-4-argon': readonly ['text', 'image', 'document', 'video']
   'google/gemini-nano-banana-2.1': readonly ['text', 'image']
+  'google/gemini-omni-1.2-flash': readonly [
+    'text',
+    'image',
+    'document',
+    'video',
+  ]
   'google/gemini-omni-flash-preview': readonly [
     'text',
     'image',
@@ -4019,7 +3981,6 @@ export type VercelGatewayModelInputModalitiesByName = {
   'spacexai/grok-stt': readonly ['text', 'audio']
   'spacexai/grok-tts': readonly ['text']
   'spacexai/grok-voice-3.0': readonly ['text', 'audio']
-  'spacexai/grok-voice-think-fast-2.0': readonly ['text', 'audio']
   'stealth/glyph-cluster': readonly ['text']
   'stepfun/step-3.7-flash': readonly ['text', 'image']
   'stepfun/step-5-preview': readonly ['text', 'image', 'video']
@@ -4366,7 +4327,6 @@ const VERCEL_GATEWAY_REASONING = {
   'google/gemini-2.5-pro': BUDGET_MINIMAL_TO_HIGH,
   'google/gemini-3-flash': EFFORT_LOW_HIGH,
   'google/gemini-3.1-flash-image': EFFORT_LOW_HIGH,
-  'google/gemini-3.1-flash-image-preview': EFFORT_LOW_HIGH,
   'google/gemini-3.1-flash-lite': EFFORT_LOW_HIGH,
   'google/gemini-3.1-flash-lite-image': EFFORT_LOW_HIGH,
   'google/gemini-3.1-pro-preview': EFFORT_LOW_HIGH,

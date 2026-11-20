@@ -88,6 +88,9 @@ trustPolicyExclude:
 # here. See https://github.com/pnpm/pnpm/releases/tag/v11.0.0.
 overrides:
   abbrev: ^5.0.0
+  # @angular/build@22.2.4 pulls @inquirer/core@12.0.6, which depends on
+  # @inquirer/type@4.2.1. That version is not on npm (latest is 4.2.0).
+  '@inquirer/type': 4.2.0
 
 # TypeScript 7's `typescript` package no longer ships the JS Compiler API
 # (`ts.sys`, `ts.createProgram`, etc.). These framework tools embed that API,
@@ -125,12 +128,12 @@ packageExtensions:
       typescript: 'npm:@typescript/typescript6@6.0.2'
   # @analogjs/vite-plugin-angular (ai-angular's vitest transform) declares no
   # typescript, so it grabs the root-hoisted TS7 and calls JS-API functions
-  # (ts.createIncrementalCompilerHost) that TS7 dropped. Angular also can't run
-  # on TS7 at all, so pin it to 5.9.3 (ai-angular's own version, Angular-
-  # supported) rather than the 6.0.2 shim.
+  # (ts.createIncrementalCompilerHost) that TS7 dropped. Angular 22 peers
+  # typescript >=6.0 <6.1, so pin the real 6.0.2 package (same pin as
+  # ai-angular), not the TS7 root and not the @typescript/typescript6 alias.
   '@analogjs/vite-plugin-angular':
     dependencies:
-      typescript: 5.9.3
+      typescript: 6.0.2
 
 # Keep @types/bun out of pnpm's shared virtual store (node_modules/.pnpm/node_modules).
 # @types/bun (a devDep of @tanstack/ai-isolate-quickjs-bun) globally augments Node/DOM

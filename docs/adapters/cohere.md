@@ -243,6 +243,7 @@ Config for both adapters:
 
 - `config.baseURL`: the API base URL (default `https://api.cohere.com`). `baseUrl` is an alias.
 - `config.defaultHeaders`: extra request headers. `headers` is an alias.
+- `config.timeout`: request timeout in milliseconds for embedding and rerank API calls and image URL downloads. Default `30_000`.
 - `config.allowUrlFetch` (embeddings only): download `http(s)` image URLs and send them as base64. Default `false`.
 
 For the full APIs, see the [Embeddings guide](../embeddings.md), the [Reranking guide](../rerank/rerank), and [Generation Hooks](../media/generation-hooks.md) for usage and lifecycle middleware.

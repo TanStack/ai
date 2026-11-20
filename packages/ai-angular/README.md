@@ -128,16 +128,17 @@ export async function POST(request: Request) {
 
 ## Available Functions
 
-| Function               | Description                                                      |
-| ---------------------- | ---------------------------------------------------------------- |
-| `injectChat`           | Streaming chat with messages, tool calls, and structured outputs |
-| `injectGeneration`     | Generic generation client (streaming or one-shot)                |
-| `injectGenerateImage`  | Image generation                                                 |
-| `injectGenerateAudio`  | Audio generation                                                 |
-| `injectGenerateVideo`  | Video generation                                                 |
-| `injectGenerateSpeech` | Text-to-speech                                                   |
-| `injectSummarize`      | Summarization                                                    |
-| `injectTranscription`  | Audio transcription                                              |
+| Function                | Description                                                      |
+| ----------------------- | ---------------------------------------------------------------- |
+| `injectChat`            | Streaming chat with messages, tool calls, and structured outputs |
+| `injectGeneration`      | Generic generation client (streaming or one-shot)                |
+| `injectGenerateImage`   | Image generation                                                 |
+| `injectGenerateAudio`   | Audio generation                                                 |
+| `injectGenerateVideo`   | Video generation                                                 |
+| `injectGenerate3DModel` | 3D model generation (experimental)                               |
+| `injectGenerateSpeech`  | Text-to-speech                                                   |
+| `injectSummarize`       | Summarization                                                    |
+| `injectTranscription`   | Audio transcription                                              |
 
 All generation functions return signals (`result`, `isLoading`, `error`, `status`) and methods (`generate`, `stop`, `reset`).
 

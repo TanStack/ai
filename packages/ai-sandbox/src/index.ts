@@ -49,6 +49,7 @@ export type {
   SandboxSnapshotEntry,
   SandboxSnapshotFileEntry,
   SandboxSnapshotDirectoryEntry,
+  SandboxSnapshotSymlinkEntry,
   SandboxSnapshotArtifact,
   SandboxCheckpointErrorCode,
   SandboxCheckpointWriter,
@@ -84,6 +85,16 @@ export type {
   SaveSandboxSnapshotInput,
   SnapshotPersistence,
 } from './snapshot-operations'
+export {
+  captureSandboxCheckpoint,
+  restoreSandboxCheckpoint,
+  sweepSandboxBlobs,
+} from './checkpoints'
+export type {
+  CaptureSandboxCheckpointInput,
+  RestoreSandboxCheckpointInput,
+  SweepSandboxBlobsInput,
+} from './checkpoints'
 export { createSnapshotTools } from './snapshot-tools'
 export type { CreateSnapshotToolsOptions } from './snapshot-tools'
 
@@ -177,6 +188,7 @@ export type {
   SandboxResumeInput,
   SandboxRestoreInput,
   SandboxDestroyInput,
+  SandboxDeleteSnapshotInput,
 } from './contracts'
 
 // Bootstrap engine (exported for provider/adapter authors + tests)
@@ -315,6 +327,7 @@ export {
 export {
   alignToStoredLog,
   isBridgeCustomChunk,
+  isStoredReplayChunk,
   JournalReplayDivergedError,
   JournalReplayThreadIdMismatchError,
   DEFAULT_MAX_OUT_OF_BAND_SKIP,

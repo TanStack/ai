@@ -1,5 +1,22 @@
 # @tanstack/ai-anthropic
 
+## 1.2.1
+
+### Patch Changes
+
+- [#2200](https://github.com/TanStack/ai/pull/2200) [`d0dfd86`](https://github.com/TanStack/ai/commit/d0dfd866288955f5f2208507419775edb3b88ac1) - Give `claude-sonnet-5-5` and `claude-haiku-5-5` their mid-conversation channels. Anthropic supports mid-conversation system messages and tool changes on both models, but they were missing from `ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS`, so a tool or system prompt added during a conversation rewrote the start of the request and missed the prompt cache, even with `midConversationChannels: true`.
+
+## 1.2.0
+
+### Minor Changes
+
+- [#2107](https://github.com/TanStack/ai/pull/2107) [`fde4e09`](https://github.com/TanStack/ai/commit/fde4e09b0170017394ff2874847d416777920b2e) - `withCompaction({ native })` now passes the tools, the model options, and the reasoning of the chat call into `compact`. The Anthropic text adapter implements `compact` as an on-demand Messages request (`compaction: { type: "summarize" }`, beta `compact-2026-09-04`). The signed compaction block stays on the assistant message and goes back on later requests to the same model. A result with no signed block uses the configured strategy.
+
+### Patch Changes
+
+- Updated dependencies [[`fde4e09`](https://github.com/TanStack/ai/commit/fde4e09b0170017394ff2874847d416777920b2e)]:
+  - @tanstack/ai@1.5.0
+
 ## 1.1.1
 
 ### Patch Changes

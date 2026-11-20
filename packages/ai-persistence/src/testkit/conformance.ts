@@ -80,7 +80,8 @@ export type PersistenceConformanceMethodKey = `runs.${OptionalRunStoreMethod}`
  * that passed before still passes. Turn them on with `options.checks`.
  *
  * - `'messages.metadata'`: `saveThread` / `loadThread` keep message `metadata`,
- *   including `metadata.tanstack.run.id` (run timings on reload need it).
+ *   including `metadata.tanstack.run.id` (run timings on reload need it) and
+ *   the nested app metadata of a tool result (the UI reads it on reload).
  * - `'runs.listByThread.state'`: `listByThread` returns each run's current
  *   `status` and `finishedAt` after `update` (`reconstructChat`'s
  *   `includeRuns` needs it).
@@ -358,10 +359,25 @@ export function runPersistenceConformance(
             content: 'hello',
             metadata: { tanstack: { run: { id: 'run-1' } }, custom: 1 },
           },
+          {
+            // Tool result with app metadata next to the reserved `tanstack` key.
+            role: 'tool',
+            content: '{"answer":42}',
+            toolCallId: 'call-metadata',
+            metadata: {
+              sources: [
+                { id: 'doc-1', title: 'Doc 1', url: 'https://example.com/1' },
+                { id: 'doc-2', title: 'Doc 2', url: 'https://example.com/2' },
+              ],
+              tanstack: { toolResultOutcome: 'success' },
+            },
+          },
         ]
 
+        // Copy first, so a store that changes the saved array cannot pass.
+        const expected = structuredClone(withMetadata)
         await store.saveThread('thread-metadata', withMetadata)
-        expect(await store.loadThread('thread-metadata')).toEqual(withMetadata)
+        expect(await store.loadThread('thread-metadata')).toEqual(expected)
       })
     })
 

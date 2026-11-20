@@ -32,9 +32,6 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   { provider: 'openai', model: 'gpt-5.2', label: 'OpenAI - GPT-5.2' },
   { provider: 'openai', model: 'gpt-5.2-pro', label: 'OpenAI - GPT-5.2 Pro' },
   { provider: 'openai', model: 'gpt-5.1', label: 'OpenAI - GPT-5.1' },
-  { provider: 'openai', model: 'gpt-5', label: 'OpenAI - GPT-5' },
-  { provider: 'openai', model: 'gpt-5-mini', label: 'OpenAI - GPT-5 Mini' },
-  { provider: 'openai', model: 'gpt-5-nano', label: 'OpenAI - GPT-5 Nano' },
   { provider: 'openai', model: 'gpt-4.1', label: 'OpenAI - GPT-4.1' },
   { provider: 'openai', model: 'gpt-4o', label: 'OpenAI - GPT-4o' },
   { provider: 'openai', model: 'gpt-4o-mini', label: 'OpenAI - GPT-4o Mini' },
@@ -42,8 +39,8 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   // Cloudflare Workers AI. `provider/model` ids route through AI Gateway.
   {
     provider: 'cloudflare',
-    model: '@cf/zai-org/glm-5.3-flash',
-    label: 'Cloudflare - GLM 5.3 Flash',
+    model: '@cf/deepseek-ai/deepseek-v4.1-flash-1017',
+    label: 'Cloudflare - DeepSeek V4.1 Flash',
   },
   {
     provider: 'cloudflare',
@@ -71,11 +68,6 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
     provider: 'anthropic',
     model: 'claude-sonnet-4-6',
     label: 'Anthropic - Claude Sonnet 4.6',
-  },
-  {
-    provider: 'anthropic',
-    model: 'claude-sonnet-4-5',
-    label: 'Anthropic - Claude Sonnet 4.5',
   },
   {
     provider: 'anthropic',

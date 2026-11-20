@@ -7,7 +7,10 @@ This directory contains comprehensive examples demonstrating TanStack AI across 
 Choose an example based on your use case:
 
 - **Want the smallest React + Start chat?** → [Basic Chat](#basic-chat)
+- **Want a chat server written with Effect?** → [Effect Chat](#effect-chat)
 - **Want an image from a prompt?** → [Generate Image](#generate-image)
+- **Want animation clips for a game ability?** → [Generate Motion](react/generate-motion/README.md)
+- **Want a game-ready 3D model from text?** → [Game Asset Pipeline](#game-asset-pipeline)
 - **Want a table that fills as JSON streams?** → [Streaming Structured Table](#streaming-structured-table)
 - **Want typed ticket routing?** → [Evaluate](#evaluate)
 - **Want a blog desk with three agents?** → [Subagents](#subagents)
@@ -42,6 +45,24 @@ Open http://localhost:3100. Paste an OpenRouter key. Send a message.
 
 ---
 
+### Effect Chat
+
+A slim TanStack Start chat with an Effect server. One provider (OpenAI). `@tanstack/ai-effect` streams the chat, and one tool is an Effect that reads a service from a Layer.
+
+**Path:** `examples/react/effect-chat`
+
+**Getting Started:**
+
+```bash
+pnpm --filter effect-chat dev
+```
+
+Put `OPENAI_API_KEY` in `.env.local`. Open http://localhost:3100. Send `What is the weather in Oslo?`.
+
+📖 [Full Documentation](react/effect-chat/README.md)
+
+---
+
 ### Generate Image
 
 A slim TanStack Start image app. One provider (OpenRouter). You paste your own key.
@@ -57,6 +78,24 @@ pnpm --filter generate-image dev
 Open http://localhost:3100. Paste an OpenRouter key. Type a prompt. Click Generate.
 
 📖 [Full Documentation](react/generate-image/README.md)
+
+---
+
+### Game Asset Pipeline
+
+A slim TanStack Start app that turns one line of text into a game-ready 3D model. One provider (fal). Four steps: concept art, a low-poly mesh, a new skin, and the mesh painted with that skin. You paste your own key.
+
+**Path:** `examples/react/game-asset-pipeline`
+
+**Getting Started:**
+
+```bash
+pnpm --filter game-asset-pipeline dev
+```
+
+Open http://localhost:3100. Paste a fal key. Click each step in order. Each 3D step takes a few minutes.
+
+📖 [Full Documentation](react/game-asset-pipeline/README.md)
 
 ---
 

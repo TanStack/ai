@@ -1,5 +1,15 @@
 # @tanstack/ai-cloudflare
 
+## 1.2.1
+
+### Patch Changes
+
+- [#2099](https://github.com/TanStack/ai/pull/2099) [`0ff927b`](https://github.com/TanStack/ai/commit/0ff927b39708ba6f83ccc63c0e1ac644833dbee6) - Add reasoning levels for `@cf/deepseek-ai/deepseek-v4.1-flash-1017` (`off`, `low`, `high`, `max`). Docs and examples now use it in place of `@cf/zai-org/glm-5.3-flash`, which Workers AI retires on November 20, 2026.
+
+- Updated dependencies [[`1888233`](https://github.com/TanStack/ai/commit/1888233ddb501d14b17aa9a5f3497373a0e9242e)]:
+  - @tanstack/ai@1.4.1
+  - @tanstack/openai-base@1.0.4
+
 ## 1.2.0
 
 ### Minor Changes
