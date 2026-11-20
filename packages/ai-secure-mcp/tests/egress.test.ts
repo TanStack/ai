@@ -84,17 +84,17 @@ describe('createEgress', () => {
     // `setTimeout` lets us attach the spy to the real timer it returns.
     const realSetTimeout = global.setTimeout
     const unrefSpy = vi.fn()
-    const spy = vi
-      .spyOn(global, 'setTimeout')
-      .mockImplementation(((...args: Parameters<typeof setTimeout>) => {
-        const timer = realSetTimeout(...args)
-        const original = (timer as { unref?: () => unknown }).unref
-        ;(timer as { unref?: () => unknown }).unref = function unref() {
-          unrefSpy()
-          return original?.call(this)
-        }
-        return timer
-      }) as typeof setTimeout)
+    const spy = vi.spyOn(global, 'setTimeout').mockImplementation(((
+      ...args: Parameters<typeof setTimeout>
+    ) => {
+      const timer = realSetTimeout(...args)
+      const original = (timer as { unref?: () => unknown }).unref
+      ;(timer as { unref?: () => unknown }).unref = function unref() {
+        unrefSpy()
+        return original?.call(this)
+      }
+      return timer
+    }) as typeof setTimeout)
     const egress = createEgress({
       allow: ['https://api.hue.local'],
       fetch: async () => new Response('body'),
