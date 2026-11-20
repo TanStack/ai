@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
 /**
- * `@tanstack/ai-ui-message-stream` connects TanStack AI and the AI SDK UI
+ * `@tanstack/ai-vercel-compat` connects TanStack AI and the AI SDK UI
  * message stream in both directions. Each page lists its scenarios; the
  * `?prompt=` prefix picks one.
  */

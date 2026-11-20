@@ -4,7 +4,7 @@ import { fakeText } from '@tanstack/ai/testing'
 import {
   chatParamsFromAISDKRequest,
   toUIMessageStreamResponse,
-} from '@tanstack/ai-ui-message-stream'
+} from '@tanstack/ai-vercel-compat'
 import { z } from 'zod'
 import type { StreamChunk } from '@tanstack/ai'
 import type { FakeResponse, FakeResponseStep } from '@tanstack/ai/testing'

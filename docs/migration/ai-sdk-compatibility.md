@@ -2,7 +2,7 @@
 title: AI SDK bridge compatibility
 id: ai-sdk-compatibility
 order: 5
-description: 'What crosses between TanStack AI and the Vercel AI SDK UI message stream in @tanstack/ai-ui-message-stream: what works as is, what is mapped to another shape, and what is dropped.'
+description: 'What crosses between TanStack AI and the Vercel AI SDK UI message stream in @tanstack/ai-vercel-compat: what works as is, what is mapped to another shape, and what is dropped.'
 keywords:
   - tanstack ai
   - vercel ai sdk
@@ -12,7 +12,7 @@ keywords:
   - migration
 ---
 
-Use these tables to see what `@tanstack/ai-ui-message-stream` does with each feature, event and message part. The guides are [AI SDK useChat with a TanStack AI server](./ai-sdk-client-tanstack-server) and [TanStack useChat with an AI SDK server](./tanstack-client-ai-sdk-server). The column for an AI SDK client also covers `toChatTransport`, which runs the same conversion in the browser.
+Use these tables to see what `@tanstack/ai-vercel-compat` does with each feature, event and message part. The guides are [AI SDK useChat with a TanStack AI server](./ai-sdk-client-tanstack-server) and [TanStack useChat with an AI SDK server](./tanstack-client-ai-sdk-server). The column for an AI SDK client also covers `toChatTransport`, which runs the same conversion in the browser.
 
 > [!WARNING]
 > The bridge is a stop gap while you port one side of an app. The rows marked ❌ **Dropped** and ➡️ **One way** are why. Finish the port with the [migration guide](./migration-from-vercel-ai), then remove the bridge.

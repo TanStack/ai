@@ -18,7 +18,7 @@
 
 <br />
 
-# @tanstack/ai-ui-message-stream
+# @tanstack/ai-vercel-compat
 
 Connect TanStack AI to the Vercel AI SDK UI message stream, the wire format of the AI SDK `useChat` hook.
 
@@ -30,7 +30,7 @@ This package is a stop gap while you port an app from the AI SDK one side at a t
 ## Installation
 
 ```bash
-pnpm add @tanstack/ai-ui-message-stream @tanstack/ai @tanstack/ai-client ai @tanstack/ai-openai @tanstack/ai-react
+pnpm add @tanstack/ai-vercel-compat @tanstack/ai @tanstack/ai-client ai @tanstack/ai-openai @tanstack/ai-react
 ```
 
 ## AI SDK client, TanStack AI server
@@ -41,7 +41,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import {
   chatParamsFromAISDKRequest,
   toUIMessageStreamResponse,
-} from '@tanstack/ai-ui-message-stream'
+} from '@tanstack/ai-vercel-compat'
 
 export async function POST(request: Request) {
   const params = await chatParamsFromAISDKRequest(request)
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
 
 ```tsx
 import { useChat } from '@tanstack/ai-react'
-import { fromChatTransport } from '@tanstack/ai-ui-message-stream'
+import { fromChatTransport } from '@tanstack/ai-vercel-compat'
 import { DefaultChatTransport } from 'ai'
 
 const connection = fromChatTransport(

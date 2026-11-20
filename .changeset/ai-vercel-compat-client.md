@@ -1,5 +1,5 @@
 ---
-'@tanstack/ai-ui-message-stream': minor
+'@tanstack/ai-vercel-compat': minor
 '@tanstack/ai-client': patch
 '@tanstack/ai-react': patch
 '@tanstack/ai-preact': patch

@@ -28,18 +28,18 @@ Use this page to move the server first. To keep a plain TanStack route and conve
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream @tanstack/ai-openai
-vue: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream @tanstack/ai-openai
-solid: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream @tanstack/ai-openai
-svelte: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream @tanstack/ai-openai
-preact: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream @tanstack/ai-openai
-angular: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream @tanstack/ai-openai
-octane: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream @tanstack/ai-openai
-vanilla: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream @tanstack/ai-openai
+react: @tanstack/ai @tanstack/ai-client @tanstack/ai-vercel-compat @tanstack/ai-openai
+vue: @tanstack/ai @tanstack/ai-client @tanstack/ai-vercel-compat @tanstack/ai-openai
+solid: @tanstack/ai @tanstack/ai-client @tanstack/ai-vercel-compat @tanstack/ai-openai
+svelte: @tanstack/ai @tanstack/ai-client @tanstack/ai-vercel-compat @tanstack/ai-openai
+preact: @tanstack/ai @tanstack/ai-client @tanstack/ai-vercel-compat @tanstack/ai-openai
+angular: @tanstack/ai @tanstack/ai-client @tanstack/ai-vercel-compat @tanstack/ai-openai
+octane: @tanstack/ai @tanstack/ai-client @tanstack/ai-vercel-compat @tanstack/ai-openai
+vanilla: @tanstack/ai @tanstack/ai-client @tanstack/ai-vercel-compat @tanstack/ai-openai
 
 <!-- ::end:tabs -->
 
-Keep the `ai` package. `@tanstack/ai-ui-message-stream` needs it, and your client still uses `useChat`.
+Keep the `ai` package. `@tanstack/ai-vercel-compat` needs it, and your client still uses `useChat`.
 
 ## 2. Replace the server route
 
@@ -49,7 +49,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import {
   chatParamsFromAISDKRequest,
   toUIMessageStreamResponse,
-} from '@tanstack/ai-ui-message-stream'
+} from '@tanstack/ai-vercel-compat'
 
 export async function POST(request: Request) {
   const params = await chatParamsFromAISDKRequest(request)
@@ -109,7 +109,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import {
   chatParamsFromAISDKRequest,
   toUIMessageStreamResponse,
-} from '@tanstack/ai-ui-message-stream'
+} from '@tanstack/ai-vercel-compat'
 import { z } from 'zod'
 
 const getWeather = toolDefinition({
@@ -185,7 +185,7 @@ Type the data parts on `useChat` to read them:
 ```tsx
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
-import type { SubagentData } from '@tanstack/ai-ui-message-stream'
+import type { SubagentData } from '@tanstack/ai-vercel-compat'
 import type { UIMessage } from 'ai'
 
 type ChatMessage = UIMessage<unknown, { subagent: SubagentData }>
@@ -221,7 +221,7 @@ import {
   chatParamsFromAISDKRequest,
   resumeUIMessageStreamResponse,
   toResumableUIMessageStreamResponse,
-} from '@tanstack/ai-ui-message-stream'
+} from '@tanstack/ai-vercel-compat'
 import { persistence } from './persistence'
 
 // POST /api/chat
@@ -279,7 +279,7 @@ Pass `toChatTransport(fetchServerSentEvents('/api/chat'))` as the `transport` of
    ```tsx
    import { useChat } from '@ai-sdk/react'
    import { fetchServerSentEvents } from '@tanstack/ai-client'
-   import { toChatTransport } from '@tanstack/ai-ui-message-stream'
+   import { toChatTransport } from '@tanstack/ai-vercel-compat'
 
    const transport = toChatTransport(fetchServerSentEvents('/api/chat'))
 

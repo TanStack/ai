@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useChat } from '@ai-sdk/react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
-import { toChatTransport } from '@tanstack/ai-ui-message-stream'
+import { toChatTransport } from '@tanstack/ai-vercel-compat'
 import {
   getToolName,
   isToolUIPart,

@@ -36,7 +36,7 @@ Read the guide, then load the target API's own skill with
 `npx @tanstack/intent@latest load @tanstack/ai#ai-core`. Do not port from memory: a half-remembered mapping produces
 code that type-checks in neither SDK.
 
-To port one side at a time, `@tanstack/ai-ui-message-stream` connects the two
+To port one side at a time, `@tanstack/ai-vercel-compat` connects the two
 SDKs over the AI SDK UI message stream. It is a stop gap while porting, not a
 place to stay: finish the port of the other side, then remove it.
 

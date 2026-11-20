@@ -5,7 +5,7 @@ import {
   chatParamsFromAISDKRequest,
   resumeUIMessageStreamResponse,
   toResumableUIMessageStreamResponse,
-} from '@tanstack/ai-ui-message-stream'
+} from '@tanstack/ai-vercel-compat'
 
 const RESUME_REPLY =
   'River stones rest under clear cold water while the slow current carries leaves toward the quiet village mill.'

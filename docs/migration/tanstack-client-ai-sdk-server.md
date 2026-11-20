@@ -35,14 +35,14 @@ Against your AI SDK route, TanStack `useChat` gives you:
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @tanstack/ai @tanstack/ai-client @tanstack/ai-react @tanstack/ai-ui-message-stream ai
-vue: @tanstack/ai @tanstack/ai-client @tanstack/ai-vue @tanstack/ai-ui-message-stream ai
-solid: @tanstack/ai @tanstack/ai-client @tanstack/ai-solid @tanstack/ai-ui-message-stream ai
-svelte: @tanstack/ai @tanstack/ai-client @tanstack/ai-svelte @tanstack/ai-ui-message-stream ai
-preact: @tanstack/ai @tanstack/ai-client @tanstack/ai-preact @tanstack/ai-ui-message-stream ai
-angular: @tanstack/ai @tanstack/ai-client @tanstack/ai-angular @tanstack/ai-ui-message-stream ai
-octane: @tanstack/ai @tanstack/ai-client @tanstack/ai-octane @tanstack/ai-ui-message-stream ai octane
-vanilla: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream ai
+react: @tanstack/ai @tanstack/ai-client @tanstack/ai-react @tanstack/ai-vercel-compat ai
+vue: @tanstack/ai @tanstack/ai-client @tanstack/ai-vue @tanstack/ai-vercel-compat ai
+solid: @tanstack/ai @tanstack/ai-client @tanstack/ai-solid @tanstack/ai-vercel-compat ai
+svelte: @tanstack/ai @tanstack/ai-client @tanstack/ai-svelte @tanstack/ai-vercel-compat ai
+preact: @tanstack/ai @tanstack/ai-client @tanstack/ai-preact @tanstack/ai-vercel-compat ai
+angular: @tanstack/ai @tanstack/ai-client @tanstack/ai-angular @tanstack/ai-vercel-compat ai
+octane: @tanstack/ai @tanstack/ai-client @tanstack/ai-octane @tanstack/ai-vercel-compat ai octane
+vanilla: @tanstack/ai @tanstack/ai-client @tanstack/ai-vercel-compat ai
 
 <!-- ::end:tabs -->
 
@@ -51,7 +51,7 @@ vanilla: @tanstack/ai @tanstack/ai-client @tanstack/ai-ui-message-stream ai
 ```tsx
 import { useState } from 'react'
 import { useChat } from '@tanstack/ai-react'
-import { fromChatTransport } from '@tanstack/ai-ui-message-stream'
+import { fromChatTransport } from '@tanstack/ai-vercel-compat'
 import { DefaultChatTransport } from 'ai'
 
 const connection = fromChatTransport(
@@ -109,7 +109,7 @@ Define client tools on the client only. The connection sends their names, descri
 
 ```typescript
 import { openai } from '@ai-sdk/openai'
-import { clientToolsFromAISDKBody } from '@tanstack/ai-ui-message-stream'
+import { clientToolsFromAISDKBody } from '@tanstack/ai-vercel-compat'
 import { convertToModelMessages, streamText, tool } from 'ai'
 import { z } from 'zod'
 
@@ -152,7 +152,7 @@ Pass the tools to `useChat`. The connection gets them from `useChat`:
 ```tsx
 import { toolDefinition } from '@tanstack/ai'
 import { useChat } from '@tanstack/ai-react'
-import { fromChatTransport } from '@tanstack/ai-ui-message-stream'
+import { fromChatTransport } from '@tanstack/ai-vercel-compat'
 import { DefaultChatTransport } from 'ai'
 import { z } from 'zod'
 
@@ -201,7 +201,7 @@ When the route streams an object with `Output.object`, pass the same schema to `
 
 ```tsx
 import { useChat } from '@tanstack/ai-react'
-import { fromChatTransport } from '@tanstack/ai-ui-message-stream'
+import { fromChatTransport } from '@tanstack/ai-vercel-compat'
 import { DefaultChatTransport } from 'ai'
 import { z } from 'zod'
 
@@ -239,7 +239,7 @@ import { useChat } from '@tanstack/ai-react'
 import {
   fromAISDKMessages,
   fromChatTransport,
-} from '@tanstack/ai-ui-message-stream'
+} from '@tanstack/ai-vercel-compat'
 import { DefaultChatTransport } from 'ai'
 import type { UIMessage } from 'ai'
 
@@ -270,7 +270,7 @@ To continue a reply after a page reload, add client persistence. The route must 
 
 ```tsx
 import { localStoragePersistence, useChat } from '@tanstack/ai-react'
-import { fromChatTransport } from '@tanstack/ai-ui-message-stream'
+import { fromChatTransport } from '@tanstack/ai-vercel-compat'
 import { DefaultChatTransport } from 'ai'
 
 const connection = fromChatTransport(

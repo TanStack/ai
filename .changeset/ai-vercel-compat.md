@@ -1,8 +1,8 @@
 ---
-'@tanstack/ai-ui-message-stream': minor
+'@tanstack/ai-vercel-compat': minor
 ---
 
-Add `@tanstack/ai-ui-message-stream`, a stop gap for porting an app from the Vercel AI SDK one side at a time. It connects TanStack AI to the AI SDK UI message stream.
+Add `@tanstack/ai-vercel-compat`, a stop gap for porting an app from the Vercel AI SDK one side at a time. It connects TanStack AI to the AI SDK UI message stream.
 
 - Serve AI SDK `useChat` from `chat()` with `chatParamsFromAISDKRequest` and `toUIMessageStreamResponse`. `toUIMessageStream` gives the plain stream, to merge or pipe yourself. Use `toResumableUIMessageStreamResponse` and `resumeUIMessageStreamResponse` for `useChat({ resume: true })`.
 - Or keep a plain `chat()` route and convert in the browser: pass `toChatTransport(fetchServerSentEvents('/api/chat'))` as the AI SDK `useChat` transport.
