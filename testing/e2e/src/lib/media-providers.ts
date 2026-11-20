@@ -54,6 +54,10 @@ function openaiUrl(aimockPort?: number): string {
   return `${llmockBase(aimockPort)}/v1`
 }
 
+function openaiTranscriptionStreamUrl(aimockPort?: number): string {
+  return `${llmockBase(aimockPort)}/transcription-stream/v1`
+}
+
 /**
  * BytePlus Ark (chat, Seedream image, Seedance video) serves its data plane
  * under `/api/v3`. The Seed Speech adapters (TTS/ASR) are *not* on Ark — they
@@ -76,7 +80,7 @@ function getOpenaiTranscriptionModel(options: TranscriptionAdapterOptions) {
     modelOptions?.known_speaker_names !== undefined ||
     modelOptions?.known_speaker_references !== undefined
 
-  return isDiarizationRequest ? 'gpt-4o-transcribe-diarize' : 'whisper-1'
+  return isDiarizationRequest ? 'gpt-4o-transcribe-diarize' : 'gpt-transcribe'
 }
 
 export function createImageAdapter(
@@ -189,7 +193,10 @@ export function createTranscriptionAdapter(
   const factories: Record<string, () => any> = {
     openai: () =>
       createOpenaiTranscription(openaiTranscriptionModel, DUMMY_KEY, {
-        baseURL: openaiUrl(aimockPort),
+        baseURL:
+          openaiTranscriptionModel === 'gpt-transcribe'
+            ? openaiTranscriptionStreamUrl(aimockPort)
+            : openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
     grok: () =>

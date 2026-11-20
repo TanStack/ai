@@ -2864,6 +2864,7 @@ export type OpenAITTSModel = (typeof OPENAI_TTS_MODELS)[number]
  * Transcription models (based on endpoints: "transcription")
  */
 export const OPENAI_TRANSCRIPTION_MODELS = [
+  'gpt-transcribe',
   'whisper-1',
   'gpt-4o-transcribe',
   'gpt-4o-mini-transcribe',

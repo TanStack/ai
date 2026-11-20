@@ -199,6 +199,11 @@ export default async function globalSetup() {
   mock.mount('/evaluate-http-status', evaluateHttpStatusMount())
   mock.mount('/v4/ai/evaluation-model', evaluateHttpStatusMount())
 
+  // OpenAI's transcription streaming protocol is not synthesized by aimock.
+  // Keep this on a dedicated base URL so all other audio requests continue to
+  // use aimock's native transcription fixture.
+  mock.mount('/transcription-stream', openaiTranscriptionStreamMount())
+
   // aimock has no OpenAI Decisions API route, so this mount answers
   // `/v1/decisions` with a refusal plus usage for the evaluate-refusal spec.
   mock.mount('/evaluate-refusal', evaluateRefusalMount())
@@ -346,6 +351,135 @@ function geminiTTSMount(): Mountable {
           },
         }),
       )
+      return true
+    },
+  }
+}
+
+function openaiTranscriptionStreamMount(): Mountable {
+  const pendingCompletions = new Map<string, () => void>()
+  const closedByClient = new Map<string, boolean>()
+  const closedWhilePending = new Map<string, boolean>()
+
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname === '/status' && req.method === 'GET') {
+        const testId = new URL(req.url ?? '', 'http://x').searchParams.get(
+          'testId',
+        )
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            closedByClient: closedByClient.get(testId ?? '') ?? false,
+            closedWhilePending: closedWhilePending.get(testId ?? '') ?? false,
+            pending: pendingCompletions.has(testId ?? ''),
+          }),
+        )
+        return true
+      }
+
+      if (pathname === '/release' && req.method === 'POST') {
+        const testId = req.headers['x-test-id']
+        const release =
+          typeof testId === 'string'
+            ? pendingCompletions.get(testId)
+            : undefined
+        if (release) {
+          release()
+          res.statusCode = 204
+        } else {
+          res.statusCode = 404
+        }
+        res.end()
+        return true
+      }
+
+      if (pathname !== '/v1/audio/transcriptions' || req.method !== 'POST') {
+        return false
+      }
+
+      const body = await readBody(req)
+      const boundary = req.headers['content-type']?.match(
+        /boundary=(?:"([^"]+)"|([^;]+))/i,
+      )
+      const boundaryValue = boundary?.[1] ?? boundary?.[2]?.trim()
+      const streamPart = boundaryValue
+        ? body
+            .split(`--${boundaryValue}`)
+            .find((part) =>
+              /Content-Disposition: form-data;\s*name="stream"/i.test(part),
+            )
+        : undefined
+      const streamValue = streamPart?.split('\r\n\r\n', 2)[1]?.trim()
+      const text = 'I would like to buy a Fender Stratocaster please'
+      const testId = req.headers['x-test-id']
+      let completion: Promise<void> | undefined
+      if (streamValue === 'true' && typeof testId === 'string') {
+        closedByClient.set(testId, false)
+        closedWhilePending.set(testId, false)
+        res.on('close', () => {
+          if (!res.writableEnded) {
+            closedByClient.set(testId, true)
+            closedWhilePending.set(testId, pendingCompletions.has(testId))
+          }
+        })
+        completion = new Promise<void>((resolve) => {
+          const release = () => {
+            clearTimeout(timeout)
+            if (pendingCompletions.get(testId) === release) {
+              pendingCompletions.delete(testId)
+            }
+            resolve()
+          }
+          const timeout = setTimeout(release, 15_000)
+          pendingCompletions.set(testId, release)
+        })
+      }
+
+      res.statusCode = 200
+      if (streamValue !== 'true') {
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({ text }))
+        return true
+      }
+
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.setHeader('Connection', 'keep-alive')
+      const events = [
+        {
+          type: 'transcript.text.delta',
+          delta: 'I would like to buy a ',
+        },
+        {
+          type: 'transcript.text.delta',
+          delta: 'Fender Stratocaster please',
+        },
+        {
+          type: 'transcript.text.done',
+          text,
+          usage: {
+            type: 'tokens',
+            input_tokens: 8,
+            output_tokens: 7,
+            total_tokens: 15,
+          },
+        },
+      ]
+
+      for (const [index, event] of events.entries()) {
+        if (index > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 20))
+        }
+        if (event.type === 'transcript.text.done') await completion
+        if (res.destroyed) return true
+        res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
+      }
+      res.end()
       return true
     },
   }

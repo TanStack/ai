@@ -273,17 +273,14 @@ export async function fillTextInput(page: Page, text: string) {
 
 export async function clickGenerate(page: Page, testId = 'generate-button') {
   const btn = page.getByTestId(testId)
+  const status = page.getByTestId('generation-status')
   await expect(btn).toBeEnabled()
-  await btn.click()
-  // Verify the click actually triggered React — status should leave 'idle'
-  // If still idle after a short wait, the click missed hydration; retry
-  try {
-    await expect(page.getByTestId('generation-status')).not.toHaveText('idle', {
-      timeout: 3_000,
-    })
-  } catch {
+  // A click before React hydration is ignored. Retry until the UI confirms a
+  // run started, rather than assuming a single retry is enough under load.
+  await expect(async () => {
     await btn.click()
-  }
+    await expect(status).not.toHaveText('idle', { timeout: 1_000 })
+  }).toPass({ timeout: 10_000, intervals: [250, 500, 1_000] })
 }
 
 export async function waitForGenerationComplete(page: Page, timeout = 30_000) {
