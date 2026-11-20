@@ -9,6 +9,6 @@ title: MotionJobState
 type MotionJobState = "pending" | "processing" | "completed" | "failed";
 ```
 
-Defined in: [packages/ai/src/types.ts:3135](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3135)
+Defined in: [packages/ai/src/types.ts:3142](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3142)
 
 Lifecycle state of a motion job.
