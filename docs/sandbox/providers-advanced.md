@@ -194,6 +194,28 @@ const vercel = vercelSandbox({ runtime: 'node24' })
 - **Ports:** exposed-port domains for previews.
 - **Bridge:** the sandbox is a remote VM, so bridged tools need the tunnel in local dev. See [Tools](./tools).
 
+## Modal
+
+```ts
+import { modalSandbox } from '@tanstack/ai-sandbox-modal'
+
+const modal = modalSandbox({ appName: 'tanstack-ai-agent' })
+```
+
+- **Auth and image:** the SDK reads `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`. Set `appName` for the Modal App and optionally set `environment` to select a Modal environment. The default image is `node:24-slim`.
+- **Lifetime and paths:** the sandbox lifetime defaults to 30 minutes. `/workspace` is the default work directory. Set `timeoutMs` or `workdir` to change these values.
+- **Resume and destroy:** resume accepts the Modal sandbox ID returned by the handle or the `input.id` name used at creation. Name lookup uses the configured App and environment. `destroy()` accepts either ID format and terminates the sandbox. This adapter does not keep files after termination.
+- **Ports:** set `ports` when you create the provider. Modal configures encrypted tunnels at sandbox creation. `ports.connect()` rejects ports outside this list.
+- **Network:** `policy.capabilities.network: 'deny'` maps to Modal's `blockNetwork`. The provider does not expose other network policies.
+
+### Process and filesystem limits
+
+- **Processes:** stdout and stderr stream separately. `spawn()` has writable stdin but reports `pid: -1`.
+- **Cancellation:** `killableProcesses` is `false` because the SDK has no verified per-process kill. An aborted command terminates its sandbox and stops other work in that sandbox.
+- **Filesystem:** Modal provides read, write, list, create, stat, and remove calls. Rename uses `mv` through the sandbox shell.
+- **Snapshots and fork:** the provider does not expose native snapshots or fork. Use [Portable Snapshots](./portable-snapshots) to keep files outside the sandbox.
+- **Bridge:** a remote sandbox, so bridged tools need the tunnel in local dev. See [Tools](./tools).
+
 ## Sprites
 
 ```ts
@@ -382,7 +404,7 @@ The agent coordinator, durable runs, live previews through a quick tunnel, callb
 
 ## `writableStdin` per provider
 
-- `true`: local process, Docker container, Upstash Box, E2B, boxd, and Railway.
+- `true`: local process, Docker container, Upstash Box, E2B, boxd, Railway, and Modal.
 - `false`: Docker Sandboxes (`sbx`), Daytona, Vercel, Sprites, Blaxel, and Cloudflare. Daytona can write to stdin, but it cannot close stdin, so a process that reads to EOF never starts.
 
 When the value is `false`, a harness that reads its prompt from stdin gets the prompt from a file. The shell redirects that file into the process.
@@ -412,6 +434,7 @@ If a provider cannot be measured yet, it stays `false`. A `false` value only mak
 | Cloudflare | `false` | `kill()` does nothing. The `AbortSignal` of the caller reaches neither `exec` nor `spawn`, because Workers RPC cannot serialize one. |
 | boxd | `true` | **Measured.** The spawn wrapper runs under `setsid`, so the recorded pid leads its own process group. `kill()` runs a shell inside the machine that signals that group, then sends `KILL`, then checks with `kill -0`. Closing the stream alone is not a kill: the process survived it. Verified against production: a spawned `sleep 5 && touch <marker>` was killed, and the marker never appeared. Needs `BOXD_API_KEY`. |
 | Railway | `true` | **Measured.** `kill()` and an aborted `exec` send `TERM` to the process group, then `KILL` after 2 s. An aborted `spawn` sends `KILL` at once. Each one finishes only when the remote exit is confirmed. Verified against production: the shared journal conformance kill case passes. Spawned `sleep 5 && touch <marker>` commands (one with a background child) were killed before the marker appeared, for `kill()`, an aborted `exec`, and an aborted `spawn`. Needs `RAILWAY_API_TOKEN` or `RAILWAY_TOKEN` and `RAILWAY_ENVIRONMENT_ID`. |
+| Modal | `false` | The documented SDK has no per-process kill or pid. Aborting a command terminates its whole sandbox, which stops other work in that sandbox too. Needs Modal credentials. |
 
 Each remote provider registers the shared journal conformance suite, so you can test each claim:
 
