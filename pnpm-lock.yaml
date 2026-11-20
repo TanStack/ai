@@ -464,6 +464,9 @@ importers:
       '@tanstack/ai-fal':
         specifier: workspace:*
         version: link:../../../packages/ai-fal
+      '@tanstack/ai-meshy':
+        specifier: workspace:*
+        version: link:../../../packages/ai-meshy
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../../../packages/ai-react
@@ -3257,6 +3260,22 @@ importers:
         specifier: ^4.1.12
         version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@24.13.6)(@vitest/coverage-v8@4.1.12)(happy-dom@20.14.6)(jsdom@27.4.0(@noble/hashes@2.3.0))(vite@8.3.8(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(less@4.6.6)(sass-embedded@1.108.2)(sass@1.108.2)(terser@5.44.1)(tsx@4.23.15)(yaml@2.9.0))
 
+  packages/ai-meshy:
+    dependencies:
+      '@tanstack/ai-utils':
+        specifier: workspace:^
+        version: link:../ai-utils
+    devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@vitest/coverage-v8':
+        specifier: 4.1.12
+        version: 4.1.12(vitest@4.1.12)
+      vite:
+        specifier: ^8.3.8
+        version: 8.3.8(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(less@4.6.6)(sass-embedded@1.107.1)(sass@1.107.1)(terser@5.44.1)(tsx@4.23.15)(yaml@2.9.0)
+
   packages/ai-mistral:
     dependencies:
       '@mistralai/mistralai':
@@ -4312,6 +4331,9 @@ importers:
       '@tanstack/ai-memory':
         specifier: workspace:*
         version: link:../../packages/ai-memory
+      '@tanstack/ai-meshy':
+        specifier: workspace:*
+        version: link:../../packages/ai-meshy
       '@tanstack/ai-mistral':
         specifier: workspace:*
         version: link:../../packages/ai-mistral

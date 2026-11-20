@@ -11,6 +11,7 @@
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-fal": "workspace:*",
+    "@tanstack/ai-meshy": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/react-router": "^1.170.41",
     "@tanstack/react-start": "^1.168.60",
