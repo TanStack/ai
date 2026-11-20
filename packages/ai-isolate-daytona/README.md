@@ -33,7 +33,7 @@ pnpm add @tanstack/ai-isolate-daytona @tanstack/ai-code-mode
 If you use the official Daytona SDK to create sandboxes, install it in your app too:
 
 ```bash
-pnpm add @daytona/sdk
+pnpm add @daytona/sdk@^0.231.1
 ```
 
 ## Usage

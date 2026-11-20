@@ -1,4 +1,4 @@
-import { EventType } from '@tanstack/ai'
+import { CONTEXT_OVERFLOW_CODE, EventType } from '@tanstack/ai'
 import { buildConverseUsage } from './usage'
 import type { AdapterYieldChunk, TokenUsage } from '@tanstack/ai'
 import type { ConverseStreamOutput } from '@aws-sdk/client-bedrock-runtime'
@@ -79,6 +79,10 @@ export async function* processConverseStream(
   // contract (usage may arrive after the finish signal).
   let usage: TokenUsage | undefined
   let finishReason: NonNullable<AdapterYieldChunk['finishReason']> | undefined
+  // The model filled its context window before it finished (stopReason
+  // `model_context_window_exceeded`). The answer is cut off, so the run ends
+  // with a RUN_ERROR instead of a clean RUN_FINISHED.
+  let contextWindowExceeded = false
 
   // Lazily emit RUN_STARTED exactly once, before the first content event.
   function* ensureRunStarted(): Generator<AdapterYieldChunk> {
@@ -282,7 +286,8 @@ export async function* processConverseStream(
     }
 
     if ('messageStop' in ev) {
-      const stopReason = ev.messageStop?.stopReason
+      const stopReason: string | undefined = ev.messageStop?.stopReason
+      contextWindowExceeded = stopReason === 'model_context_window_exceeded'
       // Map Converse stopReason to AG-UI's narrower finishReason vocabulary.
       finishReason =
         stopReason === 'tool_use'
@@ -333,6 +338,21 @@ export async function* processConverseStream(
 
   // Close any reasoning lifecycle that text never closed.
   yield* closeReasoning()
+
+  if (contextWindowExceeded) {
+    const message =
+      'The response was cut off because the model reached the end of its context window.'
+    yield {
+      type: EventType.RUN_ERROR,
+      ...(model && { model }),
+      timestamp: Date.now(),
+      message,
+      code: CONTEXT_OVERFLOW_CODE,
+      error: { message, code: CONTEXT_OVERFLOW_CODE },
+      ...(usage && { usage }),
+    }
+    return
+  }
 
   // Single terminal RUN_FINISHED. Conditional `usage` spread keeps the wire
   // shape spec-compliant (AG-UI's `usage` is optional with no `| undefined`).

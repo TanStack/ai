@@ -49,6 +49,7 @@ import type {
   ChatCompletionMessageParam,
 } from 'openai/resources/chat/completions/completions'
 import type {
+  AnyTool,
   ContentPart,
   DefaultMessageMetadataByModality,
   Modality,
@@ -842,6 +843,17 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     originalRequired?: Array<string>,
   ): StructuredOutputCompatibility {
     return makeStructuredOutputCompatibleWithMap(schema, originalRequired)
+  }
+
+  /** Undo strict-mode nulls before the engine checks recorded arguments. */
+  normalizeToolInput(
+    toolName: string,
+    input: unknown,
+    tools: ReadonlyArray<AnyTool> | undefined,
+  ): unknown {
+    return createToolInputNormalizer(tools, (schema, required) =>
+      this.makeStructuredOutputCompatibleWithMap(schema, required),
+    )(toolName, input)
   }
 
   /**

@@ -101,6 +101,7 @@ export type UseChatOptions<
   | 'onRunIdChange'
   | 'context'
   | 'devtools'
+  | 'outputSchema'
 > & {
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions

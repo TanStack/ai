@@ -323,7 +323,11 @@ async function gpt(model: 'gpt-6-astra' | 'gpt-6.1-sol') {
 
 async function claude(
   name: string,
-  model: 'claude-opus-5-5' | 'claude-sonnet-5-5',
+  model:
+    | 'claude-opus-5-5'
+    | 'claude-sonnet-5-5'
+    | 'claude-haiku-5-5'
+    | 'claude-sonnet-5',
   options: { midConversationChannels?: boolean },
 ) {
   const wire = capture(claudeToolCall, claudeText)
@@ -346,11 +350,11 @@ async function claude(
 
 /**
  * A middleware adds `get_forecast` after the first tool batch. Runs that with
- * real adapters and a capturing `fetch` on two models in the map
- * (`gpt-6-astra`, `claude-opus-5-5`) and two outside it (`gpt-6.1-sol`,
- * `claude-sonnet-5-5`), all with `midConversationChannels: true`, and on
- * `claude-opus-5-5` with no option (the gateway case). Returns what the two
- * requests of each case held.
+ * real adapters and a capturing `fetch` on four models in the map
+ * (`gpt-6-astra`, `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`)
+ * and two outside it (`gpt-6.1-sol`, `claude-sonnet-5`), all with
+ * `midConversationChannels: true`, and on `claude-opus-5-5` with no option
+ * (the gateway case). Returns what the two requests of each case held.
  */
 export const Route = createFileRoute('/api/mid-conversation-changes-wire')({
   server: {
@@ -366,6 +370,12 @@ export const Route = createFileRoute('/api/mid-conversation-changes-wire')({
                 midConversationChannels: true,
               }),
               await claude('claude-sonnet-5-5', 'claude-sonnet-5-5', {
+                midConversationChannels: true,
+              }),
+              await claude('claude-haiku-5-5', 'claude-haiku-5-5', {
+                midConversationChannels: true,
+              }),
+              await claude('claude-sonnet-5', 'claude-sonnet-5', {
                 midConversationChannels: true,
               }),
               await claude('claude-opus-5-5 gateway', 'claude-opus-5-5', {}),

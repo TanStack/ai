@@ -40,6 +40,12 @@ export type {
   UseGenerateImageReturn,
 } from './use-generate-image'
 
+export { useGenerate3DModel } from './use-generate-3d-model'
+export type {
+  UseGenerate3DModelOptions,
+  UseGenerate3DModelReturn,
+} from './use-generate-3d-model'
+
 export { useGenerateAudio } from './use-generate-audio'
 export type {
   UseGenerateAudioOptions,
@@ -152,6 +158,7 @@ export {
   type RegisteredGenericInterrupt,
   type GenerationClientState,
   type ImageGenerateInput,
+  type Model3DGenerateInput,
   type AudioGenerateInput,
   type SpeechGenerateInput,
   type TranscriptionGenerateInput,

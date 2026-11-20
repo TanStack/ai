@@ -1,11 +1,12 @@
 ---
 title: "OpenAI-Compatible: Advanced"
 id: openai-compatible-advanced
-description: "Advanced setup for the OpenAI-compatible adapter in TanStack AI: headers and query parameters, the Responses API, Azure OpenAI, and model calls paid by a GitHub Copilot or ChatGPT plan."
+description: "Advanced setup for the OpenAI-compatible adapter in TanStack AI: headers and query parameters, the Responses API, reasoning levels, Azure OpenAI, and model calls paid by a GitHub Copilot or ChatGPT plan."
 keywords:
   - tanstack ai
   - openai compatible
   - responses api
+  - reasoning
   - azure openai
   - github copilot
   - chatgpt plan
@@ -55,6 +56,116 @@ The `api` choice also sets how `ChatStreamSummarizeAdapter` sends `maxLength`, w
 An explicit token limit in `modelOptions` wins over `maxLength`.
 
 Reasoning deltas stream as thinking content. Endpoints on the OpenAI spec from before July 2025 can still send the old event name `response.reasoning.delta`, which the spec replaced with `response.reasoning_text.delta`. The adapter reads both names the same way.
+
+## Reasoning levels
+
+`chat({ reasoning })` must know which levels your model takes. Add the levels to the `createModel` definition of the model. Then `chat({ reasoning })` sends the level as `reasoning_effort`:
+
+```typescript
+import { chat, createModel } from "@tanstack/ai";
+import { openaiCompatible } from "@tanstack/ai-openai/compatible";
+
+// gpt-oss on a vLLM server
+const vllm = openaiCompatible({
+  name: "vllm",
+  baseURL: "http://localhost:8000/v1",
+  apiKey: "not-needed",
+  models: [
+    createModel("openai/gpt-oss-120b", {
+      input: ["text"],
+      reasoning: {
+        levels: { low: "low", medium: "medium", high: "high" },
+        budget: false,
+      },
+    }),
+  ],
+});
+
+const stream = chat({
+  adapter: vllm("openai/gpt-oss-120b"),
+  messages: [{ role: "user", content: "Is 1013 a prime number?" }],
+  threadId: "thread-1",
+  reasoning: "high",
+});
+```
+
+- `levels` maps each level to the value that the provider takes. `chat()` accepts only these levels. Any other level is a type error.
+- A level that the model does not have at run time moves to the nearest level that it has.
+- With `api: "responses"`, the adapter sends `reasoning: { effort, summary }`.
+- A model without `reasoning` sends no reasoning field. For that model, `chat({ reasoning })` is a type error.
+
+For a single model, give the same `reasoning` field to `openaiCompatibleText`:
+
+```typescript
+import { openaiCompatibleText } from "@tanstack/ai-openai/compatible";
+
+const adapter = openaiCompatibleText("openai/gpt-oss-120b", {
+  baseURL: "http://localhost:8000/v1",
+  apiKey: "not-needed",
+  reasoning: {
+    levels: { low: "low", medium: "medium", high: "high" },
+    budget: false,
+  },
+});
+```
+
+### A provider with its own field
+
+Some providers do not take `reasoning_effort`. For example, Qwen turns thinking on and off with `enable_thinking`. Extend `OpenAICompatibleChatAdapter`, and set the field in `mapOptionsToRequest`:
+
+- The last type parameter gives the levels to the types.
+- The `reasoning` option gives the same levels to the adapter. If the option is missing, or its levels are different, TypeScript shows an error.
+- Make the client with `createOpenAIClient` from `@tanstack/openai-base`. Install `@tanstack/openai-base` in your app. A strict package manager, such as pnpm, does not let you import a package that you did not install.
+
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { resolveReasoning } from "@tanstack/ai/adapter-internals";
+import { OpenAICompatibleChatAdapter } from "@tanstack/ai-openai/compatible";
+import { createOpenAIClient } from "@tanstack/openai-base";
+import type { TextOptions } from "@tanstack/ai";
+
+const QWEN_REASONING = {
+  levels: { off: "disabled", high: "enabled" },
+  budget: false,
+} as const;
+
+class QwenAdapter extends OpenAICompatibleChatAdapter<
+  "qwen-plus",
+  Record<string, unknown>,
+  readonly ["text"],
+  readonly [],
+  { levels: "off" | "high"; budget: false }
+> {
+  protected override mapOptionsToRequest(options: TextOptions) {
+    // Send `enable_thinking` in place of `reasoning_effort`.
+    const { reasoning_effort: _, ...request } = super.mapOptionsToRequest(options);
+    const reasoning = resolveReasoning(options.reasoning, QWEN_REASONING);
+    return reasoning
+      ? { ...request, enable_thinking: reasoning.level !== "off" }
+      : request;
+  }
+}
+
+const adapter = new QwenAdapter(
+  createOpenAIClient({
+    baseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    apiKey: process.env.DASHSCOPE_API_KEY!,
+  }),
+  "qwen-plus",
+  "qwen",
+  { reasoning: QWEN_REASONING },
+);
+
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Is 1013 a prime number?" }],
+  threadId: "thread-1",
+  reasoning: "off",
+});
+```
+
+`reasoning: "high"` sends `enable_thinking: true`, and `reasoning: "off"` sends `enable_thinking: false`. To build a complete adapter with reasoning, see [Add reasoning to your adapter](../advanced/extend-adapter-advanced#add-reasoning-to-your-adapter).
 
 ## Azure OpenAI
 

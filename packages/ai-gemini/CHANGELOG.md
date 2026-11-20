@@ -1,5 +1,20 @@
 # @tanstack/ai-gemini
 
+## 1.2.3
+
+### Patch Changes
+
+- [#2124](https://github.com/TanStack/ai/pull/2124) [`3d40cc4`](https://github.com/TanStack/ai/commit/3d40cc433313b1c808409010ac53130889241d85) - Report `truncated-stream` when a Gemini chat stream ends without a `finishReason`. Before, the run had no terminal event and `onFinish` got the partial text as a success. The adapter now closes the open tool calls, reasoning, and text, then emits `RUN_ERROR`. Structured output already reported this case. An abort is not reported.
+
+- Updated dependencies [[`1888233`](https://github.com/TanStack/ai/commit/1888233ddb501d14b17aa9a5f3497373a0e9242e)]:
+  - @tanstack/ai@1.4.1
+
+## 1.2.2
+
+### Patch Changes
+
+- [#2113](https://github.com/TanStack/ai/pull/2113) [`c1c22e7`](https://github.com/TanStack/ai/commit/c1c22e74e7767d4ff17a806011cc5eea4eae74f9) - Send Gemini API requests through `httpOptions.fetch` again when the client has an `apiKey`. Since 1.1.1 the adapters called the global `fetch` and ignored a custom one, also for image generation through the Interactions API. The `httpOptions.fetch` type is in `@google/genai` 2.23.0 and later.
+
 ## 1.2.1
 
 ### Patch Changes

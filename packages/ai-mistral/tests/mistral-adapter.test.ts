@@ -15,8 +15,13 @@ vi.mock('../src/client', () => ({
 import type { AdapterYieldChunk, TextOptions, Tool } from '@tanstack/ai'
 import type { MistralTextProviderOptions } from '../src/adapters/text'
 
-const { chat, createChatOptions, maxIterations, toolDefinition } =
-  await import('@tanstack/ai')
+const {
+  CONTEXT_OVERFLOW_CODE,
+  chat,
+  createChatOptions,
+  maxIterations,
+  toolDefinition,
+} = await import('@tanstack/ai')
 const { createMistralText, mistralText } = await import('../src/adapters/text')
 
 /**
@@ -228,6 +233,33 @@ describe('Mistral adapters', () => {
       )
     })
 
+    it("reports a 'model_length' stop as truncation in structured output", async () => {
+      mockComplete.mockReset().mockResolvedValue({
+        choices: [
+          { message: { content: '{"value":' }, finishReason: 'model_length' },
+        ],
+      })
+      const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+
+      await expect(
+        adapter.structuredOutput({
+          chatOptions: chatOpts({
+            model: 'mistral-large-latest',
+            messages: [{ role: 'user', content: 'Return structured output' }],
+          }),
+          outputSchema: {
+            type: 'object',
+            properties: { value: { type: 'string' } },
+          },
+        }),
+      ).rejects.toMatchObject({
+        code: CONTEXT_OVERFLOW_CODE,
+        message: expect.stringMatching(
+          /end of its context window.*finish_reason=model_length/,
+        ),
+      })
+    })
+
     it('reports a length stop as truncation in structured output', async () => {
       mockComplete.mockReset().mockResolvedValue({
         choices: [
@@ -271,6 +303,52 @@ describe('Mistral adapters', () => {
     })
   })
 })
+
+async function runToolCallStream(
+  finishReason: string,
+  args: string,
+  tools: Array<Tool> = [weatherTool],
+): Promise<Array<AdapterYieldChunk>> {
+  setupMockStream([
+    {
+      id: 'cmpl-tool-finish',
+      model: 'mistral-large-latest',
+      choices: [
+        {
+          index: 0,
+          delta: {
+            toolCalls: [
+              {
+                index: 0,
+                id: 'tc_1',
+                function: { name: tools[0]?.name, arguments: args },
+              },
+            ],
+          },
+          finishReason: null,
+        },
+      ],
+    },
+    {
+      id: 'cmpl-tool-finish',
+      model: 'mistral-large-latest',
+      choices: [{ index: 0, delta: {}, finishReason }],
+    },
+  ])
+
+  const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+  const chunks: Array<AdapterYieldChunk> = []
+  for await (const chunk of adapter.chatStream(
+    chatOpts({
+      model: 'mistral-large-latest',
+      messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+      tools,
+    }),
+  )) {
+    chunks.push(chunk)
+  }
+  return chunks
+}
 
 describe('Mistral AG-UI event emission', () => {
   beforeEach(() => {
@@ -474,6 +552,86 @@ describe('Mistral AG-UI event emission', () => {
         totalTokens: 6,
       })
     }
+  })
+
+  it("reports Mistral's 'model_length' stop as a context overflow", async () => {
+    setupMockStream([
+      {
+        id: 'cmpl-123',
+        model: 'mistral-large-latest',
+        choices: [
+          { index: 0, delta: { content: 'Hello' }, finishReason: null },
+        ],
+      },
+      {
+        id: 'cmpl-123',
+        model: 'mistral-large-latest',
+        choices: [{ index: 0, delta: {}, finishReason: 'model_length' }],
+      },
+    ])
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+
+    await expect(async () => {
+      for await (const chunk of adapter.chatStream(
+        chatOpts({
+          model: 'mistral-large-latest',
+          messages: [{ role: 'user', content: 'Hello' }],
+        }),
+      )) {
+        chunks.push(chunk)
+      }
+    }).rejects.toMatchObject({ code: CONTEXT_OVERFLOW_CODE })
+
+    expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toBeUndefined()
+    expect(chunks.find((c) => c.type === 'RUN_ERROR')).toMatchObject({
+      code: CONTEXT_OVERFLOW_CODE,
+    })
+  })
+
+  it("reports 'model_length' after a tool call as a context overflow", async () => {
+    setupMockStream([
+      {
+        id: 'cmpl-123',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              toolCalls: [
+                {
+                  index: 0,
+                  id: 'call_abc123',
+                  type: 'function',
+                  function: { name: 'lookup_weather', arguments: '{}' },
+                },
+              ],
+            },
+            finishReason: 'model_length',
+          },
+        ],
+      },
+    ])
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+
+    await expect(async () => {
+      for await (const chunk of adapter.chatStream(
+        chatOpts({
+          model: 'mistral-large-latest',
+          messages: [{ role: 'user', content: 'Weather?' }],
+          tools: [weatherTool],
+        }),
+      )) {
+        chunks.push(chunk)
+      }
+    }).rejects.toMatchObject({ code: CONTEXT_OVERFLOW_CODE })
+
+    expect(chunks.find((c) => c.type === 'TOOL_CALL_START')).toBeDefined()
+    expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toBeUndefined()
+    expect(chunks.find((c) => c.type === 'RUN_ERROR')).toMatchObject({
+      code: CONTEXT_OVERFLOW_CODE,
+    })
   })
 
   it('emits AG-UI tool call events', async () => {
@@ -949,6 +1107,83 @@ describe('Mistral AG-UI event emission', () => {
     expect(types.indexOf('TEXT_MESSAGE_END')).toBeLessThan(
       types.indexOf('RUN_FINISHED'),
     )
+  })
+
+  it.each([
+    ['tool_calls', '{"location":"Berlin"}', 'tool_calls'],
+    ['stop', '{"location":"Berlin"}', 'tool_calls'],
+  ])(
+    'maps finish reason %s to %s after a streamed tool call',
+    async (finishReason, args, expectedFinishReason) => {
+      const chunks = await runToolCallStream(finishReason, args)
+
+      expect(chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')).toEqual([
+        expect.objectContaining({
+          toolCallId: 'tc_1',
+          args,
+          input: { location: 'Berlin' },
+        }),
+      ])
+      expect(chunks.filter((chunk) => chunk.type === 'RUN_FINISHED')).toEqual([
+        expect.objectContaining({ finishReason: expectedFinishReason }),
+      ])
+    },
+  )
+
+  it('normalizes complete arguments when the finish reason is length', async () => {
+    const askUser: Tool = {
+      name: 'ask_user',
+      description: 'Ask the user to choose an option',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          mode: { type: 'string', enum: ['canary'] },
+          question: { type: 'string' },
+          nullableNote: {
+            anyOf: [{ type: 'string' }, { type: 'null' }],
+          },
+        },
+        required: ['question', 'nullableNote'],
+        additionalProperties: false,
+      },
+    }
+    const args = JSON.stringify({
+      mode: null,
+      question: 'Which option?',
+      nullableNote: null,
+    })
+    const chunks = await runToolCallStream('length', args, [askUser])
+
+    expect(chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')).toEqual([
+      expect.objectContaining({
+        toolCallId: 'tc_1',
+        toolCallName: 'ask_user',
+        args,
+        input: { question: 'Which option?', nullableNote: null },
+      }),
+    ])
+    expect(chunks.filter((chunk) => chunk.type === 'RUN_FINISHED')).toEqual([
+      expect.objectContaining({ finishReason: 'length' }),
+    ])
+  })
+
+  it('ends a tool call cut by length with its raw args and no input, without throwing', async () => {
+    const chunks = await runToolCallStream('length', '{"location":')
+
+    const ends = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+    expect(ends).toHaveLength(1)
+    expect(ends[0]).toMatchObject({ toolCallId: 'tc_1', args: '{"location":' })
+    expect(ends[0]).not.toHaveProperty('input')
+    expect(chunks.filter((chunk) => chunk.type === 'RUN_FINISHED')).toEqual([
+      expect.objectContaining({ finishReason: 'length' }),
+    ])
+    expect(chunks.some((chunk) => chunk.type === 'RUN_ERROR')).toBe(false)
+  })
+
+  it('still fails on malformed tool-call args when the finish reason is tool_calls', async () => {
+    await expect(
+      runToolCallStream('tool_calls', '{"location":'),
+    ).rejects.toThrow(/Failed to parse tool call arguments/)
   })
 
   it('replays buffered tool-call args when arguments arrive before id and name', async () => {
@@ -1839,6 +2074,22 @@ describe('Mistral usage on every terminal event', () => {
     const finished = chunks.filter((c) => c.type === 'RUN_FINISHED')
     expect(finished).toHaveLength(1)
     expect(finished[0]).toMatchObject({ finishReason: 'stop', usage })
+  })
+
+  it('ends the run with RUN_ERROR on finish_reason error', async () => {
+    setupMockStream([
+      textChunk,
+      {
+        ...finishChunk,
+        choices: [{ index: 0, delta: {}, finishReason: 'error' }],
+      },
+    ])
+    const chunks = await collect()
+    expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(false)
+    expect(chunks.find((c) => c.type === 'RUN_ERROR')).toMatchObject({
+      message: 'Provider finish_reason: error',
+    })
+    expect(chunks.map((c) => c.type)).toContain('TEXT_MESSAGE_END')
   })
 
   it('keeps the usage when the stream ends without a finish_reason', async () => {

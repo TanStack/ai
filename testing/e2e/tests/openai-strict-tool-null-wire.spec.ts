@@ -59,4 +59,26 @@ test.describe('openai strict tool optional fields', () => {
     expect(result.requestCount).toBe(2)
     expect(result.text).toBe('Tool executed.')
   })
+
+  test('undoes a strict null on an approved resume when repair is off', async ({
+    request,
+  }) => {
+    const response = await request.post('/api/openai-strict-tool-null-wire', {
+      data: { resume: true },
+    })
+    expect(response.ok()).toBe(true)
+    const result = (await response.json()) as {
+      ok: boolean
+      error?: string
+      toolError?: string
+      executedInput: Record<string, unknown>
+    }
+    if (!result.ok) {
+      throw new Error(result.toolError ?? result.error ?? 'Route failed')
+    }
+    expect(result.executedInput).toEqual({
+      destination: 'Tokyo',
+      note: null,
+    })
+  })
 })

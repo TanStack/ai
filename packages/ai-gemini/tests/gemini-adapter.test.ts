@@ -2503,3 +2503,112 @@ describe('Gemini adapter usage on error paths', () => {
     }
   })
 })
+
+describe('Gemini stream that ends without a finishReason', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const usageMetadata = {
+    promptTokenCount: 5,
+    candidatesTokenCount: 3,
+    totalTokenCount: 8,
+  }
+  const chatOptions = {
+    threadId: 'thread-1',
+    model: 'gemini-2.5-pro' as const,
+    messages: [{ role: 'user' as const, content: 'hi' }],
+    logger: testLogger,
+  }
+  const cutStream = (parts: Array<Record<string, unknown>>) =>
+    createStream([{ candidates: [{ content: { parts } }], usageMetadata }])
+
+  it('closes the text, then ends the run with a truncated-stream RUN_ERROR', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      cutStream([{ text: 'Hel' }]),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream(chatOptions),
+    )
+
+    expect(chunks.map((c) => c.type)).toEqual([
+      EventType.RUN_STARTED,
+      EventType.TEXT_MESSAGE_START,
+      EventType.TEXT_MESSAGE_CONTENT,
+      EventType.TEXT_MESSAGE_END,
+      EventType.RUN_ERROR,
+    ])
+    expect(chunks.at(-1)).toMatchObject({
+      code: 'truncated-stream',
+      usage: { promptTokens: 5, completionTokens: 3, totalTokens: 8 },
+    })
+  })
+
+  it('ends started tool calls and reasoning once, before the RUN_ERROR', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      cutStream([
+        { text: 'thinking', thought: true },
+        { functionCall: { id: 'call-1', name: 'lookup', args: { q: 'x' } } },
+      ]),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream(chatOptions),
+    )
+
+    expect(chunks.map((c) => c.type)).toEqual([
+      EventType.RUN_STARTED,
+      EventType.REASONING_START,
+      EventType.REASONING_MESSAGE_START,
+      EventType.REASONING_MESSAGE_CONTENT,
+      EventType.TOOL_CALL_START,
+      EventType.TOOL_CALL_ARGS,
+      EventType.TOOL_CALL_END,
+      EventType.REASONING_MESSAGE_END,
+      EventType.REASONING_END,
+      EventType.RUN_ERROR,
+    ])
+  })
+
+  it('calls onError, not onFinish, through chat()', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      cutStream([{ text: 'Hel' }]),
+    )
+    const calls = { finish: 0, error: 0 }
+
+    for await (const _ of chat({
+      threadId: 'thread-1',
+      adapter: createTextAdapter(),
+      messages: [{ role: 'user', content: 'hi' }],
+      middleware: [
+        {
+          name: 'observe',
+          onFinish: () => void calls.finish++,
+          onError: () => void calls.error++,
+        },
+      ],
+    })) {
+      /* consume stream */
+    }
+
+    expect(calls).toEqual({ finish: 0, error: 1 })
+  })
+
+  it('does not report an aborted request as truncated', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      cutStream([{ text: 'Hel' }]),
+    )
+    const abortController = new AbortController()
+    abortController.abort()
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream({
+        ...chatOptions,
+        request: { signal: abortController.signal },
+      }),
+    )
+
+    expect(runErrorEvent(chunks)).toBeUndefined()
+  })
+})

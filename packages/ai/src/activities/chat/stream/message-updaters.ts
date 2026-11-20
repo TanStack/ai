@@ -9,6 +9,7 @@ import { isRedactedThinkingId } from '../../../utilities/reasoning-encrypted-val
 import {
   mergeMetadata,
   tanstackMetadata,
+  tanstackOnlyMetadata,
 } from '../../../utilities/merge-metadata'
 import { parsePartialJSON } from './json-parser'
 import type {
@@ -130,6 +131,23 @@ export function withoutStaleToolResultOutcome(
   return Object.keys(nextMetadata).length > 0 ? nextMetadata : undefined
 }
 
+/** Drop a text-result mark left on metadata after a non-string replacement. */
+export function withoutStaleToolResultKind(
+  metadata: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (metadata == null) return undefined
+  const tanstack = tanstackMetadata({ metadata })
+  if (tanstack?.toolResultKind === undefined) return metadata
+  const { toolResultKind: _staleKind, ...restTanstack } = tanstack
+  const nextMetadata = { ...metadata }
+  if (Object.keys(restTanstack).length > 0) {
+    nextMetadata.tanstack = restTanstack
+  } else {
+    delete nextMetadata.tanstack
+  }
+  return Object.keys(nextMetadata).length > 0 ? nextMetadata : undefined
+}
+
 /**
  * Update or add a tool result part to a message.
  */
@@ -158,9 +176,21 @@ export function updateToolResultPart(
       resultPartIndex >= 0
         ? (parts[resultPartIndex] as ToolResultPart)
         : undefined
-    // Preserve existing metadata when a later result update does not include
-    // metadata, and merge partial metadata (including metadata.tanstack).
-    let mergedMetadata = mergeMetadata(existingResultPart?.metadata, metadata)
+    // A new result replaces app keys. The reserved tanstack key still merges.
+    // An update that omits metadata keeps the existing bag (streaming).
+    let mergedMetadata =
+      metadata === undefined
+        ? existingResultPart?.metadata
+        : mergeMetadata(
+            tanstackOnlyMetadata(existingResultPart?.metadata),
+            metadata,
+          )
+    if (
+      mergedMetadata !== undefined &&
+      Object.keys(mergedMetadata).length === 0
+    ) {
+      mergedMetadata = undefined
+    }
     const hasIncomingToolResultOutcome =
       tanstackMetadata({ metadata })?.toolResultOutcome !== undefined
 
@@ -173,6 +203,13 @@ export function updateToolResultPart(
       !hasIncomingToolResultOutcome
     ) {
       mergedMetadata = withoutStaleToolResultOutcome(mergedMetadata)
+    }
+
+    // A non-string replacement does not re-supply toolResultKind: 'text'.
+    // Do not keep a previous text mark, or persist/reload treats object JSON
+    // as a string.
+    if (tanstackMetadata({ metadata })?.toolResultKind !== 'text') {
+      mergedMetadata = withoutStaleToolResultKind(mergedMetadata)
     }
 
     const toolResultPart: ToolResultPart = {
@@ -261,6 +298,7 @@ export function updateToolCallState(
 /**
  * Update a tool call part with output.
  * Searches all messages to find the tool call by ID.
+ * `resultMetadata` holds only the app keys of the result metadata.
  */
 export function updateToolCallWithOutput(
   messages: Array<UIMessage>,
@@ -268,6 +306,7 @@ export function updateToolCallWithOutput(
   output: any,
   state?: ToolCallState,
   errorText?: string,
+  resultMetadata?: Record<string, unknown>,
 ): Array<UIMessage> {
   return messages.map((msg) => {
     const parts = [...msg.parts]
@@ -277,10 +316,13 @@ export function updateToolCallWithOutput(
 
     if (toolCallPart) {
       const index = parts.indexOf(toolCallPart)
+      // A new result replaces the old result metadata, also when it has none.
+      const { resultMetadata: _previous, ...rest } = toolCallPart
       parts[index] = {
-        ...toolCallPart,
+        ...rest,
         output: errorText ? { error: errorText } : output,
         state: state ?? (errorText ? 'error' : 'complete'),
+        ...(resultMetadata !== undefined && { resultMetadata }),
       }
     }
 
@@ -486,6 +528,21 @@ export function errorStructuredOutputPart(
   })
 }
 
+// The reasoning step that wrote each live thinking part. The step id is the
+// processor's key; it is not on the part, so stored and wire forms have no
+// field for it. A part from storage or the wire has no entry.
+const thinkingStepOf = new WeakMap<object, string>()
+
+/**
+ * Carry the live reasoning-step key from `source` onto `clone`.
+ * Freeze/thaw and other shallow copies drop the WeakMap entry, so a later
+ * step would otherwise treat the copy as hydrated and overwrite step 1.
+ */
+export function copyThinkingStepOf(source: object, clone: object): void {
+  const stepId = thinkingStepOf.get(source)
+  if (stepId !== undefined) thinkingStepOf.set(clone, stepId)
+}
+
 /**
  * Update or add a thinking part to a message, keyed by stepId.
  * Each distinct stepId produces its own ThinkingPart.
@@ -504,21 +561,19 @@ export function updateThinkingPart(
 
     const parts = [...msg.parts]
     let thinkingPartIndex = parts.findIndex(
-      (p) => p.type === 'thinking' && p.stepId === stepId,
+      (p) => p.type === 'thinking' && thinkingStepOf.get(p) === stepId,
     )
 
-    // A hydrated message carries its thinking without a stepId: the stored form
-    // has no field for one, so `modelMessageToUIMessage` cannot put it back.
-    // When a run is rejoined mid-stream the replayed reasoning is keyed by
-    // stepId, matches nothing, and gets appended -- leaving a second thinking
-    // part sitting after the answer text. Adopt the first stepId-less thinking
-    // part instead, so the replay lands on the part it belongs to. Live
-    // streaming always writes a stepId, so the only parts this can match are
-    // hydrated ones.
+    // A hydrated message's thinking parts belong to no step. When a run is
+    // rejoined mid-stream the replayed reasoning matches nothing and would be
+    // appended -- leaving a second thinking part sitting after the answer
+    // text. Adopt the first thinking part with no step instead, so the replay
+    // lands on the part it belongs to. Live streaming always records a step,
+    // so the only parts this can match are hydrated ones.
     let adopted: ThinkingPart | undefined
     if (thinkingPartIndex < 0) {
       thinkingPartIndex = parts.findIndex(
-        (p) => p.type === 'thinking' && p.stepId === undefined,
+        (p) => p.type === 'thinking' && !thinkingStepOf.has(p),
       )
       const candidate = parts[thinkingPartIndex]
       if (candidate?.type === 'thinking') adopted = candidate
@@ -535,10 +590,10 @@ export function updateThinkingPart(
     const thinkingPart: ThinkingPart = {
       type: 'thinking',
       content,
-      stepId,
       ...(nextSignature && { signature: nextSignature }),
       ...(redacted && { redacted: true }),
     }
+    thinkingStepOf.set(thinkingPart, stepId)
 
     if (thinkingPartIndex >= 0) {
       // Update existing thinking part for this step

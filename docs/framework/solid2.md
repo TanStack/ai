@@ -156,7 +156,7 @@ Send a message and the reply appears in the page.
 3. Import DOM rendering and web JSX types from `@solidjs/web`. Keep reactive primitives in `solid-js`.
 4. Keep calls such as `messages()`, `isLoading()`, and `error()`. Generation hooks also keep accessors such as `result()` and `isLoading()`.
 
-The root entry retains chat, generation, recorder, BYOK, and WebMCP hooks. It also re-exports the client helpers.
+The root entry retains chat, generation, recorder, BYOK, and WebMCP hooks. It also re-exports the client helpers. Generation hooks cover image, audio, speech, transcription, summarization, video, and the experimental 3D model hook.
 
 The `/ui` entry provides `createChatHook` and the chat components. The `/byok` entry provides the framework-independent keyring helpers.
 

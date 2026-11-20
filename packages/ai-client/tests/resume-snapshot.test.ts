@@ -230,7 +230,11 @@ describe('ChatClient auto-rejoin after reload', () => {
       expect(text && 'content' in text && text.content).toBe('world')
     })
 
-    expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
+    expect(joinRun).toHaveBeenCalledWith(
+      'r1',
+      expect.anything(),
+      expect.objectContaining({ tools: expect.any(Array) }),
+    )
     // The restored user message survives alongside the rejoined assistant reply.
     expect(latest.some((m) => m.id === 'user-1')).toBe(true)
     void client
@@ -375,7 +379,11 @@ describe('ChatClient auto-rejoin after reload', () => {
     expect(latest.some((m) => m.id === 'history-1')).toBe(true)
     // ...and the live run was tailed off the durability log, addressed by the
     // server-resolved run id (the client only ever supplied the threadId).
-    expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
+    expect(joinRun).toHaveBeenCalledWith(
+      'r1',
+      expect.anything(),
+      expect.objectContaining({ tools: expect.any(Array) }),
+    )
     void client
   })
 
@@ -650,7 +658,11 @@ describe('ChatClient auto-rejoin after reload', () => {
     await vi.waitFor(() => {
       expect(latest.some((m) => m.id === 'assistant-1')).toBe(true)
     })
-    expect(joinRun).toHaveBeenCalledWith('run-B', expect.anything())
+    expect(joinRun).toHaveBeenCalledWith(
+      'run-B',
+      expect.anything(),
+      expect.objectContaining({ tools: expect.any(Array) }),
+    )
     expect(client.getInterrupts()).toHaveLength(0)
   })
 
@@ -738,7 +750,11 @@ describe('ChatClient auto-rejoin after reload', () => {
       const text = assistant?.parts.find((p) => p.type === 'text')
       expect(text && 'content' in text && text.content).toBe('world')
     })
-    expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
+    expect(joinRun).toHaveBeenCalledWith(
+      'r1',
+      expect.anything(),
+      expect.objectContaining({ tools: expect.any(Array) }),
+    )
     // Seeded history survives alongside the tailed reply.
     expect(latest.some((m) => m.id === 'history-1')).toBe(true)
     void client
@@ -784,7 +800,11 @@ describe('ChatClient auto-rejoin after reload', () => {
       const text = assistant?.parts.find((p) => p.type === 'text')
       expect(text && 'content' in text && text.content).toBe('world')
     })
-    expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
+    expect(joinRun).toHaveBeenCalledWith(
+      'r1',
+      expect.anything(),
+      expect.objectContaining({ tools: expect.any(Array) }),
+    )
     void client
   })
 

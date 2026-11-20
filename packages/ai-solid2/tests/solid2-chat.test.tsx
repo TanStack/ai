@@ -125,6 +125,7 @@ describe('Solid 2 chat lifecycle', () => {
         expect(joinRun).toHaveBeenCalledExactlyOnceWith(
           'restored-run',
           expect.any(AbortSignal),
+          expect.objectContaining({ threadId: 'restored-thread' }),
         )
         expect(signals[0]?.aborted).toBe(false)
         release()

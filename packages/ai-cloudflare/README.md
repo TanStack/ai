@@ -39,9 +39,12 @@ export default {
   async fetch(request: Request, env: { AI: Ai }) {
     const { messages, threadId } = await request.json()
     const stream = chat({
-      adapter: createCloudflareText('@cf/zai-org/glm-5.3-flash', {
-        binding: env.AI,
-      }),
+      adapter: createCloudflareText(
+        '@cf/deepseek-ai/deepseek-v4.1-flash-1017',
+        {
+          binding: env.AI,
+        },
+      ),
       messages,
       threadId,
     })
