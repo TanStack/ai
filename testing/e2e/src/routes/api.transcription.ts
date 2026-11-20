@@ -45,6 +45,7 @@ export const Route = createFileRoute('/api/transcription')({
             language,
             responseFormat,
             modelOptions,
+            abortSignal: abortController.signal,
             stream: true,
           })
           return toServerSentEventsResponse(stream, { abortController })

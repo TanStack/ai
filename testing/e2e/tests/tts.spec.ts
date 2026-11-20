@@ -1,4 +1,5 @@
 import { generateSpeech } from '@tanstack/ai'
+import type { GenerationMiddleware } from '@tanstack/ai'
 import { createElevenLabsSpeech } from '@tanstack/ai-elevenlabs'
 import { createCartesiaSpeech } from '@tanstack/ai-cartesia'
 import { test, expect } from './fixtures'
@@ -87,6 +88,64 @@ test.describe('elevenlabs -- tts formats', () => {
       )
     })
   }
+})
+
+test('generateSpeech keeps caller abort connected during result transforms', async ({
+  testId,
+}) => {
+  const controller = new AbortController()
+  let markTransformStarted!: () => void
+  const transformStarted = new Promise<void>((resolve) => {
+    markTransformStarted = resolve
+  })
+  const middleware: GenerationMiddleware = {
+    name: 'abort-aware-transform',
+    onStart(ctx) {
+      ctx.resultTransforms.push((_result, { middleware: transformContext }) => {
+        const signal = transformContext.signal
+        if (!signal) throw new Error('result transform has no abort signal')
+        markTransformStarted()
+        return new Promise<never>((_resolve, reject) => {
+          const onAbort = () => {
+            clearTimeout(timeout)
+            reject(signal.reason)
+          }
+          const timeout = setTimeout(() => {
+            signal.removeEventListener('abort', onAbort)
+            reject(new Error('caller abort did not reach result transform'))
+          }, 1_000)
+          if (signal.aborted) {
+            onAbort()
+          } else {
+            signal.addEventListener('abort', onAbort, { once: true })
+          }
+        })
+      })
+    },
+  }
+
+  const promise = generateSpeech({
+    threadId: testId,
+    adapter: {
+      kind: 'tts',
+      name: 'fake',
+      model: 'fake-model',
+      generateSpeech: async () => ({
+        id: 'fake-1',
+        model: 'fake-model',
+        audio: 'QUJD',
+        format: 'mp3',
+      }),
+    } as any,
+    text: 'hello',
+    abortSignal: controller.signal,
+    timeout: 5_000,
+    middleware: [middleware],
+  })
+
+  await transformStarted
+  controller.abort(new DOMException('caller canceled', 'AbortError'))
+  await expect(promise).rejects.toThrow('caller canceled')
 })
 
 for (const provider of providersFor('tts')) {

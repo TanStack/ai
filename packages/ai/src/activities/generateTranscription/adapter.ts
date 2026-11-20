@@ -45,6 +45,17 @@ export interface TranscriptionAdapter<
   transcribe: (
     options: TranscriptionOptions<TProviderOptions>,
   ) => Promise<TranscriptionResult>
+
+  /**
+   * Stream transcript text deltas and return the complete result.
+   *
+   * When available, `generateTranscription({ stream: true })` emits each
+   * yielded string as a standard AG-UI text message event. Adapters that do not
+   * support incremental transcription can omit this method.
+   */
+  transcribeStream?: (
+    options: TranscriptionOptions<TProviderOptions>,
+  ) => AsyncGenerator<string, TranscriptionResult>
 }
 
 /**

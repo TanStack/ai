@@ -953,7 +953,8 @@
         {
           "label": "Transcription: Advanced",
           "to": "media/transcription-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-11-18"
         },
         {
           "label": "Voice Creation",

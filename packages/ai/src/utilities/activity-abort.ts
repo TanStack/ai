@@ -15,6 +15,11 @@ const ABORT_ERROR_NAMES = new Set([
   'RequestAbortedError',
 ])
 
+export interface CombinedAbortSignal {
+  signal: AbortSignal | undefined
+  dispose: () => void
+}
+
 /**
  * Combine two optional AbortSignals into one that aborts when either does.
  * Returns the other signal directly when one is absent or already aborted.
@@ -25,18 +30,31 @@ const ABORT_ERROR_NAMES = new Set([
 export function combineAbortSignals(
   a: AbortSignal | undefined,
   b: AbortSignal | undefined,
-): AbortSignal | undefined {
-  if (!a) return b
-  if (!b) return a
-  if (a.aborted) return a
-  if (b.aborted) return b
+): CombinedAbortSignal {
+  const noDispose = () => {}
+  if (!a) return { signal: b, dispose: noDispose }
+  if (!b) return { signal: a, dispose: noDispose }
+  if (a.aborted) return { signal: a, dispose: noDispose }
+  if (b.aborted) return { signal: b, dispose: noDispose }
+
   const controller = new AbortController()
-  const onAbort = (source: AbortSignal) => () => {
-    controller.abort(source.reason)
+  let disposed = false
+  const dispose = () => {
+    if (disposed) return
+    disposed = true
+    a.removeEventListener('abort', onAbortA)
+    b.removeEventListener('abort', onAbortB)
   }
-  a.addEventListener('abort', onAbort(a), { once: true })
-  b.addEventListener('abort', onAbort(b), { once: true })
-  return controller.signal
+  const abort = (source: AbortSignal) => {
+    if (!controller.signal.aborted) controller.abort(source.reason)
+    dispose()
+  }
+  const onAbortA = () => abort(a)
+  const onAbortB = () => abort(b)
+  a.addEventListener('abort', onAbortA, { once: true })
+  b.addEventListener('abort', onAbortB, { once: true })
+
+  return { signal: controller.signal, dispose }
 }
 
 function createTimeoutReason(ms: number): Error {
@@ -97,15 +115,16 @@ export function createActivityAbortControls(options: {
     }, ms)
   }
 
-  const signal = combineAbortSignals(options.abortSignal, timeoutSignal)
+  const combined = combineAbortSignals(options.abortSignal, timeoutSignal)
 
   return {
-    signal,
+    signal: combined.signal,
     clear: () => {
       if (timeoutId !== undefined) {
         clearTimeout(timeoutId)
         timeoutId = undefined
       }
+      combined.dispose()
     },
   }
 }

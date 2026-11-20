@@ -19,9 +19,11 @@ import {
 } from '../middleware/run'
 import {
   abortReasonMessage,
+  combineAbortSignals,
   createActivityAbortControls,
   isActivityAbortError,
   raceWithAbort,
+  toAbortError,
 } from '../../utilities/activity-abort'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
@@ -180,7 +182,7 @@ function createId(prefix: string): string {
  * @example Streaming transcription result
  * ```ts
  * for await (const chunk of generateTranscription({
- *   adapter: openaiTranscription('whisper-1'),
+ *   adapter: openaiTranscription('gpt-transcribe'),
  *   audio: audioFile,
  *   threadId,
  *   stream: true
@@ -202,9 +204,22 @@ export function generateTranscription<
     return streamGenerationResult(
       // Only `runId` comes from the resolved wire identity. `threadId` is
       // the caller's own id.
-      (resolved) =>
-        runGenerateTranscription({ ...options, runId: resolved.runId }),
+      (resolved, emitTextDelta, streamAbortSignal) => {
+        const combinedAbort = combineAbortSignals(
+          options.abortSignal,
+          streamAbortSignal,
+        )
+        return runGenerateTranscription(
+          {
+            ...options,
+            abortSignal: combinedAbort.signal,
+            runId: resolved.runId,
+          },
+          emitTextDelta,
+        ).finally(combinedAbort.dispose)
+      },
       options,
+      { text: typeof options.adapter.transcribeStream === 'function' },
     ) as TranscriptionActivityResult<TStream>
   }
 
@@ -223,6 +238,7 @@ async function runGenerateTranscription<
   >,
 >(
   options: TranscriptionActivityOptions<TAdapter, boolean>,
+  emitTextDelta?: (delta: string) => void,
 ): Promise<TranscriptionResult> {
   const {
     adapter,
@@ -266,7 +282,18 @@ async function runGenerateTranscription<
     createId,
   })
 
-  await runGenerationStart(middleware, mwCtx)
+  try {
+    if (abortControls.signal?.aborted) {
+      throw toAbortError(abortControls.signal.reason)
+    }
+    await raceWithAbort(
+      runGenerationStart(middleware, mwCtx),
+      abortControls.signal,
+    )
+  } catch (error: unknown) {
+    abortControls.clear()
+    throw error
+  }
 
   aiEventClient.emit('transcription:request:started', {
     requestId,
@@ -285,17 +312,34 @@ async function runGenerateTranscription<
   })
 
   try {
-    const rawResult = await raceWithAbort(
-      adapter.transcribe({
-        ...rest,
-        model,
-        logger,
-        ...(abortControls.signal ? { abortSignal: abortControls.signal } : {}),
-      }),
+    if (abortControls.signal?.aborted) {
+      throw toAbortError(abortControls.signal.reason)
+    }
+
+    const transcriptionOptions = {
+      ...rest,
+      model,
+      logger,
+      ...(abortControls.signal ? { abortSignal: abortControls.signal } : {}),
+    }
+    const hasMiddleware = (middleware?.length ?? 0) > 0
+    const transcription =
+      emitTextDelta && adapter.transcribeStream
+        ? readTranscriptionStream(
+            adapter.transcribeStream(transcriptionOptions),
+            hasMiddleware ? undefined : emitTextDelta,
+            abortControls.signal,
+          )
+        : adapter.transcribe(transcriptionOptions)
+    const rawResult = await raceWithAbort(transcription, abortControls.signal)
+    const result = await raceWithAbort(
+      applyGenerationResultTransforms(mwCtx, rawResult),
       abortControls.signal,
     )
-    abortControls.clear()
-    const result = await applyGenerationResultTransforms(mwCtx, rawResult)
+    if (emitTextDelta && hasMiddleware) {
+      // ponytail: hold text until result transforms can safely be applied.
+      emitTextDelta(result.text)
+    }
     const duration = Date.now() - startTime
 
     aiEventClient.emit('transcription:request:completed', {
@@ -329,6 +373,7 @@ async function runGenerateTranscription<
       usage: result.usage,
     })
 
+    abortControls.clear()
     return result
   } catch (error) {
     abortControls.clear()
@@ -359,6 +404,38 @@ async function runGenerateTranscription<
       source: 'generateTranscription',
     })
     throw error
+  }
+}
+
+async function readTranscriptionStream(
+  stream: AsyncGenerator<string, TranscriptionResult>,
+  emitTextDelta: ((delta: string) => void) | undefined,
+  signal?: AbortSignal,
+): Promise<TranscriptionResult> {
+  const iterator = stream[Symbol.asyncIterator]()
+  const closeIterator = () => {
+    void iterator.return?.(undefined as never).catch(() => undefined)
+  }
+
+  while (true) {
+    if (signal?.aborted) {
+      closeIterator()
+      throw toAbortError(signal.reason)
+    }
+
+    let next: IteratorResult<string, TranscriptionResult>
+    try {
+      next = await raceWithAbort(iterator.next(), signal)
+    } catch (error) {
+      if (signal?.aborted) closeIterator()
+      throw error
+    }
+    if (signal?.aborted) {
+      closeIterator()
+      throw toAbortError(signal.reason)
+    }
+    if (next.done) return next.value
+    emitTextDelta?.(next.value)
   }
 }
 

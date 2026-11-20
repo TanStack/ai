@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import {
   useTranscription,
   fetchServerSentEvents,
   fetchHttpStream,
 } from '@tanstack/ai-react'
+import { EventType } from '@tanstack/ai'
 import { generateTranscriptionFn } from '@/lib/server-functions'
 import type { TranscriptionResult } from '@tanstack/ai'
 import type { TranscriptionGenerateInput } from '@tanstack/ai-client'
@@ -32,6 +34,7 @@ export function TranscriptionUI({
   testId,
   aimockPort,
 }: TranscriptionUIProps) {
+  const [partialText, setPartialText] = useState('')
   const isDiarization = feature === 'transcription-diarization'
   const transcriptionInput: TranscriptionGenerateInput = {
     audio: TEST_AUDIO_BASE64,
@@ -78,6 +81,13 @@ export function TranscriptionUI({
   const { generate, result, isLoading, error, status } = useTranscription({
     threadId: testId ?? 'transcription',
     ...connectionOptions(),
+    onChunk(chunk) {
+      if (chunk.type === EventType.TEXT_MESSAGE_START) {
+        setPartialText('')
+      } else if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+        setPartialText((text) => text + chunk.delta)
+      }
+    },
   })
 
   return (
@@ -105,6 +115,11 @@ export function TranscriptionUI({
         <div data-testid="generation-error" className="text-red-400 text-sm">
           {error.message}
         </div>
+      )}
+      {partialText && (
+        <p data-testid="transcription-partial" className="text-gray-200">
+          {partialText}
+        </p>
       )}
       {result && (
         <div className="space-y-3">
