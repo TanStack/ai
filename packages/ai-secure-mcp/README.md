@@ -127,14 +127,14 @@ confirm through a different client or an out-of-band channel.
 
 ## Secure defaults
 
-| Concern        | Default                                          | Footgun it prevents                                                            |
-| -------------- | ------------------------------------------------ | ------------------------------------------------------------------------------ |
-| Egress helper  | deny-by-default allowlist                        | a tool exfiltrating data _when it uses `ctx.context.egress`_                   |
-| Generic HTTP   | not injected into the context                    | SSRF through a "helpful" tool _that reaches the network only through `egress`_ |
-| Tokens         | hash-only, constant-time                         | replay from a leaked store                                                     |
-| Secrets        | never in the audit log or a notification         | prompt/response exfiltration                                                   |
-| Approval state | in memory, fail-closed on restart                | a ghost approval after a crash                                                 |
-| Exposure       | the _generated Tailscale command_ is tailnet-only unless you opt into a public funnel | accidental internet _through that command_                         |
+| Concern        | Default                                                                               | Footgun it prevents                                                            |
+| -------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Egress helper  | deny-by-default allowlist                                                             | a tool exfiltrating data _when it uses `ctx.context.egress`_                   |
+| Generic HTTP   | not injected into the context                                                         | SSRF through a "helpful" tool _that reaches the network only through `egress`_ |
+| Tokens         | hash-only, constant-time                                                              | replay from a leaked store                                                     |
+| Secrets        | never in the audit log or a notification                                              | prompt/response exfiltration                                                   |
+| Approval state | in memory, fail-closed on restart                                                     | a ghost approval after a crash                                                 |
+| Exposure       | the _generated Tailscale command_ is tailnet-only unless you opt into a public funnel | accidental internet _through that command_                                     |
 
 The egress allowlist is a helper, not an enforced boundary. It stops
 exfiltration and SSRF only for a tool that reaches the network through
