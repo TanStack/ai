@@ -174,6 +174,34 @@ function mapPromptToMeshyFields(
   }
 }
 
+// A Blender-only convert and a depth-map relief succeed at Meshy with no
+// `Model3DFormat` file. Reject those options before the create POST.
+function assertCreatesRepresentableMesh(
+  endpoint: MeshyModel3DEndpoint,
+  modelOptions: object | undefined,
+) {
+  if (!modelOptions) return
+  const options = modelOptions as {
+    should_generate_model?: boolean
+    target_formats?: ReadonlyArray<string>
+  }
+  if (options.should_generate_model === false) {
+    throw new Error(
+      `meshy: ${endpoint} with should_generate_model: false returns no 3D model file.`,
+    )
+  }
+  const formats = options.target_formats
+  const isBlendOnly =
+    formats !== undefined &&
+    formats.length > 0 &&
+    formats.every((format) => format === 'blend')
+  if (isBlendOnly) {
+    throw new Error(
+      `meshy: ${endpoint} with target_formats: ['blend'] returns no 3D model file.`,
+    )
+  }
+}
+
 const TEXT_TO_3D_MODES: Partial<
   Record<MeshyModel3DEndpoint, 'preview' | 'refine'>
 > = {
@@ -356,6 +384,7 @@ export class MeshyModel3DAdapter<
     )
 
     try {
+      assertCreatesRepresentableMesh(this.model, modelOptions)
       const mode = TEXT_TO_3D_MODES[this.model]
       const body = {
         ...modelOptions,

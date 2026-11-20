@@ -139,13 +139,14 @@ interface ModelStepProps {
   // The prompt parts for this step. null until the earlier steps are done.
   prompt: Array<MediaPromptPart> | null
   onModel?: (model: Model3DResult) => void
+  onStart?: () => void
   // A short note under the title.
   hint?: string
 }
 
 // One 3D step: a button, the job status, a preview, and a download link.
 function ModelStep(props: ModelStepProps) {
-  const { step, title, action, prompt, onModel, hint } = props
+  const { step, title, action, prompt, onModel, onStart, hint } = props
   const [status, setStatus] = useState('')
   // POST to /api/model3d?step=... over SSE. The server polls the job and
   // streams the job status, then the finished model.
@@ -166,7 +167,11 @@ function ModelStep(props: ModelStepProps) {
       <div className="mt-3 flex items-center gap-3">
         <button
           type="button"
-          onClick={() => prompt && void generate({ prompt })}
+          onClick={() => {
+            if (!prompt) return
+            onStart?.()
+            void generate({ prompt })
+          }}
           disabled={!prompt || isLoading}
           className={button}
         >
@@ -218,6 +223,7 @@ function PipelinePage() {
   const [skinUrl, setSkinUrl] = useState<string | null>(null)
   const [retexturedUrl, setRetexturedUrl] = useState<string | null>(null)
   const [rigJobId, setRigJobId] = useState<string | null>(null)
+  const rigStartedForUrlRef = useRef<string | null>(null)
 
   return (
     <div className="min-h-screen bg-gray-900 px-4 py-8">
@@ -267,7 +273,11 @@ function PipelinePage() {
               ? [{ type: 'text', content: text }, imagePart(conceptUrl)]
               : null
           }
-          onImage={setSkinUrl}
+          onImage={(url) => {
+            setSkinUrl(url)
+            setRetexturedUrl(null)
+            setRigJobId(null)
+          }}
         />
         <ModelStep
           step="retexture"
@@ -288,7 +298,14 @@ function PipelinePage() {
           hint="Rigging works on a humanoid character with clear arms and legs, for example a knight in a T-pose."
           action="Rig"
           prompt={retexturedUrl ? [meshPart(retexturedUrl)] : null}
-          onModel={(model) => setRigJobId(model.jobId)}
+          onStart={() => {
+            rigStartedForUrlRef.current = retexturedUrl
+          }}
+          onModel={(model) => {
+            if (rigStartedForUrlRef.current === retexturedUrl) {
+              setRigJobId(model.jobId)
+            }
+          }}
         />
         <ModelStep
           step="animate"

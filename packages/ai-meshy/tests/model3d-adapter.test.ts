@@ -70,14 +70,20 @@ async function submit<E extends MeshyModel3DEndpoint>(
 }
 
 /** Creates a job that must fail, and returns the error and the requests. */
-async function submitError(
-  endpoint: MeshyModel3DEndpoint,
+async function submitError<E extends MeshyModel3DEndpoint>(
+  endpoint: E,
   prompt: MediaPrompt,
+  modelOptions?: MeshyModel3DProviderOptions<E>,
 ) {
   const meshy = fakeMeshy()
   const adapter = meshy3DModel(endpoint, { apiKey: 'key', fetch: meshy.fetch })
   const error = await adapter
-    .create3DModelJob({ model: adapter.model, prompt, logger })
+    .create3DModelJob({
+      model: adapter.model,
+      prompt,
+      modelOptions,
+      logger,
+    })
     .catch((caught: unknown) => caught)
   return { error, requests: meshy.requests }
 }
@@ -334,6 +340,48 @@ describe('meshy3DModel create3DModelJob', () => {
       expect(requests).toEqual([])
     },
   )
+
+  it('throws before POST when convert target_formats is only blend', async () => {
+    const { error, requests } = await submitError('convert', [mesh(MESH_URL)], {
+      target_formats: ['blend'],
+    })
+    expect(String(error)).toMatch(
+      /convert with target_formats: \['blend'\] returns no 3D model file/,
+    )
+    expect(requests).toEqual([])
+  })
+
+  it('throws before POST when remesh target_formats is only blend', async () => {
+    const { error, requests } = await submitError('remesh', [mesh(MESH_URL)], {
+      target_formats: ['blend'],
+    })
+    expect(String(error)).toMatch(
+      /remesh with target_formats: \['blend'\] returns no 3D model file/,
+    )
+    expect(requests).toEqual([])
+  })
+
+  it('throws before POST when print-split target_formats is only blend', async () => {
+    const { error, requests } = await submitError(
+      'print-split',
+      [meshyTask('mesh-1')],
+      { target_formats: ['blend'] },
+    )
+    expect(String(error)).toMatch(
+      /print-split with target_formats: \['blend'\] returns no 3D model file/,
+    )
+    expect(requests).toEqual([])
+  })
+
+  it('throws before POST when relief should_generate_model is false', async () => {
+    const { error, requests } = await submitError('relief', [image(IMAGE_URL)], {
+      should_generate_model: false,
+    })
+    expect(String(error)).toMatch(
+      /relief with should_generate_model: false returns no 3D model file/,
+    )
+    expect(requests).toEqual([])
+  })
 })
 
 describe('meshy3DModel get3DModelStatus', () => {
