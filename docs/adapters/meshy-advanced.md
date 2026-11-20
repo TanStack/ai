@@ -53,18 +53,25 @@ The four endpoints that change a model:
 | `resize` | The real-world size, in meters | `resize_height`, `resize_longest_side`, `auto_size`, `origin_at` |
 | `uv-unwrap` | The UV layout | None |
 
-`target_formats` takes `'glb'`, `'obj'`, `'fbx'`, `'stl'`, `'usdz'`, `'3mf'`, and `'blend'`. A `.blend` file is in `files` with no `format`.
+`target_formats` takes `'glb'`, `'obj'`, `'fbx'`, `'stl'`, `'usdz'`, `'3mf'`, and `'blend'`. A `.blend` file is in `files` with no `format`. Ask for `'blend'` together with a mesh format. With `'blend'` alone, `remesh` and `convert` throw before the request, because the result has no mesh file.
 
 These endpoints take no text and no images. TypeScript stops an image part. A text part type-checks, but the adapter throws before it starts the job.
 
 ## Prepare a model for a 3D printer
 
-Do these steps in order:
+Start from a model that Meshy made, for example an `image-to-3d` job. Then:
 
 1. Check the model with `analyzeMeshyPrintability()`.
-2. Repair the model with `print-repair`.
-3. Paint the model in a few colors with `print-multi-color`. You get a 3MF file.
-4. If the model is too large for your printer, cut it into parts with `print-split`.
+2. Pick one way to print it:
+   - `print-repair`: a repaired mesh for a 1-color print.
+   - `print-multi-color`: a 3MF file in a few colors.
+   - `print-split`: the model cut into parts that fit your printer.
+
+What each print step takes:
+
+- `print-repair`: a URL, an inline GLB or glTF, or a Meshy task id.
+- `print-multi-color`: a URL to a GLB or FBX, an inline GLB, or the task id of a Meshy model. A `print-repair` job is not a Meshy model here.
+- `print-split`: only the task id of a Meshy model from `meshy-6` or `meshy-7`. Models from `meshy-t2` or `meshy-t2.5` do not work.
 
 ### Check the model first
 
@@ -87,13 +94,17 @@ console.log(report.thin_walls?.has_thin_walls)
 
 What to know:
 
-- `model` is a `url` or `data` source (GLB, glTF, OBJ, FBX, or STL), or a Meshy task id as a `file` source.
-- Send a print size to also check the wall thickness for `printerType`. Set `intendedPrintHeightMm` or `intendedPrintLongestSideMm`, not both.
+- `model` can be one of these:
+  - A `url` source: GLB, glTF, OBJ, FBX, or STL.
+  - A `data` source: GLB or glTF only.
+  - A Meshy task id as a `file` source.
+- With `printerType`, a print size, or both, Meshy also checks the wall thickness. That check takes about 10 seconds. Without them, the analysis takes about 1 second.
+- Set `intendedPrintHeightMm` or `intendedPrintLongestSideMm`, not both. With a printer type but no size, Meshy uses its default size.
 - The function has no time limit. Pass `abortSignal: AbortSignal.timeout(ms)` to set one.
 
 ### Repair, color, and split
 
-This script repairs a dragon figure, makes a 4-color 3MF file, and cuts the figure into parts:
+This script makes a dragon figure from a concept image. Then it repairs the figure, makes a 4-color 3MF file, and cuts the figure into parts. Each print step reads the Meshy figure, so the three steps are independent:
 
 ```ts
 import { writeFile } from 'node:fs/promises'
@@ -102,14 +113,26 @@ import { meshy3DModel } from '@tanstack/ai-meshy'
 
 const threadId = 'dragon-figure'
 
-const repaired = await generate3DModel({
-  adapter: meshy3DModel('print-repair'),
+const figure = await generate3DModel({
+  adapter: meshy3DModel('image-to-3d', 'meshy-7.1'),
   prompt: [
     {
-      type: 'model3d',
-      source: { type: 'url', value: 'https://example.com/models/dragon.glb' },
+      type: 'image',
+      source: { type: 'url', value: 'https://example.com/concepts/dragon.png' },
     },
   ],
+  threadId,
+  wait: true,
+  timeout: 30 * 60_000,
+})
+const meshyFigure = {
+  type: 'model3d',
+  source: { type: 'file', value: figure.jobId, provider: 'meshy' },
+} as const
+
+const repaired = await generate3DModel({
+  adapter: meshy3DModel('print-repair'),
+  prompt: [meshyFigure],
   threadId,
   wait: true,
   modelOptions: { printer_type: 'fdm', intended_print_height_mm: 120 },
@@ -117,12 +140,7 @@ const repaired = await generate3DModel({
 
 const colored = await generate3DModel({
   adapter: meshy3DModel('print-multi-color'),
-  prompt: [
-    {
-      type: 'model3d',
-      source: { type: 'file', value: repaired.jobId, provider: 'meshy' },
-    },
-  ],
+  prompt: [meshyFigure],
   threadId,
   wait: true,
   modelOptions: { max_colors: 4, printer_brand: 'bambu' },
@@ -134,18 +152,13 @@ await writeFile('dragon.3mf', Buffer.from(await response.arrayBuffer()))
 
 const parts = await generate3DModel({
   adapter: meshy3DModel('print-split'),
-  prompt: [
-    {
-      type: 'model3d',
-      source: { type: 'file', value: repaired.jobId, provider: 'meshy' },
-    },
-    { type: 'text', content: 'head, wings, body, tail' },
-  ],
+  prompt: [meshyFigure, { type: 'text', content: 'head, wings, body, tail' }],
   threadId,
   wait: true,
   modelOptions: { mode: 'by_parts', layout: 'on_plate', connectors: true },
 })
 
+console.log(repaired.url)
 console.log(parts.files?.map((file) => file.url))
 ```
 
@@ -153,9 +166,10 @@ Run the script. You now have `dragon.3mf` on disk, with a slicer preset for a Ba
 
 What each step does:
 
-- `print-repair` repairs the mesh for your printer. `printer_type` sets the minimum wall thickness.
+- `print-repair` repairs the mesh for a 1-color print. `printer_type` sets the minimum wall thickness.
 - `print-multi-color` returns a 3MF file. `colored.format` is `'3mf'`. `max_colors` is 1 to 16.
 - `print-split` takes the model only as a Meshy task id. With `mode: 'by_parts'` or `'by_color'`, the text names the parts. With `mode: 'auto'`, Meshy picks the cuts and you send no text.
+- An inline mesh for `print-repair` must be GLB or glTF, and for `print-multi-color` it must be GLB. Send other formats as a `url` source.
 
 Meshy keeps generated files for 3 days, on all plans except Enterprise. Copy each file that you want to keep.
 
@@ -256,7 +270,7 @@ The endpoint sets the Meshy URL of the task, so use the same endpoint in both re
 
 ## Cancel a job
 
-Meshy cancels only a task that waits in the queue (`'pending'`). Then Meshy gives back the credits.
+Meshy cancels only a task that waits in the queue (`'pending'`). Then Meshy gives back the credits. The adapter reads the task first, so a cancel never deletes a finished model.
 
 ```ts
 import { meshy3DModel } from '@tanstack/ai-meshy'
@@ -273,7 +287,8 @@ try {
 What to know:
 
 - For a running task, the cancel throws `Meshy task <id> is already running and cannot be canceled`. The task finishes, and Meshy charges for it.
-- `cancelMotionJob()` from `@tanstack/ai` works in the same way for `meshyMotion()` jobs. On a finished motion task, it deletes the task and its clip.
+- For a finished task, the cancel does nothing. The model and its files stay.
+- `cancelMotionJob()` from `@tanstack/ai` works in the same way for `meshyMotion()` jobs.
 - With `stream` or `wait`, an abort or a `timeout` also asks Meshy to cancel. If the task already runs, the failed cancel goes to the error log.
 
 ## Errors

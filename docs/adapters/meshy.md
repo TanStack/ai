@@ -194,7 +194,9 @@ export function MeshyModel() {
 
 Click **Generate model**. The progress goes up to 100%, then the download link shows. To show the model in the page, use the three.js viewer from [3D Model Generation](../media/3d-model-generation#make-your-first-model).
 
-If the browser closes the request, `generate3DModel()` asks Meshy to cancel the task. Meshy cancels only a task that waits in the queue. A running task finishes, and Meshy charges for it.
+If the browser closes the request, `generate3DModel()` asks Meshy to cancel the task. Meshy cancels only a task that waits in the queue. A running task finishes, and Meshy charges for it. A finished model is never deleted.
+
+A Meshy job can take longer than the default `timeout` of 10 minutes when Meshy is busy. Meshy says to wait up to 60 minutes. For long jobs, set a larger `timeout`, for example `timeout: 30 * 60_000`. A timeout does not stop a running task, so Meshy still charges for it.
 
 ## Rig and animate a character
 
@@ -360,6 +362,11 @@ The first argument of `meshy3DModel()` picks the endpoint. TypeScript types the 
 | `image-to-3d` | One image, plus optional text for the textures | The same as `text-to-3d-preview` |
 | `multi-image-to-3d` | 1 to 4 images of one object, plus optional text | `'meshy-7.1'`, `'meshy-6'`, `'meshy-6-lite'`, `'latest'` |
 | `retexture` | A mesh, plus text, or 1 style image, or 2 to 4 views | The same as `text-to-3d-refine` |
+
+Some models have extra rules:
+
+- `'meshy-t2'` and `'meshy-t2.5'` are Smart Topology models. The adapter sends `model_type: 'smart-topology'` for them.
+- `retexture` with 2 to 4 views needs `'meshy-7'` or `'meshy-n1'`, and takes no text. The adapter throws before the request otherwise.
 
 These endpoints change a model that you already have. They take no `ai_model`:
 
