@@ -33,7 +33,8 @@
         "packages/ai-typesafe",
         "packages/ai-vercel-gateway",
         "packages/ai-vertex",
-        "packages/ai-worldlabs"
+        "packages/ai-worldlabs",
+        "packages/ai-meshy"
       ],
       "talksTo": ["core"]
     },
