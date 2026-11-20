@@ -2207,7 +2207,7 @@ export class ChatClient<
           }
           if (!rebuilt && rebuildsAssistantMessage(chunk)) {
             rebuilt = true
-            if (hydratedAssistantId) {
+            if (hydratedAssistantId !== undefined) {
               this.dropHydratedAssistant(hydratedAssistantId)
             }
           }
