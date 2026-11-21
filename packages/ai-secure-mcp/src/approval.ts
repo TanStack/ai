@@ -9,10 +9,10 @@ export interface ApprovalRequired {
   expiresAt: number
 }
 
-interface Proposal {
+interface Proposal<TContext> {
   owner: string
   summary: string
-  run: () => Promise<unknown>
+  run: (context: TContext) => Promise<unknown>
   expiresAt: number
 }
 
@@ -24,18 +24,26 @@ interface Proposal {
  * The store is in memory and fail-closed: a restart drops every proposal, so a
  * ghost approval cannot run after a crash. Each proposal is single-use and
  * expires.
+ *
+ * `run` receives the context of the confirming call, not the proposing one.
+ * The proposing request has ended by then, so its abort signal and its
+ * request-bound hooks are dead.
  */
-export interface ApprovalStore {
+export interface ApprovalStore<TContext = void> {
   propose: (input: {
     owner: string
     summary: string
-    run: () => Promise<unknown>
+    run: (context: TContext) => Promise<unknown>
   }) => ApprovalRequired
-  confirm: (proposalId: string, owner: string) => Promise<unknown>
+  confirm: (
+    proposalId: string,
+    owner: string,
+    context: TContext,
+  ) => Promise<unknown>
   pendingCount: () => number
 }
 
-export function createApprovalStore(options?: {
+export function createApprovalStore<TContext = void>(options?: {
   /** How long a proposal stays valid, 300000 ms (5 minutes) by default. */
   ttlMs?: number
   /** The most pending proposals to hold at once, 1000 by default. */
@@ -44,14 +52,21 @@ export function createApprovalStore(options?: {
   now?: () => number
   /** An id source, for tests. */
   newId?: () => string
-}): ApprovalStore {
+}): ApprovalStore<TContext> {
   const ttlMs = options?.ttlMs ?? 300_000
   const maxPending = options?.maxPending ?? 1000
+  // A NaN or infinite `ttlMs` gives an expiry that no clock passes, and a NaN
+  // `maxPending` never bounds the map. Refuse both at construction.
+  if (!Number.isFinite(ttlMs) || ttlMs <= 0 || !(maxPending >= 1)) {
+    throw new RangeError(
+      `ttlMs must be a finite, positive number and maxPending at least 1, got ${ttlMs} and ${maxPending}`,
+    )
+  }
   const now = options?.now ?? (() => Date.now())
   const newId = options?.newId ?? (() => randomUUID())
-  const proposals = new Map<string, Proposal>()
+  const proposals = new Map<string, Proposal<TContext>>()
 
-  // Drop every proposal past its expiry. Called on each store operation so an
+  // Drop every proposal past its expiry. Called on each `propose` so an
   // unconfirmed proposal cannot pin its `run` closure (args, context) forever.
   const pruneExpired = () => {
     const at = now()
@@ -76,7 +91,7 @@ export function createApprovalStore(options?: {
       return { status: 'approval_required', proposalId, summary, expiresAt }
     },
 
-    confirm: async (proposalId, owner) => {
+    confirm: async (proposalId, owner, context) => {
       const proposal = proposals.get(proposalId)
       // Do not tell a caller whether an id exists for another owner.
       if (proposal === undefined || proposal.owner !== owner) {
@@ -92,7 +107,7 @@ export function createApprovalStore(options?: {
       // Single-use: remove before running, so a failed action cannot be
       // retried by replaying the same id.
       proposals.delete(proposalId)
-      return proposal.run()
+      return proposal.run(context)
     },
 
     pendingCount: () => {

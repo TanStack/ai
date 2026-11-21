@@ -20,3 +20,18 @@ describe('createRateLimiter', () => {
     expect(rl.allow('a')).toBe(false)
   })
 })
+
+describe('createRateLimiter — bad numbers', () => {
+  it('refuses a limit or window that would turn the limiter off', () => {
+    // `Number(process.env.RATE_LIMIT)` with the variable unset is NaN.
+    expect(() => createRateLimiter({ limit: NaN, windowMs: 1000 })).toThrow(
+      RangeError,
+    )
+    expect(() => createRateLimiter({ limit: 1, windowMs: NaN })).toThrow(
+      RangeError,
+    )
+    expect(() => createRateLimiter({ limit: 1, windowMs: -1 })).toThrow(
+      RangeError,
+    )
+  })
+})

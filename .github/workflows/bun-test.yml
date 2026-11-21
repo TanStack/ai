@@ -15,7 +15,7 @@ on:
   pull_request:
     paths:
       - 'packages/ai-isolate-quickjs-bun/**'
-      - 'packages/ai-code-mode/**'
+      - 'packages/ai-isolate/**'
       - '.github/workflows/bun-test.yml'
 
 concurrency:
@@ -45,7 +45,7 @@ jobs:
           # The driver requires Bun >= 1.4.0 (see the package `engines` field).
           bun-version: latest
       - name: Build package and its workspace dependencies
-        # `@tanstack/ai-code-mode` is a `workspace:*` peer dependency and is
+        # `@tanstack/ai-isolate` is a workspace dependency and is
         # imported at runtime (`wrapCode`) by the driver, so it must be built to
         # `dist/` before the Bun tests can import it. nx builds the dependency
         # graph first via `^build`.

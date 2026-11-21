@@ -16,7 +16,9 @@ export type EgressFetch = (url: string, init?: RequestInit) => Promise<Response>
  * or timeout becomes `backend_unavailable`. The HTTP status passes through, so
  * the tool decides what a 404 or 500 means.
  *
- * @param options.allow - The allowed origins, for example `https://api.hue.local`
+ * @param options.allow - The allowed origins, for example `https://api.hue.local`.
+ *   Each entry is an `http` or `https` origin with no path, query, or
+ *   credentials. Wildcards are not supported.
  * @param options.timeoutMs - The per-request timeout, 10000 ms by default
  * @param options.onDenied - Runs when an origin is refused, for audit and notify
  * @param options.fetch - The fetch to use, the global `fetch` by default
@@ -29,14 +31,32 @@ export function createEgress(options: {
 }): EgressFetch {
   const allowed = new Set<string>()
   for (const entry of options.allow) {
+    let parsed: URL | undefined
     try {
-      allowed.add(new URL(entry).origin)
+      parsed = new URL(entry)
     } catch {
+      // Refused below.
+    }
+    // An entry with no scheme, such as `localhost:8080`, parses with the host
+    // as the scheme and the origin `"null"`. Every `data:` and `file:` URL has
+    // that origin too, so accepting it would allow them all. A path or query
+    // is refused as well: only the origin is matched, so it would be dropped
+    // and the whole origin allowed.
+    if (
+      parsed === undefined ||
+      (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') ||
+      parsed.pathname !== '/' ||
+      parsed.search !== '' ||
+      parsed.hash !== '' ||
+      parsed.username !== '' ||
+      parsed.password !== ''
+    ) {
       throw new SecureMcpError(
         'invalid_input',
-        `Egress allowlist entry is not a URL: ${entry}`,
+        `Egress allowlist entry must be an http(s) origin such as https://api.example.com, got: ${entry}`,
       )
     }
+    allowed.add(parsed.origin)
   }
   const timeoutMs = options.timeoutMs ?? 10_000
   const fetchImpl = options.fetch ?? fetch

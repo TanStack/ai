@@ -27,7 +27,7 @@ This package runs generated JavaScript or TypeScript in a caller-provided Dayton
 ## Installation
 
 ```bash
-pnpm add @tanstack/ai-isolate-daytona @tanstack/ai-isolate @tanstack/ai-code-mode
+pnpm add @tanstack/ai-isolate-daytona @tanstack/ai-code-mode
 ```
 
 If you use the official Daytona SDK to create sandboxes, install it in your app too:

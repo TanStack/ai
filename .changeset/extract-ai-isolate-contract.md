@@ -11,6 +11,4 @@
 
 Add `@tanstack/ai-isolate`, the engine-agnostic isolate base. It owns the contract every sandbox driver implements (`IsolateDriver`, `IsolateConfig`, `IsolateContext`, `ExecutionResult`, `NormalizedError`, `ToolBinding`) plus the shared `wrapCode` helper. These previously lived inside `@tanstack/ai-code-mode`, which forced every driver to depend on Code Mode just for the contract.
 
-Drivers (`quickjs`, `quickjs-bun`, `node`, `cloudflare`, `e2b`, `daytona`) now depend on `@tanstack/ai-isolate` instead of `@tanstack/ai-code-mode`. `@tanstack/ai-code-mode` re-exports the same types and `wrapCode`, so its public API is unchanged.
-
-The drivers' peer dependency is now `@tanstack/ai-isolate`. If your package manager does not install peer dependencies for you (for example pnpm with `auto-install-peers=false`), add `@tanstack/ai-isolate` next to your driver.
+Drivers (`quickjs`, `quickjs-bun`, `node`, `cloudflare`, `e2b`, `daytona`) now depend on `@tanstack/ai-isolate` instead of `@tanstack/ai-code-mode`. It is a regular dependency of each driver, so you install nothing extra. `@tanstack/ai-code-mode` re-exports the same types and `wrapCode`, so its public API is unchanged.

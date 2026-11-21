@@ -90,3 +90,11 @@ describe('createApprovalStore', () => {
     expect(store.pendingCount()).toBe(2)
   })
 })
+
+describe('createApprovalStore — bad numbers', () => {
+  it('refuses a ttl that would never expire', () => {
+    expect(() => createApprovalStore({ ttlMs: NaN })).toThrow(RangeError)
+    expect(() => createApprovalStore({ ttlMs: Infinity })).toThrow(RangeError)
+    expect(() => createApprovalStore({ maxPending: NaN })).toThrow(RangeError)
+  })
+})

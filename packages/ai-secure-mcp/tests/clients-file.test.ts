@@ -71,3 +71,21 @@ describe('clientsFromFile', () => {
     })
   })
 })
+
+describe('clientsFromFile — keys it does not know', () => {
+  it('rejects a misspelt key instead of dropping the restriction', async () => {
+    for (const extra of [{ target: ['den'] }, { expires_at: 1700000000 }]) {
+      const path = await writeClients([{ ...base, ...extra }])
+      await expect(clientsFromFile(path)).rejects.toMatchObject({
+        code: 'invalid_input',
+      })
+    }
+  })
+
+  it('rejects a scopes array that holds a non-string', async () => {
+    const path = await writeClients([{ ...base, scopes: ['read', 1] }])
+    await expect(clientsFromFile(path)).rejects.toMatchObject({
+      code: 'invalid_input',
+    })
+  })
+})

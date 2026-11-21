@@ -18,6 +18,17 @@ export function createRateLimiter(options: {
   /** A clock in ms, for tests. */
   now?: () => number
 }): RateLimiter {
+  // A NaN limit or window makes every comparison false, so nothing is ever
+  // limited. Refuse it at construction; use `rateLimit: false` to turn it off.
+  if (
+    !(options.limit > 0) ||
+    !Number.isFinite(options.windowMs) ||
+    options.windowMs <= 0
+  ) {
+    throw new RangeError(
+      `limit must be positive and windowMs finite and positive, got ${options.limit} and ${options.windowMs}`,
+    )
+  }
   const hits = new Map<string, Array<number>>()
   const now = options.now ?? (() => Date.now())
   return {

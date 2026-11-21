@@ -25,11 +25,8 @@ QuickJS WASM driver for TanStack AI Code Mode. Runs everywhere — Node.js, brow
 ## Installation
 
 ```bash
-pnpm add @tanstack/ai-isolate-quickjs @tanstack/ai-isolate
+pnpm add @tanstack/ai-isolate-quickjs
 ```
-
-`@tanstack/ai-isolate` is a peer dependency. A package manager that does not
-auto-install peers needs it listed explicitly, or the driver fails to load.
 
 ## Usage
 

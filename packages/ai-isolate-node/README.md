@@ -31,11 +31,8 @@ Node.js V8 isolate driver for TanStack AI Code Mode. Uses [`isolated-vm`](https:
 ## Installation
 
 ```bash
-pnpm add @tanstack/ai-isolate-node @tanstack/ai-isolate
+pnpm add @tanstack/ai-isolate-node
 ```
-
-`@tanstack/ai-isolate` is a peer dependency. A package manager that does not
-auto-install peers needs it listed explicitly.
 
 ## Usage
 

@@ -19,9 +19,14 @@ export interface SecureRequestContext {
   egress: EgressFetch
 }
 
+/** The tool context a guarded call receives. */
+export type GuardContext =
+  | ToolExecutionContext<SecureRequestContext>
+  | undefined
+
 interface GuardDeps {
   policy: AccessPolicy
-  approvals: ApprovalStore
+  approvals: ApprovalStore<GuardContext>
   audit?: AuditLog
   notify: SecurityNotifier
   summarize: (toolName: string, args: unknown) => string
@@ -32,9 +37,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** Reads the verified client the outer fetch injected into the tool context. */
-function readClient(
-  context: ToolExecutionContext<SecureRequestContext> | undefined,
-): ClientRecord {
+function readClient(context: GuardContext): ClientRecord {
   // Typed as present, but a misuse could still leave it out at runtime.
   const client = context?.context?.secure?.client
   if (client === undefined) {
@@ -48,25 +51,51 @@ function readClient(
 
 /**
  * Wraps each tool with the access guard: scope, then target allowlist, then
- * two-phase approval, then the call. Every outcome is audited. A refusal also
- * pings the notifier.
+ * two-phase approval, then the call. Each outcome is recorded when an audit
+ * log is set. A refusal also pings the notifier.
+ *
+ * It throws `invalid_input` when the policy names a tool that is not in
+ * `tools`, or a tool has no `execute`. A misspelt name would otherwise leave
+ * the real tool with no scope check and no approval.
  */
 export function guardTools(
   tools: ReadonlyArray<AnyServerTool>,
   deps: GuardDeps,
 ): Array<AnyServerTool> {
+  const names = new Set(tools.map((tool) => tool.name))
+  const unknown = [
+    ...Object.keys(deps.policy.scopes ?? {}),
+    ...Object.keys(deps.policy.targetParam ?? {}),
+    ...(deps.policy.approve ?? []),
+  ].filter((name) => !names.has(name))
+  if (unknown.length > 0) {
+    throw new SecureMcpError(
+      'invalid_input',
+      `The policy names tools that are not in \`tools\`: ${[...new Set(unknown)].join(', ')}.`,
+    )
+  }
   return tools.map((tool) => {
     const original = tool.execute
+    if (original === undefined) {
+      throw new SecureMcpError(
+        'invalid_input',
+        `Tool "${tool.name}" has no execute function.`,
+      )
+    }
     const execute = async (
       args: unknown,
       context?: ToolExecutionContext<SecureRequestContext>,
     ): Promise<unknown> => {
       const client = readClient(context)
 
-      const runAndAudit = async (): Promise<unknown> => {
+      // `runContext` is the context of the call that runs the action. For an
+      // approved tool that is the confirm call, not the propose call.
+      const runAndAudit = async (
+        runContext: GuardContext,
+      ): Promise<unknown> => {
         let result: unknown
         try {
-          result = await original?.(args, context)
+          result = await original(args, runContext)
         } catch (error) {
           await deps.audit?.record({
             client: client.id,
@@ -108,7 +137,9 @@ export function guardTools(
       const targetField = deps.policy.targetParam?.[tool.name]
       if (targetField !== undefined && client.targets !== undefined) {
         const value = isRecord(args) ? args[targetField] : undefined
-        if (!client.targets.includes(String(value))) {
+        // Only a string can name a target. `String(['kitchen'])` is
+        // `'kitchen'`, so a coerced array would pass the list.
+        if (typeof value !== 'string' || !client.targets.includes(value)) {
           return refuse(
             deps,
             client,
@@ -144,7 +175,7 @@ export function guardTools(
         return envelope
       }
 
-      return runAndAudit()
+      return runAndAudit(context)
     }
     // An approval-gated tool returns the `approval_required` envelope on the
     // first call, not its own output shape. Keeping an `outputSchema` would make
@@ -166,6 +197,8 @@ async function refuse(
   code: 'forbidden_scope',
   message: string,
 ): Promise<never> {
+  // Notify first: a failing audit write must not silence the tripwire.
+  void deps.notify.notify({ kind: 'forbidden_scope', client: client.id, tool })
   await deps.audit?.record({
     client: client.id,
     event: 'tool_call',
@@ -174,16 +207,16 @@ async function refuse(
     code,
     args,
   })
-  void deps.notify.notify({ kind: 'forbidden_scope', client: client.id, tool })
   throw new SecureMcpError(code, message)
 }
 
 /**
  * Builds the `approve_proposal` tool. A client confirms its own pending
- * proposal by id; the stored action then runs host-side.
+ * proposal by id; the stored action then runs host-side, with the context of
+ * this confirm call.
  */
 export function createConfirmTool(deps: {
-  approvals: ApprovalStore
+  approvals: ApprovalStore<GuardContext>
   audit?: AuditLog
 }): AnyServerTool {
   const tool: AnyServerTool = toolDefinition({
@@ -197,13 +230,17 @@ export function createConfirmTool(deps: {
     }),
   }).server<SecureRequestContext>(async ({ proposalId }, context) => {
     const client = readClient(context)
-    const result = await deps.approvals.confirm(proposalId, client.id)
-    await deps.audit?.record({
-      client: client.id,
-      event: 'approval_confirmed',
-      outcome: 'ok',
-      args: { proposalId },
-    })
+    const result = await deps.approvals.confirm(proposalId, client.id, context)
+    // The action already ran, and the proposal is spent. If this audit write
+    // fails, still return the result: the client could not retry.
+    await deps.audit
+      ?.record({
+        client: client.id,
+        event: 'approval_confirmed',
+        outcome: 'ok',
+        args: { proposalId },
+      })
+      .catch(() => {})
     return { confirmed: true, result }
   })
   return tool

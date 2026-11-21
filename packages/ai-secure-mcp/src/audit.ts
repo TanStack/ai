@@ -7,7 +7,10 @@ import {
 } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
-/** One line of the audit log. Secrets and tokens are never present. */
+/**
+ * One line of the audit log. The bearer token is never present. Args are
+ * redacted by field name, see `redactArgs`.
+ */
 export interface AuditEntry {
   /** The client id, or undefined for an unauthenticated attempt. */
   client?: string
@@ -59,10 +62,13 @@ export interface AuditLog {
 
 /**
  * An append-only JSONL audit log. Each line is one event with a timestamp and
- * redacted args. On start it drops lines older than `retentionDays`.
+ * redacted args. The first `record` after the process starts drops lines
+ * older than `retentionDays`. It is not a rolling retention: a long-running
+ * server prunes once.
  *
  * @param options.path - The JSONL file to append to
- * @param options.retentionDays - Days to keep; older lines are pruned on start
+ * @param options.retentionDays - Days to keep; older lines are pruned once,
+ *   on the first `record`
  * @param options.now - A clock in ms, for tests
  */
 export function createAuditLog(options: {
@@ -113,12 +119,17 @@ export function createAuditLog(options: {
   // Prune and ensure the directory once, lazily on the first `record`. Running
   // init eagerly here would leave its rejection unhandled until a later
   // `record` awaits it, which can crash the process on Node's default handler.
-  // A failure is preserved and surfaced to the caller of `record`.
+  // A failure is surfaced to the caller of `record` and not kept, so the next
+  // `record` tries again: a full disk during the prune must not turn the log
+  // off until restart.
   let ready: Promise<void> | undefined
 
   return {
     record: async (entry) => {
-      ready ??= init()
+      ready ??= init().catch((error: unknown) => {
+        ready = undefined
+        throw error
+      })
       await ready
       const line = JSON.stringify({
         time: now(),

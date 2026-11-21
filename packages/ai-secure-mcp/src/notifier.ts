@@ -141,6 +141,11 @@ export function debounceNotifier(
             : ''
       const key = `${event.kind}:${id ?? ''}`
       const at = now()
+      // Drop keys past their window. Each proposal adds a key of its own, so
+      // without this the map grows for the life of the process.
+      for (const [sentKey, sentAt] of lastSent) {
+        if (at - sentAt >= windowMs) lastSent.delete(sentKey)
+      }
       const prev = lastSent.get(key)
       if (prev !== undefined && at - prev < windowMs) return
       lastSent.set(key, at)

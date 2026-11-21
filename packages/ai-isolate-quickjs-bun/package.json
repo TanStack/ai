@@ -60,10 +60,8 @@
     "code-execution"
   ],
   "dependencies": {
+    "@tanstack/ai-isolate": "workspace:^",
     "quickjs-bun": "0.2.0"
-  },
-  "peerDependencies": {
-    "@tanstack/ai-isolate": "workspace:^"
   },
   "devDependencies": {
     "@tanstack/ai-isolate-quickjs": "workspace:*",

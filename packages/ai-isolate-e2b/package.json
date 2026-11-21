@@ -49,7 +49,7 @@
     "isolate",
     "code-execution"
   ],
-  "peerDependencies": {
+  "dependencies": {
     "@tanstack/ai-isolate": "workspace:^"
   },
   "devDependencies": {

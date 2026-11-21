@@ -142,3 +142,35 @@ describe('createEgress', () => {
     expect(await res.text()).toBe('hello')
   })
 })
+
+describe('createEgress — allowlist entries', () => {
+  it('refuses an entry that is not an http(s) origin', () => {
+    // `localhost:8080` parses with the origin "null", which is also the origin
+    // of every `data:` and `file:` URL. A path or query would be dropped.
+    for (const entry of [
+      'localhost:8080',
+      'api.hue.local:443',
+      'file:///etc',
+      'https://api.hue.local/v1',
+      'https://api.hue.local?x=1',
+      'https://user@api.hue.local',
+    ]) {
+      expect(() => createEgress({ allow: [entry] }), entry).toThrow(
+        SecureMcpError,
+      )
+    }
+    expect(() =>
+      createEgress({ allow: ['https://api.hue.local/', 'http://[::1]:8080'] }),
+    ).not.toThrow()
+  })
+
+  it('refuses an opaque-origin URL', async () => {
+    const egress = createEgress({
+      allow: ['https://api.hue.local'],
+      fetch: async () => new Response('should not run'),
+    })
+    await expect(egress('data:text/plain,hi')).rejects.toMatchObject({
+      code: 'egress_denied',
+    })
+  })
+})

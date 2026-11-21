@@ -143,3 +143,72 @@ describe('createSecureMcpServer — auth failure flood', () => {
     expect(events).toHaveLength(10)
   })
 })
+
+describe('createSecureMcpServer — config it refuses', () => {
+  it('refuses a duplicate client id', () => {
+    const twin = { ...alice, tokenHash: hashToken('other-token') }
+    expect(() =>
+      createSecureMcpServer({ ...base(), clients: [alice, twin] }),
+    ).toThrow(/more than once/)
+  })
+
+  it('refuses an expiresAt in milliseconds', () => {
+    expect(() =>
+      createSecureMcpServer({
+        ...base(),
+        clients: [{ ...alice, expiresAt: Date.now() + 60_000 }],
+      }),
+    ).toThrow(/Unix seconds/)
+  })
+
+  it('refuses a policy that names an unknown tool', () => {
+    expect(() =>
+      createSecureMcpServer({
+        ...base(),
+        policy: { scopes: { pong: 'read' } },
+      }),
+    ).toThrow(/not in `tools`/)
+  })
+})
+
+describe('createSecureMcpServer — a real tool call', () => {
+  function call(token: string, name: string) {
+    return new Request('https://mcp.local/', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name, arguments: {} },
+      }),
+    })
+  }
+
+  it('runs a tool for a client with the scope, and refuses one without', async () => {
+    const bob: ClientRecord = {
+      id: 'bob',
+      tokenHash: hashToken('bob-token'),
+      scopes: [],
+    }
+    const server = createSecureMcpServer({
+      ...base(),
+      clients: [alice, bob],
+      policy: { scopes: { ping: 'read' } },
+    })
+    // The guard reads the client the envelope put in the tool context, so
+    // this fails if the context does not reach the tool.
+    const ok = await server.fetch(call('alice-token', 'ping'))
+    expect(ok.status).toBe(200)
+    expect(await ok.text()).toContain('"structuredContent":{"pong":true}')
+
+    const denied = await server.fetch(call('bob-token', 'ping'))
+    const body = await denied.text()
+    expect(body).toContain('"isError":true')
+    expect(body).not.toContain('pong')
+  })
+})
