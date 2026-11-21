@@ -299,8 +299,8 @@ describe('harnessAgent as a routed root agent', () => {
     )
     const image = {
       type: 'image',
-      source: { type: 'url', value: 'https://example.com/cat.png' },
-    }
+      source: { type: 'url', value: 'https://tanstack.com/cat.png' },
+    } as const
     await session.send([{ type: 'text', content: 'Look at this.' }, image])
     await session.send('What is in the image?')
 
