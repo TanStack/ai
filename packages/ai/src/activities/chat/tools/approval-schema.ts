@@ -195,10 +195,16 @@ export function normalizeApprovalSchema(
   }
 }
 
+/** The JSON Schema that {@link hashSchemaInput} hashes, when there is one. */
+export function schemaInputToJsonSchema(
+  schema: SchemaInput | undefined,
+): JSONSchema | undefined {
+  return schema === undefined ? undefined : schemaToWire(schema).jsonSchema
+}
+
 export function hashSchemaInput(schema: SchemaInput | undefined): string {
   if (schema === undefined) return digestInterruptJson('undefined')
-  const normalized = schemaToWire(schema)
-  const identity = normalized.jsonSchema ?? {
+  const identity = schemaInputToJsonSchema(schema) ?? {
     standardValidator: 'unserialized',
   }
   return digestInterruptJson(canonicalInterruptJson(identity))

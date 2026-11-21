@@ -105,6 +105,9 @@ full set before it accepts any item.
 In a mixed batch, `kind` tells you what each item is:
 
 - `tool-approval`: a tool call. It has its own approval controls.
+- `server-tool-approval`: a call to a tool that only the server knows, such as
+  an MCP tool. It has approval controls, but `toolName` and `originalArgs` are
+  untyped.
 - `generic` with a `definitionId`: a registered generic interrupt. The
   definition id narrows its payload and response types.
 - `generic` without a `definitionId`: an external interrupt with a valid
