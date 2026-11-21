@@ -182,7 +182,7 @@ type ResolveReasoning<TModel extends string> =
 
 /** The models that take `--effort`. The same list as the Anthropic adapter's adaptive thinking. */
 const EFFORT_MODELS =
-  /^(opus|sonnet)$|opus-4-[6-9]|sonnet-4-[6-9]|opus-5|sonnet-5|fable-5/
+  /^(opus|sonnet)$|opus-4-[6-9]|sonnet-4-[6-9]|opus-5|sonnet-5|haiku-5|fable-5/
 
 /**
  * The CLI settings for `chat({ reasoning })`, from the Claude Code docs:
