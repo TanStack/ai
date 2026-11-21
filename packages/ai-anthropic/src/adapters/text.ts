@@ -47,6 +47,7 @@ import {
   ANTHROPIC_MODEL_INPUT_MODALITIES,
   ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS,
   ANTHROPIC_MODEL_REASONING,
+  ANTHROPIC_MODELS_REJECTING_SAMPLING,
   ANTHROPIC_NO_FORCED_TOOL_MODELS,
   getAnthropicDefaultMaxTokens,
 } from '../model-meta'
@@ -1215,6 +1216,10 @@ export class AnthropicTextAdapter<
 
     const validProviderOptions: Partial<InternalTextProviderOptions> = {}
     if (modelOptions) {
+      const samplingKeys = ['top_k', 'temperature', 'top_p'] as const
+      const modelAllowsSampling = !ANTHROPIC_MODELS_REJECTING_SAMPLING.has(
+        this.model,
+      )
       const validKeys: Array<keyof AnthropicTextProviderOptions> = [
         'cache_control',
         'container',
@@ -1224,16 +1229,19 @@ export class AnthropicTextAdapter<
         'service_tier',
         'stop_sequences',
         'tool_choice',
-        'top_k',
-        'temperature',
-        'top_p',
+        ...(modelAllowsSampling ? samplingKeys : []),
       ]
       // `max_tokens` is a legitimate public modelOptions field, but it is read
       // via a dedicated path (defaultMaxTokens below) rather than copied into
       // validProviderOptions. Exempt it from the dropped-key warning here so a
       // correct `modelOptions: { max_tokens }` call doesn't log a spurious
       // "dropped unknown key" error, while keeping it out of the copy loop.
-      const droppedKeyExemptSet = new Set<string>([...validKeys, 'max_tokens'])
+      const droppedKeyExemptSet = new Set<string>([
+        ...validKeys,
+        'max_tokens',
+        // Dropped on purpose on these models, not unknown: no error log.
+        ...(modelAllowsSampling ? [] : samplingKeys),
+      ])
       const droppedKeys = Object.keys(modelOptions).filter(
         (key) => !droppedKeyExemptSet.has(key),
       )

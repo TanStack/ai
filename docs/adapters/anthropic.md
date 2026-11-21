@@ -136,6 +136,8 @@ const result = await summarize({
 console.log(result.summary);
 ```
 
+Some models reject a non-default `temperature`, `top_p`, or `top_k`. On those models, `summarize()` does not send its default `temperature` of `0.3`.
+
 ## Files
 
 `anthropicFiles` uploads media to the Anthropic Files API, so a message can point to the file. See [Files API](../advanced/files-api).
