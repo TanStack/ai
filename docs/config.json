@@ -383,6 +383,11 @@
           "updatedAt": "2026-11-09"
         },
         {
+          "label": "Sandboxed Chat Tools",
+          "to": "tools/sandboxed-tools",
+          "addedAt": "2026-11-20"
+        },
+        {
           "label": "Tool Result Metadata",
           "to": "tools/tool-result-metadata",
           "addedAt": "2026-11-18"
