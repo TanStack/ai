@@ -9,7 +9,7 @@ title: MotionAssetFormat
 type MotionAssetFormat = "fbx" | "bvh" | "glb" | "gltf" | "json" | string & object;
 ```
 
-Defined in: [packages/ai/src/types.ts:3159](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3159)
+Defined in: [packages/ai/src/types.ts:3166](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3166)
 
 File format of a motion asset. Known values: `fbx`, `bvh`, `glb`, `gltf`,
 and `json` (raw provider motion data). Other strings pass through as the

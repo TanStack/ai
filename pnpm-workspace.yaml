@@ -157,6 +157,7 @@ packages:
   - 'examples/*'
   - 'examples/react/*'
   - 'testing/*'
+  - 'evals/harbor'
   - 'codemods'
   - 'tools/*'
 

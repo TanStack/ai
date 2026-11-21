@@ -103,7 +103,13 @@
           "label": "Computer Use",
           "to": "tutorials/computer-use",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-03"
+        },
+        {
+          "label": "Sign In Without the Model",
+          "to": "tutorials/computer-use-login",
+          "addedAt": "2026-11-03",
+          "updatedAt": "2026-11-06"
         },
         {
           "label": "Subscribe to MCP Events",
@@ -170,6 +176,11 @@
           "label": "Computer Use",
           "to": "framework/react/examples/computer-use",
           "addedAt": "2026-10-21"
+        },
+        {
+          "label": "Computer Use Login",
+          "to": "framework/react/examples/computer-use-login",
+          "addedAt": "2026-11-03"
         },
         {
           "label": "MCP Events",
@@ -482,6 +493,12 @@
           "to": "advanced/compaction-advanced",
           "addedAt": "2026-10-21",
           "updatedAt": "2026-11-09"
+        },
+        {
+          "label": "Context Optimization",
+          "to": "advanced/context-optimization",
+          "addedAt": "2026-11-12",
+          "updatedAt": "2026-11-19"
         }
       ],
       "tab": "guides"
@@ -965,7 +982,8 @@
         {
           "label": "Image Generation: Advanced",
           "to": "media/image-generation-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "Video Generation",
@@ -1103,7 +1121,7 @@
           "label": "Drivers",
           "to": "computer-use/drivers",
           "addedAt": "2026-10-20",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-03"
         },
         {
           "label": "Safety Checks",
@@ -1776,7 +1794,7 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-11"
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "OpenAI: Advanced",

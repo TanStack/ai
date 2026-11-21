@@ -189,7 +189,18 @@ export {
   type InputSchemaOf,
   type OutputSchemaOf,
   type NoSchema,
+  type TruncateStrategy,
+  type FieldProjection,
+  type ToolContextPolicy,
 } from './activities/chat/tools/tool-definition'
+export {
+  truncateHead,
+  truncateTail,
+  truncateHeadTail,
+  dropWithRef,
+  aboveTokens,
+  type StrategyOptions,
+} from './activities/chat/tools/projection-builders'
 export {
   hashSchemaInput,
   normalizeApprovalSchema,
