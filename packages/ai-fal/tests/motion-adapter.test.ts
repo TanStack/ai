@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
-  cancelMotionJob,
-  generateMotion,
-  getMotionJobStatus,
+  cancel3dMotionJob,
+  generate3dMotion,
+  get3dMotionJobStatus,
 } from '@tanstack/ai'
-import { falMotion } from '../src/adapters/motion'
+import { fal3dMotion } from '../src/adapters/motion'
 import type { StreamChunk } from '@tanstack/ai'
 
 const QUEUE = 'https://queue.fal.run'
@@ -77,7 +77,7 @@ function customChunks(chunks: Array<StreamChunk>) {
   )
 }
 
-describe('falMotion', () => {
+describe('fal3dMotion', () => {
   it('streams a Hunyuan Motion job from submit to FBX asset', async () => {
     const app = `${QUEUE}/fal-ai/hunyuan-motion`
     const fal = fakeFal({
@@ -97,8 +97,8 @@ describe('falMotion', () => {
     })
 
     const chunks: Array<StreamChunk> = []
-    for await (const c of generateMotion({
-      adapter: falMotion('fal-ai/hunyuan-motion', {
+    for await (const c of generate3dMotion({
+      adapter: fal3dMotion('fal-ai/hunyuan-motion', {
         apiKey: 'fal-test',
         fetch: fal.fetch,
       }),
@@ -124,18 +124,21 @@ describe('falMotion', () => {
     })
     expect(customChunks(chunks)).toEqual([
       {
-        name: 'motion:job:created',
+        name: 'motion3d:job:created',
         value: { jobId: 'req-1', model: 'fal-ai/hunyuan-motion' },
       },
       {
-        name: 'motion:status',
+        name: 'motion3d:status',
         value: { jobId: 'req-1', status: 'pending', queuePosition: 1 },
       },
       {
-        name: 'motion:status',
+        name: 'motion3d:status',
         value: { jobId: 'req-1', status: 'processing' },
       },
-      { name: 'motion:status', value: { jobId: 'req-1', status: 'completed' } },
+      {
+        name: 'motion3d:status',
+        value: { jobId: 'req-1', status: 'completed' },
+      },
       {
         name: 'generation:result',
         value: {
@@ -171,8 +174,8 @@ describe('falMotion', () => {
       },
     })
 
-    const status = await getMotionJobStatus({
-      adapter: falMotion('fal-ai/hunyuan-motion/fast', {
+    const status = await get3dMotionJobStatus({
+      adapter: fal3dMotion('fal-ai/hunyuan-motion/fast', {
         apiKey: 'fal-test',
         fetch: fal.fetch,
       }),
@@ -193,8 +196,8 @@ describe('falMotion', () => {
       },
     })
 
-    const status = await getMotionJobStatus({
-      adapter: falMotion('fal-ai/hunyuan-motion', {
+    const status = await get3dMotionJobStatus({
+      adapter: fal3dMotion('fal-ai/hunyuan-motion', {
         apiKey: 'fal-test',
         fetch: fal.fetch,
       }),
@@ -226,8 +229,8 @@ describe('falMotion', () => {
       },
     })
 
-    const status = await getMotionJobStatus({
-      adapter: falMotion('fal-ai/hunyuan-motion', {
+    const status = await get3dMotionJobStatus({
+      adapter: fal3dMotion('fal-ai/hunyuan-motion', {
         apiKey: 'fal-test',
         fetch: fal.fetch,
       }),
@@ -247,8 +250,8 @@ describe('falMotion', () => {
       [`PUT ${cancelUrl}`]: { body: { status: 'OK' } },
     })
 
-    await cancelMotionJob({
-      adapter: falMotion('fal-ai/hunyuan-motion', {
+    await cancel3dMotionJob({
+      adapter: fal3dMotion('fal-ai/hunyuan-motion', {
         apiKey: 'fal-test',
         fetch: fal.fetch,
       }),
@@ -269,8 +272,8 @@ describe('falMotion', () => {
     })
 
     await expect(
-      cancelMotionJob({
-        adapter: falMotion('fal-ai/hunyuan-motion', {
+      cancel3dMotionJob({
+        adapter: fal3dMotion('fal-ai/hunyuan-motion', {
           apiKey: 'fal-test',
           fetch: fal.fetch,
         }),

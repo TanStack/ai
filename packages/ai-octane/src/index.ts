@@ -39,10 +39,10 @@ export type {
   UseGenerateImageOptions,
   UseGenerateImageReturn,
 } from './use-generate-image.tsrx'
-export { useGenerate3DModel } from './use-generate-3d-model.tsrx'
+export { useGenerate3dModel } from './use-generate-3d-model.tsrx'
 export type {
-  UseGenerate3DModelOptions,
-  UseGenerate3DModelReturn,
+  UseGenerate3dModelOptions,
+  UseGenerate3dModelReturn,
 } from './use-generate-3d-model.tsrx'
 export { useGenerateAudio } from './use-generate-audio.tsrx'
 export type {
@@ -141,7 +141,7 @@ export {
   type InferChatMessages,
   type GenerationClientState,
   type ImageGenerateInput,
-  type Model3DGenerateInput,
+  type Model3dGenerateInput,
   type AudioGenerateInput,
   type SpeechGenerateInput,
   type TranscriptionGenerateInput,

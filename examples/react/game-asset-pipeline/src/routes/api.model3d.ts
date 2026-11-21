@@ -1,13 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
-  generate3DModel,
+  generate3dModel,
   generationParamsFromRequest,
   resolveMediaPrompt,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { fal3DModel } from '@tanstack/ai-fal'
+import { fal3dModel } from '@tanstack/ai-fal'
 import { falByok } from '@tanstack/ai-fal/byok'
-import { meshy3DModel } from '@tanstack/ai-meshy'
+import { meshy3dModel } from '@tanstack/ai-meshy'
 import { meshyByok } from '@tanstack/ai-meshy/byok'
 import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 
@@ -41,8 +41,8 @@ export async function POST({ request }: { request: Request }) {
   // Smart Topology keeps to the triangle budget. @fal-ai/client has no types
   // for this model, so modelOptions is not typed here.
   if (step === 'mesh' && image) {
-    const stream = generate3DModel({
-      adapter: fal3DModel('meshy/t2.5/image-to-3d', { apiKey }),
+    const stream = generate3dModel({
+      adapter: fal3dModel('meshy/t2.5/image-to-3d', { apiKey }),
       prompt: [image],
       modelOptions: { target_polycount: 10_000, enable_pbr: true },
       stream: true,
@@ -56,8 +56,8 @@ export async function POST({ request }: { request: Request }) {
 
   // Step 4: paint the same mesh with the skin image. The UVs stay the same.
   if (step === 'retexture' && mesh && image) {
-    const stream = generate3DModel({
-      adapter: fal3DModel('meshy/v7/retexture', { apiKey }),
+    const stream = generate3dModel({
+      adapter: fal3dModel('meshy/v7/retexture', { apiKey }),
       prompt: [mesh, image],
       modelOptions: { enable_pbr: true, texture_resolution: '2k' },
       stream: true,
@@ -72,8 +72,8 @@ export async function POST({ request }: { request: Request }) {
   // Step 5: add a skeleton to the retextured mesh (a URL). The result also
   // has basic walk and run animations, as files with the role 'animation'.
   if (step === 'rig' && mesh) {
-    const stream = generate3DModel({
-      adapter: meshy3DModel('rigging', { apiKey }),
+    const stream = generate3dModel({
+      adapter: meshy3dModel('rigging', { apiKey }),
       prompt: [mesh],
       modelOptions: { height_meters: 1.8 },
       stream: true,
@@ -88,8 +88,8 @@ export async function POST({ request }: { request: Request }) {
   // Step 6: apply one library animation to the rig. The page sends the
   // rigging job as a model3d part with a Meshy file source.
   if (step === 'animate' && mesh) {
-    const stream = generate3DModel({
-      adapter: meshy3DModel('animation', { apiKey }),
+    const stream = generate3dModel({
+      adapter: meshy3dModel('animation', { apiKey }),
       prompt: [mesh],
       modelOptions: { action_id: animationActionId },
       stream: true,

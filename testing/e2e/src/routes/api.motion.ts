@@ -1,32 +1,32 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
   EventType,
-  cancelMotionJob,
-  generateMotion,
+  cancel3dMotionJob,
+  generate3dMotion,
   generationParamsFromRequest,
-  getMotionJobStatus,
+  get3dMotionJobStatus,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { falMotion } from '@tanstack/ai-fal'
-import { meshyMotion } from '@tanstack/ai-meshy'
-import { uthanaMotion } from '@tanstack/ai-uthana'
+import { fal3dMotion } from '@tanstack/ai-fal'
+import { meshy3dMotion } from '@tanstack/ai-meshy'
+import { uthana3dMotion } from '@tanstack/ai-uthana'
 import { recordFromBody } from '@/lib/request-body'
 import type { StreamChunk } from '@tanstack/ai'
 
 /**
- * Motion generation through `falMotion` with a fake fal queue API.
+ * Motion generation through `fal3dMotion` with a fake fal queue API.
  *
  * The POST body picks a `mode` and a fake fal `scenario`:
  * - `stream`: the AG-UI body the generation hooks send (`forwardedProps`
  *   holds `prompt`, `mode`, `scenario`). Answers with SSE.
  * - `submit`: `{ prompt }` → `{ jobId, model }`.
- * - `status`: `{ jobId }` → `getMotionJobStatus` result.
- * - `cancel`: `{ jobId }` → `cancelMotionJob`.
+ * - `status`: `{ jobId }` → `get3dMotionJobStatus` result.
+ * - `cancel`: `{ jobId }` → `cancel3dMotionJob`.
  *
- * With `provider: 'uthana'`, `stream` and `cancel` run `uthanaMotion` against a
+ * With `provider: 'uthana'`, `stream` and `cancel` run `uthana3dMotion` against a
  * fake Uthana GraphQL API and file endpoint instead (see `fakeUthana`).
  *
- * With `provider: 'meshy'`, `stream` and `cancel` run `meshyMotion('prime')`
+ * With `provider: 'meshy'`, `stream` and `cancel` run `meshy3dMotion('prime')`
  * against a fake Meshy text to motion API instead (see `fakeMeshyMotion`).
  *
  * Each request builds its own fake fal, so parallel tests share no state.
@@ -206,14 +206,14 @@ async function handleUthana(
   props: Record<string, unknown>,
 ): Promise<Response> {
   const uthana = fakeUthana()
-  const adapter = uthanaMotion('text-to-motion-3.0', {
+  const adapter = uthana3dMotion('text-to-motion-3.0', {
     apiKey: 'uthana-e2e',
     fetch: uthana.fetch,
     defaults: { character_id: 'orc-e2e', fps: 30 },
   })
   if (props.mode === 'cancel' && typeof props.jobId === 'string') {
     try {
-      await cancelMotionJob({ adapter, jobId: props.jobId })
+      await cancel3dMotionJob({ adapter, jobId: props.jobId })
       return Response.json({ ok: true })
     } catch (error) {
       return Response.json(
@@ -228,10 +228,10 @@ async function handleUthana(
   if (props.mode !== 'stream')
     return badRequest('uthana supports stream and cancel')
   const { input, threadId, runId } = await generationParamsFromRequest(
-    'motion',
+    'motion3d',
     request,
   )
-  const stream = generateMotion({
+  const stream = generate3dMotion({
     adapter,
     threadId,
     runId,
@@ -354,13 +354,13 @@ async function* withMeshyRequests(
 
 async function handleMeshy(request: Request, props: Record<string, unknown>) {
   const meshy = fakeMeshyMotion()
-  const adapter = meshyMotion('prime', {
+  const adapter = meshy3dMotion('prime', {
     apiKey: 'meshy-e2e',
     fetch: meshy.fetch,
   })
   if (props.mode === 'cancel' && typeof props.jobId === 'string') {
     try {
-      await cancelMotionJob({ adapter, jobId: props.jobId })
+      await cancel3dMotionJob({ adapter, jobId: props.jobId })
       return Response.json({ ok: true, meshyRequests: meshy.requests })
     } catch (error) {
       return Response.json(
@@ -377,10 +377,10 @@ async function handleMeshy(request: Request, props: Record<string, unknown>) {
     return badRequest('meshy supports stream and cancel')
   }
   const { input, threadId, runId } = await generationParamsFromRequest(
-    'motion',
+    'motion3d',
     request,
   )
-  const stream = generateMotion({
+  const stream = generate3dMotion({
     adapter,
     threadId,
     runId,
@@ -410,18 +410,18 @@ export const Route = createFileRoute('/api/motion')({
         }
 
         const fal = fakeFal(SCENARIOS[scenario])
-        const adapter = falMotion(MODEL, {
+        const adapter = fal3dMotion(MODEL, {
           apiKey: 'fal-e2e',
           fetch: fal.fetch,
         })
 
         if (mode === 'stream') {
           const { input, threadId, runId } = await generationParamsFromRequest(
-            'motion',
+            'motion3d',
             request,
           )
           const abortController = new AbortController()
-          const stream = generateMotion({
+          const stream = generate3dMotion({
             adapter,
             threadId,
             runId,
@@ -439,7 +439,7 @@ export const Route = createFileRoute('/api/motion')({
               if (typeof props.prompt !== 'string') {
                 return badRequest('prompt is required')
               }
-              const job = await generateMotion({
+              const job = await generate3dMotion({
                 adapter,
                 threadId: 'motion-e2e',
                 prompt: props.prompt,
@@ -450,7 +450,7 @@ export const Route = createFileRoute('/api/motion')({
               if (typeof props.jobId !== 'string') {
                 return badRequest('jobId is required')
               }
-              const status = await getMotionJobStatus({
+              const status = await get3dMotionJobStatus({
                 adapter,
                 jobId: props.jobId,
               })
@@ -464,7 +464,7 @@ export const Route = createFileRoute('/api/motion')({
               if (typeof props.jobId !== 'string') {
                 return badRequest('jobId is required')
               }
-              await cancelMotionJob({ adapter, jobId: props.jobId })
+              await cancel3dMotionJob({ adapter, jobId: props.jobId })
               return Response.json({ ok: true, falCalls: fal.falCalls })
             }
           }

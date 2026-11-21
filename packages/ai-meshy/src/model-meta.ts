@@ -1,10 +1,10 @@
 /**
- * The Meshy 3D endpoints that `meshy3DModel()` can call. The endpoint is the
+ * The Meshy 3D endpoints that `meshy3dModel()` can call. The endpoint is the
  * adapter model.
  *
  * @experimental Meshy support is experimental and may change.
  */
-export type MeshyModel3DEndpoint =
+export type MeshyModel3dEndpoint =
   | 'text-to-3d-preview'
   | 'text-to-3d-refine'
   | 'image-to-3d'
@@ -27,7 +27,7 @@ export type MeshyModel3DEndpoint =
  *
  * @experimental Meshy support is experimental and may change.
  */
-export const MESHY_ENDPOINT_PATHS: Record<MeshyModel3DEndpoint, string> = {
+export const MESHY_ENDPOINT_PATHS: Record<MeshyModel3dEndpoint, string> = {
   'text-to-3d-preview': '/v2/text-to-3d',
   'text-to-3d-refine': '/v2/text-to-3d',
   'image-to-3d': '/v1/image-to-3d',
@@ -140,18 +140,18 @@ export const MESHY_PROMPT_ROUTES = {
     mesh: { fileField: 'input_task_id', fileOnly: true, inlineData: 'any' },
   },
   relief: { text: null, image: 'image_url', mesh: null },
-} as const satisfies Record<MeshyModel3DEndpoint, MeshyPromptRoute>
+} as const satisfies Record<MeshyModel3dEndpoint, MeshyPromptRoute>
 
-type MeshyPromptRouteFor<E extends MeshyModel3DEndpoint> =
+type MeshyPromptRouteFor<E extends MeshyModel3dEndpoint> =
   (typeof MESHY_PROMPT_ROUTES)[E]
 
 /**
  * The non-text prompt parts that an endpoint takes, for the
- * `generate3DModel()` prompt type.
+ * `generate3dModel()` prompt type.
  *
  * @experimental Meshy support is experimental and may change.
  */
-export type MeshyModel3DInputModalities<E extends MeshyModel3DEndpoint> =
+export type MeshyModel3dInputModalities<E extends MeshyModel3dEndpoint> =
   ReadonlyArray<
     | (MeshyPromptRouteFor<E>['image'] extends null ? never : 'image')
     | (MeshyPromptRouteFor<E>['mesh'] extends null ? never : 'model3d')
@@ -196,7 +196,7 @@ interface MeshyAiModelByEndpoint {
  *
  * @experimental Meshy support is experimental and may change.
  */
-export type MeshyAiModelFor<E extends MeshyModel3DEndpoint> =
+export type MeshyAiModelFor<E extends MeshyModel3dEndpoint> =
   MeshyAiModelByEndpoint[E]
 
 type MeshyTargetFormat = 'glb' | 'obj' | 'fbx' | 'stl' | 'usdz' | '3mf'
@@ -207,7 +207,7 @@ type MeshyDecimationMode = 1 | 2 | 3 | 4
 type MeshyPoseMode = 'a-pose' | 't-pose'
 
 /** Options for `text-to-3d-preview`. The prompt text goes to `prompt`. */
-export interface MeshyTextTo3DPreviewOptions {
+export interface MeshyTextTo3dPreviewOptions {
   /** Task name, up to 100 characters. */
   name?: string
   /** `smart-topology` uses the `meshy-t2` models. */
@@ -242,7 +242,7 @@ export interface MeshyTextTo3DPreviewOptions {
  * Options for `text-to-3d-refine`. The preview task goes in a `model3d` part,
  * the text to `texture_prompt`, and an image to `texture_image_url`.
  */
-export interface MeshyTextTo3DRefineOptions {
+export interface MeshyTextTo3dRefineOptions {
   /** Task name, up to 100 characters. */
   name?: string
   /** Make PBR texture maps. */
@@ -264,7 +264,7 @@ export interface MeshyTextTo3DRefineOptions {
 }
 
 /** Fields that image to 3D and multi-image to 3D share. */
-interface MeshyImageTo3DSharedOptions {
+interface MeshyImageTo3dSharedOptions {
   /** Task name, up to 100 characters. */
   name?: string
   /** Reuse the input images of an earlier task, in place of image parts. */
@@ -311,7 +311,7 @@ interface MeshyImageTo3DSharedOptions {
  * Options for `image-to-3d`. One image part goes to `image_url`, the text to
  * `texture_prompt`.
  */
-export interface MeshyImageTo3DOptions extends MeshyImageTo3DSharedOptions {
+export interface MeshyImageTo3dOptions extends MeshyImageTo3dSharedOptions {
   /** `smart-topology` uses the `meshy-t2` models. */
   model_type?: 'standard' | 'smart-topology'
   /** Geometry detail. `2k` and `4k` need `meshy-7.1` or `latest`. */
@@ -324,7 +324,7 @@ export interface MeshyImageTo3DOptions extends MeshyImageTo3DSharedOptions {
  * Options for `multi-image-to-3d`. 1 to 4 image parts go to `image_urls`, the
  * text to `texture_prompt`.
  */
-export interface MeshyMultiImageTo3DOptions extends MeshyImageTo3DSharedOptions {
+export interface MeshyMultiImageTo3dOptions extends MeshyImageTo3dSharedOptions {
   /** Geometry detail. `2k` needs `meshy-7.1` or `latest`. */
   geometry_resolution?: 'standard' | '2k'
   /** 1 to 4 texture reference views, front view first. */
@@ -550,11 +550,11 @@ export interface MeshyReliefOptions {
   color_mapping?: boolean
 }
 
-interface MeshyModel3DProviderOptionsByEndpoint {
-  'text-to-3d-preview': MeshyTextTo3DPreviewOptions
-  'text-to-3d-refine': MeshyTextTo3DRefineOptions
-  'image-to-3d': MeshyImageTo3DOptions
-  'multi-image-to-3d': MeshyMultiImageTo3DOptions
+interface MeshyModel3dProviderOptionsByEndpoint {
+  'text-to-3d-preview': MeshyTextTo3dPreviewOptions
+  'text-to-3d-refine': MeshyTextTo3dRefineOptions
+  'image-to-3d': MeshyImageTo3dOptions
+  'multi-image-to-3d': MeshyMultiImageTo3dOptions
   retexture: MeshyRetextureOptions
   remesh: MeshyRemeshOptions
   convert: MeshyConvertOptions
@@ -574,5 +574,5 @@ interface MeshyModel3DProviderOptionsByEndpoint {
  *
  * @experimental Meshy support is experimental and may change.
  */
-export type MeshyModel3DProviderOptions<E extends MeshyModel3DEndpoint> =
-  MeshyModel3DProviderOptionsByEndpoint[E]
+export type MeshyModel3dProviderOptions<E extends MeshyModel3dEndpoint> =
+  MeshyModel3dProviderOptionsByEndpoint[E]

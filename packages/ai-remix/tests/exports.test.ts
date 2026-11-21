@@ -3,7 +3,7 @@ import {
   createAudioRecorder,
   createByok,
   createChat,
-  createGenerate3DModel,
+  createGenerate3dModel,
   createGenerateAudio,
   createGenerateImage,
   createGenerateSpeech,
@@ -28,7 +28,7 @@ describe('package exports', () => {
     expect(createGenerateAudio).toBeTypeOf('function')
     expect(createGenerateSpeech).toBeTypeOf('function')
     expect(createGenerateVideo).toBeTypeOf('function')
-    expect(createGenerate3DModel).toBeTypeOf('function')
+    expect(createGenerate3dModel).toBeTypeOf('function')
     expect(createTranscription).toBeTypeOf('function')
     expect(createSummarize).toBeTypeOf('function')
     expect(createAudioRecorder).toBeTypeOf('function')

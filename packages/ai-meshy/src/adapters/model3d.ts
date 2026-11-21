@@ -1,4 +1,4 @@
-import { BaseModel3DAdapter } from '@tanstack/ai/adapters'
+import { BaseModel3dAdapter } from '@tanstack/ai/adapters'
 import {
   fileReferenceFor,
   isFileSource,
@@ -11,20 +11,20 @@ import type {
   ImagePart,
   MediaInputMetadata,
   MediaPrompt,
-  Model3DFile,
-  Model3DFileRole,
-  Model3DFormat,
-  Model3DGenerationOptions,
-  Model3DPart,
+  Model3dFile,
+  Model3dFileRole,
+  Model3dFormat,
+  Model3dGenerationOptions,
+  Model3dPart,
 } from '@tanstack/ai'
 import type { MeshyClient, MeshyClientConfig, MeshyTask } from '../client'
 import type {
   MeshyAiModelFor,
   MeshyInlineMeshData,
   MeshyMeshFileField,
-  MeshyModel3DEndpoint,
-  MeshyModel3DInputModalities,
-  MeshyModel3DProviderOptions,
+  MeshyModel3dEndpoint,
+  MeshyModel3dInputModalities,
+  MeshyModel3dProviderOptions,
 } from '../model-meta'
 
 /**
@@ -88,7 +88,7 @@ function gltfMimeType(mimeType: string, inlineData: 'gltf' | 'glb') {
 
 // An image as a URL or a data URI. Meshy has no file handles for images.
 function imageSourceUrl(
-  endpoint: MeshyModel3DEndpoint,
+  endpoint: MeshyModel3dEndpoint,
   source: ContentPartSource,
 ) {
   if (isFileSource(source)) {
@@ -100,7 +100,7 @@ function imageSourceUrl(
   return `data:${source.mimeType};base64,${source.value}`
 }
 
-function mapText(endpoint: MeshyModel3DEndpoint, text: string) {
+function mapText(endpoint: MeshyModel3dEndpoint, text: string) {
   if (!text) return {}
   const field = MESHY_PROMPT_ROUTES[endpoint].text
   if (field === null) {
@@ -112,7 +112,7 @@ function mapText(endpoint: MeshyModel3DEndpoint, text: string) {
 }
 
 function mapImages(
-  endpoint: MeshyModel3DEndpoint,
+  endpoint: MeshyModel3dEndpoint,
   images: ReadonlyArray<ImagePart<MediaInputMetadata>>,
 ) {
   if (images.length === 0) return {}
@@ -156,8 +156,8 @@ function mapImages(
 }
 
 function mapMesh(
-  endpoint: MeshyModel3DEndpoint,
-  meshes: ReadonlyArray<Model3DPart>,
+  endpoint: MeshyModel3dEndpoint,
+  meshes: ReadonlyArray<Model3dPart>,
 ) {
   if (meshes.length === 0) return {}
   const route = MESHY_PROMPT_ROUTES[endpoint].mesh
@@ -182,7 +182,7 @@ function mapMesh(
 // Maps a prompt to the request fields of an endpoint. It throws for a part
 // that the endpoint cannot use, so no part is dropped without a warning.
 function mapPromptToMeshyFields(
-  endpoint: MeshyModel3DEndpoint,
+  endpoint: MeshyModel3dEndpoint,
   prompt: MediaPrompt,
 ) {
   const resolved = resolveMediaPrompt(prompt)
@@ -201,10 +201,10 @@ function mapPromptToMeshyFields(
 }
 
 // A Blender-only remesh or convert, and a depth-map relief, succeed at Meshy
-// with no `Model3DFormat` file. Reject those options before the create POST.
+// with no `Model3dFormat` file. Reject those options before the create POST.
 // print-split always returns a GLB too, so it is not checked.
 function assertCreatesRepresentableMesh(
-  endpoint: MeshyModel3DEndpoint,
+  endpoint: MeshyModel3dEndpoint,
   modelOptions: object | undefined,
 ) {
   if (!modelOptions || endpoint === 'print-split') return
@@ -239,7 +239,7 @@ function assertMultiviewRetexture(
   if (!('multiview_image_urls' in promptFields)) return
   if (aiModel !== 'meshy-7' && aiModel !== 'meshy-n1') {
     throw new Error(
-      `meshy: retexture with 2 to 4 images needs meshy3DModel('retexture', 'meshy-7') or 'meshy-n1'.`,
+      `meshy: retexture with 2 to 4 images needs meshy3dModel('retexture', 'meshy-7') or 'meshy-n1'.`,
     )
   }
   if ('text_style_prompt' in promptFields) {
@@ -258,21 +258,21 @@ function smartTopologyDefault(aiModel: string | undefined) {
 }
 
 const TEXT_TO_3D_MODES: Partial<
-  Record<MeshyModel3DEndpoint, 'preview' | 'refine'>
+  Record<MeshyModel3dEndpoint, 'preview' | 'refine'>
 > = {
   'text-to-3d-preview': 'preview',
   'text-to-3d-refine': 'refine',
 }
 
 type MeshyModelUrlKey =
-  | Model3DFormat
+  | Model3dFormat
   | 'mtl'
   | 'vox'
   | 'blend'
   | 'pre_remeshed_glb'
 
 /** The fields of a Meshy 3D task that the result mapper reads. */
-interface MeshyModel3DTask extends MeshyTask {
+interface MeshyModel3dTask extends MeshyTask {
   model_urls?: Partial<Record<MeshyModelUrlKey, string>>
   texture_urls?: Array<Partial<Record<string, string>>>
   thumbnail_url?: string
@@ -291,10 +291,10 @@ interface MeshyModel3DTask extends MeshyTask {
 /**
  * The `model_urls` keys in the order the result lists them. `pre_remeshed_glb`
  * is a GLB mesh, so it gets the format `glb`. `mtl`, `vox`, and `blend` are not
- * a `Model3DFormat`, so their files have no format.
+ * a `Model3dFormat`, so their files have no format.
  */
 const MODEL_URL_KEYS: ReadonlyArray<
-  [key: MeshyModelUrlKey, format: Model3DFormat | undefined]
+  [key: MeshyModelUrlKey, format: Model3dFormat | undefined]
 > = [
   ['glb', 'glb'],
   ['gltf', 'gltf'],
@@ -320,12 +320,12 @@ function formatOfResultUrlKey(key: string) {
 // Every non-empty file URL of a task. Meshy sends '' for a file it did not
 // make (for example the walk clip of a quadruped rig), so empty URLs are
 // skipped.
-function collectFiles(task: MeshyModel3DTask) {
-  const files: Array<Model3DFile> = []
+function collectFiles(task: MeshyModel3dTask) {
+  const files: Array<Model3dFile> = []
   const add = (
     url: string | undefined,
-    role: Model3DFileRole,
-    format: Model3DFormat | undefined,
+    role: Model3dFileRole,
+    format: Model3dFormat | undefined,
   ) => {
     if (!url) return
     files.push({ url, role, ...(format ? { format } : {}) })
@@ -363,16 +363,16 @@ function collectFiles(task: MeshyModel3DTask) {
 
 /** A file with a format, so it can be the main model file. */
 function isMeshFile(
-  file: Model3DFile,
-): file is Model3DFile & { format: Model3DFormat } {
+  file: Model3dFile,
+): file is Model3dFile & { format: Model3dFormat } {
   return file.format !== undefined
 }
 
 /**
- * Maps a finished Meshy task to a `Model3DResult`. `url` is the first GLB,
+ * Maps a finished Meshy task to a `Model3dResult`. `url` is the first GLB,
  * else the first mesh file. Throws when the task has no mesh file.
  */
-function mapMeshyTaskToModel3DResult(jobId: string, task: MeshyModel3DTask) {
+function mapMeshyTaskToModel3dResult(jobId: string, task: MeshyModel3dTask) {
   const files = collectFiles(task)
   const meshFiles = files.filter(isMeshFile)
   const main = meshFiles.find((file) => file.format === 'glb') ?? meshFiles[0]
@@ -400,13 +400,13 @@ function mapMeshyTaskToModel3DResult(jobId: string, task: MeshyModel3DTask) {
  *
  * @experimental Meshy support is experimental and may change.
  */
-export class MeshyModel3DAdapter<
-  E extends MeshyModel3DEndpoint,
-> extends BaseModel3DAdapter<
+export class MeshyModel3dAdapter<
+  E extends MeshyModel3dEndpoint,
+> extends BaseModel3dAdapter<
   E,
-  MeshyModel3DProviderOptions<E>,
-  Record<E, MeshyModel3DProviderOptions<E>>,
-  Record<E, MeshyModel3DInputModalities<E>>
+  MeshyModel3dProviderOptions<E>,
+  Record<E, MeshyModel3dProviderOptions<E>>,
+  Record<E, MeshyModel3dInputModalities<E>>
 > {
   readonly name = 'meshy' as const
   // A `file` source is a Meshy task id.
@@ -428,13 +428,13 @@ export class MeshyModel3DAdapter<
     return `${MESHY_ENDPOINT_PATHS[this.model]}/${encodeURIComponent(jobId)}`
   }
 
-  async create3DModelJob(
-    options: Model3DGenerationOptions<MeshyModel3DProviderOptions<E>>,
+  async create3dModelJob(
+    options: Model3dGenerationOptions<MeshyModel3dProviderOptions<E>>,
   ) {
     const { modelOptions, logger } = options
 
     logger.request(
-      `activity=generate3DModel provider=meshy model=${this.model}`,
+      `activity=generate3dModel provider=meshy model=${this.model}`,
       { provider: 'meshy', model: this.model },
     )
 
@@ -457,15 +457,15 @@ export class MeshyModel3DAdapter<
       )
       return { jobId: result, model: this.model }
     } catch (error) {
-      logger.errors('meshy.create3DModelJob fatal', {
+      logger.errors('meshy.create3dModelJob fatal', {
         error,
-        source: 'meshy.create3DModelJob',
+        source: 'meshy.create3dModelJob',
       })
       throw error
     }
   }
 
-  async get3DModelStatus(
+  async get3dModelStatus(
     jobId: string,
     options?: { abortSignal?: AbortSignal },
   ) {
@@ -479,15 +479,15 @@ export class MeshyModel3DAdapter<
    * Reads the finished task. A `FAILED` or `CANCELED` task throws with the
    * Meshy error message.
    */
-  async get3DModel(jobId: string, options?: { abortSignal?: AbortSignal }) {
-    const task = await this.client.get<MeshyModel3DTask>(this.taskPath(jobId), {
+  async get3dModel(jobId: string, options?: { abortSignal?: AbortSignal }) {
+    const task = await this.client.get<MeshyModel3dTask>(this.taskPath(jobId), {
       signal: options?.abortSignal,
     })
     const { status, error } = mapMeshyStatus(task)
     if (status === 'failed') {
       throw new Error(`meshy: ${this.model} task ${jobId} failed: ${error}`)
     }
-    return mapMeshyTaskToModel3DResult(jobId, task)
+    return mapMeshyTaskToModel3dResult(jobId, task)
   }
 
   /**
@@ -501,7 +501,7 @@ export class MeshyModel3DAdapter<
    * A task that finishes between the read and the `DELETE` is still
    * deleted. This window is one request long.
    */
-  async cancel3DModelJob(
+  async cancel3dModelJob(
     jobId: string,
     options?: { abortSignal?: AbortSignal },
   ) {
@@ -514,7 +514,7 @@ export class MeshyModel3DAdapter<
   }
 }
 
-type MeshyModel3DArgs<E extends MeshyModel3DEndpoint> =
+type MeshyModel3dArgs<E extends MeshyModel3dEndpoint> =
   | [aiModel?: MeshyAiModelFor<E>, config?: MeshyClientConfig]
   | [config?: MeshyClientConfig]
 
@@ -530,11 +530,11 @@ type MeshyModel3DArgs<E extends MeshyModel3DEndpoint> =
  *
  * @example
  * ```ts
- * import { generate3DModel } from '@tanstack/ai'
- * import { meshy3DModel } from '@tanstack/ai-meshy'
+ * import { generate3dModel } from '@tanstack/ai'
+ * import { meshy3dModel } from '@tanstack/ai-meshy'
  *
- * const mesh = await generate3DModel({
- *   adapter: meshy3DModel('image-to-3d', 'meshy-7.1'),
+ * const mesh = await generate3dModel({
+ *   adapter: meshy3dModel('image-to-3d', 'meshy-7.1'),
  *   threadId: 'thread-1',
  *   prompt: [
  *     { type: 'image', source: { type: 'url', value: 'https://example.com/knight.png' } },
@@ -542,8 +542,8 @@ type MeshyModel3DArgs<E extends MeshyModel3DEndpoint> =
  *   wait: true,
  * })
  *
- * const rig = await generate3DModel({
- *   adapter: meshy3DModel('rigging'),
+ * const rig = await generate3dModel({
+ *   adapter: meshy3dModel('rigging'),
  *   threadId: 'thread-1',
  *   prompt: [
  *     { type: 'model3d', source: { type: 'file', value: mesh.jobId, provider: 'meshy' } },
@@ -554,13 +554,13 @@ type MeshyModel3DArgs<E extends MeshyModel3DEndpoint> =
  *
  * @experimental Meshy support is experimental and may change.
  */
-export function meshy3DModel<E extends MeshyModel3DEndpoint>(
+export function meshy3dModel<E extends MeshyModel3dEndpoint>(
   endpoint: E,
-  ...args: MeshyModel3DArgs<E>
+  ...args: MeshyModel3dArgs<E>
 ) {
   const [first, second] = args
   if (typeof first === 'object') {
-    return new MeshyModel3DAdapter(endpoint, undefined, first)
+    return new MeshyModel3dAdapter(endpoint, undefined, first)
   }
-  return new MeshyModel3DAdapter(endpoint, first, second)
+  return new MeshyModel3dAdapter(endpoint, first, second)
 }

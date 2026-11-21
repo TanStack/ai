@@ -14,10 +14,10 @@ export { FalVideoAdapter, falVideo } from './adapters/video'
 // Motion Adapter (Experimental)
 // ============================================================================
 
-export { FalMotionAdapter, falMotion } from './adapters/motion'
+export { FalMotion3dAdapter, fal3dMotion } from './adapters/motion'
 export type {
-  FalMotionModel,
-  FalMotionProviderOptions,
+  FalMotion3dModel,
+  FalMotion3dProviderOptions,
   FalHunyuanMotionProviderOptions,
 } from './adapters/motion'
 
@@ -25,7 +25,7 @@ export type {
 // 3D Model Adapter (Experimental)
 // ============================================================================
 
-export { Fal3DModelAdapter, fal3DModel } from './adapters/model3d'
+export { Fal3dModelAdapter, fal3dModel } from './adapters/model3d'
 
 // ============================================================================
 // Live Adapter (Experimental)
@@ -93,8 +93,8 @@ export {
   type FalModelImageSize,
   type FalModelVideoSize,
   type FalModelVideoDuration,
-  type Fal3DModel,
-  type Fal3DModelProviderOptions,
+  type Fal3dModel,
+  type Fal3dModelProviderOptions,
 } from './model-meta'
 // ============================================================================
 // Utils

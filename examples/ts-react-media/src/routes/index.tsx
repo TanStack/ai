@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import ImageGenerator from '@/components/ImageGenerator'
 import LiveVideoStudio from '@/components/LiveVideoStudio'
-import Model3DGenerator from '@/components/Model3DGenerator'
+import Model3dGenerator from '@/components/Model3dGenerator'
 import OmniStudio from '@/components/OmniStudio'
 import SeedanceStudio from '@/components/SeedanceStudio'
 import VideoGenerator from '@/components/VideoGenerator'
@@ -159,7 +159,7 @@ function VisualPage() {
           ) : activeTab === 'omni' ? (
             <OmniStudio />
           ) : activeTab === '3d' ? (
-            <Model3DGenerator />
+            <Model3dGenerator />
           ) : seedanceError !== null ? (
             <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
               <p className="text-red-400 text-sm">
