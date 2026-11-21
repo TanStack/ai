@@ -17,6 +17,7 @@ export interface GeneratedSkill<T extends string = string> {
   /** raw SKILL.md body, frontmatter stripped at generation time. */
   body: string
   compatibility?: string
+  metadata?: Record<string, string>
   /** embedded resource files, path → utf8 contents. */
   resources?: Record<string, string>
 }
@@ -46,6 +47,7 @@ export function staticSkills<T extends string>(
             name: s.name,
             description: s.description,
             ...(s.compatibility && { compatibility: s.compatibility }),
+            ...(s.metadata && { metadata: s.metadata }),
           }),
         ),
       ),
