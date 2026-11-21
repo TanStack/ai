@@ -2228,6 +2228,15 @@ export class ChatClient<
       const connectTimer = setTimeout(() => {
         if (!attached) controller.abort()
       }, REJOIN_CONNECT_DEADLINE_MS)
+      // The replay starts the run over. Stream state from an earlier pass
+      // over it would send chunks to rows that hydration or the drop removed.
+      this.processor.prepareAssistantMessage()
+      // Captured before the replay: chunks before the first rebuild trigger
+      // (reasoning start with metadata) can already append the replay's own
+      // assistant message, which must survive the drop.
+      const hydrated = this.processor.getMessages().at(-1)
+      const hydratedAssistantId =
+        hydrated?.role === 'assistant' ? hydrated.id : undefined
       try {
         for await (const chunk of joinRun(
           runId,
@@ -2241,7 +2250,9 @@ export class ChatClient<
           }
           if (!rebuilt && rebuildsAssistantMessage(chunk)) {
             rebuilt = true
-            this.dropTrailingInFlightAssistant()
+            if (hydratedAssistantId !== undefined) {
+              this.dropHydratedAssistant(hydratedAssistantId)
+            }
           }
           this.processIncomingChunk(chunk)
         }
@@ -2299,17 +2310,15 @@ export class ChatClient<
   }
 
   /**
-   * Drop a hydrated, still-in-flight assistant turn so a resume replay can
-   * rebuild it cleanly. Only touches a trailing assistant message (the shape a
-   * reload-mid-stream leaves); a thread whose last turn is a user message (run
-   * never produced, or already settled) is left untouched.
+   * Drop the hydrated, still-in-flight assistant turn so a resume replay can
+   * rebuild it cleanly. `id` is the trailing assistant message from before the
+   * replay (the shape a reload-mid-stream leaves); a thread whose last turn was
+   * a user message (run never produced, or already settled) has none to drop.
    */
-  private dropTrailingInFlightAssistant(): void {
+  private dropHydratedAssistant(id: string): void {
     const messages = this.processor.getMessages()
-    const last = messages[messages.length - 1]
-    if (last && last.role === 'assistant') {
-      this.processor.setMessages(messages.slice(0, -1))
-    }
+    const kept = messages.filter((message) => message.id !== id)
+    if (kept.length < messages.length) this.processor.setMessages(kept)
   }
 
   private processIncomingChunk(chunk: StreamChunk): void {
