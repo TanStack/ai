@@ -162,7 +162,7 @@ import { generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 export const generateImageFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: string; threadId: string }) => data)
+  .validator((data: { prompt: string; threadId: string }) => data)
   .handler(async ({ data }) => {
     return generateImage({
       adapter: openaiImage('gpt-image-2.5-flare'),
@@ -202,7 +202,7 @@ import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 export const generateImageStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: string; threadId: string }) => data)
+  .validator((data: { prompt: string; threadId: string }) => data)
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       generateImage({

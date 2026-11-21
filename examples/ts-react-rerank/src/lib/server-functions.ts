@@ -36,7 +36,7 @@ function isCohereRerankModel(model: string): model is CohereRerankModel {
  * inference.
  */
 export const rerankDocumentsFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: RerankInput) => {
+  .validator((data: RerankInput) => {
     if (!data.query.trim()) throw new Error('Query is required')
     if (!isProvider(data.provider)) {
       throw new Error(`Unknown provider: ${data.provider}`)
