@@ -425,6 +425,8 @@ export interface TextChunkToolResultEvent extends BaseEventContext {
   messageId?: string
   toolCallId: string
   result: string
+  /** App metadata of the tool result. It has no reserved `tanstack` key. */
+  metadata?: Record<string, unknown>
 }
 
 /** Emitted for streaming thinking chunks. */
@@ -1112,6 +1114,64 @@ export interface WorldUsageEvent extends BaseEventContext {
 }
 
 // ===========================
+// Motion Events
+// ===========================
+
+/**
+ * Emitted when a motion request starts. `requestType` is `create` for a
+ * submit (or a whole stream) and `status` for a poll.
+ */
+export interface MotionRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  requestType: 'create' | 'status'
+  prompt?: string
+  jobId?: string
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when a motion request completes. */
+export interface MotionRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  requestType: 'create' | 'status'
+  jobId: string
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  /** Number of asset files, when the motion finished */
+  assetCount?: number
+  error?: string
+  duration: number
+}
+
+/** Emitted when a motion request fails. */
+export interface MotionRequestErrorEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  requestType: 'create' | 'status'
+  jobId?: string
+  error: { message: string; name?: string }
+  duration: number
+}
+
+/** Emitted when motion usage metrics are available. */
+export interface MotionUsageEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  model: string
+  usage: TokenUsage
+}
+
+// ===========================
 // Live Events
 // ===========================
 
@@ -1567,6 +1627,12 @@ export interface AIDevtoolsEventMap {
   'world:request:completed': WorldRequestCompletedEvent
   'world:request:error': WorldRequestErrorEvent
   'world:usage': WorldUsageEvent
+
+  // Motion events
+  'motion:request:started': MotionRequestStartedEvent
+  'motion:request:completed': MotionRequestCompletedEvent
+  'motion:request:error': MotionRequestErrorEvent
+  'motion:usage': MotionUsageEvent
 
   // Live events
   'liveVideo:request:started': LiveVideoRequestStartedEvent

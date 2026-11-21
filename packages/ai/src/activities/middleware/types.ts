@@ -38,6 +38,7 @@ export type GenerationActivity =
   | 'chat'
   | 'image'
   | 'video'
+  | '3dModel'
   | 'audio'
   | 'tts'
   | 'voice'
@@ -47,6 +48,7 @@ export type GenerationActivity =
   | 'evaluate'
   | 'summarize'
   | 'world'
+  | 'motion'
   | 'liveVideo'
 
 /**

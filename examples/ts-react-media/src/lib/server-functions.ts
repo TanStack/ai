@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import {
+  fal3DModel,
   falFiles,
   falImage,
   falLiveVideo,
@@ -25,6 +26,7 @@ import {
 } from '@tanstack/ai-byteplus'
 import {
   fileSourceFromHandle,
+  generate3DModel,
   generateImage,
   generateLiveVideo,
   generateVideo,
@@ -58,6 +60,8 @@ import type {
 } from './models'
 import {
   isLiveVideoModelId,
+  isMeshToolModelId,
+  isModel3DModelId,
   liveVideoProvider,
   WORLD_RESOLUTIONS,
 } from './models'
@@ -167,6 +171,7 @@ function asImageToVideoPrompt(
 async function uploadInlineImageInputs(
   prompt: string | Array<TextPart | ImagePart<MediaInputMetadata>>,
   files: FilesAdapter,
+  abortSignal?: AbortSignal,
 ): Promise<string | Array<TextPart | ImagePart<MediaInputMetadata>>> {
   if (typeof prompt === 'string') return prompt
   return Promise.all(
@@ -175,6 +180,7 @@ async function uploadInlineImageInputs(
       const handle = await uploadFile({
         adapter: files,
         input: { data: part.source.value, mimeType: part.source.mimeType },
+        abortSignal,
       })
       return { ...part, source: fileSourceFromHandle(handle) }
     }),
@@ -202,6 +208,10 @@ function falI(model: Parameters<typeof falImage>[0]) {
 
 function falV(model: Parameters<typeof falVideo>[0]) {
   return falVideo(model, { apiKey: requireByok(falByok) })
+}
+
+function fal3D(model: Parameters<typeof fal3DModel>[0]) {
+  return fal3DModel(model, { apiKey: requireByok(falByok) })
 }
 
 function falL(model: Parameters<typeof falLiveVideo>[0]) {
@@ -703,6 +713,68 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }) =>
     toServerSentEventsResponse(await videoStreamForModel(data)),
   )
+
+// ============================================================================
+// 3D models — fal image-to-3D and retexture (experimental)
+// ============================================================================
+
+interface Model3DRequest {
+  /** One of `MODEL3D_MODELS` or `MESH_TOOL_MODELS` in `./models`. */
+  model: string
+  /**
+   * Image-to-3D: one image part, plus text for endpoints that read text.
+   * Mesh tools: one `model3d` part, plus one reference image for retexture.
+   */
+  prompt: MediaPrompt
+  /** Endpoint options, for example `{ polygon_type: 'quadrilateral' }`. */
+  modelOptions?: Record<string, string | number | boolean>
+}
+
+/**
+ * Streams one fal 3D job as Server-Sent Events. `useGenerate3DModel` takes
+ * this as its `fetcher`: progress events and the finished model arrive on
+ * the one request, so the browser runs no polling loop.
+ */
+export const generate3DModelFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: Model3DRequest) => {
+    if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
+    if (!isModel3DModelId(data.model)) {
+      throw new Error(`Unknown 3D model: ${data.model}`)
+    }
+    return data
+  })
+  .handler(async ({ data }) => {
+    // Images are uploaded once to fal storage, so the request carries a
+    // storage URL and not a large base64 string. A mesh part already holds
+    // the URL of an earlier result.
+    const abortSignal = getRequest().signal
+    const parts = typeof data.prompt === 'string' ? [] : data.prompt
+    const meshes = parts.filter((part) => part.type === 'model3d')
+    if (meshes.length > 0 && !isMeshToolModelId(data.model)) {
+      throw new Error(`${data.model} takes no mesh`)
+    }
+    const others = await uploadInlineImageInputs(
+      asImagePrompt(
+        typeof data.prompt === 'string'
+          ? data.prompt
+          : parts.filter((part) => part.type !== 'model3d'),
+      ),
+      falF(),
+      abortSignal,
+    )
+    abortSignal.throwIfAborted()
+    const prompt = typeof others === 'string' ? others : [...meshes, ...others]
+    return toServerSentEventsResponse(
+      generate3DModel({
+        adapter: fal3D(data.model),
+        prompt,
+        modelOptions: data.modelOptions,
+        threadId: 'media-3d',
+        stream: true,
+        abortSignal,
+      }),
+    )
+  })
 
 // ============================================================================
 // Seedance Studio — BytePlus ModelArk direct (ARK_API_KEY, server-side only)

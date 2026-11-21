@@ -580,7 +580,10 @@ export class MiddlewareRunner<
   /**
    * Run onAfterToolCall on all middleware in order.
    * A `replaceResult` decision changes `info.result` for the next middleware.
-   * Returns the last replacement, or undefined when no middleware replaced it.
+   * A `metadata` value on it changes `info.metadata`. Missing or `undefined`
+   * keeps the current metadata.
+   * Returns the final result and metadata, or undefined when no middleware
+   * replaced the result.
    */
   async runOnAfterToolCall(
     ctx: ChatMiddlewareContext<TContext>,
@@ -597,8 +600,16 @@ export class MiddlewareRunner<
         // return any value, and that must not replace the result.
         const replaces = decision?.type === 'replaceResult'
         if (replaces) {
-          current = { ...current, result: decision.result }
-          replacement = decision
+          current = {
+            ...current,
+            result: decision.result,
+            metadata: decision.metadata ?? current.metadata,
+          }
+          replacement = {
+            type: 'replaceResult',
+            result: current.result,
+            metadata: current.metadata,
+          }
         }
         if (!skip) {
           this.logger.middleware(

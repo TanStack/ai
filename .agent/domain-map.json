@@ -33,7 +33,8 @@
         "packages/ai-typesafe",
         "packages/ai-vercel-gateway",
         "packages/ai-vertex",
-        "packages/ai-worldlabs"
+        "packages/ai-worldlabs",
+        "packages/ai-meshy"
       ],
       "talksTo": ["core"]
     },
@@ -44,7 +45,9 @@
         "packages/ai-claude-code",
         "packages/ai-codex",
         "packages/ai-opencode",
-        "packages/ai-grok-build"
+        "packages/ai-grok-build",
+        "packages/ai-harness",
+        "packages/ai-harness-cli"
       ],
       "talksTo": ["core", "sandbox"]
     },
@@ -96,7 +99,7 @@
         "packages/ai-sandbox-upstash-box",
         "packages/ai-sandbox-vercel"
       ],
-      "talksTo": ["core", "middleware", "persistence"]
+      "talksTo": ["core", "middleware", "persistence", "harness"]
     },
     {
       "id": "middleware",

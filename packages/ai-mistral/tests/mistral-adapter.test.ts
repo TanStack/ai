@@ -2076,6 +2076,22 @@ describe('Mistral usage on every terminal event', () => {
     expect(finished[0]).toMatchObject({ finishReason: 'stop', usage })
   })
 
+  it('ends the run with RUN_ERROR on finish_reason error', async () => {
+    setupMockStream([
+      textChunk,
+      {
+        ...finishChunk,
+        choices: [{ index: 0, delta: {}, finishReason: 'error' }],
+      },
+    ])
+    const chunks = await collect()
+    expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(false)
+    expect(chunks.find((c) => c.type === 'RUN_ERROR')).toMatchObject({
+      message: 'Provider finish_reason: error',
+    })
+    expect(chunks.map((c) => c.type)).toContain('TEXT_MESSAGE_END')
+  })
+
   it('keeps the usage when the stream ends without a finish_reason', async () => {
     setupMockStream([{ ...textChunk, usage }])
     const chunks = await collect()

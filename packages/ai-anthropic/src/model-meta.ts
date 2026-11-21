@@ -678,6 +678,7 @@ const CLAUDE_SONNET_5_5 = {
   supports: {
     input: ['text', 'image', 'document'],
     forced_tool_choice: false,
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     extended_thinking: false,
     adaptive_thinking: true,
     // Computer use only through `computer_toolset_20260801`.
@@ -723,6 +724,7 @@ const CLAUDE_HAIKU_5_5 = {
   max_output_tokens: 128_000,
   supports: {
     input: ['text', 'image', 'document'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
     extended_thinking: false,
     adaptive_thinking: true,
     // Computer use only through `computer_toolset_20260801`.
@@ -914,6 +916,8 @@ export const ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS: Readonly<
   [CLAUDE_OPUS_5_5.id]: CLAUDE_OPUS_5_5.supports.mid_conversation_channels,
   [CLAUDE_FABLE_5.id]: CLAUDE_FABLE_5.supports.mid_conversation_channels,
   [CLAUDE_FABLE_5_1.id]: CLAUDE_FABLE_5_1.supports.mid_conversation_channels,
+  [CLAUDE_SONNET_5_5.id]: CLAUDE_SONNET_5_5.supports.mid_conversation_channels,
+  [CLAUDE_HAIKU_5_5.id]: CLAUDE_HAIKU_5_5.supports.mid_conversation_channels,
 }
 
 // const ANTHROPIC_IMAGE_MODELS = [] as const

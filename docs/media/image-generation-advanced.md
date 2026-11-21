@@ -25,6 +25,8 @@ The image page uses a streaming route. To call a TanStack Start server function 
 
 | Model | Sizes |
 | --- | --- |
+| `gpt-image-2.6-flare` | `1024x1024`, `1536x1024`, `1024x1536`, `auto` |
+| `gpt-image-2.6-sunburst` | `1024x1024`, `1536x1024`, `1024x1536`, `auto` |
 | `gpt-image-2.5-flare` | `1024x1024`, `1536x1024`, `1024x1536`, `auto` |
 | `gpt-image-2.5-sunburst` | `1024x1024`, `1536x1024`, `1024x1536`, `auto` |
 | `gpt-image-2` | `1024x1024`, `1536x1024`, `1024x1536`, `auto` |
@@ -80,7 +82,7 @@ const result = await generateImage({
 })
 ```
 
-`gpt-image-2.5-flare` and `gpt-image-2.5-sunburst` also take `quality: 'xhigh'` and `quality: 'max'`.
+The `gpt-image-2.6` and `gpt-image-2.5` flare and sunburst models also take `quality: 'xhigh'` and `quality: 'max'`.
 
 ### Gemini native models (Nano Banana)
 
@@ -334,6 +336,8 @@ if (result.usage?.billed) {
 
 | Model | Images per request |
 | --- | --- |
+| `gpt-image-2.6-flare` | 1-10 |
+| `gpt-image-2.6-sunburst` | 1-10 |
 | `gpt-image-2.5-flare` | 1-10 |
 | `gpt-image-2.5-sunburst` | 1-10 |
 | `gpt-image-2` | 1-10 |

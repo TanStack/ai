@@ -97,7 +97,7 @@ async function throwIfFailedResponse(response: Response): Promise<never> {
 export async function callWithByok<T>(task: Promise<T>): Promise<T> {
   try {
     const result = await task
-    if (result instanceof Response) {
+    if (result instanceof Response && !result.ok) {
       await throwIfFailedResponse(result)
     }
     return result

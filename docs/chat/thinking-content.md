@@ -145,7 +145,6 @@ This is the type in `@tanstack/ai`, which the server and stored messages use. Th
 interface ThinkingPart {
   type: "thinking";
   content: string;
-  stepId?: string;
   signature?: string;
   redacted?: boolean;
 }

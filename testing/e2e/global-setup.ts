@@ -203,6 +203,11 @@ export default async function globalSetup() {
   // `/v1/decisions` with a refusal plus usage for the evaluate-refusal spec.
   mock.mount('/evaluate-refusal', evaluateRefusalMount())
 
+  // aimock has no Gemini Decisions API route, so this mount answers
+  // `/v1beta/decisions` with a happy-path choice/score/boolean answer plus
+  // Gemini-shaped usage for the evaluate-gemini spec.
+  mock.mount('/evaluate-gemini', geminiDecisionsMount())
+
   // BytePlus. Ark (chat, Seedream image, Seedance video) serves its whole data
   // plane under /api/v3, and Seed Speech (TTS/ASR) mounts its own endpoints at
   // the same prefix on a different host — which collapses onto one prefix here
@@ -2428,6 +2433,56 @@ function evaluateRefusalMount(): Mountable {
             output_tokens: 5,
             output_tokens_details: { reasoning_tokens: 0 },
             total_tokens: 45,
+          },
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts the Gemini Decisions `/v1beta/decisions` response for the
+ * `evaluate-gemini` spec: a choice, a score, and a boolean answer plus the
+ * endpoint's `total_*` usage shape (output tokens are always 0). The Gemini
+ * evaluate adapter maps these to the unified `decide()` result.
+ */
+function geminiDecisionsMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST' || pathname !== '/v1beta/decisions') {
+        return false
+      }
+      await drainBody(req)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          model: 'gemini-decision-1',
+          answers: {
+            queue: {
+              type: 'choice',
+              choice: 'billing',
+              probabilities: { billing: 0.82, tech: 0.12, sales: 0.06 },
+              confidence: 0.88,
+            },
+            urgency: {
+              type: 'score',
+              score: 1.5,
+              legend: { '0': 'low', '1': 'medium', '2': 'high' },
+              probabilities: { '0': 0.1, '1': 0.4, '2': 0.5 },
+              confidence: 0.77,
+            },
+            refund: { type: 'noul', noul: 0.93 },
+          },
+          usage: {
+            total_input_tokens: 48,
+            total_output_tokens: 0,
+            total_tokens: 48,
           },
         }),
       )

@@ -31,6 +31,7 @@ export { providerKeys } from './provider-keys'
 export type {
   KeyProvider,
   ProviderKeyStatus,
+  ProviderLogin,
   ProviderKeysState,
 } from './provider-keys'
 export { GoalMet, goal, selectGoal } from './goal'

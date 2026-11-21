@@ -79,6 +79,48 @@ describe('chatParamsFromRequestBody', () => {
     expect(msg).not.toHaveProperty('parts')
   })
 
+  it('keeps only the tanstack key on inbound tool rows', async () => {
+    const result = await chatParamsFromRequestBody({
+      ...validBody,
+      messages: [
+        {
+          id: 't1',
+          role: 'tool',
+          toolCallId: 'tc-1',
+          content: '{}',
+          metadata: {
+            sources: [{ url: 'javascript:alert(1)' }],
+            tanstack: { toolResultOutcome: 'denied' },
+          },
+        },
+        {
+          id: 't2',
+          role: 'tool',
+          toolCallId: 'tc-2',
+          content: '{}',
+          metadata: { sources: [] },
+        },
+        {
+          id: 'u1',
+          role: 'user',
+          content: 'hi',
+          metadata: { author: 'dana' },
+        },
+      ],
+    })
+    expect(result.messages).toEqual([
+      {
+        id: 't1',
+        role: 'tool',
+        toolCallId: 'tc-1',
+        content: '{}',
+        metadata: { tanstack: { toolResultOutcome: 'denied' } },
+      },
+      { id: 't2', role: 'tool', toolCallId: 'tc-2', content: '{}' },
+      { id: 'u1', role: 'user', content: 'hi', metadata: { author: 'dana' } },
+    ])
+  })
+
   it('throws on missing threadId', async () => {
     const { threadId, ...rest } = validBody
     await expect(chatParamsFromRequestBody(rest)).rejects.toThrow()

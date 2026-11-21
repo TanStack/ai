@@ -136,6 +136,23 @@ test.describe('harness first-party plugins', () => {
     expect(body.usedUserKey).toBe(true)
   })
 
+  test('providerKeys(): /connect:codex signs in with the plan through the CLI', async ({
+    request,
+    testId,
+  }) => {
+    expect(await runScenario(request, 'plan-connect', testId)).toEqual({
+      auth: [
+        {
+          connector: 'codex',
+          url: 'https://auth.example.com/device',
+          userCode: 'ABCD-1234',
+        },
+      ],
+      connected: 'Signed in to Codex with your ChatGPT plan.',
+      keys: 'Codex: signed in with your ChatGPT plan',
+    })
+  })
+
   test('goal(): the judge says that the goal is met after one turn', async ({
     request,
     testId,
