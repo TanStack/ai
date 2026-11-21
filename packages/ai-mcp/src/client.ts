@@ -39,6 +39,8 @@ import {
   toServerTools,
 } from './tools'
 import { directMCPClient } from './direct-client'
+import { createEventHeaderLookup } from './events/param-headers'
+import type { EventHeaderLookup } from './events/param-headers'
 import { isTransportInstance, resolveTransport } from './transport'
 import type {
   DescriptorFromServer,
@@ -265,6 +267,7 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
   readonly #policy: ToolPolicy
   readonly #eventsOptions?: MCPEventsOptions
   readonly #eventsTransport: MCPEventAdapterTransport
+  readonly #eventHeaders?: EventHeaderLookup
   readonly #managedOps?: MCPEventOperations
 
   constructor(
@@ -279,6 +282,7 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
     eventsSetup?: {
       options?: MCPEventsOptions
       transport: MCPEventAdapterTransport
+      eventHeaders?: EventHeaderLookup
     },
   ) {
     this.prefix = prefix
@@ -288,6 +292,7 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
     this.#events = events
     this.#eventsOptions = eventsSetup?.options
     this.#eventsTransport = eventsSetup?.transport ?? { type: 'custom' }
+    this.#eventHeaders = eventsSetup?.eventHeaders
     this.#managedOps = bindManagedOperations(
       eventsSetup?.options,
       this.#eventsTransport,
@@ -710,6 +715,9 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
       },
       supportsEvents: serverSupportsEvents(this.capabilities),
       transport: this.#eventsTransport,
+      noteEventSchemas: (events) => {
+        this.#eventHeaders?.replace(events)
+      },
       request: (method, params, schema, signal) =>
         this.#client.request(
           { method, params },
@@ -846,8 +854,13 @@ export type OnElicit = (
 export async function connectTransport<
   TServer extends ServerDescriptor = AutomaticDescriptor,
 >(options: MCPClientOptions, onElicit?: OnElicit) {
+  const eventHeaders =
+    options.experimental_events !== undefined
+      ? createEventHeaderLookup()
+      : undefined
   const transport = await resolveTransport(options.transport, {
-    events: options.experimental_events !== undefined,
+    events: eventHeaders !== undefined,
+    eventHeaders,
   })
   const impl = new MCPClientImpl<TServer>(
     options.prefix,
@@ -871,6 +884,7 @@ export async function connectTransport<
     {
       options: options.experimental_events,
       transport: eventsTransportOf(options.transport),
+      eventHeaders,
     },
   )
   await impl.connect(transport, options.prior, options.signal)

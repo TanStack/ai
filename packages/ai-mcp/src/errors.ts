@@ -146,6 +146,7 @@ export type MCPEventRequestKind =
   | 'resource-exhausted'
   | 'unsupported'
   | 'callback-endpoint'
+  | 'header-mismatch'
   | 'unknown'
 
 /**
