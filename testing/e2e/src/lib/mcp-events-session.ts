@@ -19,6 +19,7 @@ type Session = {
   mcpFetch: (request: Request) => Promise<Response>
   webhook: (request: Request) => Promise<Response>
   received: Array<MCPEventOccurrence>
+  messageIds: Array<string>
   gaps: Array<{ cursor: string }>
   terminations: Array<{ code: number; message: string }>
   errors: Array<string>
@@ -30,13 +31,15 @@ const sessions = new Map<string, Session>()
 function createSession(origin: string): Session {
   const store = inMemoryMCPEventStore()
   const received: Array<MCPEventOccurrence> = []
+  const messageIds: Array<string> = []
   const gaps: Array<{ cursor: string }> = []
   const terminations: Array<{ code: number; message: string }> = []
   const errors: Array<string> = []
   const webhook = createMCPEventWebhook({
     store,
-    onEvent: ({ event }) => {
+    onEvent: ({ event, messageId }) => {
       received.push(event)
+      messageIds.push(messageId)
     },
     onGap: ({ gap }) => {
       gaps.push(gap)
@@ -74,6 +77,7 @@ function createSession(origin: string): Session {
     mcpFetch: eventsHttpFetch(events),
     webhook,
     received,
+    messageIds,
     gaps,
     terminations,
     errors,
