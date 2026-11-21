@@ -2630,8 +2630,8 @@ importers:
   packages/ai-cartesia:
     dependencies:
       '@cartesia/cartesia-js':
-        specifier: ^4.2.0
-        version: 4.2.0(ws@8.21.3)
+        specifier: ^5.1.0
+        version: 5.1.0(ws@8.21.3)
       '@tanstack/ai-utils':
         specifier: workspace:^
         version: link:../ai-utils
@@ -5991,8 +5991,8 @@ packages:
   '@bufbuild/protobuf@2.15.0':
     resolution: {integrity: sha512-DAheWUkVr/SJTWCc+lg9dhY0eN4SaWlf4+bG1KzHeXbnqt0AfB/NX0Z+VunGlM1ki1B4zVvye27MpKh/svySUA==}
 
-  '@cartesia/cartesia-js@4.2.0':
-    resolution: {integrity: sha512-v5djlNl226LSYg9Q/TecHd7ClK8He6CeXtp3uCxdiK500WMgPXkOSdd5AxokWypQDkFdiGj54455oKFNFeq5jw==}
+  '@cartesia/cartesia-js@5.1.0':
+    resolution: {integrity: sha512-KTnyJrV0Hl9/ElprFexh+XEpnybE+65KoBwTUJf9q3+3ziTd+wGn8ttm3mP9HVJPKKm8TuklmdVOhL6Lx4UOJA==}
     peerDependencies:
       ws: ^8.18.0
     peerDependenciesMeta:
@@ -22767,7 +22767,7 @@ snapshots:
 
   '@bufbuild/protobuf@2.15.0': {}
 
-  '@cartesia/cartesia-js@4.2.0(ws@8.21.3)':
+  '@cartesia/cartesia-js@5.1.0(ws@8.21.3)':
     optionalDependencies:
       ws: 8.21.3
 
