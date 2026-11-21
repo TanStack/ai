@@ -185,7 +185,8 @@ export function revertOf(value: unknown): RevertState | undefined {
 
 /**
  * The messages that the transcript shows: while `revert` stands, the
- * messages after its message are hidden.
+ * messages after its message are hidden. Of messages that share its id, it
+ * is the last one.
  */
 export function visibleMessages(
   messages: ReadonlyArray<ModelMessage>,
@@ -194,7 +195,7 @@ export function visibleMessages(
   const at =
     revert === undefined
       ? -1
-      : messages.findIndex((message) => message.id === revert.messageId)
+      : messages.findLastIndex((message) => message.id === revert.messageId)
   return at < 0 ? [...messages] : messages.slice(0, at + 1)
 }
 
