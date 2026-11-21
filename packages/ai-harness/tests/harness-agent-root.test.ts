@@ -242,6 +242,75 @@ describe('harnessAgent as a routed root agent', () => {
     await host.close()
   })
 
+  it('completes a routed root harnessAgent turn when the parent blob is missing', async () => {
+    const encoder = new TextEncoder()
+    const model = mockAdapter([() => text('No image.')])
+    const child = defineHarness({
+      name: 'test/desk',
+      adapter: { ...model.adapter, inputModalities: ['text', 'image'] },
+    })
+    const main = mockAdapter([])
+    const persistence = memoryPersistence()
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/front',
+        adapter: { ...main.adapter, inputModalities: ['text', 'image'] },
+        agents: [harnessAgent(child, { name: 'desk' })],
+        routing: { router: () => ({ name: 'desk' }) },
+      }),
+      { threadId: THREAD },
+    )
+    const record = await session.putMedia({
+      body: encoder.encode('hello'),
+      mimeType: 'image/png',
+      name: 'cat.png',
+    })
+    const blobKey = (await persistence.stores.artifacts.get(record.id))?.blobKey
+    await persistence.stores.blobs.delete(blobKey ?? '')
+    await session.send([
+      { type: 'text', content: 'What is this?' },
+      mediaPart(record),
+    ])
+
+    expect(model.calls).toHaveLength(1)
+    const last = model.calls[0].messages.at(-1)
+    expect(last.role).toBe('user')
+    expect(JSON.stringify(last.content)).toContain('not found')
+    await host.close()
+  })
+
+  it('keeps an earlier user image URL in the conversation so far for a routed root harnessAgent', async () => {
+    const model = mockAdapter([() => text('A cat.')])
+    const child = defineHarness({
+      name: 'test/desk',
+      adapter: { ...model.adapter, inputModalities: ['text', 'image'] },
+    })
+    const main = mockAdapter([() => text('Main.')])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/front',
+        adapter: { ...main.adapter, inputModalities: ['text', 'image'] },
+        agents: [harnessAgent(child, { name: 'desk' })],
+        routing: { router: picksInOrder([undefined, 'desk']) },
+      }),
+      { threadId: THREAD },
+    )
+    const image = {
+      type: 'image',
+      source: { type: 'url', value: 'https://example.com/cat.png' },
+    }
+    await session.send([{ type: 'text', content: 'Look at this.' }, image])
+    await session.send('What is in the image?')
+
+    const last = model.calls[0].messages.at(-1)
+    expect(last.role).toBe('user')
+    const parts = Array.isArray(last.content) ? last.content : []
+    expect(parts).toEqual(expect.arrayContaining([image]))
+    await host.close()
+  })
+
   it('does not resend the original user message when invoked again in the same turn', async () => {
     const desk = deskHarness([
       () => toolCall('handoff', { to: 'main' }),

@@ -11,7 +11,7 @@ import type { BlobBody } from '@tanstack/ai-persistence'
 import { redactMiddleware } from '../auth'
 import { BOUNDARY_INTERRUPTS, withoutBoundaryWaits } from '../boundary-waits'
 import { errorsOnlyDebug } from '../logger'
-import { mediaCapture, mediaMiddleware } from '../media'
+import { MediaError, mediaCapture, mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
 import {
   checkpointMiddleware,
@@ -2887,7 +2887,7 @@ async function rootInput(
       if (line !== '') lines.push(`user:\n${line}`)
       if (Array.isArray(message.content)) {
         for (const part of message.content) {
-          if (mediaIdOf(part) !== undefined) earlierMedia.push(part)
+          if (part.type !== 'text') earlierMedia.push(part)
         }
       }
       continue
@@ -2940,15 +2940,23 @@ async function copyThreadMedia(
   const copy = async (id: string) => {
     if (!copies.has(id)) {
       const record = await source.getMedia(id)
-      copies.set(
-        id,
-        record &&
-          (await dest.putMedia({
+      let copied: MediaRecord | null = null
+      if (record) {
+        try {
+          copied = await dest.putMedia({
             body: await source.open(id),
             mimeType: record.mimeType,
             name: record.name,
-          })),
-      )
+          })
+        } catch (error) {
+          // A missing blob must not abort the child turn: keep the original
+          // part so the child's media middleware can emit a not-found note.
+          if (!(error instanceof MediaError && error.status === 404)) {
+            throw error
+          }
+        }
+      }
+      copies.set(id, copied)
     }
     return copies.get(id) ?? undefined
   }
