@@ -942,13 +942,13 @@
           "label": "Text-to-Speech",
           "to": "media/text-to-speech",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "Transcription",
           "to": "media/transcription",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "Transcription: Advanced",
@@ -1879,6 +1879,12 @@
           "to": "adapters/elevenlabs",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Cartesia",
+          "to": "adapters/cartesia",
+          "addedAt": "2026-11-05",
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "fal.ai",

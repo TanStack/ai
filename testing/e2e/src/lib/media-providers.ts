@@ -22,6 +22,10 @@ import {
   createElevenLabsTranscription,
 } from '@tanstack/ai-elevenlabs'
 import {
+  createCartesiaSpeech,
+  createCartesiaTranscription,
+} from '@tanstack/ai-cartesia'
+import {
   createBytePlusImage,
   createBytePlusSpeech,
   createBytePlusTranscription,
@@ -133,6 +137,7 @@ export function createImageAdapter(
   return factory()
 }
 
+/** Create a speech adapter that sends requests to the test mock. */
 export function createTTSAdapter(
   provider: Provider,
   aimockPort?: number,
@@ -159,6 +164,11 @@ export function createTTSAdapter(
         baseUrl: llmockBase(aimockPort),
         headers,
       }),
+    cartesia: () =>
+      createCartesiaSpeech('sonic-3.6', DUMMY_KEY, {
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
+      }),
     // Seed Speech is a separate BytePlus product from Ark with its own key and
     // its own host, so this takes the bare mock base — the adapter appends
     // `/api/v3/tts/create`, which `byteplusTTSMount()` serves.
@@ -178,6 +188,7 @@ export function createTTSAdapter(
   return factory()
 }
 
+/** Create a transcription adapter that sends requests to the test mock. */
 export function createTranscriptionAdapter(
   provider: Provider,
   aimockPort?: number,
@@ -206,6 +217,11 @@ export function createTranscriptionAdapter(
       createElevenLabsTranscription('scribe_v1', DUMMY_KEY, {
         baseUrl: llmockBase(aimockPort),
         headers,
+      }),
+    cartesia: () =>
+      createCartesiaTranscription('ink-whisper', DUMMY_KEY, {
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
       }),
     // Same Seed Speech host as the TTS adapter above; the adapter appends
     // `/api/v3/auc/bigmodel/recognize/flash`, served by `byteplusASRMount()`.
