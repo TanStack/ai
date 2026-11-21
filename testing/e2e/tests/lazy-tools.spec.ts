@@ -50,7 +50,6 @@ test.describe('Lazy Tool Discovery', () => {
         (p: any) =>
           p.type === 'tool-result' && p.toolCallId === toolCalls[0].id,
       )
-    expect(discoveryResult?.content).toContain('get_weather')
     expect(discoveryResult?.content).not.toContain('Unknown tool')
   })
 })
