@@ -3,11 +3,11 @@ export {
   type QuickJSBunIsolateDriverConfig,
 } from './isolate-driver'
 
-// Re-export types from ai-code-mode for convenience
+// Re-export types from ai-isolate for convenience
 export type {
   IsolateDriver,
   IsolateConfig,
   IsolateContext,
   ExecutionResult,
   NormalizedError,
-} from '@tanstack/ai-code-mode'
+} from '@tanstack/ai-isolate'

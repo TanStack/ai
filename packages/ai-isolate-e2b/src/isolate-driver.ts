@@ -6,7 +6,7 @@ import type {
   IsolateContext,
   IsolateDriver,
   ToolBinding,
-} from '@tanstack/ai-code-mode'
+} from '@tanstack/ai-isolate'
 import type { RunnerMessage, ToolReply } from './runner'
 
 /** The slice of an E2B `CommandHandle` the driver uses. */

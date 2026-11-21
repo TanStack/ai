@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createQuickJSIsolateDriver } from '../src/isolate-driver'
 import { normalizeError } from '../src/error-normalizer'
-import type { ToolBinding } from '@tanstack/ai-code-mode'
+import type { ToolBinding } from '@tanstack/ai-isolate'
 
 function makeBinding(
   name: string,

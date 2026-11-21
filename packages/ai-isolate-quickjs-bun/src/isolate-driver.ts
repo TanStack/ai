@@ -9,7 +9,7 @@ import type {
   IsolateConfig,
   IsolateContext,
   IsolateDriver,
-} from '@tanstack/ai-code-mode'
+} from '@tanstack/ai-isolate'
 import type { QuickJS } from 'quickjs-bun'
 import type { QuickJSBunModule } from './isolate-context'
 
@@ -167,7 +167,7 @@ export interface QuickJSBunIsolateDriverConfig {
  * memory "limit" is QuickJS's internal accounting (`JS_SetMemoryLimit`), not a
  * hardware/OS boundary. For a stronger boundary use `@tanstack/ai-isolate-node`
  * (a separate V8 isolate) or the WASM driver (WebAssembly linear-memory
- * sandbox). It requires Bun >= 1.3.14 — on Node.js use
+ * sandbox). It requires Bun >= 1.4.0 — on Node.js use
  * `@tanstack/ai-isolate-node` or `@tanstack/ai-isolate-quickjs` instead.
  *
  * Tools are injected as async functions that bridge back to the host.

@@ -1,0 +1,314 @@
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+import { describe, expect, it } from 'vitest'
+import { createApprovalStore } from '../src/approval'
+import { createConfirmTool, guardTools } from '../src/guard'
+import type { ApprovalRequired } from '../src/approval'
+import type { AuditEntry, AuditLog } from '../src/audit'
+import type { GuardContext, SecureRequestContext } from '../src/guard'
+import type {
+  AccessPolicy,
+  ClientRecord,
+  SecurityEvent,
+  SecurityNotifier,
+} from '../src/types'
+
+function capturingNotifier(): SecurityNotifier & {
+  events: Array<SecurityEvent>
+} {
+  const events: Array<SecurityEvent> = []
+  return { events, notify: async (event) => void events.push(event) }
+}
+
+function capturingAudit(): AuditLog & { entries: Array<AuditEntry> } {
+  const entries: Array<AuditEntry> = []
+  return { entries, record: async (entry) => void entries.push(entry) }
+}
+
+const noopEgress = async () => new Response()
+
+function contextFor(client: ClientRecord) {
+  return { context: { secure: { client }, egress: noopEgress } } satisfies {
+    context: SecureRequestContext
+  }
+}
+
+const setLights = toolDefinition({
+  name: 'setLights',
+  description: 'Set a room light',
+  inputSchema: z.object({ room: z.string(), on: z.boolean() }),
+}).server(async ({ room, on }) => ({ room, on }))
+
+const buyMovie = toolDefinition({
+  name: 'buyMovie',
+  description: 'Buy a movie',
+  inputSchema: z.object({ movieId: z.string() }),
+}).server(async ({ movieId }) => ({ bought: movieId }))
+
+function setup(policy: AccessPolicy) {
+  const notify = capturingNotifier()
+  const audit = capturingAudit()
+  const approvals = createApprovalStore<GuardContext>({ newId: () => 'prop-1' })
+  const [guardedLights, guardedMovie] = guardTools([setLights, buyMovie], {
+    policy,
+    approvals,
+    audit,
+    notify,
+    summarize: (name, args) => `${name}:${JSON.stringify(args)}`,
+  })
+  return { notify, audit, approvals, guardedLights, guardedMovie }
+}
+
+const control: ClientRecord = {
+  id: 'alice',
+  tokenHash: 'x',
+  scopes: ['control'],
+}
+
+describe('guardTools — scopes', () => {
+  it('runs the tool when the client holds the scope', async () => {
+    const { guardedLights, audit } = setup({ scopes: { setLights: 'control' } })
+    const result = await guardedLights!.execute!(
+      { room: 'den', on: true },
+      contextFor(control),
+    )
+    expect(result).toEqual({ room: 'den', on: true })
+    expect(audit.entries.at(-1)).toMatchObject({
+      outcome: 'ok',
+      tool: 'setLights',
+    })
+  })
+
+  it('refuses and notifies when the client lacks the scope', async () => {
+    const { guardedLights, notify, audit } = setup({
+      scopes: { setLights: 'control' },
+    })
+    const reader: ClientRecord = { id: 'bob', tokenHash: 'y', scopes: ['read'] }
+    await expect(
+      guardedLights!.execute!({ room: 'den', on: true }, contextFor(reader)),
+    ).rejects.toMatchObject({ code: 'forbidden_scope' })
+    expect(notify.events).toContainEqual({
+      kind: 'forbidden_scope',
+      client: 'bob',
+      tool: 'setLights',
+    })
+    expect(audit.entries.at(-1)).toMatchObject({ outcome: 'denied' })
+  })
+})
+
+describe('guardTools — target allowlist', () => {
+  it('refuses a target not in the client allowlist', async () => {
+    const { guardedLights } = setup({ targetParam: { setLights: 'room' } })
+    const scoped: ClientRecord = {
+      id: 'kid',
+      tokenHash: 'z',
+      scopes: [],
+      targets: ['living-room'],
+    }
+    await expect(
+      guardedLights!.execute!(
+        { room: 'bedroom', on: true },
+        contextFor(scoped),
+      ),
+    ).rejects.toMatchObject({ code: 'forbidden_scope' })
+    // An allowed target runs.
+    await expect(
+      guardedLights!.execute!(
+        { room: 'living-room', on: true },
+        contextFor(scoped),
+      ),
+    ).resolves.toEqual({ room: 'living-room', on: true })
+  })
+})
+
+describe('guardTools — two-phase approval', () => {
+  it('returns a proposal instead of acting, then confirms', async () => {
+    const { guardedMovie, approvals, notify, audit } = setup({
+      approve: ['buyMovie'],
+    })
+    const envelope = (await guardedMovie!.execute!(
+      { movieId: 'tt1' },
+      contextFor(control),
+    )) as ApprovalRequired
+    expect(envelope).toMatchObject({
+      status: 'approval_required',
+      proposalId: 'prop-1',
+    })
+    expect(notify.events).toContainEqual({
+      kind: 'approval_pending',
+      proposalId: 'prop-1',
+      summary: 'buyMovie:{"movieId":"tt1"}',
+    })
+
+    const confirm = createConfirmTool({ approvals, audit })
+    const confirmed = await confirm.execute!(
+      { proposalId: 'prop-1' },
+      contextFor(control),
+    )
+    expect(confirmed).toEqual({ confirmed: true, result: { bought: 'tt1' } })
+  })
+
+  it('refuses an unauthenticated call', async () => {
+    const { guardedLights } = setup({})
+    await expect(
+      guardedLights!.execute!({ room: 'den', on: true }, undefined),
+    ).rejects.toMatchObject({ code: 'auth_failure' })
+  })
+
+  it('audits a confirmed run that throws, then rethrows', async () => {
+    const failing = toolDefinition({
+      name: 'buyMovie',
+      description: 'Buy a movie',
+      inputSchema: z.object({ movieId: z.string() }),
+    }).server(async () => {
+      throw new Error('backend down')
+    })
+    const notify = capturingNotifier()
+    const audit = capturingAudit()
+    const approvals = createApprovalStore<GuardContext>({
+      newId: () => 'prop-1',
+    })
+    const [guarded] = guardTools([failing], {
+      policy: { approve: ['buyMovie'] },
+      approvals,
+      audit,
+      notify,
+      summarize: () => 's',
+    })
+    await guarded!.execute!({ movieId: 'tt1' }, contextFor(control))
+    const confirm = createConfirmTool({ approvals, audit })
+    await expect(
+      confirm.execute!({ proposalId: 'prop-1' }, contextFor(control)),
+    ).rejects.toThrow('backend down')
+    // The failed approved action left an error record.
+    expect(audit.entries).toContainEqual(
+      expect.objectContaining({
+        event: 'tool_call',
+        tool: 'buyMovie',
+        outcome: 'error',
+      }),
+    )
+  })
+
+  it('drops the outputSchema on an approval-gated tool', () => {
+    const withSchema = toolDefinition({
+      name: 'buyMovie',
+      description: 'Buy a movie',
+      inputSchema: z.object({ movieId: z.string() }),
+      outputSchema: z.object({ bought: z.string() }),
+    }).server(async ({ movieId }) => ({ bought: movieId }))
+    const [guarded] = guardTools([withSchema], {
+      policy: { approve: ['buyMovie'] },
+      approvals: createApprovalStore<GuardContext>(),
+      notify: capturingNotifier(),
+      summarize: () => 's',
+    })
+    // The approval envelope does not match the tool's outputSchema, so the
+    // wrapped tool must not advertise one — otherwise the MCP server would
+    // reject the envelope and the client would never get the proposalId.
+    expect(guarded!.outputSchema).toBeUndefined()
+  })
+})
+
+describe('guardTools — audit failure after the call', () => {
+  it('returns the result when the success audit write fails', async () => {
+    let calls = 0
+    const counted = toolDefinition({
+      name: 'counted',
+      description: 'Counts calls',
+      inputSchema: z.object({}),
+    }).server(async () => ({ calls: ++calls }))
+    const [guarded] = guardTools([counted], {
+      policy: {},
+      approvals: createApprovalStore<GuardContext>(),
+      audit: {
+        record: async () => {
+          throw new Error('disk full')
+        },
+      },
+      notify: capturingNotifier(),
+      summarize: (name) => name,
+    })
+    await expect(guarded!.execute!({}, contextFor(control))).resolves.toEqual({
+      calls: 1,
+    })
+    expect(calls).toBe(1)
+  })
+})
+
+describe('guardTools — config that cannot be enforced', () => {
+  it('refuses a policy that names an unknown tool', () => {
+    // A misspelt name would leave the real tool with no scope and no approval.
+    for (const policy of [
+      { scopes: { setLight: 'control' } },
+      { targetParam: { setLight: 'room' } },
+      { approve: ['buyMovei'] },
+    ] satisfies Array<AccessPolicy>) {
+      expect(() => setup(policy)).toThrow(/not in `tools`/)
+    }
+  })
+
+  it('refuses a target that is not a string', async () => {
+    const { guardedLights } = setup({ targetParam: { setLights: 'room' } })
+    // `String(['living-room'])` is `'living-room'`, so a coerced value passes.
+    await expect(
+      guardedLights!.execute!(
+        { room: ['living-room'], on: true },
+        contextFor({ ...control, targets: ['living-room'] }),
+      ),
+    ).rejects.toMatchObject({ code: 'forbidden_scope' })
+  })
+})
+
+describe('approve_proposal — the confirm call', () => {
+  function gated(audit?: AuditLog) {
+    const seen: Array<unknown> = []
+    const tool = toolDefinition({
+      name: 'buyMovie',
+      description: 'Buy a movie',
+      inputSchema: z.object({ movieId: z.string() }),
+    }).server<SecureRequestContext>(async (_args, context) => {
+      seen.push(context)
+      return { bought: true }
+    })
+    const approvals = createApprovalStore<GuardContext>({
+      newId: () => 'prop-1',
+    })
+    const [guarded] = guardTools([tool], {
+      policy: { approve: ['buyMovie'] },
+      approvals,
+      notify: capturingNotifier(),
+      summarize: () => 's',
+    })
+    return { seen, guarded, confirm: createConfirmTool({ approvals, audit }) }
+  }
+
+  it('runs the action once, with the context of the confirm call', async () => {
+    const { seen, guarded, confirm } = gated()
+    await guarded!.execute!({ movieId: 'tt1' }, contextFor(control))
+    // Nothing runs at propose time.
+    expect(seen).toEqual([])
+
+    const confirmContext = contextFor(control)
+    await confirm.execute!({ proposalId: 'prop-1' }, confirmContext)
+    // The propose request has ended; its signal and hooks are dead.
+    expect(seen).toEqual([confirmContext])
+
+    await expect(
+      confirm.execute!({ proposalId: 'prop-1' }, confirmContext),
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(seen).toHaveLength(1)
+  })
+
+  it('returns the result when the confirm audit write fails', async () => {
+    const { guarded, confirm } = gated({
+      record: async () => {
+        throw new Error('disk full')
+      },
+    })
+    await guarded!.execute!({ movieId: 'tt1' }, contextFor(control))
+    await expect(
+      confirm.execute!({ proposalId: 'prop-1' }, contextFor(control)),
+    ).resolves.toEqual({ confirmed: true, result: { bought: true } })
+  })
+})

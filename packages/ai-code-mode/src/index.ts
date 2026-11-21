@@ -33,8 +33,9 @@ export {
 // TypeScript stripping utility
 export { stripTypeScript } from './strip-typescript'
 
-// Code wrapper utility (used by isolate drivers)
-export { wrapCode } from './code-wrapper'
+// Code wrapper utility (used by isolate drivers) — now lives in
+// @tanstack/ai-isolate, re-exported here to keep the public API stable.
+export { wrapCode } from '@tanstack/ai-isolate'
 
 // All types
 export type {

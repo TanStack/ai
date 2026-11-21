@@ -1,4 +1,4 @@
-import type { NormalizedError } from '@tanstack/ai-code-mode'
+import type { NormalizedError } from '@tanstack/ai-isolate'
 
 /**
  * Normalize various error types into a consistent format

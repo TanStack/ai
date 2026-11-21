@@ -7,7 +7,7 @@ import type {
   IsolateDriver,
   NormalizedError,
   ToolBinding,
-} from '@tanstack/ai-code-mode'
+} from '@tanstack/ai-isolate'
 import type {
   DaytonaCodeRunResponse,
   DaytonaExecutionEnvelope,

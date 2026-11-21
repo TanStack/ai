@@ -1,4 +1,4 @@
-import { wrapCode } from '@tanstack/ai-code-mode'
+import { wrapCode } from '@tanstack/ai-isolate'
 import {
   isFatalQuickJSLimitError,
   memoryLimitError,
@@ -9,7 +9,7 @@ import type {
   IsolateContext,
   NormalizedError,
   ToolBinding,
-} from '@tanstack/ai-code-mode'
+} from '@tanstack/ai-isolate'
 import type * as QuickJSBun from 'quickjs-bun'
 import type { Deferred, JSContext, JSRuntime, JSValue } from 'quickjs-bun'
 

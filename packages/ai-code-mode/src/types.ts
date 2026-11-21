@@ -11,143 +11,28 @@ import type { SecretParameterHandler } from './validate-bindings'
 // Isolate Driver Interfaces
 // ============================================================================
 
-/**
- * Interface for isolate/sandbox drivers
- * Each runtime environment implements this to provide sandboxed code execution
- */
-export interface IsolateDriver {
-  /**
-   * Create a new isolated execution context with tool bindings
-   */
-  createContext: (config: IsolateConfig) => Promise<IsolateContext>
+// The engine-agnostic isolate contract now lives in @tanstack/ai-isolate so
+// driver packages can depend on it without pulling in Code Mode. Imported for
+// local use below and re-exported to keep the @tanstack/ai-code-mode public
+// API stable.
+import type {
+  ExecutionResult,
+  IsolateConfig,
+  IsolateContext,
+  IsolateDriver,
+  NormalizedError,
+  ToolBinding,
+} from '@tanstack/ai-isolate'
+
+export type {
+  ExecutionResult,
+  IsolateConfig,
+  IsolateContext,
+  IsolateDriver,
+  NormalizedError,
+  ToolBinding,
+  ToolExecutionContext,
 }
-
-/**
- * Configuration for creating an isolate context
- */
-export interface IsolateConfig {
-  /**
-   * Tools transformed into callable bindings for the sandbox
-   */
-  bindings: Record<string, ToolBinding>
-
-  /**
-   * Execution timeout in milliseconds (default: 30000)
-   */
-  timeout?: number
-
-  /**
-   * Memory limit in MB (default: 128)
-   */
-  memoryLimit?: number
-}
-
-/**
- * Isolated execution context with tool bindings injected
- */
-export interface IsolateContext {
-  /**
-   * Execute generated code and return results. Drivers stop the run when
-   * `options.signal` aborts, if their runtime can.
-   */
-  execute: <T = unknown>(
-    code: string,
-    options?: { signal?: AbortSignal },
-  ) => Promise<ExecutionResult<T>>
-
-  /**
-   * Clean up sandbox resources
-   */
-  dispose: () => Promise<void>
-}
-
-/**
- * Result of code execution in the sandbox
- */
-export interface ExecutionResult<T = unknown> {
-  /**
-   * Whether execution completed without errors
-   */
-  success: boolean
-
-  /**
-   * Return value from the executed code (if successful)
-   */
-  value?: T
-
-  /**
-   * Normalized error information (if failed)
-   */
-  error?: NormalizedError
-
-  /**
-   * Console output captured during execution
-   */
-  logs?: Array<string>
-}
-
-/**
- * Normalized error format for cross-runtime compatibility
- */
-export interface NormalizedError {
-  /**
-   * Error name/type
-   */
-  name: string
-
-  /**
-   * Error message
-   */
-  message: string
-
-  /**
-   * Stack trace (if available)
-   */
-  stack?: string
-
-  /**
-   * Error code (if available)
-   */
-  code?: string
-}
-
-// ============================================================================
-// Tool Binding Interfaces
-// ============================================================================
-
-/**
- * A tool transformed into a format suitable for sandbox injection
- */
-export interface ToolBinding {
-  /**
-   * Unique tool identifier
-   */
-  name: string
-
-  /**
-   * Human-readable description for the LLM
-   */
-  description: string
-
-  /**
-   * JSON Schema for tool input parameters
-   */
-  inputSchema: Record<string, unknown>
-
-  /**
-   * JSON Schema for tool output (optional)
-   */
-  outputSchema?: Record<string, unknown> | undefined
-
-  /**
-   * The execute function that will be injected into the sandbox.
-   * Accepts optional context for emitting custom events.
-   */
-  execute: (args: unknown, context?: ToolExecutionContext) => Promise<unknown>
-}
-
-// Re-export for convenience
-export type { ToolExecutionContext }
 
 /**
  * Runs around each external call of a program. `run` runs the tool.
