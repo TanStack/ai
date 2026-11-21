@@ -119,4 +119,21 @@ export class VercelGatewayTextAdapter<
     if (resolved) Object.assign(rest, { reasoning: gatewayReasoning(resolved) })
     return rest
   }
+
+  /**
+   * AI Gateway streams thinking on `delta.reasoning` when the request does
+   * not set `exclude` (summary on). The Chat Completions base has no
+   * reasoning field, so that text is dropped without this override.
+   * https://vercel.com/docs/ai-gateway/sdks-and-apis/openai-chat-completions/reasoning
+   */
+  protected override extractReasoning(
+    chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
+  ): { text: string } | undefined {
+    const delta = chunk.choices?.[0]?.delta as
+      | { reasoning?: unknown }
+      | undefined
+    const raw = delta?.reasoning
+    if (typeof raw === 'string' && raw.length > 0) return { text: raw }
+    return undefined
+  }
 }

@@ -322,7 +322,7 @@ const stream = chat({
 
 What goes to the gateway:
 
-- Chat Completions (`api: "chat"`): the gateway `reasoning` object. A level sends `{ effort }`. `budgetTokens` sends `{ enabled: true, max_tokens }`. `off` sends `{ enabled: false }`. `summary: false` adds `exclude: true`.
+- Chat Completions (`api: "chat"`): the gateway `reasoning` object. A level sends `{ effort }`. `budgetTokens` sends `{ enabled: true, max_tokens }`. `off` sends `{ enabled: false }`. `summary: false` adds `exclude: true`. When the summary is on, the gateway streams the thinking text on `delta.reasoning`, and the adapter emits it as reasoning events.
 - Responses (the default): `reasoning.effort`. It takes no `budgetTokens`.
 
 See [Reasoning](../chat/reasoning).

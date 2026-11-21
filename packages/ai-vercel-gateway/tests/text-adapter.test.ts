@@ -129,6 +129,91 @@ describe('Vercel Gateway text adapter', () => {
           chunk.delta === 'hi',
       ),
     ).toBe(true)
+    expect(
+      chunks.some(
+        (chunk) => chunk.type === EventType.REASONING_MESSAGE_CONTENT,
+      ),
+    ).toBe(false)
+  })
+
+  it('surfaces delta.reasoning as reasoning events', async () => {
+    setupMockSdkClient([
+      {
+        id: 'chatcmpl-reasoning',
+        model: 'openai/gpt-5.5',
+        choices: [
+          {
+            index: 0,
+            delta: { reasoning: 'Think first. ' },
+            finish_reason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-reasoning',
+        model: 'openai/gpt-5.5',
+        choices: [
+          {
+            index: 0,
+            delta: { reasoning: 'Then answer.' },
+            finish_reason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-reasoning',
+        model: 'openai/gpt-5.5',
+        choices: [
+          {
+            index: 0,
+            delta: { content: '4' },
+            finish_reason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-reasoning',
+        model: 'openai/gpt-5.5',
+        choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+      },
+    ])
+    const adapter = createVercelGatewayText('openai/gpt-5.5', 'k')
+    const chunks: Array<AdapterYieldChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
+      model: 'openai/gpt-5.5',
+      messages: [{ role: 'user', content: 'What is 2+2?' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const reasoning = chunks.filter(
+      (chunk) => chunk.type === EventType.REASONING_MESSAGE_CONTENT,
+    )
+    expect(
+      reasoning.map((chunk) =>
+        chunk.type === EventType.REASONING_MESSAGE_CONTENT ? chunk.delta : '',
+      ),
+    ).toEqual(['Think first. ', 'Then answer.'])
+
+    const reasoningEndIndex = chunks.findIndex(
+      (chunk) => chunk.type === EventType.REASONING_MESSAGE_END,
+    )
+    const textStartIndex = chunks.findIndex(
+      (chunk) => chunk.type === EventType.TEXT_MESSAGE_START,
+    )
+    expect(reasoningEndIndex).toBeGreaterThan(-1)
+    expect(textStartIndex).toBeGreaterThan(reasoningEndIndex)
+    expect(
+      chunks.some(
+        (chunk) =>
+          chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
+          'delta' in chunk &&
+          chunk.delta === '4',
+      ),
+    ).toBe(true)
   })
 
   it('sends gateway options under providerOptions.gateway', async () => {
