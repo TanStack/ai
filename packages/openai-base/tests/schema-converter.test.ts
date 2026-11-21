@@ -434,6 +434,56 @@ describe('makeStructuredOutputCompatible', () => {
   })
 })
 
+describe('definition pools', () => {
+  it.each(['$defs', 'definitions'])(
+    'applies strict conversion to schemas inside %s',
+    (defsKey) => {
+      const schema = {
+        type: 'object',
+        properties: { root: { $ref: `#/${defsKey}/node` } },
+        required: ['root'],
+        [defsKey]: {
+          node: {
+            type: 'object',
+            properties: {
+              label: { type: 'string' },
+              note: { type: 'string' },
+              children: { type: 'array', items: { $ref: `#/${defsKey}/node` } },
+            },
+            required: ['label', 'children'],
+          },
+        },
+      }
+
+      const result: any = makeStructuredOutputCompatible(schema, ['root'])
+      const node = result[defsKey].node
+
+      expect(node.additionalProperties).toBe(false)
+      expect(node.required).toEqual(['label', 'note', 'children'])
+      expect(node.properties.note).toEqual({ type: ['string', 'null'] })
+      expect(node.properties.children.items).toEqual({
+        $ref: `#/${defsKey}/node`,
+      })
+    },
+  )
+
+  it('does not mutate the input definitions', () => {
+    const schema = {
+      type: 'object',
+      properties: { a: { $ref: '#/$defs/a' } },
+      required: ['a'],
+      $defs: {
+        a: { type: 'object', properties: { x: { type: 'string' } } },
+      },
+    }
+
+    makeStructuredOutputCompatible(schema, ['a'])
+
+    expect((schema.$defs.a as any).additionalProperties).toBeUndefined()
+    expect((schema.$defs.a as any).required).toBeUndefined()
+  })
+})
+
 describe('isStrictModeCompatible', () => {
   it('returns true for a plain object schema in the strict subset', () => {
     expect(
