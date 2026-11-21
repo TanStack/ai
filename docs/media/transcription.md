@@ -166,6 +166,8 @@ Swap the adapter to change the provider. Each adapter reads its key from the env
 
 Need speaker labels? Use `gpt-4o-transcribe-diarize`, or BytePlus with `enable_speaker_info`. Examples for each provider are in [Transcription: Advanced](./transcription-advanced).
 
+If you omit `language` for Cartesia, the request uses English and translates other speech into English. When the recording is not English, pass `language`.
+
 ## Common options
 
 | Option | Type | Description |

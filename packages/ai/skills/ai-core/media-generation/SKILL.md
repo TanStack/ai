@@ -587,9 +587,15 @@ OpenAI, Gemini, and Cloudflare have fixed voice catalogs and will not get one.
 ### 5. Audio Transcription
 
 Adapters: `openaiTranscription` (whisper-1, gpt-4o-transcribe,
-gpt-4o-mini-transcribe, gpt-4o-transcribe-diarize) and `byteplusTranscription`
+gpt-4o-mini-transcribe, gpt-4o-transcribe-diarize), `byteplusTranscription`
 (`seed-asr` — synchronous, no polling; audio up to 2 hours / 100 MB; also reads
-**`BYTEPLUS_VOICE_API_KEY`**).
+**`BYTEPLUS_VOICE_API_KEY`**), and `cartesiaTranscription` (`ink-whisper`).
+
+`cartesiaTranscription` accepts `responseFormat` `json` or `verbose_json`.
+`verbose_json` fills `result.words` (`{ word, start, end }`) and leaves
+`segments` empty. A `prompt` throws. Omit `language` only for English audio:
+Cartesia translates other speech into English. When the recording is not
+English, pass `language` (ISO-639-1).
 
 > **Capturing audio in the browser:** Use `useAudioRecorder` from `@tanstack/ai-react` to record directly in the browser, then pass the recording as the `audio` input to `generate()`, or use `recording.part` as a prompt part in chat/generation calls. No transcoding or extra dependencies required — the recorder returns the native browser format (`audio/webm` or `audio/mp4`). For transcription, wrap it as a `data:` URL so the provider gets the real content type; passing raw `recording.base64` makes the adapter assume `audio/mpeg` and mislabel the webm/mp4 bytes.
 >

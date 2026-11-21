@@ -67,6 +67,8 @@ Use `modelOptions` for `language`, `normalization`, and `pronunciationDictId`.
 
 `cartesiaTranscription()` accepts an audio file, a Blob, an ArrayBuffer, or a base64 string. Use `responseFormat: 'verbose_json'` to request word timestamps.
 
+If you omit `language`, Cartesia uses English and translates other speech into English. When the recording is not English, pass `language`.
+
 ```typescript
 import { readFile } from 'node:fs/promises'
 import { generateTranscription } from '@tanstack/ai'
@@ -85,6 +87,6 @@ const result = await generateTranscription({
 console.log(result.text, result.words)
 ```
 
-For browser input and server routes, see [Text-to-Speech](../media/text-to-speech) and [Transcription](../media/transcription). The samples on those pages use OpenAI.
+For browser input and server routes, see [Text-to-Speech](../media/text-to-speech) and [Transcription](../media/transcription). The Text-to-Speech page includes a Cartesia route. The main Transcription sample uses OpenAI.
 
 For Cartesia, call `cartesiaSpeech` or `cartesiaTranscription`. Set `CARTESIA_API_KEY` on the server. Pass a Cartesia voice id to `generateSpeech()`.

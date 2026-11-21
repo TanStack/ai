@@ -103,9 +103,33 @@ Each provider has a fixed set of voices. If none of them fit, [create your own v
 
 ## Pick a provider
 
-Swap the adapter to change the provider. The rest of the route stays the same.
+Swap the adapter to change the provider.
 
-For Cartesia, use `cartesiaSpeech` from `@tanstack/ai-cartesia` in that route. Pass a Cartesia voice id as `voice`, for example `'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4'`. Set `CARTESIA_API_KEY` on the server.
+For Cartesia, use this route. `voice` is a Cartesia voice id. Set `CARTESIA_API_KEY` on the server.
+
+```typescript
+import {
+  generateSpeech,
+  generationParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { cartesiaSpeech } from '@tanstack/ai-cartesia'
+
+export async function POST(request: Request) {
+  const { input, threadId } = await generationParamsFromRequest('tts', request)
+
+  const stream = generateSpeech({
+    adapter: cartesiaSpeech('sonic-3.6'),
+    text: input.text,
+    threadId,
+    voice: input.voice ?? 'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4',
+    stream: true,
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+`alloy` is an OpenAI voice. Cartesia rejects it.
 
 | Provider | Adapter | Models | API key |
 | --- | --- | --- | --- |

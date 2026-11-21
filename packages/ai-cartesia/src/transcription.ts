@@ -46,8 +46,8 @@ export class CartesiaTranscriptionAdapter<
         {
           file: toAudioFile(options.audio),
           model: this.model,
-          // The core option is a plain string. Cartesia rejects a code that
-          // it does not know.
+          // Omit language and Cartesia uses English and translates other
+          // speech. The cast only narrows the string.
           language:
             options.language as Cartesia.STTTranscribeParams['language'],
           timestamp_granularities:
