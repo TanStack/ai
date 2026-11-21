@@ -519,7 +519,7 @@ title: "@tanstack/ai"
 - [LoadChildCapability](variables/LoadChildCapability.md)
 - [LogRecordsCapability](variables/LogRecordsCapability.md)
 - [MetadataCapability](variables/MetadataCapability.md)
-- [MOTION\_EVENTS](variables/MOTION3D_EVENTS.md)
+- [MOTION3D\_EVENTS](variables/MOTION3D_EVENTS.md)
 - [provideDetachableRun](variables/provideDetachableRun.md)
 - [provideLoadChild](variables/provideLoadChild.md)
 - [provideLogRecords](variables/provideLogRecords.md)
