@@ -244,6 +244,25 @@ describe('historyFor', () => {
     expect(result).toEqual([USER, { ...parallel, role: 'user' }])
   })
 
+  it('folds an unstamped host as user text when the run has no children', async () => {
+    const parallel: ModelMessage = {
+      id: 'assistant:r3',
+      role: 'assistant',
+      content: 'billing:\nRefunded\n\nshipping:\nShipped',
+      metadata: { tanstack: { runId: 'r3' } },
+    }
+    const asUser = { ...parallel, role: 'user' as const }
+    const seen = async (speaker: string | null) =>
+      history({
+        messages: [USER, parallel],
+        speaker,
+        mode: 'own',
+        children: {},
+      })
+    expect(await seen(null)).toEqual([USER, asUser])
+    expect(await seen('billing')).toEqual([USER, asUser])
+  })
+
   it("keeps the main model's own calls and gives it routed answers as user text in 'own' mode", async () => {
     const call = handoffCall('call_h', 'handoff', { to: 'billing' })
     const messages = [USER, call, toolResult('call_h'), BILLING_HOST]

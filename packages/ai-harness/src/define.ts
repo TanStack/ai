@@ -141,8 +141,9 @@ export interface HandoffToolContext {
   /** The value of `routing.allowHandoffToHuman`. */
   allowHuman: boolean
   /**
-   * Record a handoff with `by: 'tool'` and end the part. It adds no note
-   * messages: the tool call is in the transcript.
+   * Record a handoff with `by: 'tool'` and end the part. For the main
+   * model, the tool call is the record, so this adds no note messages.
+   * A root-agent tool handoff still adds the two note messages.
    */
   handoff: (options: HandoffOptions) => Promise<void>
 }
@@ -195,7 +196,8 @@ export interface HarnessRouting<TMetadataSchema = any> extends Pick<
    *   as labeled text (`name:\ntext`, `main:\ntext`), and a handoff call as
    *   a text line with the note. The main model sees routed runs as
    *   `name:\ntext`.
-   * - `'all'`: every speaker sees every routed run in full.
+   * - `'all'`: each routed host message becomes the child transcripts of
+   *   that run. A root harnessAgent always gets the `'own'` fold.
    * - `'text'`: every speaker sees routed runs as `name:\ntext`.
    *
    * Default `'own'`.

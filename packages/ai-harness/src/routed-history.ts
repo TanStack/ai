@@ -288,16 +288,18 @@ export async function historyFor(
       children.length > 0
         ? await expandHost(message, children, wanted, transcriptOf)
         : undefined
+    // Unstamped multi-agent host (a list / { names } / { steps } pick
+    // never sets metadata.harness.agent). Fold as user text, even when
+    // this pass has no children left, and keep the existing name: labels.
+    // A stamped host still folds: its owner is the agent name.
+    const unstamped =
+      message.role === 'assistant' &&
+      runId !== undefined &&
+      routedAgent(message) === undefined &&
+      !children.some((child) => wanted(child.name))
     if (expanded) result.push(...expanded)
     else if (mode === 'all') result.push(message)
-    else if (
-      children.length > 0 &&
-      !children.some((child) => wanted(child.name))
-    ) {
-      // Unstamped multi-agent host (a list / { names } / { steps } pick
-      // never sets metadata.harness.agent). Fold as user text and keep
-      // the existing name: labels, so the main model does not read them
-      // as its own.
+    else if (unstamped) {
       const text = textOf(message).trim()
       if (text !== '') result.push(otherSpeaker(message, text))
     } else result.push(...foldFor(message, speaker, handoffToolName, folded))

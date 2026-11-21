@@ -110,10 +110,11 @@ export const support = defineHarness({
 
 - The harness calls `handoffTool` once per turn for each speaker: the main model (`from: null`) and each root agent.
 - `targets` holds the names that this speaker can hand off to. `allowHuman` is the value of `routing.allowHandoffToHuman`.
-- `handoff({ to, note })` hands off. The tool call is the record in the transcript, so the harness adds no note messages.
+- `handoff({ to, note })` hands off. For the main model, the tool call is already in the transcript. The harness adds no note messages.
+- A tool handoff from a root agent still adds the two note messages.
 - The tool can have any name. With `giveModelsHandoffTool: false`, the harness does not call `handoffTool`.
 
-To change the tool of one speaker only, give that speaker an app tool named `handoff`. It replaces the harness tool. Its code hands off with `ctx.context.run.handoff` (main model) or `ctx.harness.handoff` (root agent), as in [Hand off from code](#2-hand-off-from-code).
+Give one speaker an app tool with the same name as the tool that `handoffTool` returns. It replaces the harness tool. Its code hands off with `ctx.context.run.handoff` (main model) or `ctx.harness.handoff` (root agent), as in [Hand off from code](#2-hand-off-from-code).
 
 ## 2. Hand off from code
 
@@ -172,7 +173,7 @@ What the model of the target gets depends on `routing.history`:
 
 - `'own'` (default): the turns of the other speakers are labeled text in a user message, for example `main:\n...`. The handoff is one text line, for example `main handed off to billing. Note: Refund for order 42`. When billing hands back, the main model gets `billing handed off to main.` the same way.
 - `'text'`: the messages of the main model stay as they are, and the two handoff messages come after them. So the prompt cache of the provider still holds.
-- `'all'`: the messages of the main model and of each agent stay as they are, with their tool calls.
+- `'all'`: each routed host message becomes the child transcripts of that run, with their tool calls.
 
 With `routing.giveModelsHandoffTool: false`, the models have no `handoff` tool. Then the harness adds one assistant message with the same text and the note.
 

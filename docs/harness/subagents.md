@@ -776,7 +776,7 @@ export const support = defineHarness({
 | Value | A routed agent gets | The main model gets |
 | --- | --- | --- |
 | `'own'` (default) | Its own earlier runs in full, with tool calls and results. Other agents as `name:\ntext`, and the main model as `main:\ntext`. A handoff is one text line. | Its own tool calls in full. Routed runs as `billing:\n...` text, and a hand-back as one text line. |
-| `'all'` | Every routed run in full. | Every routed run in full. |
+| `'all'` | Each routed host message becomes the child transcripts of that run. | Each routed host message becomes the child transcripts of that run. |
 | `'text'` | Every routed run as `name:\ntext`. | Every routed run as `name:\ntext`. |
 
 - With `'own'`, the text of another speaker reaches the model as a user message. So no model reads the words of another speaker as its own.
@@ -844,6 +844,7 @@ export const frontDesk = defineHarness({
 - Each turn sends the child what happened in the thread since its last turn, as labeled text. Then it sends the latest user message.
 - The model of the child gets the `handoff` tool of the outer turn, so it can hand back to `'main'`. A tool of the child can call `ctx.context.run.handoff`. See [Hand off a conversation](./handoffs).
 - The child harness cannot have its own `routing`. If it has one, the turn fails.
+- `routing.history` does not apply to this child. It always gets the `'own'` fold of labeled text.
 
 In `subagents.agents`, the same `harnessAgent` stays a tool of the main model, with a new child session for each call.
 

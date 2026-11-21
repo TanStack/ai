@@ -862,12 +862,10 @@ export abstract class SessionAgents<
     const threadId = `${this.rootThreadId}/agent/${root?.name ?? ctx.subagentRunId}`
     const used = emptyCounts()
     // With the handoff tool off, the child still hands off from code.
+    const withHandoffTool =
+      this.harness.routing?.giveModelsHandoffTool !== false
     const handoff = root
-      ? childHandoff(
-          root.name,
-          root.handoffs,
-          this.harness.routing?.giveModelsHandoffTool !== false,
-        )
+      ? childHandoff(root.name, root.handoffs, withHandoffTool)
       : undefined
     const session = await open(harness, {
       threadId,
@@ -935,7 +933,11 @@ export abstract class SessionAgents<
                 open: (id) => this.mediaStore.open(id),
               },
               session,
-              await rootInput(messages, root.name),
+              await rootInput(
+                messages,
+                root.name,
+                withHandoffTool ? root.handoffs.tool(null).name : undefined,
+              ),
             )
           : lastUserInput(messages),
       )
@@ -2842,7 +2844,11 @@ function childHandoff(from: string, handoffs: TurnHandoffs, withTool: boolean) {
  * short continue prompt when that context is empty. On its first turn, the
  * context is the conversation so far.
  */
-async function rootInput(messages: Array<ModelMessage>, name: string) {
+async function rootInput(
+  messages: Array<ModelMessage>,
+  name: string,
+  handoffToolName?: string,
+) {
   // A handoff note names its source agent too, but it is no answer.
   const isAnswer = (message: ModelMessage) =>
     routedAgent(message) === name && !isHandoffNote(message)
@@ -2867,6 +2873,7 @@ async function rootInput(messages: Array<ModelMessage>, name: string) {
     mode: 'own',
     childrenOf: () => [],
     transcriptOf: async () => [],
+    ...(handoffToolName !== undefined && { handoffToolName }),
   })
   // A message of the user comes back as the same object. A folded message
   // of another speaker is a new user message that has its label already.

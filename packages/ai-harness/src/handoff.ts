@@ -502,6 +502,9 @@ export async function stampHandoffNote(
     await store.saveThread(threadId, history.with(index, updated))
     return
   }
+  throw new Error(
+    `No ${toolName} call in the thread to stamp with the handoff note.`,
+  )
 }
 
 /**

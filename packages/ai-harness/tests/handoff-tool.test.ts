@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
-import { TurnHandoffs } from '../src/handoff'
+import { TurnHandoffs, stampHandoffNote } from '../src/handoff'
 import type { AnyTool } from '@tanstack/ai'
 import type { HandoffToolContext } from '../src'
 import type { HandoffRecord } from '../src/log-records'
@@ -222,5 +222,19 @@ describe('the handoff tool of a root agent', () => {
     expect(
       middleware.onConfig(rootChat('triage'), { tools: triage?.tools ?? [] }),
     ).toBeUndefined()
+  })
+})
+
+describe('stampHandoffNote', () => {
+  it('throws when the thread has no call of that tool', async () => {
+    const store = {
+      loadThread: async () => [],
+      saveThread: async () => {},
+    }
+    await expect(
+      stampHandoffNote(store, 'thread_1', 'handoff', 'Refund for order 42'),
+    ).rejects.toThrow(
+      'No handoff call in the thread to stamp with the handoff note.',
+    )
   })
 })
