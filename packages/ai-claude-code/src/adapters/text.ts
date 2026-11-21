@@ -180,7 +180,7 @@ type ResolveReasoning<TModel extends string> =
     ? ClaudeCodeModelReasoningByName[TModel]
     : never
 
-/** The models that take `--effort`. The same list as the Anthropic adapter's adaptive thinking. */
+/** The models that take `--effort`: Claude 4.6 and later, and the `opus` and `sonnet` aliases. */
 const EFFORT_MODELS =
   /^(opus|sonnet)$|opus-4-[6-9]|sonnet-4-[6-9]|opus-5|sonnet-5|haiku-5|fable-5/
 
