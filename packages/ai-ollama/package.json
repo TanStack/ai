@@ -61,7 +61,7 @@
   ],
   "dependencies": {
     "@tanstack/ai-utils": "workspace:^",
-    "ollama": "^0.6.3"
+    "ollama": "^0.6.4"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^"
