@@ -570,6 +570,28 @@
       ]
     },
     {
+      "label": "Generative UI",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "generative-ui/index",
+          "tab": "guides",
+          "addedAt": "2026-10-20"
+        },
+        {
+          "label": "Artifacts",
+          "to": "generative-ui/artifacts",
+          "addedAt": "2026-10-20"
+        },
+        {
+          "label": "Live data",
+          "to": "generative-ui/live-data",
+          "addedAt": "2026-10-20"
+        }
+      ]
+    },
+    {
       "label": "Chat UI Recipes",
       "tab": "guides",
       "children": [
@@ -712,7 +734,7 @@
           "label": "MCP Apps",
           "to": "mcp/apps",
           "addedAt": "2026-06-24",
-          "updatedAt": "2026-11-09"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "Serve Tools over HTTP",
