@@ -9,6 +9,7 @@ import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 export const NEON_CHAT_MODELS = [
   'claude-fable-5',
   'claude-fable-5-1',
+  'claude-fable-5-2',
   'claude-haiku-4-5',
   'claude-haiku-5-5',
   'claude-opus-4-1',
@@ -32,6 +33,7 @@ export const NEON_CHAT_MODELS = [
   'gemini-3-8-flash',
   'gemini-3-flash',
   'gemini-4-argon',
+  'gemini-4-carbon',
   'gemma-3-12b',
   'glm-5-2',
   'glm-5-3',
@@ -58,8 +60,8 @@ export const NEON_CHAT_MODELS = [
   'gpt-oss-20b',
   'grok-4-6',
   'grok-4-7',
-  'inkling',
   'kimi-k3',
+  'kimi-k3-1-pro',
   'llama-4-maverick',
   'meta-llama-3-1-8b-instruct',
   'meta-llama-3-3-70b-instruct',
@@ -135,6 +137,7 @@ export type NeonEmbeddingModel = (typeof NEON_EMBEDDING_MODELS)[number]
 export const NEON_MODELS_REJECTING_SAMPLING: ReadonlySet<string> = new Set([
   'claude-fable-5',
   'claude-fable-5-1',
+  'claude-fable-5-2',
   'claude-haiku-5-5',
   'claude-opus-4-7',
   'claude-opus-4-8',
@@ -146,6 +149,7 @@ export const NEON_MODELS_REJECTING_SAMPLING: ReadonlySet<string> = new Set([
   'gemini-3-7-flash',
   'gemini-3-8-flash',
   'gemini-4-argon',
+  'gemini-4-carbon',
   'gpt-5',
   'gpt-5-5',
   'gpt-5-5-pro',
@@ -175,12 +179,14 @@ export const NEON_MODELS_REJECTING_STREAM_OPTIONS: ReadonlySet<string> =
     'gemini-3-8-flash',
     'gemini-3-flash',
     'gemini-4-argon',
+    'gemini-4-carbon',
   ] as const)
 
 /** The input modalities of each chat model. */
 export const NEON_MODEL_INPUT_MODALITIES = {
   'claude-fable-5': ['text', 'image', 'document'],
   'claude-fable-5-1': ['text', 'image', 'document'],
+  'claude-fable-5-2': ['text', 'image', 'document'],
   'claude-haiku-4-5': ['text', 'image', 'document'],
   'claude-haiku-5-5': ['text', 'image', 'document'],
   'claude-opus-4-1': ['text', 'image', 'document'],
@@ -204,6 +210,7 @@ export const NEON_MODEL_INPUT_MODALITIES = {
   'gemini-3-8-flash': ['text', 'image', 'document', 'audio', 'video'],
   'gemini-3-flash': ['text', 'image', 'document', 'audio', 'video'],
   'gemini-4-argon': ['text', 'image', 'document', 'audio', 'video'],
+  'gemini-4-carbon': ['text', 'image', 'document', 'audio', 'video'],
   'gemma-3-12b': ['text', 'image'],
   'glm-5-2': ['text'],
   'glm-5-3': ['text'],
@@ -230,8 +237,8 @@ export const NEON_MODEL_INPUT_MODALITIES = {
   'gpt-oss-20b': ['text'],
   'grok-4-6': ['text', 'image'],
   'grok-4-7': ['text'],
-  inkling: ['text', 'image', 'audio'],
   'kimi-k3': ['text', 'image', 'video'],
+  'kimi-k3-1-pro': ['text', 'image'],
   'llama-4-maverick': ['text', 'image'],
   'meta-llama-3-1-8b-instruct': ['text'],
   'meta-llama-3-3-70b-instruct': ['text'],
@@ -314,6 +321,7 @@ const EFFORT_NONE_MINIMAL_TO_HIGH_MAX = {
 } as const
 
 const NEON_REASONING = {
+  'claude-fable-5-2': EFFORT_LOW_TO_MAX,
   'gemini-3-1-flash-lite': EFFORT_LOW_TO_HIGH,
   'gemini-3-1-pro': EFFORT_LOW_TO_HIGH,
   'gemini-3-5-flash': EFFORT_MINIMAL_TO_HIGH,
@@ -323,6 +331,7 @@ const NEON_REASONING = {
   'gemini-3-8-flash': EFFORT_MINIMAL_TO_HIGH,
   'gemini-3-flash': EFFORT_LOW_TO_HIGH,
   'gemini-4-argon': EFFORT_LOW_TO_HIGH,
+  'gemini-4-carbon': EFFORT_LOW_TO_HIGH,
   'glm-5-2': EFFORT_NONE_MINIMAL_TO_HIGH_MAX,
   'glm-5-3': EFFORT_LOW_HIGH_MAX,
   'glm-5-3-flash': EFFORT_LOW_HIGH_MAX,
@@ -348,8 +357,8 @@ const NEON_REASONING = {
   'gpt-oss-20b': EFFORT_LOW_TO_HIGH,
   'grok-4-6': EFFORT_LOW_TO_XHIGH,
   'grok-4-7': EFFORT_LOW_TO_XHIGH,
-  inkling: EFFORT_NONE_MINIMAL_TO_HIGH_MAX,
   'kimi-k3': EFFORT_NONE_MINIMAL_TO_HIGH_MAX,
+  'kimi-k3-1-pro': EFFORT_NONE_MINIMAL_TO_HIGH_MAX,
   'qwen35-122b-a10b': EFFORT_NONE_LOW_TO_HIGH,
 } satisfies Partial<Record<NeonChatModel, ModelReasoning>>
 
