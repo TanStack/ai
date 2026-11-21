@@ -31,7 +31,12 @@ test.describe('local-process sandbox exec() output', () => {
 
     const result = JSON.parse(body)
     expect(result).toEqual({ stdout: TEXT, stderr: TEXT, exitCode: 0 })
-    expect(result.stdout).not.toContain('�')
-    expect(result.stderr).not.toContain('�')
+  })
+
+  test('rejects a root outside the temp folder', async ({ request }) => {
+    const response = await request.post('/api/sandbox-local-process-exec', {
+      data: { root: '/' },
+    })
+    expect(response.status()).toBe(400)
   })
 })

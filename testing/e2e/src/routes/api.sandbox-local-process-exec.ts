@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os'
+import { resolve, sep } from 'node:path'
 import { createFileRoute } from '@tanstack/react-router'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 
@@ -33,7 +35,17 @@ export const Route = createFileRoute('/api/sandbox-local-process-exec')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { root } = (await request.json()) as { root: string }
+        const body: unknown = await request.json()
+        const rootField =
+          typeof body === 'object' && body !== null && 'root' in body
+            ? body.root
+            : undefined
+        const root = typeof rootField === 'string' ? resolve(rootField) : ''
+        if (!root.startsWith(resolve(tmpdir()) + sep)) {
+          return new Response('root must be in the temp folder', {
+            status: 400,
+          })
+        }
         const sandbox = await localProcessSandbox({ dir: root }).create({})
         try {
           await sandbox.fs.write('/workspace/split-utf8.mjs', SCRIPT)
