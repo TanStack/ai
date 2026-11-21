@@ -29,6 +29,7 @@ export type Provider =
   | 'neon-anthropic'
   | 'neon-responses'
   | 'muse'
+  | 'zai'
 
 export type Feature =
   | 'chat'
@@ -95,6 +96,7 @@ export const ALL_PROVIDERS: Provider[] = [
   'neon-anthropic',
   'neon-responses',
   'muse',
+  'zai',
 ]
 
 export const ALL_FEATURES: Feature[] = [

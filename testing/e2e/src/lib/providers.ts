@@ -25,6 +25,7 @@ import { createLLMGatewayText } from '@tanstack/ai-llmgateway'
 import { createCloudflareText } from '@tanstack/ai-cloudflare'
 import { createNeonText } from '@tanstack/ai-neon'
 import { createMuseText } from '@tanstack/ai-muse'
+import { createZAIText } from '@tanstack/ai-zai'
 import { HTTPClient } from '@openrouter/sdk'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { BytePlusChatModel } from '@tanstack/ai-byteplus'
@@ -121,6 +122,7 @@ const defaultModels: Record<Provider, string> = {
   'neon-anthropic': 'claude-sonnet-4-5',
   'neon-responses': 'gpt-5-3-codex',
   muse: 'muse-ember-1.0',
+  zai: 'glm-5.2',
 }
 
 export function createTextAdapter(
@@ -449,6 +451,15 @@ export function createTextAdapter(
     muse: () =>
       createChatOptions({
         adapter: createMuseText(model as 'muse-ember-1.0', DUMMY_KEY, {
+          baseURL: openaiUrl,
+          defaultHeaders: testHeaders,
+        }),
+      }),
+    // Z.AI is OpenAI-compatible, so the adapter posts to aimock's native
+    // `/v1/chat/completions` handler.
+    zai: () =>
+      createChatOptions({
+        adapter: createZAIText(model as 'glm-5.2', DUMMY_KEY, {
           baseURL: openaiUrl,
           defaultHeaders: testHeaders,
         }),
