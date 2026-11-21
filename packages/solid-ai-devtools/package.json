@@ -59,7 +59,7 @@
   ],
   "dependencies": {
     "@tanstack/ai-devtools-core": "workspace:^",
-    "@tanstack/devtools-utils": "^0.7.0"
+    "@tanstack/devtools-utils": "^0.8.0"
   },
   "peerDependencies": {
     "solid-js": "^1.9.7"
