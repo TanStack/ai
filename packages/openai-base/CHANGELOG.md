@@ -1,5 +1,16 @@
 # @tanstack/openai-base
 
+## 1.1.0
+
+### Minor Changes
+
+- [#2110](https://github.com/TanStack/ai/pull/2110) [`95c1d78`](https://github.com/TanStack/ai/commit/95c1d781c92904612e0d675a9ca38f1a8d9a1c09) - Undo strict-mode `null`s on tool arguments before the input check. An approved call whose history still has those `null`s now runs when `repairToolInput` is off.
+
+### Patch Changes
+
+- Updated dependencies [[`95c1d78`](https://github.com/TanStack/ai/commit/95c1d781c92904612e0d675a9ca38f1a8d9a1c09), [`df6f5a9`](https://github.com/TanStack/ai/commit/df6f5a9f5ff782db85c8a36715bac18a7f090180), [`40d1c61`](https://github.com/TanStack/ai/commit/40d1c61c6bdf1957bd124d09b1f07617a05e759d)]:
+  - @tanstack/ai@1.6.0
+
 ## 1.0.4
 
 ### Patch Changes

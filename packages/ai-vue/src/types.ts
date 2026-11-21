@@ -99,6 +99,7 @@ export type UseChatOptions<
   | 'context'
   | 'devtools'
   | 'tools'
+  | 'outputSchema'
 > & {
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions

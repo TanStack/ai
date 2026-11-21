@@ -5,8 +5,33 @@ export type MetadataRecord = Record<string, any>
 /** `metadata.tanstack` on a message or run event. Internal getter return type. */
 export type TanStackMetadata = TanStackMessageMetadata & TanStackRunMetadata
 
-function isPlainRecord(value: unknown): value is MetadataRecord {
+export function isPlainRecord(value: unknown): value is MetadataRecord {
   return value != null && typeof value === 'object' && !Array.isArray(value)
+}
+
+/**
+ * Return the app keys of a metadata record, without the reserved `tanstack`
+ * key. Returns `undefined` when no app key is left.
+ */
+export function appMetadata(metadata: MetadataRecord | null | undefined) {
+  if (!isPlainRecord(metadata)) return undefined
+  const app: MetadataRecord = { ...metadata }
+  delete app.tanstack
+  return Object.keys(app).length > 0 ? app : undefined
+}
+
+/**
+ * Return only the reserved `tanstack` key of a metadata record. Returns
+ * `undefined` when the record has no `tanstack` value.
+ */
+export function tanstackOnlyMetadata(
+  metadata: MetadataRecord | null | undefined,
+) {
+  if (!isPlainRecord(metadata) || metadata.tanstack === undefined) {
+    return undefined
+  }
+  const tanstackOnly: MetadataRecord = { tanstack: metadata.tanstack }
+  return tanstackOnly
 }
 
 export function mergeMetadata(

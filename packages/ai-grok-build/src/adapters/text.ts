@@ -7,6 +7,7 @@ import {
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
+import { mountHostLogin } from '@tanstack/ai-sandbox/host-login'
 import {
   AsyncQueue,
   resolvePermission,
@@ -35,7 +36,8 @@ import { buildPrompt } from '../messages/prompt'
 import { formatAcpRequestError, resolveGrokSessionAuthMethod } from '../auth'
 import type { GrokBuildAuthMode } from '../auth'
 import { createGrokAcpNotificationHandler } from '../process/grok-acp-notifications'
-import { openGrokAcpConnection } from '../process/acp'
+import { grokAuthLaunch, openGrokAcpConnection } from '../process/acp'
+import { grokAuthFile } from '../login'
 import { resolveGrokExecutable } from '../process/resolve-executable'
 import { resolveGrokCliModel } from '../model-meta'
 import { SESSION_ID_EVENT, translateThreadEvents } from '../stream/translate'
@@ -92,8 +94,11 @@ export interface GrokBuildTextConfig {
   transport?: AcpTransportPreference
   /**
    * `'api-key'` (default) calls authenticate with `xai.api_key`.
-   * `'host'` skips ACP authenticate (use `grok login`).
-   * Not inferred from the sandbox.
+   * `'host'` skips ACP authenticate and uses the `grok login` of this
+   * machine (see `grokBuildPlanLogin`). grok then runs without `XAI_API_KEY`
+   * and `GROK_API_KEY`. On a sandbox that is not local-process, the host
+   * `~/.grok/auth.json` is copied in for the run and removed after it.
+   * Both protocols read this option. Not inferred from the sandbox.
    */
   authMode?: GrokBuildAuthMode
   /** Explicit ACP auth method. Wins over {@link authMode}. */
@@ -102,6 +107,44 @@ export interface GrokBuildTextConfig {
   permissionMode?: AcpPermissionMode
   /** Port for in-sandbox `grok agent serve` when using WebSocket transport. */
   acpPort?: number
+}
+
+type HostLogin = Awaited<ReturnType<typeof mountHostLogin>>
+
+/**
+ * Lend the host `grok login` to the sandbox for one run. This does nothing on
+ * local-process, where grok reads the host file.
+ */
+function mountGrokHostLogin(
+  sandbox: SandboxHandle,
+  adopt = false,
+): Promise<HostLogin> {
+  return mountHostLogin(sandbox, {
+    hostPath: grokAuthFile(),
+    sandboxHomePath: '.grok/auth.json',
+    label: 'Grok Build',
+    connectCommand: '/connect:grok-build',
+    adopt,
+  })
+}
+
+/**
+ * Release after grok stops, so a refreshed token is copied back. A failed run
+ * already sent its RUN_ERROR, so a release error then is only logged.
+ */
+async function releaseHostLogin(
+  hostLogin: HostLogin | undefined,
+  runFailed: boolean,
+  logger: TextOptions<GrokBuildTextProviderOptions>['logger'],
+  keep = false,
+): Promise<void> {
+  await hostLogin?.release({ keep }).catch((error: unknown) => {
+    if (!runFailed) throw error
+    logger.errors('grok-build: could not release the host login', {
+      error,
+      source: 'grok-build.chatStream',
+    })
+  })
 }
 
 function q(value: string): string {
@@ -274,6 +317,8 @@ export class GrokBuildTextAdapter<
     const externalSignal =
       options.abortController?.signal ?? options.request?.signal ?? undefined
     let onAbort: (() => void) | undefined
+    let hostLogin: HostLogin | undefined
+    let runFailed = false
 
     try {
       const tools = this.toolsForChoice(options)
@@ -371,6 +416,14 @@ export class GrokBuildTextAdapter<
         sandbox,
         this.adapterConfig.grokExecutable,
       )
+      const explicitAuthMethodId =
+        modelOptions?.authMethodId ?? this.adapterConfig.authMethodId
+      // An explicit `xai.api_key` wins over `authMode`, so it keeps the key.
+      const authMode =
+        explicitAuthMethodId === 'xai.api_key'
+          ? 'api-key'
+          : (modelOptions?.authMode ?? this.adapterConfig.authMode)
+      if (authMode === 'host') hostLogin = await mountGrokHostLogin(sandbox)
       const connection = await openGrokAcpConnection({
         sandbox,
         exe,
@@ -378,6 +431,7 @@ export class GrokBuildTextAdapter<
         cwd,
         harnessCwd,
         ...(this.adapterConfig.env ? { env: this.adapterConfig.env } : {}),
+        ...(authMode !== undefined && { authMode }),
         extraArgs: this.adapterConfig.extraArgs,
         port: modelOptions?.acpPort ?? this.adapterConfig.acpPort,
         transportPreference:
@@ -389,8 +443,8 @@ export class GrokBuildTextAdapter<
         this.adapterConfig.permissionMode ??
         'bypassPermissions'
       const authMethodId = resolveGrokSessionAuthMethod(
-        modelOptions?.authMode ?? this.adapterConfig.authMode,
-        modelOptions?.authMethodId ?? this.adapterConfig.authMethodId,
+        authMode,
+        explicitAuthMethodId,
         {
           ...process.env,
           ...this.adapterConfig.env,
@@ -511,7 +565,7 @@ export class GrokBuildTextAdapter<
       }
 
       if (options.outputSchema) {
-        const parseFailed = yield* this.emitParsedStructuredOutput(
+        for (const chunk of this.emitParsedStructuredOutput(
           lastAssistantText,
           threadId,
           runId,
@@ -519,10 +573,14 @@ export class GrokBuildTextAdapter<
           heldFinished?.type === EventType.RUN_FINISHED
             ? heldFinished.usage
             : undefined,
-        )
-        // chat() stops at the first RUN_ERROR, so the held RUN_FINISHED is
-        // never read. Its usage is on the RUN_ERROR.
-        if (parseFailed) heldFinished = undefined
+        )) {
+          if (chunk.type === EventType.RUN_ERROR) {
+            // chat() stops at this chunk, so mark failure before yielding it.
+            runFailed = true
+            heldFinished = undefined
+          }
+          yield chunk
+        }
       }
       if (heldFinished) yield heldFinished
 
@@ -530,6 +588,7 @@ export class GrokBuildTextAdapter<
         yield* this.emitDiffChunks(sandbox, cwd, threadId, runId)
       }
     } catch (error: unknown) {
+      runFailed = true
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
       const message = formatAcpRequestError(error)
@@ -553,8 +612,12 @@ export class GrokBuildTextAdapter<
       if (onAbort !== undefined && externalSignal !== undefined) {
         externalSignal.removeEventListener('abort', onAbort)
       }
-      await handle?.dispose()
-      await bridge?.close()
+      try {
+        await handle?.dispose()
+        await bridge?.close()
+      } finally {
+        await releaseHostLogin(hostLogin, runFailed, logger)
+      }
     }
   }
 
@@ -635,6 +698,14 @@ export class GrokBuildTextAdapter<
   ): AsyncIterable<AdapterYieldChunk> {
     const { logger } = options
     let bridge: HostToolBridge | undefined
+    let hostLogin: HostLogin | undefined
+    // A durable agent can outlive this stream. Its login then stays in the
+    // sandbox for the host that attaches.
+    let keepLogin = false
+    let runFailed = false
+    const durability = options.capabilities
+      ? getSandboxDurability(options.capabilities, { optional: true })
+      : undefined
     try {
       const tools = this.toolsForChoice(options)
       const sandbox = this.sandboxFrom(options)
@@ -647,9 +718,6 @@ export class GrokBuildTextAdapter<
       // that a loud failure when durability is wired, and preserves the
       // generated fallback exactly as before when it is not — several `chat()`
       // paths pass `runId` as a conditional spread, so `undefined` is reachable.
-      const durability = options.capabilities
-        ? getSandboxDurability(options.capabilities, { optional: true })
-        : undefined
       const runId = resolveDurableRunId(options.runId, {
         durable: durability !== undefined,
         adapter: 'grok-build',
@@ -704,9 +772,19 @@ export class GrokBuildTextAdapter<
         )
       }
 
-      const exe = await resolveGrokExecutable(
-        sandbox,
-        this.adapterConfig.grokExecutable,
+      const authMode =
+        options.modelOptions?.authMode ?? this.adapterConfig.authMode
+      if (authMode === 'host') {
+        hostLogin = await mountGrokHostLogin(
+          sandbox,
+          durability?.attach === true,
+        )
+        if (durability?.attach === true) keepLogin = true
+      }
+      const launch = grokAuthLaunch(
+        await resolveGrokExecutable(sandbox, this.adapterConfig.grokExecutable),
+        this.adapterConfig.env,
+        authMode,
       )
       const runCommand = this.buildCommand(
         options,
@@ -714,7 +792,7 @@ export class GrokBuildTextAdapter<
         harnessCwd,
         mapPolicyToGrokBuildFlags(policy),
         fullPrompt,
-        exe,
+        launch.exe,
       )
 
       logger.request(
@@ -732,7 +810,7 @@ export class GrokBuildTextAdapter<
 
       const rawEvents = spawnNdjson(sandbox, runCommand, {
         cwd,
-        ...(this.adapterConfig.env ? { env: this.adapterConfig.env } : {}),
+        ...(launch.env ? { env: launch.env } : {}),
         ...(options.abortController?.signal
           ? { signal: options.abortController.signal }
           : options.request?.signal
@@ -775,6 +853,7 @@ export class GrokBuildTextAdapter<
       // sequence is the whole of it. `isBridgeCustomChunk` tolerance inside
       // `alignedIfAttaching` is therefore slack this path does not need, not a
       // dependency of it.
+      keepLogin = durability !== undefined
       yield* alignedIfAttaching(
         translateThreadEvents(asEvents(), {
           model: this.model,
@@ -793,6 +872,9 @@ export class GrokBuildTextAdapter<
         durability,
         logger,
       )
+      // The journal read also ends when the host is aborted. The agent runs on.
+      const signal = options.abortController?.signal ?? options.request?.signal
+      keepLogin = keepLogin && signal?.aborted === true
 
       // Deliberately OUTSIDE the alignment wrap. `emitDiffChunks` shells out for
       // a live `git diff` after the translated stream ends, so it is new output
@@ -808,6 +890,18 @@ export class GrokBuildTextAdapter<
         yield* this.emitDiffChunks(sandbox, cwd, threadId, runId)
       }
     } catch (error: unknown) {
+      runFailed = true
+      const signal = options.abortController?.signal ?? options.request?.signal
+      // Only a durable agent can run on, and only if its exit was not seen.
+      // A dead or stalled journal read does not mean the agent stopped.
+      // ponytail: the exit is told by the message `spawnNdjson` throws.
+      const exited =
+        error instanceof Error &&
+        error.message.startsWith('Agent process exited with code')
+      keepLogin =
+        durability !== undefined &&
+        !exited &&
+        (signal?.aborted === true || keepLogin)
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
       const message = formatAcpRequestError(error)
@@ -828,7 +922,11 @@ export class GrokBuildTextAdapter<
         },
       }
     } finally {
-      await bridge?.close()
+      try {
+        await bridge?.close()
+      } finally {
+        await releaseHostLogin(hostLogin, runFailed, logger, keepLogin)
+      }
     }
   }
 

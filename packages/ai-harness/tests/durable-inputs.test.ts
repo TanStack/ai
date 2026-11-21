@@ -555,6 +555,7 @@ describe('recovery of a durable input', () => {
         toolCallId: 'call-lookup',
         content: result,
         error: result,
+        metadata: { tanstack: { toolResultKind: 'text' } },
       },
     ])
     await host.close()

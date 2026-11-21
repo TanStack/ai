@@ -1,4 +1,5 @@
 import type {
+  AnyTool,
   DefaultMessageMetadataByModality,
   JSONSchema,
   MidConversationChannels,
@@ -228,6 +229,19 @@ export interface TextAdapter<
   combinedStructuredOutputSource?: (
     modelOptions?: TProviderOptions | undefined,
   ) => 'text' | 'event'
+
+  /**
+   * Undo a provider rewrite of tool arguments before the input check.
+   * Strict mode returns `null` for an omitted optional field. The live
+   * stream undoes that on `TOOL_CALL_END`. History rebuilt from
+   * `TOOL_CALL_ARGS` still has the `null`, so a resume calls this first.
+   * Omit it when the adapter does not rewrite arguments.
+   */
+  normalizeToolInput?: (
+    toolName: string,
+    input: unknown,
+    tools: ReadonlyArray<AnyTool> | undefined,
+  ) => unknown
 }
 
 /**

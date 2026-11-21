@@ -1,4 +1,5 @@
 export { CodexTextAdapter, codexText } from './adapters/text'
+export { codexPlanLogin } from './login'
 export type {
   CodexTextConfig,
   CodexAuthMode,

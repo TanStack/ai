@@ -1,5 +1,27 @@
 # @tanstack/ai-bedrock
 
+## 1.4.1
+
+### Patch Changes
+
+- [#2078](https://github.com/TanStack/ai/pull/2078) [`fc93edc`](https://github.com/TanStack/ai/commit/fc93edc9ed5873209e20bd8fb14f483b1e1f6a7e) - Report a Converse stream that stops with `stopReason: 'model_context_window_exceeded'` as a `RUN_ERROR` with the `context_overflow` code. It was reported as a clean `RUN_FINISHED` with `finishReason: 'stop'`, although the answer was cut off. This matches the Anthropic adapter.
+
+- Updated dependencies [[`95c1d78`](https://github.com/TanStack/ai/commit/95c1d781c92904612e0d675a9ca38f1a8d9a1c09), [`df6f5a9`](https://github.com/TanStack/ai/commit/df6f5a9f5ff782db85c8a36715bac18a7f090180), [`40d1c61`](https://github.com/TanStack/ai/commit/40d1c61c6bdf1957bd124d09b1f07617a05e759d)]:
+  - @tanstack/ai@1.6.0
+  - @tanstack/openai-base@1.1.0
+
+## 1.4.0
+
+### Minor Changes
+
+- [#2123](https://github.com/TanStack/ai/pull/2123) [`0c0c86d`](https://github.com/TanStack/ai/commit/0c0c86d179ce839c1e581c70cb28c83ca9ab0e93) - Add `modelOptions.requestMetadata` for invocation log metadata and `modelOptions.serviceTier` to choose an inference tier. Both work with Converse and ConverseStream, including structured output.
+
+### Patch Changes
+
+- Updated dependencies [[`1888233`](https://github.com/TanStack/ai/commit/1888233ddb501d14b17aa9a5f3497373a0e9242e)]:
+  - @tanstack/ai@1.4.1
+  - @tanstack/openai-base@1.0.4
+
 ## 1.3.0
 
 ### Minor Changes

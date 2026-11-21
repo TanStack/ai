@@ -1,5 +1,14 @@
 # @tanstack/ai-acp
 
+## 1.0.3
+
+### Patch Changes
+
+- Updated dependencies [[`4b00243`](https://github.com/TanStack/ai/commit/4b002432487ce34547162b6f3f0492b4b936aa61), [`009b480`](https://github.com/TanStack/ai/commit/009b480b9b88c074f1a52ea8eacd8de5ea6432fc)]:
+  - @tanstack/ai@1.8.0
+  - @tanstack/ai-sandbox@1.5.0
+  - @tanstack/ai-harness@0.4.0
+
 ## 1.0.2
 
 ### Patch Changes

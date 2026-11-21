@@ -1,5 +1,20 @@
 # @tanstack/ai-sandbox-railway
 
+## 1.1.0
+
+### Minor Changes
+
+- [#2180](https://github.com/TanStack/ai/pull/2180) [`e5d9e0f`](https://github.com/TanStack/ai/commit/e5d9e0f5fe6695bdb6ff94b7b489d9416231c63d) - Delete native sandbox snapshots once nothing references them.
+
+  `SandboxProvider` has a new optional `deleteSnapshot({ snapshotId, signal })`. `defineSandbox` calls it, best effort, when a sandbox record's `latestSnapshotId` is replaced (a re-create or a new `after-run` snapshot) and when the sandbox is torn down through `destroy` or `reclaimSandbox`. A failed delete is logged and never fails the run or the teardown. Providers that don't implement it behave as before.
+
+  `railwaySandbox()` implements `deleteSnapshot`, so its `tsai-*` checkpoints are deleted once nothing references them instead of staying in the environment until pruned by hand.
+
+### Patch Changes
+
+- Updated dependencies [[`2ed7e21`](https://github.com/TanStack/ai/commit/2ed7e21c676e4d8e308d724d074755942051b661), [`e5d9e0f`](https://github.com/TanStack/ai/commit/e5d9e0f5fe6695bdb6ff94b7b489d9416231c63d), [`8813243`](https://github.com/TanStack/ai/commit/88132439cb41df8fd4b40248a571550505d65921)]:
+  - @tanstack/ai-sandbox@1.4.0
+
 ## 1.0.0
 
 ### Major Changes

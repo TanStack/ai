@@ -1,0 +1,36 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[tool-result-metadata] find the lighthouse docs",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Let me search the docs.",
+        "toolCalls": [
+          {
+            "name": "search_docs",
+            "arguments": "{\"query\":\"lighthouse\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[tool-result-metadata] find the lighthouse docs",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "RESULT_META_OK the lighthouse docs are below."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[tool-result-metadata] thanks"
+      },
+      "response": {
+        "content": "RESULT_META_SECOND_OK you are welcome."
+      }
+    }
+  ]
+}

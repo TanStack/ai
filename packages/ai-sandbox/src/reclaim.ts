@@ -15,6 +15,9 @@
  */
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { RunRecord } from '@tanstack/ai'
+import { deleteSnapshotQuietly } from './snapshot-cleanup'
+import { withSandboxKeyLock } from './sandbox'
+import type { LockStore } from '@tanstack/ai/locks'
 import type { SandboxProvider } from './contracts'
 import type { SandboxInstanceStore } from './instance-store'
 
@@ -22,6 +25,13 @@ export interface ReclaimSandboxOptions {
   provider: SandboxProvider
   instances: SandboxInstanceStore
   logger?: InternalLogger
+  /**
+   * The lock store the sandbox middleware uses. When the provider implements
+   * `deleteSnapshot`, reclaim takes the same per-key lock as `ensure()`, so an
+   * overlapping `ensure()` cannot re-record a snapshot reclaim deletes.
+   * Defaults to an in-memory lock (this process only).
+   */
+  locks?: LockStore
 }
 
 export type ReclaimOutcome =
@@ -74,11 +84,41 @@ export async function reclaimSandbox(
   const key = record.sandboxKey
   if (key === undefined) return 'no-sandbox-key'
 
+  // A provider that deletes snapshots needs the ensure lock here: an
+  // overlapping `ensure()` writes back the record it read, which could
+  // re-create a record naming the snapshot deleted below.
+  const result = options.provider.deleteSnapshot
+    ? await withSandboxKeyLock(options.locks, key, () =>
+        reclaimRecord(record, key, options),
+      )
+    : await reclaimRecord(record, key, options)
+  if ('outcome' in result) return result.outcome
+  // The record was the snapshot's only reference. Best effort, never part of
+  // the outcome: a leaked snapshot is logged by the helper.
+  await deleteSnapshotQuietly(options.provider, result.snapshotId, {
+    logger: options.logger,
+    meta: { runId: record.runId, sandboxKey: key },
+  })
+  return result.destroyFailed ? 'destroy-failed' : 'destroyed'
+}
+
+/**
+ * Destroy the sandbox and delete its record. Returns an early outcome, or the
+ * snapshot the deleted record named.
+ */
+async function reclaimRecord(
+  record: RunRecord,
+  key: string,
+  options: ReclaimSandboxOptions,
+): Promise<
+  | { outcome: 'not-found' | 'provider-mismatch' }
+  | { destroyFailed: boolean; snapshotId: string | undefined }
+> {
   // NOT guarded: a store failure here means we do not know what to destroy, and
   // the caller (the reaper) records it against the run. Swallowing it would hide
   // a leaking sandbox entirely.
   const instance = await options.instances.get(key)
-  if (instance === null) return 'not-found'
+  if (instance === null) return { outcome: 'not-found' }
 
   if (instance.provider !== options.provider.name) {
     options.logger?.warn(
@@ -90,7 +130,7 @@ export async function reclaimSandbox(
         reclaimerProvider: options.provider.name,
       },
     )
-    return 'provider-mismatch'
+    return { outcome: 'provider-mismatch' }
   }
 
   let destroyFailed = false
@@ -112,7 +152,7 @@ export async function reclaimSandbox(
   // success when the destroy threw. Reporting `'destroyed'` here made a leaked,
   // now-unreachable sandbox indistinguishable from a clean teardown.
   await options.instances.delete(key)
-  return destroyFailed ? 'destroy-failed' : 'destroyed'
+  return { destroyFailed, snapshotId: instance.latestSnapshotId }
 }
 
 /**

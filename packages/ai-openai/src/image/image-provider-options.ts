@@ -12,7 +12,8 @@
 export type GptImageQuality = 'high' | 'medium' | 'low' | 'auto'
 
 /**
- * Quality options for gpt-image-2.5-flare and gpt-image-2.5-sunburst models
+ * Quality options for the gpt-image-2.6 and gpt-image-2.5 flare and sunburst
+ * models
  */
 export type GptImage25Quality = GptImageQuality | 'xhigh' | 'max'
 
@@ -98,7 +99,8 @@ export interface GptImage1ProviderOptions extends OpenAIImageBaseProviderOptions
 export type GptImage1MiniProviderOptions = GptImage1ProviderOptions
 
 /**
- * Provider options for gpt-image-2.5-flare and gpt-image-2.5-sunburst models.
+ * Provider options for the gpt-image-2.6 and gpt-image-2.5 flare and sunburst
+ * models.
  * Same as gpt-image-1, plus the `xhigh` and `max` quality levels.
  */
 export interface GptImage25ProviderOptions extends Omit<
@@ -125,6 +127,8 @@ export type OpenAIImageProviderOptions =
  * Used by the core AI types to narrow providerOptions based on the selected model.
  */
 export type OpenAIImageModelProviderOptionsByName = {
+  'gpt-image-2.6-flare': GptImage25ProviderOptions
+  'gpt-image-2.6-sunburst': GptImage25ProviderOptions
   'gpt-image-2.5-flare': GptImage25ProviderOptions
   'gpt-image-2.5-sunburst': GptImage25ProviderOptions
   'gpt-image-2': GptImage1ProviderOptions
@@ -136,6 +140,8 @@ export type OpenAIImageModelProviderOptionsByName = {
  * Type-only map from model name to its supported sizes.
  */
 export type OpenAIImageModelSizeByName = {
+  'gpt-image-2.6-flare': GptImageSize
+  'gpt-image-2.6-sunburst': GptImageSize
   'gpt-image-2.5-flare': GptImageSize
   'gpt-image-2.5-sunburst': GptImageSize
   'gpt-image-2': GptImageSize
@@ -148,6 +154,8 @@ export type OpenAIImageModelSizeByName = {
  * `images.edit()`, so each accepts image parts in the prompt.
  */
 export type OpenAIImageModelInputModalitiesByName = {
+  'gpt-image-2.6-flare': readonly ['image']
+  'gpt-image-2.6-sunburst': readonly ['image']
   'gpt-image-2.5-flare': readonly ['image']
   'gpt-image-2.5-sunburst': readonly ['image']
   'gpt-image-2': readonly ['image']
@@ -174,6 +182,8 @@ export function validateImageSize(
   if (!size || size === 'auto') return
 
   const validSizes: Record<string, Array<string>> = {
+    'gpt-image-2.6-flare': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
+    'gpt-image-2.6-sunburst': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
     'gpt-image-2.5-flare': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
     'gpt-image-2.5-sunburst': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
     'gpt-image-2': ['1024x1024', '1536x1024', '1024x1536', 'auto'],

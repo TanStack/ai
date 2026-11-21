@@ -51,6 +51,8 @@ The sandbox in step 3 gives this key to the `grok` process as a workspace secret
 
 Did the machine already run `grok login`? Then you can use that login and no key. See [Harness Auth](../sandbox/auth).
 
+Do you ship a harness to users? They can sign in with their own SuperGrok plan. See [Sign in with a ChatGPT or SuperGrok plan](../harness/plan-sign-in).
+
 ## 3. Run the agent from the server
 
 Define the sandbox once. It clones your repo into a Docker container and installs the `grok` CLI with `GROK_CLI_INSTALL_COMMAND`:
@@ -370,7 +372,7 @@ Pass these as the second argument of `grokBuildText`:
 | Option | What it does |
 | --- | --- |
 | `cwd` | The working directory inside the sandbox. Default `/workspace`. |
-| `authMode` | `'api-key'` (default) signs in with `XAI_API_KEY`. `'host'` uses `grok login`. See [Harness Auth](../sandbox/auth). |
+| `authMode` | `'api-key'` (default) signs in with `XAI_API_KEY`. `'host'` uses `grok login` or a [SuperGrok plan sign-in](../harness/plan-sign-in), and runs `grok` without `XAI_API_KEY` and `GROK_API_KEY`. See [Harness Auth](../sandbox/auth). |
 | `authMethodId` | An explicit ACP auth method. It wins over `authMode`. |
 | `protocol` | `'acp'` (default) or `'streaming-json'`. See [Protocols and durable runs](#protocols-and-durable-runs). |
 | `transport` | The ACP transport: `'auto'` (default), `'stdio'`, or `'websocket'`. |

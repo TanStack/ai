@@ -61,7 +61,12 @@ export type {
 } from './checkpoint-store'
 
 // File snapshot policy used by provider snapshot create/restore inputs.
-export { SandboxSnapshotError, defaultSandboxSnapshotPolicy } from './snapshots'
+export {
+  SandboxSnapshotError,
+  captureSandboxFiles,
+  defaultSandboxSnapshotPolicy,
+  restoreSandboxFiles,
+} from './snapshots'
 export type {
   SandboxSnapshotErrorCode,
   SandboxSnapshotPolicy,
@@ -183,6 +188,7 @@ export type {
   SandboxResumeInput,
   SandboxRestoreInput,
   SandboxDestroyInput,
+  SandboxDeleteSnapshotInput,
 } from './contracts'
 
 // Bootstrap engine (exported for provider/adapter authors + tests)
@@ -321,6 +327,7 @@ export {
 export {
   alignToStoredLog,
   isBridgeCustomChunk,
+  isStoredReplayChunk,
   JournalReplayDivergedError,
   JournalReplayThreadIdMismatchError,
   DEFAULT_MAX_OUT_OF_BAND_SKIP,

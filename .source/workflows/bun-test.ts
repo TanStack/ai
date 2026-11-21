@@ -22,8 +22,12 @@ export default defineWorkflow('bun-test', {
   // and the Playwright CDNs when the locked Playwright changes.
   egress: [
     'registry.npmjs.org',
+    // The pinned @tanstack/oracles tarball in pnpm-lock.yaml.
+    'pkg.pr.new',
     'nodejs.org',
     'cdn.playwright.dev',
+    // cdn.playwright.dev redirects the Chrome download of Playwright 1.65 here.
+    'storage.googleapis.com',
     'playwright.download.prss.microsoft.com',
   ],
   steps: [

@@ -66,27 +66,33 @@ test.describe('mid-conversation changes: a tool added after the first tool batch
     expect(gpt.lastItem).toBe('additional_tools')
   })
 
-  test('a Claude model with the channel sends a tool_addition block and the beta', async ({
-    request,
-  }) => {
-    const claude = (await casesFrom(request))('claude-opus-5-5')
-    expect(claude.errors).toEqual([])
-    expect(claude.requestCount).toBe(2)
-    expect(claude.firstTools).toEqual(['get_weather', PLACEHOLDER])
-    expect(claude.secondTools).toEqual([
-      'get_weather',
-      PLACEHOLDER,
-      'get_forecast',
-    ])
-    expect(claude.deferred).toEqual([PLACEHOLDER, 'get_forecast'])
-    // The automatic prompt-cache marker sits on the last start tool, not on
-    // the placeholder or the deferred tool, so the cached start stays put.
-    expect(claude.toolCacheMarks).toEqual([['get_weather'], ['get_weather']])
-    expect(claude.toolAdditions).toEqual(['get_forecast'])
-    expect(claude.lastItem).toBe('system')
-    expect(claude.betas).toHaveLength(2)
-    for (const betas of claude.betas) expect(betas).toContain(BETA)
-  })
+  for (const model of [
+    'claude-opus-5-5',
+    'claude-sonnet-5-5',
+    'claude-haiku-5-5',
+  ]) {
+    test(`${model} with the channel sends a tool_addition block and the beta`, async ({
+      request,
+    }) => {
+      const claude = (await casesFrom(request))(model)
+      expect(claude.errors).toEqual([])
+      expect(claude.requestCount).toBe(2)
+      expect(claude.firstTools).toEqual(['get_weather', PLACEHOLDER])
+      expect(claude.secondTools).toEqual([
+        'get_weather',
+        PLACEHOLDER,
+        'get_forecast',
+      ])
+      expect(claude.deferred).toEqual([PLACEHOLDER, 'get_forecast'])
+      // The automatic prompt-cache marker sits on the last start tool, not on
+      // the placeholder or the deferred tool, so the cached start stays put.
+      expect(claude.toolCacheMarks).toEqual([['get_weather'], ['get_weather']])
+      expect(claude.toolAdditions).toEqual(['get_forecast'])
+      expect(claude.lastItem).toBe('system')
+      expect(claude.betas).toHaveLength(2)
+      for (const betas of claude.betas) expect(betas).toContain(BETA)
+    })
+  }
 
   test('models without the channel send the full tools', async ({
     request,
@@ -94,7 +100,7 @@ test.describe('mid-conversation changes: a tool added after the first tool batch
     const caseOf = await casesFrom(request)
     // Both have `midConversationChannels: true`. The map still decides.
     expectFullTools(caseOf('gpt-6.1-sol'))
-    expectFullTools(caseOf('claude-sonnet-5-5'))
+    expectFullTools(caseOf('claude-sonnet-5'))
   })
 
   test('a custom fetch with no option sends the full tools (the gateway case)', async ({

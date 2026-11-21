@@ -105,6 +105,7 @@ export type UseChatOptions<
   | 'context'
   | 'devtools'
   | 'subagents'
+  | 'outputSchema'
 > & {
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { createGeneration } from '../src/create-generation.svelte'
 import { createGenerateImage } from '../src/create-generate-image.svelte'
+import { createGenerate3DModel } from '../src/create-generate-3d-model.svelte'
 import { createGenerateSpeech } from '../src/create-generate-speech.svelte'
 import { createTranscription } from '../src/create-transcription.svelte'
 import { createSummarize } from '../src/create-summarize.svelte'
@@ -8,6 +9,7 @@ import { createGenerateVideo } from '../src/create-generate-video.svelte'
 import { createMockConnectionAdapter } from './test-utils'
 import { EventType, type StreamChunk } from '@tanstack/ai'
 import type {
+  Model3DResult,
   PersistedArtifactRef,
   TTSResult,
   TranscriptionResult,
@@ -455,6 +457,83 @@ describe('createGenerateImage', () => {
       artifacts: [artifact],
     })
     expect(gen.runId).toBeNull()
+  })
+})
+
+describe('createGenerate3DModel', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('reports each poll as progress, then stores the finished model', async () => {
+    const model: Model3DResult = {
+      jobId: 'job-3d',
+      url: 'https://example.com/robot.glb',
+      format: 'glb',
+      previewImageUrl: 'https://example.com/robot.png',
+    }
+    const chunks: Array<StreamChunk> = [
+      {
+        type: EventType.RUN_STARTED,
+        runId: 'run-1',
+        threadId: 'thread-1',
+        timestamp: Date.now(),
+      },
+      {
+        type: EventType.CUSTOM,
+        name: 'generation:progress',
+        value: { progress: 0, message: 'pending' },
+        timestamp: Date.now(),
+      },
+      {
+        type: EventType.CUSTOM,
+        name: 'generation:progress',
+        value: { progress: 50, message: 'processing' },
+        timestamp: Date.now(),
+      },
+      ...createGenerationChunks(model).slice(1),
+    ]
+    const onProgress = vi.fn()
+    const onResult = vi.fn()
+
+    const gen = createGenerate3DModel({
+      threadId: 'thread-1',
+      connection: createMockConnectionAdapter({ chunks }),
+      onProgress,
+      onResult,
+    })
+
+    await gen.generate({ prompt: 'A small toy robot' })
+
+    expect(onProgress.mock.calls).toEqual([
+      [0, 'pending'],
+      [50, 'processing'],
+    ])
+    expect(onResult).toHaveBeenCalledWith(model)
+    expect(gen.result).toEqual(model)
+    expect(gen.status).toBe('success')
+    expect(gen.isLoading).toBe(false)
+  })
+
+  it('surfaces a stream error and keeps the result empty', async () => {
+    const onError = vi.fn()
+
+    const gen = createGenerate3DModel({
+      threadId: 'thread-1',
+      connection: createMockConnectionAdapter({
+        chunks: createErrorChunks('3D generation failed'),
+      }),
+      onError,
+    })
+
+    await gen.generate({ prompt: 'A small toy robot' })
+
+    expect(gen.status).toBe('error')
+    expect(gen.error?.message).toBe('3D generation failed')
+    expect(gen.result).toBeNull()
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: '3D generation failed' }),
+    )
   })
 })
 

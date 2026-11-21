@@ -28,6 +28,12 @@ export type {
 } from './use-generation'
 
 export { useGenerateImage } from './use-generate-image'
+
+export { useGenerate3DModel } from './use-generate-3d-model'
+export type {
+  UseGenerate3DModelOptions,
+  UseGenerate3DModelReturn,
+} from './use-generate-3d-model'
 export type {
   UseGenerateImageOptions,
   UseGenerateImageReturn,
@@ -145,6 +151,7 @@ export {
   type TranscriptionGenerateInput,
   type SummarizeGenerateInput,
   type VideoGenerateInput,
+  type Model3DGenerateInput,
   type VideoGenerateResult,
   type VideoStatusInfo,
 } from '@tanstack/ai-client'

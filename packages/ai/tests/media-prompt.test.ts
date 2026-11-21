@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { resolveMediaPrompt } from '../src/utilities/media-prompt'
-import type { ImagePart, MediaInputMetadata, MediaPromptPart } from '../src'
+import type {
+  ImagePart,
+  MediaInputMetadata,
+  MediaPromptPart,
+  Model3DPart,
+} from '../src'
 
 function image(
   value: string,
@@ -13,6 +18,10 @@ function image(
   }
 }
 
+function mesh(value: string): Model3DPart {
+  return { type: 'model3d', source: { type: 'url', value } }
+}
+
 describe('resolveMediaPrompt', () => {
   it('wraps a string prompt as a single text part', () => {
     const resolved = resolveMediaPrompt('a cat')
@@ -21,6 +30,7 @@ describe('resolveMediaPrompt', () => {
     expect(resolved.images).toEqual([])
     expect(resolved.videos).toEqual([])
     expect(resolved.audios).toEqual([])
+    expect(resolved.models3d).toEqual([])
   })
 
   it('buckets media parts by modality in prompt order', () => {
@@ -41,6 +51,21 @@ describe('resolveMediaPrompt', () => {
     expect(resolved.images[1]?.metadata?.role).toBe('end_frame')
     expect(resolved.videos).toHaveLength(1)
     expect(resolved.audios).toHaveLength(1)
+  })
+
+  it('puts model3d parts in models3d, in prompt order', () => {
+    const resolved = resolveMediaPrompt([
+      mesh('https://a.glb'),
+      { type: 'text', content: 'retexture as rusty metal' },
+      image('https://style.png'),
+      mesh('https://b.obj'),
+    ])
+    expect(resolved.text).toBe('retexture as rusty metal')
+    expect(resolved.models3d).toEqual([
+      mesh('https://a.glb'),
+      mesh('https://b.obj'),
+    ])
+    expect(resolved.images).toEqual([image('https://style.png')])
   })
 
   it('joins multiple text parts with paragraph breaks', () => {

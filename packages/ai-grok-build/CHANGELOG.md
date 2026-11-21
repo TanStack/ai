@@ -1,5 +1,31 @@
 # @tanstack/ai-grok-build
 
+## 1.1.0
+
+### Minor Changes
+
+- [#2197](https://github.com/TanStack/ai/pull/2197) [`009b480`](https://github.com/TanStack/ai/commit/009b480b9b88c074f1a52ea8eacd8de5ea6432fc) - Users of a local harness can sign in with their own ChatGPT or SuperGrok plan. Add `login: codexPlanLogin()` or `login: grokBuildPlanLogin()` to the provider in `providerKeys`, and `/connect:codex` or `/connect:grok-build` runs the device sign-in of the vendor CLI.
+
+  With `authMode: 'host'`, Codex and Grok Build run the CLI without its API key variables, and a Docker or cloud sandbox gets a copy of the machine login for each run. `@tanstack/ai-sandbox/host-login` has the shared `cliPlanLogin` and `mountHostLogin` helpers.
+
+### Patch Changes
+
+- Updated dependencies [[`4b00243`](https://github.com/TanStack/ai/commit/4b002432487ce34547162b6f3f0492b4b936aa61), [`009b480`](https://github.com/TanStack/ai/commit/009b480b9b88c074f1a52ea8eacd8de5ea6432fc)]:
+  - @tanstack/ai@1.8.0
+  - @tanstack/ai-sandbox@1.5.0
+  - @tanstack/ai-acp@1.0.3
+
+## 1.0.2
+
+### Patch Changes
+
+- [#2108](https://github.com/TanStack/ai/pull/2108) [`8813243`](https://github.com/TanStack/ai/commit/88132439cb41df8fd4b40248a571550505d65921) - Keep text and tool calls the first host already delivered in the saved transcript after a sandbox takeover. The event log still stores that prefix once.
+
+- Updated dependencies [[`95c1d78`](https://github.com/TanStack/ai/commit/95c1d781c92904612e0d675a9ca38f1a8d9a1c09), [`df6f5a9`](https://github.com/TanStack/ai/commit/df6f5a9f5ff782db85c8a36715bac18a7f090180), [`2ed7e21`](https://github.com/TanStack/ai/commit/2ed7e21c676e4d8e308d724d074755942051b661), [`40d1c61`](https://github.com/TanStack/ai/commit/40d1c61c6bdf1957bd124d09b1f07617a05e759d), [`e5d9e0f`](https://github.com/TanStack/ai/commit/e5d9e0f5fe6695bdb6ff94b7b489d9416231c63d), [`8813243`](https://github.com/TanStack/ai/commit/88132439cb41df8fd4b40248a571550505d65921)]:
+  - @tanstack/ai@1.6.0
+  - @tanstack/ai-sandbox@1.4.0
+  - @tanstack/ai-acp@1.0.2
+
 ## 1.0.1
 
 ### Patch Changes

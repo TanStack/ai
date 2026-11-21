@@ -1,5 +1,15 @@
 # @tanstack/ai-claude-code
 
+## 1.0.3
+
+### Patch Changes
+
+- [#2108](https://github.com/TanStack/ai/pull/2108) [`8813243`](https://github.com/TanStack/ai/commit/88132439cb41df8fd4b40248a571550505d65921) - Keep text and tool calls the first host already delivered in the saved transcript after a sandbox takeover. The event log still stores that prefix once.
+
+- Updated dependencies [[`95c1d78`](https://github.com/TanStack/ai/commit/95c1d781c92904612e0d675a9ca38f1a8d9a1c09), [`df6f5a9`](https://github.com/TanStack/ai/commit/df6f5a9f5ff782db85c8a36715bac18a7f090180), [`2ed7e21`](https://github.com/TanStack/ai/commit/2ed7e21c676e4d8e308d724d074755942051b661), [`40d1c61`](https://github.com/TanStack/ai/commit/40d1c61c6bdf1957bd124d09b1f07617a05e759d), [`e5d9e0f`](https://github.com/TanStack/ai/commit/e5d9e0f5fe6695bdb6ff94b7b489d9416231c63d), [`8813243`](https://github.com/TanStack/ai/commit/88132439cb41df8fd4b40248a571550505d65921)]:
+  - @tanstack/ai@1.6.0
+  - @tanstack/ai-sandbox@1.4.0
+
 ## 1.0.2
 
 ### Patch Changes

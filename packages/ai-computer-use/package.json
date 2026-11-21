@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-computer-use",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Provider-agnostic computer use for TanStack AI.",
   "author": "",
   "license": "MIT",
@@ -64,7 +64,7 @@
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-harness": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "4.1.12",
     "zod": "^4.2.0"
   }
 }

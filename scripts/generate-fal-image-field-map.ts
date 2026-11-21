@@ -18,16 +18,22 @@
  * re-run. A unit test compares the recorded endpoints.d.ts hash against the
  * installed SDK to catch staleness.
  *
+ * The same run also writes the mesh input field map
+ * (`packages/ai-fal/src/model3d/generated/mesh-field-overrides.ts`). It lists
+ * every 3D endpoint that takes an existing mesh, and the field name for that
+ * mesh (`model_url`, `mesh_url` or `input_file_url`).
+ *
  * Usage:
  *   pnpm tsx scripts/generate-fal-image-field-map.ts          # regenerate
  *   pnpm tsx scripts/generate-fal-image-field-map.ts --check  # CI staleness check
  */
 
 import { createHash } from 'node:crypto'
-import { readFileSync, writeFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { basename, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import ts from 'typescript'
+// TypeScript 7 does not ship the JS Compiler API, so use the TS 6 shim.
+import ts from '@typescript/typescript6'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
@@ -44,6 +50,28 @@ const OUT_FILE = resolve(
   FAL_PKG,
   'src/image/generated/image-field-overrides.ts',
 )
+const MESH_OUT_FILE = resolve(
+  FAL_PKG,
+  'src/model3d/generated/mesh-field-overrides.ts',
+)
+
+// ---------------------------------------------------------------------------
+// Mesh input fields
+// ---------------------------------------------------------------------------
+
+/**
+ * Field names that fal 3D endpoints use for an input mesh, in priority order.
+ * When an endpoint has more than one, the first one wins.
+ */
+const MESH_FIELDS = ['model_url', 'mesh_url', 'input_file_url']
+
+/**
+ * Filter for mesh fields. A field name alone is not enough: `model_url` can
+ * also mean other things (for example LoRA weights). So a field counts as a
+ * mesh input only when its JSDoc in endpoints.d.ts talks about a 3D model, a
+ * mesh, or a 3D file format.
+ */
+const MESH_DOC_PATTERN = /\b(3d|mesh|glb|gltf|obj|fbx|stl|ply)\b/i
 
 // ---------------------------------------------------------------------------
 // Role classification
@@ -141,6 +169,8 @@ interface EndpointFields {
   isList: Map<string, boolean>
   /** Whether the endpoint's output contains video */
   producesVideo: boolean
+  /** Mesh field name -> its JSDoc text (only for names in MESH_FIELDS) */
+  meshFieldDocs: Map<string, string>
 }
 
 function extractEndpointInputs(): Map<string, EndpointFields> {
@@ -172,11 +202,18 @@ function extractEndpointInputs(): Map<string, EndpointFields> {
 
     const fields = new Set<string>()
     const isList = new Map<string, boolean>()
+    const meshFieldDocs = new Map<string, string>()
     for (const field of inputType.getProperties()) {
       const name = field.getName()
       fields.add(name)
       const fieldType = checker.getTypeOfSymbol(field)
       isList.set(name, typeAcceptsArray(checker, fieldType))
+      if (MESH_FIELDS.includes(name)) {
+        meshFieldDocs.set(
+          name,
+          ts.displayPartsToString(field.getDocumentationComment(checker)),
+        )
+      }
     }
 
     const outputSymbol = endpointType.getProperty('output')
@@ -187,7 +224,12 @@ function extractEndpointInputs(): Map<string, EndpointFields> {
           .some((p) => p.getName() === 'video' || p.getName() === 'videos')
       : false
 
-    endpoints.set(endpoint.getName(), { fields, isList, producesVideo })
+    endpoints.set(endpoint.getName(), {
+      fields,
+      isList,
+      producesVideo,
+      meshFieldDocs,
+    })
   }
   return endpoints
 }
@@ -245,20 +287,47 @@ function computeOverrides(
   return overrides
 }
 
+/**
+ * Picks, per endpoint, the field that takes an input mesh. Only fields that
+ * pass the MESH_DOC_PATTERN filter count. Endpoints with no mesh field are
+ * left out.
+ */
+function computeMeshFields(endpoints: Map<string, EndpointFields>) {
+  const meshFields = new Map<string, string>()
+  for (const [endpointId, { meshFieldDocs }] of endpoints) {
+    const chosen = MESH_FIELDS.find((field) => {
+      const doc = meshFieldDocs.get(field)
+      return doc !== undefined && MESH_DOC_PATTERN.test(doc)
+    })
+    if (chosen) meshFields.set(endpointId, chosen)
+  }
+  return meshFields
+}
+
 // ---------------------------------------------------------------------------
 // Emission
 // ---------------------------------------------------------------------------
 
-function render(
-  overrides: Map<string, Partial<Record<RoleKey, string>>>,
-): string {
+/** The SDK version and endpoints.d.ts hash that both generated files stamp. */
+interface SdkStamp {
+  clientVersion: string
+  dtsHash: string
+}
+
+function readSdkStamp() {
   const clientVersion = (
     JSON.parse(readFileSync(CLIENT_PKG_JSON, 'utf8')) as { version: string }
   ).version
   const dtsHash = createHash('sha256')
     .update(readFileSync(ENDPOINTS_DTS))
     .digest('hex')
+  return { clientVersion, dtsHash }
+}
 
+function render(
+  overrides: Map<string, Partial<Record<RoleKey, string>>>,
+  { clientVersion, dtsHash }: SdkStamp,
+): string {
   const sortedIds = [...overrides.keys()].sort()
   const entries = sortedIds
     .map((id) => {
@@ -337,26 +406,89 @@ ${entries}
 `
 }
 
+function renderMesh(
+  meshFields: Map<string, string>,
+  { clientVersion, dtsHash }: SdkStamp,
+) {
+  const sortedIds = [...meshFields.keys()].sort()
+  const entries = sortedIds
+    .map((id) => `  '${id}': '${meshFields.get(id)}',`)
+    .join('\n')
+  const fieldNameUnion = MESH_FIELDS.map((name) => `'${name}'`).join(' | ')
+
+  return `/* eslint-disable */
+// ---------------------------------------------------------------------------
+// AUTO-GENERATED. Do not edit by hand.
+//
+// Generated from @fal-ai/client@${clientVersion} EndpointTypeMap by
+// scripts/generate-fal-image-field-map.ts. Regenerate after bumping
+// @fal-ai/client:
+//
+//   pnpm tsx scripts/generate-fal-image-field-map.ts
+//
+// Maps every fal 3D endpoint that takes an existing mesh to the input field
+// for that mesh. Endpoints with no mesh input are not listed. The
+// \`satisfies\` clause below checks every field name against the SDK's
+// endpoint input types at compile time (type-only import, so nothing from
+// endpoints.d.ts ships at runtime).
+// ---------------------------------------------------------------------------
+import type { EndpointTypeMap } from '@fal-ai/client/endpoints'
+
+/** sha256 of the endpoints.d.ts this file was generated from. */
+export const FAL_MESH_ENDPOINTS_DTS_SHA256 =
+  '${dtsHash}'
+
+/** Every input field name that fal 3D endpoints use for an input mesh. */
+export type FalMeshFieldName = ${fieldNameUnion}
+
+/** fal endpoint id -> the input field that takes the mesh. */
+export const FAL_MESH_FIELD_MAP = {
+${entries}
+} as const satisfies {
+  [K in keyof EndpointTypeMap]?: Extract<
+    keyof EndpointTypeMap[K]['input'],
+    FalMeshFieldName
+  >
+}
+`
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
 const endpoints = extractEndpointInputs()
+const stamp = readSdkStamp()
 const overrides = computeOverrides(endpoints)
-const output = render(overrides)
+const meshFields = computeMeshFields(endpoints)
+const outputs = [
+  { file: OUT_FILE, content: render(overrides, stamp) },
+  { file: MESH_OUT_FILE, content: renderMesh(meshFields, stamp) },
+]
 
 if (process.argv.includes('--check')) {
-  const current = readFileSync(OUT_FILE, 'utf8')
-  if (current !== output) {
-    console.error(
-      'image-field-overrides.ts is stale. Run: pnpm tsx scripts/generate-fal-image-field-map.ts',
-    )
+  const staleFiles = outputs.filter(
+    ({ file, content }) =>
+      !existsSync(file) || readFileSync(file, 'utf8') !== content,
+  )
+  if (staleFiles.length > 0) {
+    for (const { file } of staleFiles) {
+      console.error(
+        `${basename(file)} is stale. Run: pnpm tsx scripts/generate-fal-image-field-map.ts`,
+      )
+    }
     process.exit(1)
   }
-  console.log('image-field-overrides.ts is up to date.')
+  console.log(
+    'image-field-overrides.ts and mesh-field-overrides.ts are up to date.',
+  )
 } else {
-  writeFileSync(OUT_FILE, output)
+  for (const { file, content } of outputs) {
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(file, content)
+  }
   console.log(
     `Wrote ${overrides.size} endpoint overrides (of ${endpoints.size} endpoints) to ${OUT_FILE}`,
   )
+  console.log(`Wrote ${meshFields.size} mesh endpoints to ${MESH_OUT_FILE}`)
 }
