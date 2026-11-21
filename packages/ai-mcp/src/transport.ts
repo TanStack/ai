@@ -107,19 +107,16 @@ function fetchWithMcpEventHeaders(
 
 /**
  * A caller-built Streamable HTTP or SSE transport already closed over its
- * fetch. Replace that fetch so `events/*` still gets the routing headers.
+ * fetch. Replace `_fetch` so `send()` still gets the routing headers.
+ * SDK 2.1.0 `send()` calls `(this._fetch ?? fetch)`.
  */
 function wrapTransportFetch(
   transport: Transport,
   lookup: EventHeaderLookup,
 ): void {
-  const current = Reflect.get(transport, '_fetchWithInit')
-  if (typeof current !== 'function') return
-  Reflect.set(
-    transport,
-    '_fetchWithInit',
-    fetchWithMcpEventHeaders(current as typeof fetch, lookup),
-  )
+  const current = Reflect.get(transport, '_fetch')
+  const base = typeof current === 'function' ? (current as typeof fetch) : fetch
+  Reflect.set(transport, '_fetch', fetchWithMcpEventHeaders(base, lookup))
 }
 
 /**

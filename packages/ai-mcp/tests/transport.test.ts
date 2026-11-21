@@ -163,7 +163,7 @@ describe('resolveTransport', () => {
       {
         fetch: async (input, init) => {
           seen.push(new Request(input, init))
-          return new Response('{}')
+          return new Response(null, { status: 202 })
         },
       },
     )
@@ -180,19 +180,14 @@ describe('resolveTransport', () => {
       },
     ])
     await resolveTransport(transport, { events: true, eventHeaders: lookup })
-    const wrapped = Reflect.get(transport, '_fetchWithInit') as typeof fetch
-    await wrapped('https://fixture.example/mcp', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'events/subscribe',
-        params: {
-          name: 'incident.created',
-          arguments: { region: 'eu' },
-        },
-      }),
+    await transport.send({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'events/subscribe',
+      params: {
+        name: 'incident.created',
+        arguments: { region: 'eu' },
+      },
     })
     expect(seen[0]?.headers.get('mcp-name')).toBe('incident.created')
     expect(seen[0]?.headers.get('mcp-param-region')).toBe('eu')
