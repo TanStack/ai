@@ -1,5 +1,13 @@
 # @tanstack/ai-computer-use
 
+## 1.1.3
+
+### Patch Changes
+
+- Updated dependencies [[`3e9a35d`](https://github.com/TanStack/ai/commit/3e9a35df8eb725a1a783777ce87335a98eab544e), [`e5bb4d5`](https://github.com/TanStack/ai/commit/e5bb4d5e666663664321ea2d3c6cf06176c3d942), [`f25954a`](https://github.com/TanStack/ai/commit/f25954a2867ceacaad11c0a5995ba742e2201934), [`ca20519`](https://github.com/TanStack/ai/commit/ca205198b06d2a392152b0a91ecc495a0982620c), [`c695ada`](https://github.com/TanStack/ai/commit/c695ada5091e7022bf13b235220645ceb65d43b0)]:
+  - @tanstack/ai-harness@0.5.0
+  - @tanstack/ai@1.9.0
+
 ## 1.1.2
 
 ### Patch Changes

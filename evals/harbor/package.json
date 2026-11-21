@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-optimize-evals",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "description": "Context-optimization eval harness (Harbor adapter + Node runner). Not published.",
   "type": "module",

@@ -1,5 +1,14 @@
 # @tanstack/ai-sandbox-docker
 
+## 1.1.1
+
+### Patch Changes
+
+- [#1982](https://github.com/TanStack/ai/pull/1982) [`d595931`](https://github.com/TanStack/ai/commit/d5959314c65622ba82937837666d98976c250a48) - `publishPorts` now publishes each port on 127.0.0.1 only, and `ports.connect` returns a `http://127.0.0.1:<port>` address. Before, Docker published the ports on every network interface, so other computers on the network could connect.
+
+- Updated dependencies [[`d595931`](https://github.com/TanStack/ai/commit/d5959314c65622ba82937837666d98976c250a48)]:
+  - @tanstack/ai-sandbox@1.6.0
+
 ## 1.1.0
 
 ### Minor Changes

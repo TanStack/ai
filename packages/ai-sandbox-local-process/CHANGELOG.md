@@ -1,5 +1,14 @@
 # @tanstack/ai-sandbox-local-process
 
+## 1.0.1
+
+### Patch Changes
+
+- [#2162](https://github.com/TanStack/ai/pull/2162) [`dfbacd1`](https://github.com/TanStack/ai/commit/dfbacd1be4ee72c875e740bb35794ff3b80be379) - `exec()` no longer corrupts multi-byte UTF-8 characters in `stdout` and `stderr`. A character that a pipe split across two reads used to decode as U+FFFD. Output is now decoded across chunks, like `spawn()` already does.
+
+- Updated dependencies [[`d595931`](https://github.com/TanStack/ai/commit/d5959314c65622ba82937837666d98976c250a48)]:
+  - @tanstack/ai-sandbox@1.6.0
+
 ## 1.0.0
 
 ### Major Changes

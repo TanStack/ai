@@ -1,5 +1,16 @@
 # @tanstack/ai-sandbox-cloudflare
 
+## 1.1.1
+
+### Patch Changes
+
+- [#1982](https://github.com/TanStack/ai/pull/1982) [`d595931`](https://github.com/TanStack/ai/commit/d5959314c65622ba82937837666d98976c250a48) - Run each `exec` and `spawn` command in a subshell. Cloudflare runs every command in one shared shell session, so a command that called `exit` ended the session and every later command failed. This broke the `@tanstack/ai-computer-sandbox` driver on Cloudflare.
+
+- Updated dependencies [[`d595931`](https://github.com/TanStack/ai/commit/d5959314c65622ba82937837666d98976c250a48), [`e5bb4d5`](https://github.com/TanStack/ai/commit/e5bb4d5e666663664321ea2d3c6cf06176c3d942), [`dfbacd1`](https://github.com/TanStack/ai/commit/dfbacd1be4ee72c875e740bb35794ff3b80be379), [`f25954a`](https://github.com/TanStack/ai/commit/f25954a2867ceacaad11c0a5995ba742e2201934), [`c695ada`](https://github.com/TanStack/ai/commit/c695ada5091e7022bf13b235220645ceb65d43b0)]:
+  - @tanstack/ai-sandbox@1.6.0
+  - @tanstack/ai@1.9.0
+  - @tanstack/ai-sandbox-local-process@1.0.1
+
 ## 1.1.0
 
 ### Minor Changes

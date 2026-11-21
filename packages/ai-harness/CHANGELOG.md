@@ -1,5 +1,28 @@
 # @tanstack/ai-harness
 
+## 0.5.0
+
+### Minor Changes
+
+- [#2145](https://github.com/TanStack/ai/pull/2145) [`ca20519`](https://github.com/TanStack/ai/commit/ca205198b06d2a392152b0a91ecc495a0982620c) - Routed agents now remember their own tool calls, you can pass your own handoff tool, and a `harnessAgent` can be a root agent.
+  - `routing.history` sets what each model call gets of the routed runs of earlier turns. With `'own'` (the default), a routed agent gets its own earlier runs in full, with tool calls and results. It gets the other agents and the main model as labeled text in a user message, for example `main:\n...`. The main model gets the routed answers the same way, so no model reads the words of another speaker as its own. `'all'` gives every speaker every routed run in full. `'text'` gives routed runs as text only, as before.
+  - `routing.handoffTool` makes the handoff tool of each speaker. It gets `from`, `targets`, `allowHuman`, and `handoff`. The tool can have any name and its own fields.
+  - A `harnessAgent` in `agents` with `routing` keeps one child session across turns. Each turn sends it what happened in the thread since its last turn. Its model gets the `handoff` tool, so it can hand back.
+
+  The default `history: 'own'` changes the messages that routed agents and handoff targets get. A target gets the turns of the main model as labeled text. To keep the earlier messages, and the prompt cache of the provider for a handoff target, set `routing: { router, history: 'text' }`.
+
+  An app tool with the name of the handoff tool now replaces the harness tool. Before, the turn failed with a duplicate tool error.
+
+  A handoff from the `handoff` tool of a root agent now adds the note messages to the thread, as a router or code handoff does. Before, the next speaker did not see that the agent handed off. On models that reject a context that ends on an assistant message (new Claude models), the main model failed after a hand-back.
+
+### Patch Changes
+
+- [#2175](https://github.com/TanStack/ai/pull/2175) [`3e9a35d`](https://github.com/TanStack/ai/commit/3e9a35df8eb725a1a783777ce87335a98eab544e) - A log that gives its ownership back when its sessions have no work now also clears its pending snapshot timer, so the timer no longer stays armed for a snapshot this host cannot write.
+
+- Updated dependencies [[`e5bb4d5`](https://github.com/TanStack/ai/commit/e5bb4d5e666663664321ea2d3c6cf06176c3d942), [`f25954a`](https://github.com/TanStack/ai/commit/f25954a2867ceacaad11c0a5995ba742e2201934), [`c695ada`](https://github.com/TanStack/ai/commit/c695ada5091e7022bf13b235220645ceb65d43b0)]:
+  - @tanstack/ai@1.9.0
+  - @tanstack/ai-persistence@1.1.1
+
 ## 0.4.0
 
 ### Minor Changes

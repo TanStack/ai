@@ -1,5 +1,17 @@
 # @tanstack/ai-mcp
 
+## 1.3.2
+
+### Patch Changes
+
+- [#2221](https://github.com/TanStack/ai/pull/2221) [`a7037a6`](https://github.com/TanStack/ai/commit/a7037a615693b2801e58225c562bcdd158fdbf17) - MCP Events follows the final text of SEP-3415 for webhook delivery. `events/subscribe` and `events/unsubscribe` send `Mcp-Name` and `Mcp-Param-*` on HTTP, SSE, and a Streamable HTTP transport instance. An event type whose `x-mcp-header` annotation breaks the transport rules is left out of `events/list`. A control message with no cursor is accepted, and `onGap` can receive `cursor: null`. Webhook signatures use the raw `webhook-timestamp` header, so a timestamp with a leading zero still verifies. Event occurrences keep a JSON object `_meta`. A HeaderMismatch (`-32020`) makes the client list events again and retry that request once.
+
+- [#2150](https://github.com/TanStack/ai/pull/2150) [`1a23e34`](https://github.com/TanStack/ai/commit/1a23e34b49d750ec34450bbc5d276c94291f8100) - `createMCPEventWebhook` no longer requires the `webhook-id` header to equal the event's `eventId`. SEP-3415 says `webhook-id` is a per-message id that must not be derived from `eventId`, so the receiver returned 400 for every event from a server that follows the spec. It now accepts both a per-message id and the older `webhook-id` = `eventId` form. `onEvent` still gets the header as `messageId`, so keep deduplicating on `(subscription.id, messageId)`.
+
+- Updated dependencies [[`3e9a35d`](https://github.com/TanStack/ai/commit/3e9a35df8eb725a1a783777ce87335a98eab544e), [`e5bb4d5`](https://github.com/TanStack/ai/commit/e5bb4d5e666663664321ea2d3c6cf06176c3d942), [`f25954a`](https://github.com/TanStack/ai/commit/f25954a2867ceacaad11c0a5995ba742e2201934), [`ca20519`](https://github.com/TanStack/ai/commit/ca205198b06d2a392152b0a91ecc495a0982620c), [`c695ada`](https://github.com/TanStack/ai/commit/c695ada5091e7022bf13b235220645ceb65d43b0)]:
+  - @tanstack/ai-harness@0.5.0
+  - @tanstack/ai@1.9.0
+
 ## 1.3.1
 
 ### Patch Changes
