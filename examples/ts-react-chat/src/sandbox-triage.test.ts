@@ -106,26 +106,28 @@ describe('registries', () => {
     expect(missingEnv('claude-code', 'docker')).toEqual([])
   })
 
-  it('missingEnv requires a Railway token and an environment ID', () => {
+  it('missingEnv requires a Railway token, and an environment ID only with an account token', () => {
     process.env.ANTHROPIC_API_KEY = 'x'
     delete process.env.RAILWAY_TOKEN
     delete process.env.RAILWAY_API_TOKEN
     delete process.env.RAILWAY_ENVIRONMENT_ID
     expect(missingEnv('claude-code', 'railway')).toEqual([
-      'RAILWAY_API_TOKEN (or RAILWAY_TOKEN)',
+      'RAILWAY_TOKEN (or RAILWAY_API_TOKEN)',
       'RAILWAY_ENVIRONMENT_ID',
     ])
-    // Either token kind still needs the environment.
-    for (const token of ['RAILWAY_API_TOKEN', 'RAILWAY_TOKEN']) {
-      process.env[token] = 'x'
-      expect(missingEnv('claude-code', 'railway')).toEqual([
-        'RAILWAY_ENVIRONMENT_ID',
-      ])
-      process.env.RAILWAY_ENVIRONMENT_ID = 'x'
-      expect(missingEnv('claude-code', 'railway')).toEqual([])
-      delete process.env[token]
-      delete process.env.RAILWAY_ENVIRONMENT_ID
-    }
+    // A project token carries its environment.
+    process.env.RAILWAY_TOKEN = 'x'
+    expect(missingEnv('claude-code', 'railway')).toEqual([])
+    delete process.env.RAILWAY_TOKEN
+    // An account or workspace token still needs the environment.
+    process.env.RAILWAY_API_TOKEN = 'x'
+    expect(missingEnv('claude-code', 'railway')).toEqual([
+      'RAILWAY_ENVIRONMENT_ID',
+    ])
+    process.env.RAILWAY_ENVIRONMENT_ID = 'x'
+    expect(missingEnv('claude-code', 'railway')).toEqual([])
+    delete process.env.RAILWAY_API_TOKEN
+    delete process.env.RAILWAY_ENVIRONMENT_ID
   })
 })
 

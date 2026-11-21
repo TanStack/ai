@@ -93,7 +93,7 @@ const box = upstashBoxSandbox({ apiKey: process.env.UPSTASH_BOX_API_KEY })
 const blaxel = blaxelSandbox() // uses the API key or the CLI login
 const e2b = e2bSandbox() // reads E2B_API_KEY
 const boxd = boxdSandbox({ org: 'acme' }) // reads BOXD_API_KEY
-const railway = railwaySandbox() // reads RAILWAY_TOKEN and RAILWAY_ENVIRONMENT_ID
+const railway = railwaySandbox() // reads RAILWAY_TOKEN
 ```
 
 `dockerSandbox()` and `sbxSandbox()` come from the same package. Every other provider has its own package.
