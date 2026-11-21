@@ -1,5 +1,21 @@
 # @tanstack/ai-computer-sandbox
 
+## 1.2.0
+
+### Minor Changes
+
+- [#1982](https://github.com/TanStack/ai/pull/1982) [`d595931`](https://github.com/TanStack/ai/commit/d5959314c65622ba82937837666d98976c250a48) - Add the `persist.reconnect` option to `sandboxComputer()`. It keeps the sandbox of each thread and reconnects to the same sandbox later with `provider.resume`, so a user who comes back to a thread gets the same desktop. A kept sandbox is not destroyed when its thread closes or goes idle.
+
+- [#1982](https://github.com/TanStack/ai/pull/1982) [`d595931`](https://github.com/TanStack/ai/commit/d5959314c65622ba82937837666d98976c250a48) - `sandboxComputer()` takes a `persist.snapshots` option. The driver saves the files of one folder, like a browser profile, when a thread closes or goes idle. It restores them into the next new sandbox of the thread, so a sign-in survives a sandbox that is gone. A kept sandbox that comes back with an empty disk gets them back too. Saves and restores of one thread run one at a time. This works with every provider. Call `saveComputerSnapshot({ sandbox, threadId, snapshots })` to save right away, for example after a sign-in.
+
+  `@tanstack/ai-sandbox` exports `captureSandboxFiles` and `restoreSandboxFiles`, the file capture and restore of portable snapshots.
+
+### Patch Changes
+
+- Updated dependencies [[`d595931`](https://github.com/TanStack/ai/commit/d5959314c65622ba82937837666d98976c250a48)]:
+  - @tanstack/ai-sandbox@1.6.0
+  - @tanstack/ai-computer-use@1.1.3
+
 ## 1.1.0
 
 ### Minor Changes

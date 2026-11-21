@@ -1,5 +1,29 @@
 # @tanstack/ai
 
+## 1.9.0
+
+### Minor Changes
+
+- [#2148](https://github.com/TanStack/ai/pull/2148) [`f25954a`](https://github.com/TanStack/ai/commit/f25954a2867ceacaad11c0a5995ba742e2201934) - Add optimization-driven, deterministic tool-result context projection.
+  - `@tanstack/ai` gains a `context` field (`ToolContextPolicy`) on tool
+    definitions plus the `FieldProjection` type and its combinators
+    (`truncateHead`, `truncateTail`, `truncateHeadTail`, `dropWithRef`,
+    `aboveTokens`). `FieldProjection` is branded, so a projection is always built
+    with a combinator, never a bare object. The core reads nothing from it (same
+    posture as `replay`); behavior lives in the new package.
+  - New package `@tanstack/ai-optimize`: a `chat()` middleware that truncates only
+    **optimized** tool-result (and `optimize()`-declared argument) fields in the
+    model projection, never in the canonical messages, event stream, or UI.
+    Deterministic strategies only, a run-scoped stash, an injected
+    `retrieve_context` tool, and an `optimize()` wrapper for foreign/MCP tool
+    sets. The combinators are re-exported here too.
+
+### Patch Changes
+
+- [#2174](https://github.com/TanStack/ai/pull/2174) [`e5bb4d5`](https://github.com/TanStack/ai/commit/e5bb4d5e666663664321ea2d3c6cf06176c3d942) - The lazy tool discovery tool no longer says `Unknown tool` for a tool that the model can already call. Before, it knew only the lazy tools. When a model asked it for an eager tool, or for a tool that a middleware added, it returned `Unknown tool`, and some models then stopped using that tool. Discovery now returns the definition of each tool offered to the model in that step. An eager tool that a middleware removed still gets `Unknown tool`. A lazy tool that a middleware removed still returns its definition.
+
+- [#2218](https://github.com/TanStack/ai/pull/2218) [`c695ada`](https://github.com/TanStack/ai/commit/c695ada5091e7022bf13b235220645ceb65d43b0) - docs: use the non-deprecated `createServerFn().validator()` API in JSDoc examples (was the deprecated `.inputValidator()`)
+
 ## 1.8.0
 
 ### Minor Changes

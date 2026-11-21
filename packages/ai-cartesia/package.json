@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-cartesia",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Cartesia speech and transcription adapters for TanStack AI",
   "author": "Tanner Linsley",
   "license": "MIT",

@@ -1,5 +1,21 @@
 # @tanstack/ai-sandbox
 
+## 1.6.0
+
+### Minor Changes
+
+- [#1982](https://github.com/TanStack/ai/pull/1982) [`d595931`](https://github.com/TanStack/ai/commit/d5959314c65622ba82937837666d98976c250a48) - `sandboxComputer()` takes a `persist.snapshots` option. The driver saves the files of one folder, like a browser profile, when a thread closes or goes idle. It restores them into the next new sandbox of the thread, so a sign-in survives a sandbox that is gone. A kept sandbox that comes back with an empty disk gets them back too. Saves and restores of one thread run one at a time. This works with every provider. Call `saveComputerSnapshot({ sandbox, threadId, snapshots })` to save right away, for example after a sign-in.
+
+  `@tanstack/ai-sandbox` exports `captureSandboxFiles` and `restoreSandboxFiles`, the file capture and restore of portable snapshots.
+
+### Patch Changes
+
+- Updated dependencies [[`3e9a35d`](https://github.com/TanStack/ai/commit/3e9a35df8eb725a1a783777ce87335a98eab544e), [`e5bb4d5`](https://github.com/TanStack/ai/commit/e5bb4d5e666663664321ea2d3c6cf06176c3d942), [`f25954a`](https://github.com/TanStack/ai/commit/f25954a2867ceacaad11c0a5995ba742e2201934), [`ca20519`](https://github.com/TanStack/ai/commit/ca205198b06d2a392152b0a91ecc495a0982620c), [`c695ada`](https://github.com/TanStack/ai/commit/c695ada5091e7022bf13b235220645ceb65d43b0)]:
+  - @tanstack/ai-harness@0.5.0
+  - @tanstack/ai@1.9.0
+  - @tanstack/ai-persistence@1.1.1
+  - @tanstack/ai-skills@1.0.4
+
 ## 1.5.0
 
 ### Minor Changes
