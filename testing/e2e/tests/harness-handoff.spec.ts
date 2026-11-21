@@ -9,6 +9,18 @@ interface Started {
   threadId: string
 }
 
+/** A content block of an Anthropic message. */
+interface Block {
+  type: string
+  id?: string
+  name?: string
+  input?: unknown
+  tool_use_id?: string
+}
+
+/** The messages of one model request, as Anthropic gets them. */
+type RequestMessages = Array<{ role: string; content: string | Array<Block> }>
+
 interface Debug {
   error?: string
   status: string
@@ -22,15 +34,14 @@ interface Debug {
   waits: Array<{ waitId: string; kind: string; message?: string }>
   mainCalls: number
   billingCalls: number
-  /** The messages of the first request of `billing`, as Anthropic gets them. */
-  billingMessages: Array<{ role: string; content: unknown }>
+  /** The messages of each request of `billing`, in order. */
+  billingRequests: Array<RequestMessages>
 }
 
+type Scenario = 'agent' | 'human' | 'code' | 'history' | 'custom-tool'
+
 /** Open the thread of `scenario` for olga, shared with bea. */
-async function start(
-  request: APIRequestContext,
-  scenario: 'agent' | 'human' | 'code',
-) {
+async function start(request: APIRequestContext, scenario: Scenario) {
   const res = await request.post(`${ROUTE}/start`, { data: { scenario } })
   expect(res.ok()).toBe(true)
   const started: Started = await res.json()
@@ -109,6 +120,12 @@ const lines = (read: Debug) =>
     text,
     by: harness?.agent ?? harness?.operator ?? null,
   }))
+
+/** The content blocks of the messages of one request. */
+const blocksOf = (messages: RequestMessages) =>
+  messages.flatMap(({ content }) =>
+    typeof content === 'string' ? [] : content,
+  )
 
 const stop = (request: APIRequestContext, runId: string) =>
   request.post(`${ROUTE}/stop?runId=${runId}`)
@@ -214,23 +231,20 @@ test.describe('harness: handoffs inside one session', () => {
       ])
       expect(read.mainCalls).toBe(0)
       expect(read.billingCalls).toBe(1)
-      // The model of billing gets the note of its handoff last: a `handoff`
-      // tool call with the note, and its result.
-      const [noteCall, noteResult] = read.billingMessages.slice(-2)
-      expect(noteCall).toMatchObject({
-        role: 'assistant',
-        content: expect.arrayContaining([
-          expect.objectContaining({
-            type: 'tool_use',
-            name: 'handoff',
-            input: { to: 'billing', note: 'Refund for order 42.' },
-          }),
-        ]),
-      })
-      expect(noteResult).toMatchObject({ role: 'user' })
-      expect(JSON.stringify(noteResult)).toContain(
-        'Handed off to billing. billing answers next.',
+      // The model of billing gets the note of its handoff last, as text of
+      // another speaker (`routing.history: 'own'`): a user message, with no
+      // `handoff` call that billing could read as its own.
+      const sentToBilling = read.billingRequests[0]!
+      const noteMessage = sentToBilling.at(-1)
+      expect(noteMessage).toMatchObject({ role: 'user' })
+      expect(JSON.stringify(noteMessage)).toContain(
+        'triage handed off to billing. Note: Refund for order 42.',
       )
+      expect(
+        blocksOf(sentToBilling).some(
+          (block) => block.type === 'tool_use' && block.name === 'handoff',
+        ),
+      ).toBe(false)
       expect(lines(read).at(-1)).toEqual({
         role: 'assistant',
         text: 'billing:\nYour refund is on its way.',
@@ -348,6 +362,109 @@ test.describe('harness: handoffs inside one session', () => {
         by: 'operator',
         runId: expect.any(String),
       })
+    } finally {
+      await stop(request, started.runId)
+    }
+  })
+
+  test('a routed agent sees its own tool calls of an earlier turn', async ({
+    request,
+  }) => {
+    const started = await start(request, 'history')
+    try {
+      await control(request, started, {
+        op: 'prompt',
+        message: 'refund please',
+        inputId: 'in-1',
+      })
+      expect(await outcomeOf(request, started.runId, 'in-1')).toBe('completed')
+      await control(request, started, {
+        op: 'prompt',
+        message: 'and now?',
+        inputId: 'in-2',
+      })
+      expect(await outcomeOf(request, started.runId, 'in-2')).toBe('completed')
+
+      const read = await readUntil(
+        request,
+        started.runId,
+        (done) => done.billingCalls === 3,
+      )
+      expect(read.mainCalls).toBe(1)
+      expect(lines(read).slice(3)).toEqual([
+        {
+          role: 'assistant',
+          text: 'billing:\nRefunded order 42.',
+          by: 'billing',
+        },
+        { role: 'user', text: 'and now?', by: null },
+        { role: 'assistant', text: 'billing:\nAnything else?', by: 'billing' },
+      ])
+
+      // On turn 2, billing gets its turn 1 `refund` call and its result.
+      const later = read.billingRequests[2]!
+      const blocks = blocksOf(later)
+      const refundCall = blocks.find(
+        (block) => block.type === 'tool_use' && block.name === 'refund',
+      )
+      expect(refundCall).toMatchObject({ input: { orderId: '42' } })
+      const refundResult = blocks.find(
+        (block) =>
+          block.type === 'tool_result' && block.tool_use_id === refundCall?.id,
+      )
+      expect(JSON.stringify(refundResult)).toContain('Refund R-42 issued.')
+      // Its own run is not the `billing:` text of the host message. The
+      // handoff call of main is a text line with the note. JSON writes the
+      // newline as a backslash and `n`.
+      const sent = JSON.stringify(later)
+      expect(sent).not.toContain('billing:\\nRefunded order 42.')
+      expect(sent).toContain(
+        'main handed off to billing. Note: Refund for order 42.',
+      )
+    } finally {
+      await stop(request, started.runId)
+    }
+  })
+
+  test('a handoff tool from routing.handoffTool hands off with its own note', async ({
+    request,
+  }) => {
+    const started = await start(request, 'custom-tool')
+    try {
+      await control(request, started, {
+        op: 'prompt',
+        message: 'refund please',
+        inputId: 'in-1',
+      })
+      expect(await outcomeOf(request, started.runId, 'in-1')).toBe('completed')
+
+      const read = await readUntil(request, started.runId, (done) =>
+        done.view.some((message) => message.agent === 'billing'),
+      )
+      expect(read.handoffs).toEqual([
+        {
+          from: null,
+          to: 'billing',
+          note: 'from main: Refund for order 42.',
+          by: 'tool',
+          runId: expect.any(String),
+        },
+      ])
+      expect(lines(read)).toEqual([
+        { role: 'user', text: 'refund please', by: null },
+        { role: 'assistant', text: '', by: null },
+        { role: 'tool', text: 'Passed to the next desk.', by: null },
+        {
+          role: 'assistant',
+          text: 'billing:\nYour refund is on its way.',
+          by: 'billing',
+        },
+      ])
+      expect(read.mainCalls).toBe(1)
+      expect(read.billingCalls).toBe(1)
+      // billing gets the note once: from the tool call, with no extra note.
+      const sent = JSON.stringify(read.billingRequests[0])
+      expect(sent.split('from main: Refund for order 42.')).toHaveLength(2)
     } finally {
       await stop(request, started.runId)
     }

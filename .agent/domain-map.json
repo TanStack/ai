@@ -49,7 +49,7 @@
         "packages/ai-harness",
         "packages/ai-harness-cli"
       ],
-      "talksTo": ["core", "sandbox"]
+      "talksTo": ["core", "sandbox", "persistence"]
     },
     {
       "id": "client",
