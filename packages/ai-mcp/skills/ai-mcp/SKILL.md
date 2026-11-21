@@ -1273,10 +1273,14 @@ Gotchas:
 - Dedupe deliveries on `messageId`. A 503 after `onEvent` succeeded is retried.
 
 Capability check: `extensions["io.modelcontextprotocol/events"]` only.
-With `experimental_events` set, HTTP/SSE transports add `Mcp-Name` for
+With `experimental_events` set, HTTP, SSE, and a Streamable HTTP
+`Transport` instance add `Mcp-Name` and `Mcp-Param-*` on
 `events/subscribe` and `events/unsubscribe` (Base64 sentinel when the
-name is not printable ASCII). A failed subscribe deletes its `pending`
-record. Deliveries must send `X-MCP-Subscription-Id`.
+value is not printable ASCII). An event type with an invalid
+`x-mcp-header` annotation is left out of `list()`. HeaderMismatch
+(`-32020`) makes the client list events again and retry that request
+once. A failed subscribe deletes its `pending` record. Deliveries must
+send `X-MCP-Subscription-Id`.
 
 ## Error classes
 

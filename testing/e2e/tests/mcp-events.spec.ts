@@ -40,6 +40,11 @@ test.describe('mcp events — webhook subscribe and delivery', () => {
     expect(Array.isArray(events)).toBe(true)
     expect(JSON.stringify(events)).toContain('inc_e2e')
     expect(received.errors).toEqual([])
+    // SEP-3415: webhook-id (messageId) is per message, not the eventId.
+    expect(received.messageIds).toEqual([expect.stringMatching(/^msg_/)])
+    expect(events).toEqual([
+      expect.objectContaining({ eventId: expect.stringMatching(/^evt_/) }),
+    ])
   })
 
   test('gap is reported through onGap', async ({ request, testId }) => {

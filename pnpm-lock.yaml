@@ -2627,6 +2627,25 @@ importers:
         specifier: ^8.3.8
         version: 8.3.8(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(less@4.6.6)(sass-embedded@1.108.2)(sass@1.108.2)(terser@5.44.1)(tsx@4.23.15)(yaml@2.9.0)
 
+  packages/ai-cartesia:
+    dependencies:
+      '@cartesia/cartesia-js':
+        specifier: ^5.1.0
+        version: 5.1.0(ws@8.21.3)
+      '@tanstack/ai-utils':
+        specifier: workspace:^
+        version: link:../ai-utils
+    devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@vitest/coverage-v8':
+        specifier: 4.1.12
+        version: 4.1.12(vitest@4.1.12)
+      vite:
+        specifier: ^8.3.8
+        version: 8.3.8(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(less@4.6.6)(sass-embedded@1.108.2)(sass@1.108.2)(terser@5.44.1)(tsx@4.23.15)(yaml@2.9.0)
+
   packages/ai-claude-code:
     devDependencies:
       '@tanstack/ai':
@@ -4396,6 +4415,9 @@ importers:
       '@tanstack/ai-byteplus':
         specifier: workspace:*
         version: link:../../packages/ai-byteplus
+      '@tanstack/ai-cartesia':
+        specifier: workspace:*
+        version: link:../../packages/ai-cartesia
       '@tanstack/ai-claude-code':
         specifier: workspace:*
         version: link:../../packages/ai-claude-code
@@ -5968,6 +5990,14 @@ packages:
 
   '@bufbuild/protobuf@2.15.0':
     resolution: {integrity: sha512-DAheWUkVr/SJTWCc+lg9dhY0eN4SaWlf4+bG1KzHeXbnqt0AfB/NX0Z+VunGlM1ki1B4zVvye27MpKh/svySUA==}
+
+  '@cartesia/cartesia-js@5.1.0':
+    resolution: {integrity: sha512-KTnyJrV0Hl9/ElprFexh+XEpnybE+65KoBwTUJf9q3+3ziTd+wGn8ttm3mP9HVJPKKm8TuklmdVOhL6Lx4UOJA==}
+    peerDependencies:
+      ws: ^8.18.0
+    peerDependenciesMeta:
+      ws:
+        optional: true
 
   '@cfworker/json-schema@4.1.1':
     resolution: {integrity: sha512-gAmrUZSGtKc3AiBL71iNWxDsyUC5uMaKKGdvzYsBoTW/xi42JQHl7eKV2OYzCUqvc+D2RCcf7EXY2iCyFIk6og==}
@@ -22736,6 +22766,10 @@ snapshots:
   '@bufbuild/protobuf@1.10.1': {}
 
   '@bufbuild/protobuf@2.15.0': {}
+
+  '@cartesia/cartesia-js@5.1.0(ws@8.21.3)':
+    optionalDependencies:
+      ws: 8.21.3
 
   '@cfworker/json-schema@4.1.1': {}
 

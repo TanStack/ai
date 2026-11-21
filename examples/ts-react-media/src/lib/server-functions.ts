@@ -271,7 +271,7 @@ function isWorldResolution(value: string): value is WorldResolution {
 }
 
 export const generateImageFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: MediaPrompt; model: string }) => {
+  .validator((data: { prompt: MediaPrompt; model: string }) => {
     if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
     if (!data.model) throw new Error('Model is required')
     return data
@@ -701,7 +701,7 @@ async function videoStreamForModel(
  * through the UI.
  */
 export const generateVideoFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: VideoRequest) => {
+  .validator((data: VideoRequest) => {
     if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
     if (!data.model) throw new Error('Model is required')
     return data
@@ -736,7 +736,7 @@ interface Model3dRequest {
  * the one request, so the browser runs no polling loop.
  */
 export const generate3dModelFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: Model3dRequest) => {
+  .validator((data: Model3dRequest) => {
     if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
     if (!isModel3dModelId(data.model)) {
       throw new Error(`Unknown 3D model: ${data.model}`)
@@ -938,7 +938,7 @@ function seedanceStream(data: SeedanceRequest): AsyncIterable<StreamChunk> {
  * to poll with — the server does the waiting and reports status on the wire.
  */
 export const generateSeedanceVideoFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: SeedanceRequest) => {
+  .validator((data: SeedanceRequest) => {
     if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
     if (!data.model) throw new Error('Model is required')
     return data
@@ -956,7 +956,7 @@ interface LiveVideoRequest {
  * client (`@reactor-team/js-sdk` or `@fal-ai/client`). There is no job URL.
  */
 export const generateLiveVideoFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: LiveVideoRequest) => {
+  .validator((data: LiveVideoRequest) => {
     if (typeof data.prompt !== 'string' || data.prompt.trim().length === 0) {
       throw new Error('Prompt is required')
     }
@@ -1032,7 +1032,7 @@ const WORLDLABS_TIMEOUT_MS = 12 * 60 * 1000
  * and waits until the Marble world is ready (about 5 minutes).
  */
 export const generateWorldFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: WorldRequest) => {
+  .validator((data: WorldRequest) => {
     if (typeof data.prompt !== 'string' || data.prompt.trim().length === 0) {
       throw new Error('Prompt is required')
     }

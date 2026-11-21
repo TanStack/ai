@@ -17,7 +17,7 @@ const SPEC_SIGNATURE = 'v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE='
 function nodeOracle(
   secret: string,
   messageId: string,
-  timestamp: number,
+  timestamp: number | string,
   body: string,
 ) {
   const key = Buffer.from(secret.slice('whsec_'.length), 'base64')
@@ -56,7 +56,7 @@ describe('verifyMCPEventSignature', () => {
     const ok = await verifyMCPEventSignature({
       secret: SPEC_SECRET,
       messageId: SPEC_ID,
-      timestamp: SPEC_TS,
+      timestamp: String(SPEC_TS),
       body: new TextEncoder().encode(SPEC_BODY),
       header: `v1,bad ${SPEC_SIGNATURE}`,
     })
@@ -67,7 +67,7 @@ describe('verifyMCPEventSignature', () => {
     const ok = await verifyMCPEventSignature({
       secret: SPEC_SECRET,
       messageId: SPEC_ID,
-      timestamp: SPEC_TS,
+      timestamp: String(SPEC_TS),
       body: new TextEncoder().encode(SPEC_BODY),
       header: `v1a,abc garbage ${SPEC_SIGNATURE}`,
     })
@@ -78,7 +78,7 @@ describe('verifyMCPEventSignature', () => {
     const ok = await verifyMCPEventSignature({
       secret: createMCPEventSecret(),
       messageId: SPEC_ID,
-      timestamp: SPEC_TS,
+      timestamp: String(SPEC_TS),
       body: new TextEncoder().encode(SPEC_BODY),
       header: SPEC_SIGNATURE,
     })
@@ -90,7 +90,7 @@ describe('verifyMCPEventSignature', () => {
     const ok = await verifyMCPEventSignature({
       secret: SPEC_SECRET,
       messageId: SPEC_ID,
-      timestamp: SPEC_TS,
+      timestamp: String(SPEC_TS),
       body: new TextEncoder().encode(resent),
       header: SPEC_SIGNATURE,
     })
@@ -109,10 +109,31 @@ describe('verifyMCPEventSignature', () => {
     const ok = await verifyMCPEventSignature({
       secret,
       messageId: 'msg_utf8',
-      timestamp: SPEC_TS,
+      timestamp: String(SPEC_TS),
       body,
       header: signature,
     })
     expect(ok).toBe(true)
+  })
+
+  it('verifies a timestamp string that has a leading zero', async () => {
+    const timestamp = `0${SPEC_TS}`
+    const signature = nodeOracle(SPEC_SECRET, SPEC_ID, timestamp, SPEC_BODY)
+    const ok = await verifyMCPEventSignature({
+      secret: SPEC_SECRET,
+      messageId: SPEC_ID,
+      timestamp,
+      body: new TextEncoder().encode(SPEC_BODY),
+      header: signature,
+    })
+    expect(ok).toBe(true)
+    const numeric = await verifyMCPEventSignature({
+      secret: SPEC_SECRET,
+      messageId: SPEC_ID,
+      timestamp: String(Number(timestamp)),
+      body: new TextEncoder().encode(SPEC_BODY),
+      header: signature,
+    })
+    expect(numeric).toBe(false)
   })
 })

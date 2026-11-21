@@ -438,7 +438,7 @@
           "label": "Lazy Tool Discovery",
           "to": "tools/lazy-tool-discovery",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-17"
         },
         {
           "label": "Tool Architecture",
@@ -942,13 +942,13 @@
           "label": "Text-to-Speech",
           "to": "media/text-to-speech",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "Transcription",
           "to": "media/transcription",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "Transcription: Advanced",
@@ -1378,13 +1378,13 @@
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-12"
         },
         {
           "label": "Hand off a conversation",
           "to": "harness/handoffs",
           "addedAt": "2026-10-18",
-          "updatedAt": "2026-10-20"
+          "updatedAt": "2026-11-12"
         },
         {
           "label": "Add skills",
@@ -1879,6 +1879,12 @@
           "to": "adapters/elevenlabs",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Cartesia",
+          "to": "adapters/cartesia",
+          "addedAt": "2026-11-05",
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "fal.ai",
