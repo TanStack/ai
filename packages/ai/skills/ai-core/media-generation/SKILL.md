@@ -132,7 +132,7 @@ import { openaiImage } from '@tanstack/ai-openai'
 import type { OpenAIImageModel } from '@tanstack/ai-openai'
 
 export const generateImageStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     (data: { prompt: string; model?: OpenAIImageModel; threadId: string }) =>
       data,
   )
@@ -1130,7 +1130,7 @@ import { generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 export const generateImageStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: string }) => data)
+  .validator((data: { prompt: string }) => data)
   .handler(({ data }) => {
     // BUG: returning raw stream -- client cannot parse this
     // (also a type error: an AsyncIterable is not a valid server-function return)
@@ -1151,7 +1151,7 @@ import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 export const generateImageStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: string }) => data)
+  .validator((data: { prompt: string }) => data)
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       generateImage({
