@@ -208,7 +208,7 @@ export function createMCPEventWebhook(
       verified = await verifyMCPEventSignature({
         secret: record.delivery.secret,
         messageId: webhookId,
-        timestamp,
+        timestamp: webhookTimestamp,
         body,
         header: webhookSignature,
       })

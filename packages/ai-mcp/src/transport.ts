@@ -6,6 +6,11 @@ import type {
   OAuthClientProvider,
   Transport,
 } from '@modelcontextprotocol/client'
+import {
+  createEventHeaderLookup,
+  encodeMcpHeaderValue,
+} from './events/param-headers'
+import type { EventHeaderLookup } from './events/param-headers'
 import { isRecord } from './events/value'
 
 export interface HttpTransportConfig {
@@ -49,10 +54,12 @@ export function isTransportInstance(input: TransportInput): input is Transport {
 }
 
 /**
- * SDK 2.1.0 does not send `Mcp-Name` for custom `events/*` methods.
- * SEP-3415 requires it on Streamable HTTP for name-scoped events requests.
+ * SDK 2.1.0 does not send `Mcp-Name` or `Mcp-Param-*` for `events/*`.
+ * SEP-3415 requires both on Streamable HTTP.
  */
-async function mcpNameFromRpc(request: Request): Promise<string | undefined> {
+async function eventsRpc(
+  request: Request,
+): Promise<{ name: string; args: unknown } | undefined> {
   if (request.method !== 'POST') return undefined
   let json: unknown
   try {
@@ -70,61 +77,49 @@ async function mcpNameFromRpc(request: Request): Promise<string | undefined> {
   if (!isRecord(json.params) || typeof json.params.name !== 'string') {
     return undefined
   }
-  return json.params.name
+  return { name: json.params.name, args: json.params.arguments }
 }
 
-const MCP_NAME_SENTINEL_PREFIX = '=?base64?'
-const MCP_NAME_SENTINEL_SUFFIX = '?='
-
-/**
- * Copy of SDK 2.1.0 `needsBase64` / `encodeMcpParamValue` (not exported).
- * Printable ASCII with no leading/trailing whitespace is sent as-is.
- * Anything else uses `=?base64?{b64-of-utf8}?=` so `Headers.set` stays ASCII.
- */
-function needsBase64(value: string): boolean {
-  if (value.length === 0) return true
-  if (
-    value.startsWith(MCP_NAME_SENTINEL_PREFIX) &&
-    value.endsWith(MCP_NAME_SENTINEL_SUFFIX)
-  ) {
-    return true
-  }
-  if (value !== value.trim()) return true
-  for (let i = 0; i < value.length; i++) {
-    const code = value.codePointAt(i)
-    if (code === 9 || (code !== undefined && code >= 32 && code <= 126)) {
-      continue
-    }
-    return true
-  }
-  return false
-}
-
-function utf8ToBase64(value: string): string {
-  const bytes = new TextEncoder().encode(value)
-  let binary = ''
-  for (const byte of bytes) binary += String.fromCodePoint(byte)
-  return btoa(binary)
-}
-
-function encodeMcpName(value: string): string {
-  return needsBase64(value)
-    ? `${MCP_NAME_SENTINEL_PREFIX}${utf8ToBase64(value)}${MCP_NAME_SENTINEL_SUFFIX}`
-    : value
-}
-
-function fetchWithMcpEventName(baseFetch: typeof fetch = fetch): typeof fetch {
+function fetchWithMcpEventHeaders(
+  baseFetch: typeof fetch,
+  lookup: EventHeaderLookup,
+): typeof fetch {
   return async (input, init) => {
     const request = new Request(input, init)
-    if (request.headers.has('mcp-name')) {
-      return baseFetch(input, init)
-    }
-    const name = await mcpNameFromRpc(request)
-    if (name === undefined) return baseFetch(input, init)
+    const rpc = await eventsRpc(request)
+    if (rpc === undefined) return baseFetch(input, init)
     const headers = new Headers(request.headers)
-    headers.set('Mcp-Name', encodeMcpName(name))
+    let changed = false
+    if (!headers.has('mcp-name')) {
+      headers.set('Mcp-Name', encodeMcpHeaderValue(rpc.name))
+      changed = true
+    }
+    for (const [name, value] of Object.entries(
+      lookup.headersFor(rpc.name, rpc.args),
+    )) {
+      headers.set(name, value)
+      changed = true
+    }
+    if (!changed) return baseFetch(input, init)
     return baseFetch(new Request(request, { headers }))
   }
+}
+
+/**
+ * A caller-built Streamable HTTP or SSE transport already closed over its
+ * fetch. Replace that fetch so `events/*` still gets the routing headers.
+ */
+function wrapTransportFetch(
+  transport: Transport,
+  lookup: EventHeaderLookup,
+): void {
+  const current = Reflect.get(transport, '_fetchWithInit')
+  if (typeof current !== 'function') return
+  Reflect.set(
+    transport,
+    '_fetchWithInit',
+    fetchWithMcpEventHeaders(current as typeof fetch, lookup),
+  )
 }
 
 /**
@@ -132,15 +127,25 @@ function fetchWithMcpEventName(baseFetch: typeof fetch = fetch): typeof fetch {
  *
  * For stdio, build the Transport with `stdioTransport` and pass that instance.
  * Throws an Error when the config type is `stdio` or is not a known type.
- * With `events`, HTTP and SSE requests for `events/*` get the `Mcp-Name` header.
+ * With `events`, HTTP and SSE requests for `events/subscribe` and
+ * `events/unsubscribe` get `Mcp-Name` and `Mcp-Param-*`.
+ * A Transport instance is wrapped the same way when it has a fetch.
  */
 export async function resolveTransport(
   input: TransportInput,
-  options?: { events?: boolean },
+  options?: { events?: boolean; eventHeaders?: EventHeaderLookup },
 ) {
-  if (isTransportInstance(input)) return input
+  const lookup = options?.events
+    ? (options.eventHeaders ?? createEventHeaderLookup())
+    : undefined
+  if (isTransportInstance(input)) {
+    if (lookup !== undefined) wrapTransportFetch(input, lookup)
+    return input
+  }
   const withEvents = (base?: typeof fetch) =>
-    options?.events ? fetchWithMcpEventName(base) : base
+    lookup !== undefined
+      ? fetchWithMcpEventHeaders(base ?? fetch, lookup)
+      : base
 
   switch (input.type) {
     case 'http':

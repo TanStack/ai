@@ -20,7 +20,7 @@ type Session = {
   webhook: (request: Request) => Promise<Response>
   received: Array<MCPEventOccurrence>
   messageIds: Array<string>
-  gaps: Array<{ cursor: string }>
+  gaps: Array<{ cursor: string | null }>
   terminations: Array<{ code: number; message: string }>
   errors: Array<string>
   client?: EventsClient
@@ -32,7 +32,7 @@ function createSession(origin: string): Session {
   const store = inMemoryMCPEventStore()
   const received: Array<MCPEventOccurrence> = []
   const messageIds: Array<string> = []
-  const gaps: Array<{ cursor: string }> = []
+  const gaps: Array<{ cursor: string | null }> = []
   const terminations: Array<{ code: number; message: string }> = []
   const errors: Array<string> = []
   const webhook = createMCPEventWebhook({

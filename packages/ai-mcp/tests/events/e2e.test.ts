@@ -27,7 +27,7 @@ const definition = {
 describe('MCP Events HTTP e2e', () => {
   const store = inMemoryMCPEventStore()
   const received: Array<MCPEventOccurrence> = []
-  const gaps: Array<{ cursor: string }> = []
+  const gaps: Array<{ cursor: string | null }> = []
   let nowMs = Date.now()
   let onEventImpl: () => Promise<void> | void = () => undefined
   const webhook = createMCPEventWebhook({

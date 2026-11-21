@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ProtocolError } from '@modelcontextprotocol/client'
 import { MCPConnectionError } from '../../src/errors'
 import {
@@ -538,6 +538,67 @@ describe('createDirectMCPEvents', () => {
     await expect(api.list()).rejects.toBeInstanceOf(MCPEventsUnsupportedError)
   })
 
+  it('retries subscribe once after HeaderMismatch', async () => {
+    const store = inMemoryMCPEventStore()
+    let subscribeAttempts = 0
+    const ctx = fakeCtx({
+      async request(method) {
+        if (method === 'events/list') return { events: [webhookDef] }
+        subscribeAttempts += 1
+        if (subscribeAttempts === 1) throw new ProtocolError(-32020, 'mismatch')
+        return {
+          id: 'sub_1',
+          refreshBefore: null,
+          cursor: null,
+          truncated: false,
+        }
+      },
+    })
+    const api = createDirectMCPEvents(ctx, { store })
+    const sub = await api.subscribe({ name: 'incident.created', delivery })
+    expect(sub.id).toBe('sub_1')
+    expect(
+      ctx.requests.filter((item) => item.method === 'events/list'),
+    ).toHaveLength(2)
+    expect(
+      ctx.requests.filter((item) => item.method === 'events/subscribe'),
+    ).toHaveLength(2)
+    expect(await store.get(sub.key)).toBeDefined()
+  })
+
+  it('retries unsubscribe once after HeaderMismatch', async () => {
+    const store = inMemoryMCPEventStore()
+    let unsubscribeAttempts = 0
+    const ctx = fakeCtx({
+      async request(method) {
+        if (method === 'events/list') return { events: [webhookDef] }
+        if (method === 'events/subscribe') {
+          return {
+            id: 'sub_1',
+            refreshBefore: null,
+            cursor: null,
+            truncated: false,
+          }
+        }
+        unsubscribeAttempts += 1
+        if (unsubscribeAttempts === 1) {
+          throw new ProtocolError(-32020, 'mismatch')
+        }
+        return {}
+      },
+    })
+    const api = createDirectMCPEvents(ctx, { store })
+    const sub = await api.subscribe({ name: 'incident.created', delivery })
+    ctx.requests.length = 0
+    await api.unsubscribe({ key: sub.key })
+    expect(ctx.requests.map((item) => item.method)).toEqual([
+      'events/unsubscribe',
+      'events/list',
+      'events/unsubscribe',
+    ])
+    expect(await store.get(sub.key)).toBeUndefined()
+  })
+
   it('throws MCPConnectionError after assertOpen fails', async () => {
     const api = createDirectMCPEvents(
       fakeCtx({
@@ -569,5 +630,28 @@ describe('createDiscoveryMCPEvents', () => {
     await expect(api.unsubscribe({ key: 'x' })).rejects.toBeInstanceOf(
       MCPEventConfigError,
     )
+  })
+
+  it('leaves out an event whose x-mcp-header annotation is invalid', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const bad = {
+      ...webhookDef,
+      name: 'incident.bad',
+      inputSchema: {
+        type: 'object',
+        properties: { n: { type: 'number', 'x-mcp-header': 'N' } },
+      },
+    }
+    const ctx = fakeCtx({
+      async request() {
+        return { events: [webhookDef, bad] }
+      },
+    })
+    const api = createDiscoveryMCPEvents(ctx)
+    expect(await api.list()).toEqual([webhookDef])
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('left incident.bad out of events/list'),
+    )
+    warn.mockRestore()
   })
 })
