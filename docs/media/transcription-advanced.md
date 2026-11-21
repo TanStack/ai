@@ -159,6 +159,16 @@ export function Transcriber() {
 
 ### Server function that streams
 
+With OpenAI, `gpt-transcribe`, `gpt-4o-transcribe`, and
+`gpt-4o-mini-transcribe` emit standard AG-UI text deltas when `stream: true`.
+If `responseFormat` or `modelOptions.response_format` is not `'json'`, the
+adapter waits for the full result and emits one text delta.
+If middleware registers a result transform, the stream sends the transformed
+text as one delta after the transform completes.
+Whisper does not support incremental transcription and returns its text when
+the request completes. Other adapters can opt in by implementing
+`transcribeStream`.
+
 ```typescript ignore
 // lib/server-functions.ts
 import { createServerFn } from '@tanstack/react-start'
@@ -170,37 +180,78 @@ export const transcribeStreamFn = createServerFn({ method: 'POST' })
     (data: { audio: string; language?: string; threadId: string }) => data,
   )
   .handler(({ data }) => {
-    return toServerSentEventsResponse(
-      generateTranscription({
-        adapter: openaiTranscription('gpt-4o-transcribe'),
-        audio: data.audio,
-        language: data.language,
-        stream: true,
-        threadId: data.threadId,
-      }),
-    )
+    const abortController = new AbortController()
+    const stream = generateTranscription({
+      adapter: openaiTranscription('gpt-transcribe'),
+      audio: data.audio,
+      language: data.language,
+      abortSignal: abortController.signal,
+      stream: true,
+      threadId: data.threadId,
+    })
+    return toServerSentEventsResponse(stream, { abortController })
   })
 ```
 
 ```tsx
+import type { ChangeEvent } from 'react'
+import { useState } from 'react'
 import { useTranscription } from '@tanstack/ai-react'
 import { transcribeStreamFn } from '../lib/server-functions'
 
 const threadId = 'transcription'
 
 export function Transcriber() {
-  const { generate, result, isLoading } = useTranscription({
+  const [transcript, setTranscript] = useState('')
+  const { generate, result, isLoading, error } = useTranscription({
     fetcher: (input, { threadId }) => {
       if (typeof input.audio !== 'string') {
         throw new Error('Expected base64 or data URL audio')
       }
       return transcribeStreamFn({
-        data: { ...input, audio: input.audio, threadId },
+        data: { ...input, threadId },
       })
     },
     threadId,
+    onChunk(chunk) {
+      if (chunk.type === 'TEXT_MESSAGE_START') {
+        setTranscript('')
+      } else if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+        setTranscript((current) => current + chunk.delta)
+      }
+    },
   })
-  // Render the same way as in the quick setup.
+  const displayedTranscript = isLoading || error
+    ? transcript
+    : (result?.text ?? transcript)
+
+  function handleFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setTranscript('')
+        void generate({ audio: reader.result, language: 'en' })
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+
+  return (
+    <div>
+      <input
+        type="file"
+        accept="audio/*"
+        onChange={handleFile}
+        disabled={isLoading}
+      />
+      {isLoading && <p>Transcribing...</p>}
+      {error && <p role="alert">{error.message}</p>}
+      {displayedTranscript && <p>{displayedTranscript}</p>}
+    </div>
+  )
 }
 ```
 
