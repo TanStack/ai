@@ -95,6 +95,7 @@ import { Route as ApiChatConsumerStopRouteImport } from './routes/api.chat-consu
 import { Route as ApiClientToolResumeStoreRouteImport } from './routes/api.client-tool-resume-store'
 import { Route as ApiCloudflareBindingHeadersWireRouteImport } from './routes/api.cloudflare-binding-headers-wire'
 import { Route as ApiCloudflareBindingWireRouteImport } from './routes/api.cloudflare-binding-wire'
+import { Route as ApiCloudflareEvaluateWireRouteImport } from './routes/api.cloudflare-evaluate-wire'
 import { Route as ApiCodingToolsRouteImport } from './routes/api.coding-tools'
 import { Route as ApiCodingWorkspaceRouteImport } from './routes/api.coding-workspace'
 import { Route as ApiCompactionUsageWireRouteImport } from './routes/api.compaction-usage-wire'
@@ -693,6 +694,12 @@ const ApiCloudflareBindingWireRoute =
   ApiCloudflareBindingWireRouteImport.update({
     id: '/api/cloudflare-binding-wire',
     path: '/api/cloudflare-binding-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiCloudflareEvaluateWireRoute =
+  ApiCloudflareEvaluateWireRouteImport.update({
+    id: '/api/cloudflare-evaluate-wire',
+    path: '/api/cloudflare-evaluate-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiCodingToolsRoute = ApiCodingToolsRouteImport.update({
@@ -1557,6 +1564,7 @@ export interface FileRoutesByFullPath {
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/cloudflare-evaluate-wire': typeof ApiCloudflareEvaluateWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
   '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
@@ -1793,6 +1801,7 @@ export interface FileRoutesByTo {
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/cloudflare-evaluate-wire': typeof ApiCloudflareEvaluateWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
   '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
@@ -2030,6 +2039,7 @@ export interface FileRoutesById {
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/cloudflare-evaluate-wire': typeof ApiCloudflareEvaluateWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
   '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
@@ -2268,6 +2278,7 @@ export interface FileRouteTypes {
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-headers-wire'
     | '/api/cloudflare-binding-wire'
+    | '/api/cloudflare-evaluate-wire'
     | '/api/coding-tools'
     | '/api/coding-workspace'
     | '/api/compaction-usage-wire'
@@ -2504,6 +2515,7 @@ export interface FileRouteTypes {
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-headers-wire'
     | '/api/cloudflare-binding-wire'
+    | '/api/cloudflare-evaluate-wire'
     | '/api/coding-tools'
     | '/api/coding-workspace'
     | '/api/compaction-usage-wire'
@@ -2740,6 +2752,7 @@ export interface FileRouteTypes {
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-headers-wire'
     | '/api/cloudflare-binding-wire'
+    | '/api/cloudflare-evaluate-wire'
     | '/api/coding-tools'
     | '/api/coding-workspace'
     | '/api/compaction-usage-wire'
@@ -2977,6 +2990,7 @@ export interface RootRouteChildren {
   ApiClientToolResumeStoreRoute: typeof ApiClientToolResumeStoreRoute
   ApiCloudflareBindingHeadersWireRoute: typeof ApiCloudflareBindingHeadersWireRoute
   ApiCloudflareBindingWireRoute: typeof ApiCloudflareBindingWireRoute
+  ApiCloudflareEvaluateWireRoute: typeof ApiCloudflareEvaluateWireRoute
   ApiCodingToolsRoute: typeof ApiCodingToolsRoute
   ApiCodingWorkspaceRoute: typeof ApiCodingWorkspaceRoute
   ApiCompactionUsageWireRoute: typeof ApiCompactionUsageWireRoute
@@ -3725,6 +3739,13 @@ declare module '@tanstack/react-router' {
       path: '/api/cloudflare-binding-wire'
       fullPath: '/api/cloudflare-binding-wire'
       preLoaderRoute: typeof ApiCloudflareBindingWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cloudflare-evaluate-wire': {
+      id: '/api/cloudflare-evaluate-wire'
+      path: '/api/cloudflare-evaluate-wire'
+      fullPath: '/api/cloudflare-evaluate-wire'
+      preLoaderRoute: typeof ApiCloudflareEvaluateWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/coding-tools': {
@@ -4915,6 +4936,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiClientToolResumeStoreRoute: ApiClientToolResumeStoreRoute,
   ApiCloudflareBindingHeadersWireRoute: ApiCloudflareBindingHeadersWireRoute,
   ApiCloudflareBindingWireRoute: ApiCloudflareBindingWireRoute,
+  ApiCloudflareEvaluateWireRoute: ApiCloudflareEvaluateWireRoute,
   ApiCodingToolsRoute: ApiCodingToolsRoute,
   ApiCodingWorkspaceRoute: ApiCodingWorkspaceRoute,
   ApiCompactionUsageWireRoute: ApiCompactionUsageWireRoute,
