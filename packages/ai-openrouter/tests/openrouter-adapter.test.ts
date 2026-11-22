@@ -160,7 +160,7 @@ describe('OpenRouter adapter option mapping', () => {
     expect(Array.isArray(params.tools)).toBe(true)
     expect(params.tools.length).toBeGreaterThan(0)
 
-    // Check how the paramaters are serialized through to the openrouter endpoint
+    // Check how the parameters are serialized through to the openrouter endpoint
     // Openrouter runs the params through an outbound Zod schema that expects camelCase
     const serialized = ChatRequest$outboundSchema.parse(params)
 
