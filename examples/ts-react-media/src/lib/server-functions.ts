@@ -278,7 +278,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
   })
   .handler(async ({ data }) => {
     // NOTE: Use string literals when instantiating adapters to preserve type safety
-    // The Fal adapater also accepts any string for very latest models which is why new models appear to accept any parameter
+    // The Fal adapter also accepts any string for very latest models which is why new models appear to accept any parameter
     // Pass size information in modelOptions for the Fal adapter instead of size to be sure you are using the correct resolution
 
     switch (data.model) {
