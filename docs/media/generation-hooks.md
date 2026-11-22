@@ -524,6 +524,8 @@ Options for special cases:
 
 `stop()` only aborts the local stream. Work that already runs on the provider continues. To cancel or poll that provider job, send `runId` to your own endpoint.
 
+If your `fetcher` returns an SSE `Response`, stopping the generation cancels its body and ends `generate()` even while no events arrive.
+
 ### Result transforms
 
 `onResult` can change what the hook stores on `result`:

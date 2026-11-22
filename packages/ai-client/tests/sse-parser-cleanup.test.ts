@@ -57,6 +57,62 @@ it('reports a generation error without waiting for custom cancellation', async (
   }
 })
 
+it.each(
+  (['stop', 'dispose'] as const).flatMap((action) =>
+    (['resolves', 'throws', 'rejects', 'never settles'] as const).map(
+      (behavior) => ({ action, behavior }),
+    ),
+  ),
+)(
+  '$action releases an idle generation response when cancellation $behavior',
+  async ({ action, behavior }) => {
+    let reading!: () => void
+    const readStarted = new Promise<void>((resolve) => {
+      reading = resolve
+    })
+    let source!: ReadableStreamDefaultController<Uint8Array>
+    const cancel = vi.fn(() => {
+      const error = new Error('cleanup failed')
+      if (behavior === 'throws') throw error
+      if (behavior === 'rejects') return Promise.reject(error)
+      if (behavior === 'never settles') return new Promise<void>(() => {})
+      return undefined
+    })
+    const body = new ReadableStream<Uint8Array>(
+      {
+        start(controller) {
+          source = controller
+        },
+        pull: () => reading(),
+        cancel,
+      },
+      { highWaterMark: 0 },
+    )
+    const client = new GenerationClient({
+      threadId: 'thread-idle-response',
+      fetcher: async () => new Response(body),
+    })
+    let settled = false
+    const pending = client.generate({}).then(() => {
+      settled = true
+    })
+    try {
+      await readStarted
+      client[action]()
+      await expect.poll(() => settled).toBe(true)
+      expect(cancel).toHaveBeenCalledOnce()
+      expect(body.locked).toBe(false)
+      expect(client.getIsLoading()).toBe(false)
+      expect(client.getError()).toBeUndefined()
+    } finally {
+      // Also release the pending read when running this regression on main.
+      if (cancel.mock.calls.length === 0) source.close()
+      await pending
+      client.dispose()
+    }
+  },
+)
+
 it('preserves generation reader errors and releases the lock', async () => {
   const error = new Error('response reader failed')
   const body = new ReadableStream<Uint8Array>({
