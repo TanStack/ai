@@ -51,7 +51,11 @@ import type {
   AcpStreamEvent,
   AcpTransportPreference,
 } from '@tanstack/ai-acp'
-import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
+import type {
+  BridgeEventChannel,
+  HostToolBridge,
+  SandboxHandle,
+} from '@tanstack/ai-sandbox'
 import type {
   GrokBuildProtocol,
   GrokBuildTextProviderOptions,
@@ -699,6 +703,7 @@ export class GrokBuildTextAdapter<
   ): AsyncIterable<AdapterYieldChunk> {
     const { logger } = options
     let bridge: HostToolBridge | undefined
+    let channel: BridgeEventChannel | undefined
     let hostLogin: HostLogin | undefined
     // A durable agent can outlive this stream. Its login then stays in the
     // sandbox for the host that attaches.
@@ -725,6 +730,12 @@ export class GrokBuildTextAdapter<
         fallback: () => this.generateId(),
       })
       const threadId = options.threadId
+      const eventChannel = createBridgeEventChannel({
+        model: this.model,
+        threadId,
+        runId,
+      })
+      channel = eventChannel
 
       const projection = options.capabilities
         ? getWorkspaceProjection(options.capabilities, { optional: true })
@@ -745,6 +756,8 @@ export class GrokBuildTextAdapter<
           provider: sandbox.provider,
           threadId,
           context: options.context,
+          emitCustomEvent: eventChannel.emitCustomEvent,
+          emitActivity: eventChannel.emitActivity,
           ...(options.abortController?.signal
             ? { signal: options.abortController.signal }
             : options.request?.signal
@@ -833,43 +846,39 @@ export class GrokBuildTextAdapter<
       // the same chunk sequence. See `chunk-identity.ts` for why this matters.
       const genId = createRunScopedIdGen(runId)
 
-      // THE ALIGNMENT SEAM. `alignedIfAttaching` wraps `translateThreadEvents`
-      // — the point where this path's outgoing chunk sequence is FINAL — and on
-      // an attach it compares the replayed chunks against the stored event log
-      // by fingerprint, suppressing the prefix a previous host already
+      // THE ALIGNMENT SEAM. `alignedIfAttaching` wraps the merged translator
+      // output — the point where this path's outgoing chunk sequence is FINAL —
+      // and on an attach it compares the replayed chunks against the stored
+      // event log by fingerprint, suppressing the prefix a previous host already
       // delivered. That only works because the two sides are the same shape:
-      // the log holds translated chunks, and this is the translator's output.
+      // the log holds translated chunks plus live bridge events, and this is
+      // that merged stream.
       //
       // Do NOT move this to `chatStreamAcp`'s `mergeChunkStreams` call. That is
       // a different method on a different protocol: it never calls
       // `spawnNdjson`, so it writes no journal and has nothing to replay, and
       // aligning there would compare against a log that path never produced.
-      // (This is where `ai-grok-build` diverges structurally from `ai-codex` and
-      // `ai-claude-code`, whose bridge merge sits downstream of `spawnNdjson` in
-      // the same method and therefore IS their final seam.)
-      //
-      // There is no `channel.stream` merge to worry about on this path — the
-      // NDJSON protocol bridges tools over MCP through `<cwd>/.grok/config.toml`
-      // rather than through `createBridgeEventChannel` — so the translated
-      // sequence is the whole of it. `isBridgeCustomChunk` tolerance inside
-      // `alignedIfAttaching` is therefore slack this path does not need, not a
-      // dependency of it.
+      // The wrap goes OUTSIDE `mergeChunkStreams`, as on Codex and Claude Code:
+      // the stored log holds the previous host's MERGED output.
       keepLogin = durability !== undefined
       yield* alignedIfAttaching(
-        translateThreadEvents(asEvents(), {
-          model: this.model,
-          runId,
-          threadId,
-          ...(options.parentRunId !== undefined && {
-            parentRunId: options.parentRunId,
-          }),
-          genId,
-          ...(options.outputSchema ? { expectStructuredOutput: true } : {}),
-          onThreadEvent: (event) =>
-            logger.provider(`provider=grok-build type=${event.type}`, {
-              chunk: event,
+        mergeChunkStreams(
+          translateThreadEvents(asEvents(), {
+            model: this.model,
+            runId,
+            threadId,
+            ...(options.parentRunId !== undefined && {
+              parentRunId: options.parentRunId,
             }),
-        }),
+            genId,
+            ...(options.outputSchema ? { expectStructuredOutput: true } : {}),
+            onThreadEvent: (event) =>
+              logger.provider(`provider=grok-build type=${event.type}`, {
+                chunk: event,
+              }),
+          }),
+          eventChannel.stream,
+        ),
         durability,
         logger,
       )
@@ -923,6 +932,7 @@ export class GrokBuildTextAdapter<
         },
       }
     } finally {
+      channel?.close()
       try {
         await bridge?.close()
       } finally {

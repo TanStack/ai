@@ -159,6 +159,8 @@ function sandboxRow(content: SandboxStatusContent) {
     id: 'sandbox-r1',
     activityType: 'sandbox.status',
     content,
+    // Incoming is only `next`; stored UI is user + assistant, so index 1 + 2.
+    index: 3,
   })
 }
 
@@ -1793,6 +1795,9 @@ describe('withPersistence (state-only)', () => {
         'act-1',
         'sandbox-r1',
       ])
+      expect(records.find((record) => record.id === 'sandbox-r1')).toEqual(
+        sandboxRow(sandboxStarting),
+      )
     })
 
     it('keeps it when the run fails in setup', async () => {

@@ -474,18 +474,35 @@ function keptActivities(
 /**
  * Merge the rows of this run into the stored rows by id, as the messages
  * merge. A stored row keeps its place and its `index`, and the current
- * content of its id wins. A new row keeps its own `index`.
+ * content of its id wins. A new row keeps its own `index`, plus
+ * `extraIndex` when it was recorded against a shorter incoming list.
  */
 function mergeActivities(
   stored: ReadonlyArray<ActivityRecord>,
   current: ReadonlyArray<ActivityRecord>,
+  extraIndex = 0,
 ) {
   const byId = new Map(stored.map((record) => [record.id, record]))
   for (const record of current) {
-    const index = byId.get(record.id)?.index ?? record.index
+    const index = byId.get(record.id)?.index ?? record.index + extraIndex
     byId.set(record.id, { ...record, index })
   }
   return [...byId.values()]
+}
+
+/**
+ * How many stored UI messages sit in front of the incoming list after merge.
+ * A setup row's `index` is counted from the incoming list, which can be only
+ * the new turn, so add this before the row is saved.
+ */
+function extraStoredUiIndex(
+  storedMessages: ReadonlyArray<ModelMessage>,
+  incoming: ReadonlyArray<ModelMessage>,
+) {
+  const extra =
+    modelMessagesToUIMessages(mergeStoredMessages(storedMessages, incoming))
+      .length - modelMessagesToUIMessages(incoming).length
+  return extra > 0 ? extra : 0
 }
 
 /** `metadata.tanstack.run.id` of a stored message, when set. */
@@ -2428,7 +2445,14 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         for (const { id } of ctx.activities) {
           if (!storedIds.has(id)) state?.earlyActivityIds.add(id)
         }
-        list = mergeActivities(stored, ctx.activities)
+        const storedMessages = threadMessages(
+          await messageStore.loadThread(ctx.threadId),
+        )
+        list = mergeActivities(
+          stored,
+          ctx.activities,
+          extraStoredUiIndex(storedMessages, ctx.messages),
+        )
       }
       await activityStore.saveActivities(ctx.threadId, list)
     } catch (error) {
@@ -2766,6 +2790,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
                 state?.earlyActivityIds,
               ),
               ctx.activities ?? [],
+              extraStoredUiIndex(stored, incoming),
             )
           }
         }

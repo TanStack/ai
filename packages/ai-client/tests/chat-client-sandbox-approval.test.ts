@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { INTERRUPT_BINDING_VERSION } from '@tanstack/ai/client'
+import { ByokMissingError } from '@tanstack/ai/byok'
 import { ChatClient } from '../src/chat-client'
 import {
   createMockConnectionAdapter,
@@ -139,5 +140,71 @@ describe('ChatClient.respondToSandboxApproval', () => {
 
     expect(rowStatus(client.getMessages())).toBe('granted')
     expect(sent).toEqual([])
+  })
+
+  it('keeps the row pending when send throws, so a later call can retry', async () => {
+    let fail = true
+    const sent: Array<Array<UIMessage | ModelMessage>> = []
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection: createMockConnectionAdapter({
+        chunks: createTextChunks('done', 'asst-1'),
+        chunkDelay: 5,
+        onConnect: (messages) => {
+          sent.push(messages)
+        },
+      }),
+      initialMessages: [createUIMessage('user-1', 'Clean up'), pendingRow],
+      onResponse: () => {
+        if (fail) throw new ByokMissingError('openai')
+      },
+    })
+
+    await expect(
+      client.respondToSandboxApproval(approvalId, true),
+    ).rejects.toBeInstanceOf(ByokMissingError)
+    expect(rowStatus(client.getMessages())).toBe('pending')
+    expect(sent).toEqual([])
+
+    fail = false
+    await client.respondToSandboxApproval(approvalId, true)
+    expect(rowStatus(client.getMessages())).toBe('granted')
+    expect(sent).toHaveLength(1)
+    expect(rowStatus(sent[0] ?? [])).toBe('granted')
+  })
+
+  it('does not treat a false streamResponse result as a failed send', async () => {
+    const sent: Array<Array<UIMessage | ModelMessage>> = []
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection: createMockConnectionAdapter({
+        shouldError: true,
+        error: new Error('connect failed'),
+        onConnect: (messages) => {
+          sent.push(messages)
+        },
+      }),
+      initialMessages: [createUIMessage('user-1', 'Clean up'), pendingRow],
+    })
+
+    await client.respondToSandboxApproval(approvalId, true)
+
+    expect(rowStatus(client.getMessages())).toBe('granted')
+    expect(sent).toHaveLength(1)
+    await client.respondToSandboxApproval(approvalId, false)
+    expect(rowStatus(client.getMessages())).toBe('granted')
+  })
+
+  it('does not start a queued approval run after clear()', async () => {
+    const { client, sent } = createClient()
+
+    const sending = client.sendMessage('Go on')
+    await vi.waitFor(() => expect(client.getIsLoading()).toBe(true))
+    await client.respondToSandboxApproval(approvalId, true)
+    client.clear()
+    await sending
+
+    expect(sent).toHaveLength(1)
+    expect(client.getMessages()).toEqual([])
   })
 })

@@ -3672,6 +3672,8 @@ export class ChatClient<
    * Clear all messages
    */
   clear(): void {
+    // Invalidate deferred continuations queued before this clear.
+    this.continuationGeneration++
     const hadLocalStream = this.abortController !== null
     this.clearedStreamTracker.snapshotClear({
       messages: this.processor.getMessages(),
@@ -3770,11 +3772,27 @@ export class ChatClient<
       messages.map((message) => (message === row ? decided : message)),
     )
 
+    const restorePending = () => {
+      this.processor.setMessages(
+        this.processor
+          .getMessages()
+          .map((message) => (message.id === row.id ? row : message)),
+      )
+    }
+
     // The same rules as for a client tool result: a run in progress ends
     // first, and a pending interrupt owns the next send.
+    // Keep the row pending when send throws so the same call can retry.
+    // A false streamResponse result is not a failed send: the server may
+    // already have accepted the request.
     const continueRun = async () => {
       if (this.hasPendingInterrupts()) return
-      await this.streamResponse()
+      try {
+        await this.streamResponse()
+      } catch (error) {
+        restorePending()
+        throw error
+      }
     }
     if (this.isLoading) {
       this.queuePostStreamAction(continueRun)
