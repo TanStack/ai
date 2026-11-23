@@ -10,6 +10,8 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   DurableAttachNotSupportedError,
   SandboxCapability,
+  approvalDecisionActivities,
+  buildApprovalActivity,
   buildApprovalRequestedEvent,
   createBridgeEventChannel,
   getSandbox,
@@ -159,7 +161,8 @@ export interface AcpCompatibleConfig<
    * - `'headless'` (default) — auto-resolve via {@link permissionMode}; the
    *   sandbox is the boundary, so the agent runs without prompting.
    * - `'interactive'` — same policy, but `ask`-style prompts emit an
-   *   approval-requested event so a client can approve and re-run.
+   *   approval-requested event and a pending `sandbox.approval` activity row,
+   *   so a client can approve and re-run.
    */
   permissions?: 'headless' | 'interactive'
   /** Custom permission handler; overrides {@link permissions}/{@link permissionMode}. */
@@ -349,17 +352,19 @@ export class AcpCompatibleTextAdapter<
           this.name,
         )
         if (result.approvalId !== undefined) {
+          const approval = {
+            approvalId: result.approvalId,
+            title:
+              result.title ??
+              request.toolCall.title ??
+              request.toolCall.toolCallId,
+            threadId: input.threadId,
+            runId: input.runId,
+            detail: { provider: this.name },
+          }
           input.approvalRequests.push(
-            buildApprovalRequestedEvent({
-              approvalId: result.approvalId,
-              title:
-                result.title ??
-                request.toolCall.title ??
-                request.toolCall.toolCallId,
-              threadId: input.threadId,
-              runId: input.runId,
-              detail: { provider: this.name },
-            }),
+            buildApprovalRequestedEvent(approval),
+            buildApprovalActivity(approval),
           )
         }
         return result.outcome
@@ -461,6 +466,7 @@ export class AcpCompatibleTextAdapter<
           threadId,
           context: options.context,
           emitCustomEvent: channel.emitCustomEvent,
+          emitActivity: channel.emitActivity,
           ...(externalSignal ? { signal: externalSignal } : {}),
         })
       }
@@ -642,6 +648,15 @@ export class AcpCompatibleTextAdapter<
           }
         }
         yield chunk
+        // Each client decision of an earlier run sets its `sandbox.approval`
+        // row to `granted` or `denied`.
+        if (chunk.type === EventType.RUN_STARTED) {
+          yield* approvalDecisionActivities(options.approvals, {
+            provider: this.name,
+            threadId,
+            runId,
+          })
+        }
       }
 
       if (options.outputSchema) {

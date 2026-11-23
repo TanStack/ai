@@ -407,6 +407,7 @@ export class GrokBuildTextAdapter<
           threadId,
           context: options.context,
           emitCustomEvent: channel.emitCustomEvent,
+          emitActivity: channel.emitActivity,
           ...(externalSignal ? { signal: externalSignal } : {}),
         })
       }

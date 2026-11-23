@@ -12,9 +12,11 @@
  * - `onFinish`/`onAbort`/`onError`: stop the watcher, snapshot (`after-run`)
  *   and/or destroy per lifecycle.
  *
- * NOTE: `setup` sends the `sandbox.starting`, `sandbox.created`, and
- * `sandbox.resumed` events through `ctx.emitCustomEvent`. Core streams custom
- * events that `setup` emits live, so the client sees them during the wait.
+ * NOTE: `setup` sends the `sandbox.status` activity (`starting`, then `ready`
+ * or `failed`) through `ctx.emitActivity`. It also sends the deprecated
+ * `sandbox.starting`, `sandbox.created`, and `sandbox.resumed` events through
+ * `ctx.emitCustomEvent`. Core streams both live, so the client sees them
+ * during the wait.
  */
 import {
   CUSTOM_EVENT,
@@ -22,6 +24,7 @@ import {
   isTerminalRunStatus,
   provideDetachableRun,
   provideRunDetached,
+  sandboxStatusActivity,
   wasCancelRequested,
 } from '@tanstack/ai'
 import { InMemoryLockStore, LocksCapability } from '@tanstack/ai/locks'
@@ -960,10 +963,27 @@ export function withSandbox<TOffset extends string = string>(
       // land in the middle of the replayed stream and break its alignment.
       const lifecycleEvents =
         hasEnsureOutcome(definition) && durability?.attach !== true
-      if (lifecycleEvents)
-        ctx.emitCustomEvent(CUSTOM_EVENT.SANDBOX_STARTING, {
-          provider: definition.provider.name,
+      // The `sandbox.status` row of this run. Each emit replaces it, so the
+      // client shows one card that goes from `starting` to `ready` or `failed`.
+      const statusId = `sandbox-${ctx.runId}`
+      const provider = definition.provider.name
+      // Core sends the queued snapshot before it rethrows a setup error, so
+      // the row does not stay at `starting` after a failed start.
+      const emitFailedStatus = (error: unknown) => {
+        if (!lifecycleEvents) return
+        ctx.emitActivity(sandboxStatusActivity, statusId, {
+          status: 'failed',
+          provider,
+          error: error instanceof Error ? error.message : String(error),
         })
+      }
+      if (lifecycleEvents) {
+        ctx.emitCustomEvent(CUSTOM_EVENT.SANDBOX_STARTING, { provider })
+        ctx.emitActivity(sandboxStatusActivity, statusId, {
+          status: 'starting',
+          provider,
+        })
+      }
       let outcome: 'resumed' | 'native-restored' | 'created' = 'created'
       let handle: SandboxHandle
       try {
@@ -997,6 +1017,7 @@ export function withSandbox<TOffset extends string = string>(
           }
         }
       } catch (error) {
+        emitFailedStatus(error)
         await stopSnapshotLease(state).catch(() => {})
         if (state.handle && state.privateHandle)
           await definition.destroy(ensureCtx).catch(() => {})
@@ -1167,8 +1188,20 @@ export function withSandbox<TOffset extends string = string>(
               : CUSTOM_EVENT.SANDBOX_CREATED,
             { sandboxId: handle.id, provider: handle.provider },
           )
+          // A stop reaches setup only through `ctx.signal`. A provider can
+          // ignore that signal, so `ensure` can still return a sandbox. Core
+          // then ends the run through `onAbort`, so the row says `failed`.
+          if (ctx.signal?.aborted) emitFailedStatus(ctx.signal.reason)
+          else
+            ctx.emitActivity(sandboxStatusActivity, statusId, {
+              status: 'ready',
+              provider,
+              sandboxId: handle.id,
+              resumed: isResumed,
+            })
         }
       } catch (error) {
+        emitFailedStatus(error)
         await drainWatcher(state, 'error')
         await stopSnapshotLease(state).catch(() => {})
         if (state.privateHandle)

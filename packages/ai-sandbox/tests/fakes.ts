@@ -266,6 +266,7 @@ export function makeMiddlewareCtx(input: {
     abort: (reason) => controller.abort(reason),
     retry: () => {},
     emitCustomEvent: () => {},
+    emitActivity: () => {},
     context: {},
     defer: () => {},
     activity: 'chat',

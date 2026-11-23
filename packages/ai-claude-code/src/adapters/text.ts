@@ -9,7 +9,9 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   SandboxCapability,
   alignedIfAttaching,
+  approvalDecisionActivities,
   approvalId,
+  buildApprovalActivity,
   buildApprovalRequestedEvent,
   createBridgeEventChannel,
   createRunScopedIdGen,
@@ -159,6 +161,21 @@ function toolsForChoice(options: TextOptions<ClaudeCodeTextProviderOptions>) {
     return tools.filter((tool) => tool.name === toolChoice.name)
   }
   return tools
+}
+
+/**
+ * Yield `extra` right after the `RUN_STARTED` of `chunks`. Wrap the translated
+ * stream with it, inside the replay alignment, so a takeover replay makes the
+ * same chunks at the same place in the log.
+ */
+async function* afterRunStarted(
+  chunks: AsyncIterable<AdapterYieldChunk>,
+  extra: ReadonlyArray<AdapterYieldChunk>,
+) {
+  for await (const chunk of chunks) {
+    yield chunk
+    if (chunk.type === EventType.RUN_STARTED) yield* extra
+  }
 }
 
 /** Format a host tool-bridge as claude's `--mcp-config` JSON. */
@@ -365,7 +382,8 @@ export class ClaudeCodeTextAdapter<
    * Build the permission-prompt resolver the host MCP bridge exposes to claude
    * (`--permission-prompt-tool`). Maps claude's permission request onto the
    * sandbox policy + client approvals; on an `ask` action with no decision yet,
-   * records an approval-requested event and denies (the client re-runs to grant).
+   * records an approval-requested event and a pending `sandbox.approval` row,
+   * and denies (the client re-runs to grant).
    */
   private buildPermissionResolver(
     policy: SandboxPolicy | undefined,
@@ -407,14 +425,16 @@ export class ClaudeCodeTextAdapter<
         ...(capability !== undefined ? { capability } : {}),
       })
       if (outcome.needsApproval) {
+        const approval = {
+          approvalId: id,
+          title: `Approve ${toolName}${command !== undefined ? `: ${command}` : ''}`,
+          threadId,
+          runId,
+          detail: { provider: 'claude-code', toolName },
+        }
         sink.push(
-          buildApprovalRequestedEvent({
-            approvalId: id,
-            title: `Approve ${toolName}${command !== undefined ? `: ${command}` : ''}`,
-            threadId,
-            runId,
-            detail: { provider: 'claude-code', toolName },
-          }),
+          buildApprovalRequestedEvent(approval),
+          buildApprovalActivity(approval),
         )
         return {
           behavior: 'deny',
@@ -518,6 +538,7 @@ export class ClaudeCodeTextAdapter<
           threadId,
           context: options.context,
           emitCustomEvent: channel.emitCustomEvent,
+          emitActivity: channel.emitActivity,
           ...(permission !== undefined ? { permission } : {}),
           ...(options.abortController?.signal
             ? { signal: options.abortController.signal }
@@ -671,27 +692,37 @@ export class ClaudeCodeTextAdapter<
       // pre-merge translated stream alone would compare against a log it never
       // produced. On a non-attaching run this is a pure passthrough (see
       // `alignedIfAttaching`'s `attach` guard).
+      //
+      // Right after `RUN_STARTED`, each client decision of an earlier run sets
+      // its `sandbox.approval` row to `granted` or `denied`.
       yield* alignedIfAttaching(
         mergeChunkStreams(
-          translateSdkStream(asMessages(), {
-            model: this.model,
-            runId,
-            threadId,
-            ...(options.parentRunId !== undefined && {
-              parentRunId: options.parentRunId,
-            }),
-            // Deterministic on the journaled path: two translations of the same
-            // journal prefix from a fresh generator seeded with the same
-            // `runId` mint the same message ids (unlike `this.generateId()`,
-            // which mixes in `Date.now()` / `Math.random()`). See
-            // `createRunScopedIdGen` in `@tanstack/ai-sandbox`.
-            genId: createRunScopedIdGen(runId),
-            ...(options.outputSchema ? { expectStructuredOutput: true } : {}),
-            onSdkMessage: (message) =>
-              logger.provider(`provider=claude-code type=${message.type}`, {
-                chunk: message,
+          afterRunStarted(
+            translateSdkStream(asMessages(), {
+              model: this.model,
+              runId,
+              threadId,
+              ...(options.parentRunId !== undefined && {
+                parentRunId: options.parentRunId,
               }),
-          }),
+              // Deterministic on the journaled path: two translations of the
+              // same journal prefix from a fresh generator seeded with the same
+              // `runId` mint the same message ids (unlike `this.generateId()`,
+              // which mixes in `Date.now()` / `Math.random()`). See
+              // `createRunScopedIdGen` in `@tanstack/ai-sandbox`.
+              genId: createRunScopedIdGen(runId),
+              ...(options.outputSchema ? { expectStructuredOutput: true } : {}),
+              onSdkMessage: (message) =>
+                logger.provider(`provider=claude-code type=${message.type}`, {
+                  chunk: message,
+                }),
+            }),
+            approvalDecisionActivities(options.approvals, {
+              provider: 'claude-code',
+              threadId,
+              runId,
+            }),
+          ),
           channel.stream,
         ),
         durability,

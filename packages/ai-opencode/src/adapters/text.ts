@@ -12,6 +12,8 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   DurableAttachNotSupportedError,
   SandboxCapability,
+  approvalDecisionActivities,
+  buildApprovalActivity,
   buildApprovalRequestedEvent,
   createBridgeEventChannel,
   getSandbox,
@@ -318,12 +320,14 @@ export class OpencodeTextAdapter<
           threadId,
           context: options.context,
           emitCustomEvent: channel.emitCustomEvent,
+          emitActivity: channel.emitActivity,
           ...(externalSignal ? { signal: externalSignal } : {}),
         })
       }
 
-      // Approval-requested events for `ask`-policy actions with no client
-      // decision yet, emitted after the stream so the client can approve + re-run.
+      // Approval-requested events and pending `sandbox.approval` rows for
+      // `ask`-policy actions with no client decision yet, emitted after the
+      // stream so the client can approve + re-run.
       const approvalRequests: Array<AdapterYieldChunk> = []
 
       const queue = new AsyncQueue<OpencodeStreamEvent>()
@@ -341,14 +345,16 @@ export class OpencodeTextAdapter<
             options.approvals,
           )
           if (result.approvalId !== undefined) {
+            const approval = {
+              approvalId: result.approvalId,
+              title: result.title ?? request.title,
+              threadId,
+              runId,
+              detail: { provider: 'opencode' },
+            }
             approvalRequests.push(
-              buildApprovalRequestedEvent({
-                approvalId: result.approvalId,
-                title: result.title ?? request.title,
-                threadId,
-                runId,
-                detail: { provider: 'opencode' },
-              }),
+              buildApprovalRequestedEvent(approval),
+              buildApprovalActivity(approval),
             )
           }
           return result.response
@@ -483,6 +489,15 @@ export class OpencodeTextAdapter<
           lastTextMessageId = chunk.messageId
         }
         yield chunk
+        // Each client decision of an earlier run sets its `sandbox.approval`
+        // row to `granted` or `denied`.
+        if (chunk.type === EventType.RUN_STARTED) {
+          yield* approvalDecisionActivities(options.approvals, {
+            provider: 'opencode',
+            threadId,
+            runId,
+          })
+        }
       }
 
       if (options.outputSchema) {

@@ -56,11 +56,12 @@ export const DEFAULT_MAX_OUT_OF_BAND_SKIP = 64
 /**
  * The out-of-band predicate for the harness adapters.
  *
- * `ai-codex` and `ai-claude-code` splice `createBridgeEventChannel`'s stream
- * into their translated output with `mergeChunkStreams`. That channel is the
- * only producer on the path and it emits exclusively `EventType.CUSTOM` chunks
- * (`bridge-events.ts:53-63`), fired by LIVE bridged-tool execution. A replay
- * runs no tools, so those chunks exist in the log and not in the replay.
+ * The harness adapters splice `createBridgeEventChannel`'s stream into their
+ * translated output with `mergeChunkStreams`. That channel sends `CUSTOM`
+ * chunks and activity chunks, fired by LIVE bridged-tool execution. A replay
+ * runs no tools, so those chunks exist in the log and not in the replay. This
+ * predicate covers the `CUSTOM` chunks. `alignedIfAttaching` in
+ * `durability.ts` also skips activity chunks.
  *
  * Structural rather than a list of event names on purpose: a new bridged tool
  * inventing a new `name` must not silently reintroduce the divergence.

@@ -1,17 +1,22 @@
 /**
- * Helpers that let a harness adapter surface custom events emitted by BRIDGED
- * tools (via {@link ToolBridgeCoreOptions.emitCustomEvent}) on its live output
- * stream.
+ * Helpers that let a harness adapter surface custom events and activities
+ * emitted by BRIDGED tools (via {@link ToolBridgeCoreOptions.emitCustomEvent}
+ * and {@link ToolBridgeCoreOptions.emitActivity}) on its live output stream.
  *
  * The bridge runs out-of-band from the harness's own event stream, so a bridged
  * tool's progress/console events have no path to the client on their own. An
- * adapter creates a {@link BridgeEventChannel}, hands its `emitCustomEvent` to
- * the bridge provisioner, and {@link mergeChunkStreams | merges} the channel's
- * stream into its translated output — so events interleave live while the agent
- * runs (e.g. code mode's `code_mode:console` logs during a long execution).
+ * adapter creates a {@link BridgeEventChannel}, hands its `emitCustomEvent` and
+ * `emitActivity` to the bridge provisioner, and
+ * {@link mergeChunkStreams | merges} the channel's stream into its translated
+ * output — so events interleave live while the agent runs (e.g. code mode's
+ * `code_mode:console` logs during a long execution).
  */
 import { EventType, withTanstackMetadata } from '@tanstack/ai'
-import type { EmitCustomEventOptions, StreamChunk } from '@tanstack/ai'
+import type {
+  EmitCustomEventOptions,
+  StreamChunk,
+  ToolExecutionContext,
+} from '@tanstack/ai'
 
 export interface BridgeEventChannel {
   /** Pass as the bridge's `emitCustomEvent`; buffers a CUSTOM chunk for the stream. */
@@ -20,13 +25,26 @@ export interface BridgeEventChannel {
     value: Record<string, unknown>,
     options?: EmitCustomEventOptions,
   ) => void
-  /** Live CUSTOM-chunk stream; ends after {@link close} once drained. */
+  /**
+   * Pass as the bridge's `emitActivity`. Buffers the `ACTIVITY_SNAPSHOT`
+   * chunk of `definition.snapshot(id, content)` for the stream.
+   *
+   * @throws TypeError when the content fails the schema check of `definition`
+   */
+  emitActivity: NonNullable<ToolExecutionContext['emitActivity']>
+  /**
+   * Live stream of CUSTOM and ACTIVITY_SNAPSHOT chunks; ends after
+   * {@link close} once drained.
+   */
   stream: AsyncIterable<StreamChunk>
   /** Stop the stream (call when the run's main output is done). */
   close: () => void
 }
 
-/** Create a channel whose emitted events become CUSTOM {@link StreamChunk}s. */
+/**
+ * Create a channel whose emitted events and activities become
+ * {@link StreamChunk}s.
+ */
 export function createBridgeEventChannel(meta: {
   model: string
   threadId?: string
@@ -35,6 +53,12 @@ export function createBridgeEventChannel(meta: {
   const buffer: Array<StreamChunk> = []
   let notify: (() => void) | null = null
   let closed = false
+  // The `metadata.tanstack` keys of each chunk from this channel.
+  const runMetadata = {
+    model: meta.model,
+    ...(meta.threadId !== undefined ? { threadId: meta.threadId } : {}),
+    ...(meta.runId !== undefined ? { runId: meta.runId } : {}),
+  }
 
   async function* stream(): AsyncIterable<StreamChunk> {
     for (;;) {
@@ -63,13 +87,19 @@ export function createBridgeEventChannel(meta: {
             timestamp: Date.now(),
           },
           {
-            model: meta.model,
-            ...(meta.threadId !== undefined ? { threadId: meta.threadId } : {}),
-            ...(meta.runId !== undefined ? { runId: meta.runId } : {}),
+            ...runMetadata,
             ...(options?.batch === true ? { batch: true } : {}),
           },
         ) as StreamChunk,
       )
+      notify?.()
+    },
+    emitActivity(definition, id, content) {
+      // Check the content before the `closed` check, so a bad content always
+      // throws in the tool, as it does in `chat()`.
+      const snapshot = definition.snapshot(id, content)
+      if (closed) return
+      buffer.push(withTanstackMetadata(snapshot, runMetadata))
       notify?.()
     },
     close() {

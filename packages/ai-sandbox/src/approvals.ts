@@ -8,19 +8,35 @@
  *     `ask` consults the client's approval decisions (threaded via
  *     `TextOptions.approvals`, keyed by a stable `approvalId`).
  *  3. On `ask` with no decision yet, the adapter emits an `approval-requested`
- *     CUSTOM event (carrying the `approvalId`) and denies the action this turn.
+ *     CUSTOM event (carrying the `approvalId`) and a `sandbox.approval`
+ *     activity row with status `pending`, and denies the action this turn.
  *     The client shows UI, then re-runs chat() with the decision in the message;
- *     the engine surfaces it as `approvals`, and the next run allows it.
+ *     the engine surfaces it as `approvals`, and the next run allows it. At the
+ *     start of that run, the adapter sets the row to `granted` or `denied`.
  *
  * `approvalId` is stable for a given (provider, kind, target) so a client grant
  * matches the same action on the resumed run.
  */
-import { EventType, withTanstackMetadata } from '@tanstack/ai'
+import {
+  EventType,
+  sandboxApprovalActivity,
+  withTanstackMetadata,
+} from '@tanstack/ai'
 import { evaluateCommand } from './policy'
 import type { SandboxPolicy } from './policy'
-import type { StreamChunk } from '@tanstack/ai'
+import type {
+  ActivityDeltaEvent,
+  ActivitySnapshotEvent,
+  StreamChunk,
+} from '@tanstack/ai'
 
-/** CUSTOM event name emitted when a harness action needs client approval. */
+/**
+ * CUSTOM event name emitted when a harness action needs client approval.
+ *
+ * @deprecated Read the `sandbox.approval` activity row instead
+ * (`buildApprovalActivity`). The event is still sent, and a later breaking
+ * release removes it.
+ */
 export const APPROVAL_REQUESTED_EVENT = 'approval-requested'
 
 /** A stable, opaque approval id for a harness action. */
@@ -94,4 +110,73 @@ export function buildApprovalRequestedEvent(input: {
     },
     { threadId: input.threadId, runId: input.runId },
   ) as StreamChunk
+}
+
+/** The id of the `sandbox.approval` activity row of an approval. */
+function approvalActivityId(id: string) {
+  return `sandbox.approval:${id}`
+}
+
+/**
+ * Build the `sandbox.approval` activity row for a harness action that waits
+ * for a client decision. The status is `pending`. The row id is
+ * `sandbox.approval:<approvalId>`, so a later run updates the same row.
+ *
+ * A harness adapter yields it right after the `approval-requested` event,
+ * with the same input.
+ */
+export function buildApprovalActivity(input: {
+  approvalId: string
+  title: string
+  threadId: string
+  runId: string
+  detail?: Record<string, unknown>
+}): ActivitySnapshotEvent {
+  return withTanstackMetadata(
+    sandboxApprovalActivity.snapshot(approvalActivityId(input.approvalId), {
+      approvalId: input.approvalId,
+      title: input.title,
+      status: 'pending',
+      ...(input.detail !== undefined && { detail: input.detail }),
+    }),
+    { threadId: input.threadId, runId: input.runId },
+  )
+}
+
+/**
+ * Build one `ACTIVITY_DELTA` for each client decision of this provider. Each
+ * delta sets the `status` of the `sandbox.approval:<approvalId>` row to
+ * `granted` or `denied`.
+ *
+ * `approvals` holds every approval decision of the run, also the decisions
+ * of normal tool calls. Only the ids that start with `<provider>:` (see
+ * {@link approvalId}) make a delta. A harness adapter yields these right
+ * after its `RUN_STARTED`.
+ */
+export function approvalDecisionActivities(
+  approvals: ReadonlyMap<string, boolean> | undefined,
+  meta: { provider: string; threadId: string; runId: string },
+): Array<ActivityDeltaEvent> {
+  const decisions = [...(approvals ?? [])].filter(([id]) =>
+    id.startsWith(`${meta.provider}:`),
+  )
+  return decisions.map(([id, granted]) => {
+    const delta: ActivityDeltaEvent = {
+      type: EventType.ACTIVITY_DELTA,
+      messageId: approvalActivityId(id),
+      activityType: sandboxApprovalActivity.activityType,
+      patch: [
+        {
+          op: 'replace',
+          path: '/status',
+          value: granted ? 'granted' : 'denied',
+        },
+      ],
+      timestamp: Date.now(),
+    }
+    return withTanstackMetadata(delta, {
+      threadId: meta.threadId,
+      runId: meta.runId,
+    })
+  })
 }
