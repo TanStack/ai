@@ -27,9 +27,30 @@ import type { SandboxPolicy } from './policy'
 import type {
   ActivityDeltaEvent,
   ActivitySnapshotEvent,
+  ModelMessage,
   StreamChunk,
 } from '@tanstack/ai'
 import type { BridgeEventChannel } from './bridge-events'
+
+/** What a harness agent gets for a run that only answers approvals. */
+const APPROVAL_CONTINUATION_PROMPT =
+  'The user answered your approval requests. Continue the task.'
+
+/**
+ * The messages for the prompt of a harness adapter. `respondToSandboxApproval`
+ * starts a run with no new user message, and a harness prompt needs one. So
+ * when the last message is not from the user and `approvals` has a decision,
+ * this adds a user message that tells the agent to continue. Otherwise it
+ * returns `messages`.
+ */
+export function withApprovalContinuation(
+  messages: Array<ModelMessage>,
+  approvals: ReadonlyMap<string, boolean> | undefined,
+): Array<ModelMessage> {
+  if (approvals === undefined || approvals.size === 0) return messages
+  if (messages.at(-1)?.role === 'user') return messages
+  return [...messages, { role: 'user', content: APPROVAL_CONTINUATION_PROMPT }]
+}
 
 /**
  * CUSTOM event name emitted when a harness action needs client approval.

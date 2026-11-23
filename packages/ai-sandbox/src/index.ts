@@ -463,6 +463,7 @@ export {
   buildApprovalActivity,
   emitPendingApproval,
   approvalDecisionActivities,
+  withApprovalContinuation,
   APPROVAL_REQUESTED_EVENT,
 } from './approvals'
 export type { ResolveApprovalInput, ApprovalOutcome } from './approvals'

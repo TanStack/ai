@@ -18,7 +18,7 @@ import {
 } from '@tanstack/ai-sandbox'
 import { claudeCodeText } from '../src/index'
 import { capabilityContextWith, noopLogger } from './fakes'
-import type { AdapterYieldChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk, ModelMessage } from '@tanstack/ai'
 import type { ToolBridgeProvisioner } from '@tanstack/ai-sandbox'
 
 const baseDir = path.join(os.tmpdir(), `tanstack-ai-cc-approval-${Date.now()}`)
@@ -28,11 +28,14 @@ afterAll(async () => {
   await fsp.rm(baseDir, { recursive: true, force: true })
 })
 
-// A stand-in for the `claude` CLI: reads the prompt, then ends the turn.
+// A stand-in for the `claude` CLI: reads the prompt, keeps a copy of it in
+// `input.txt`, then ends the turn.
 const FAKE_CLAUDE = [
+  `import { writeFileSync } from 'node:fs'`,
   `let input = ''`,
   `process.stdin.on('data', (d) => { input += d })`,
   `process.stdin.on('end', () => {`,
+  `  writeFileSync('input.txt', input)`,
   `  const w = (o) => process.stdout.write(JSON.stringify(o) + '\\n')`,
   `  w({ type: 'system', subtype: 'init', session_id: 'sess-1', model: 'haiku', tools: [] })`,
   `  w({ type: 'result', subtype: 'success', result: 'done', usage: { input_tokens: 1, output_tokens: 1 } })`,
@@ -55,8 +58,14 @@ const askingProvisioner: ToolBridgeProvisioner = {
   },
 }
 
+/** The stdin of the fake `claude` CLI in the last run. */
+let lastInput = ''
+
 /** Run one turn under a policy that asks before every action. */
-async function runClaude(approvals?: ReadonlyMap<string, boolean>) {
+async function runClaude(
+  approvals?: ReadonlyMap<string, boolean>,
+  messages: Array<ModelMessage> = [{ role: 'user', content: 'clean up' }],
+) {
   const sbx = await provider.create({})
   await sbx.fs.write('/workspace/fake-claude.mjs', FAKE_CLAUDE)
   const capabilities = capabilityContextWith(sbx)
@@ -71,13 +80,16 @@ async function runClaude(approvals?: ReadonlyMap<string, boolean>) {
     threadId: 'thread-1',
     runId: 'run-1',
     model: 'haiku',
-    messages: [{ role: 'user', content: 'clean up' }],
+    messages,
     logger: noopLogger,
     capabilities,
     ...(approvals !== undefined && { approvals }),
   })) {
     chunks.push(chunk)
   }
+  lastInput = (await sbx.fs.exists('/workspace/input.txt'))
+    ? await sbx.fs.read('/workspace/input.txt')
+    : ''
   await sbx.destroy()
   return chunks
 }
@@ -146,5 +158,33 @@ describe('claude-code sandbox.approval activity', () => {
     expect(snapshot).toBeGreaterThan(-1)
     expect(finished).toBeGreaterThan(-1)
     expect(snapshot).toBeLessThan(finished)
+  })
+
+  // `respondToSandboxApproval` starts a run with no new user message.
+  it('continues a run that only answers an approval', async () => {
+    const chunks = await runClaude(
+      new Map([['claude-code:command:rm -rf build', true]]),
+      [
+        { role: 'user', content: 'clean up' },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'Bash', arguments: '{}' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call-1', content: 'denied' },
+      ],
+    )
+    expect(
+      chunks.find((chunk) => chunk.type === EventType.RUN_ERROR),
+    ).toBeUndefined()
+    expect(lastInput).toContain(
+      'The user answered your approval requests. Continue the task.',
+    )
   })
 })

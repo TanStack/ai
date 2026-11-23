@@ -210,7 +210,7 @@ Your sandbox [policy](./policy) marks these actions with `ask`. The Claude Code,
 
 1. The agent tries an `ask` action. The adapter denies it for this run and sends the row with `status: 'pending'`.
 2. The user clicks Allow or Deny. `respondToSandboxApproval(approvalId, granted)` sets the row to `granted` or `denied`, then starts the next run. The request of that run carries the row.
-3. The next run gets the decision. Right after `RUN_STARTED`, the adapter sets the same row to `granted` or `denied`. When the agent tries the action again, the adapter allows or denies it with no new prompt.
+3. The next run gets the decision. Right after `RUN_STARTED`, the adapter sets the same row to `granted` or `denied`. This run has no new user message, so the adapter sends the agent this text: `The user answered your approval requests. Continue the task.` When the agent tries the action again, the adapter allows or denies it with no new prompt.
 
 The row id is `sandbox.approval:<approvalId>`. The `approvalId` stays the same across runs, so the next run updates the same row. The content has these fields:
 

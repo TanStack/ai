@@ -12,6 +12,7 @@ import {
   SandboxCapability,
   approvalDecisionActivities,
   emitPendingApproval,
+  withApprovalContinuation,
   createBridgeEventChannel,
   getSandbox,
   getSandboxDurability,
@@ -449,10 +450,11 @@ export class AcpCompatibleTextAdapter<
       })
 
       const sessionId = modelOptions?.sessionId
-      const { prompt: resumePrompt } = this.buildPrompt(
+      const messages = withApprovalContinuation(
         options.messages,
-        sessionId,
+        options.approvals,
       )
+      const { prompt: resumePrompt } = this.buildPrompt(messages, sessionId)
 
       // Bridge chat()-provided tools into the agent over MCP (ACP http server).
       const bridgedToolNames = new Set(tools.map((tool) => tool.name))
@@ -575,7 +577,7 @@ export class AcpCompatibleTextAdapter<
         systemPrompts,
         session.resumed || sessionId === undefined
           ? resumePrompt
-          : this.buildPrompt(options.messages, undefined).prompt,
+          : this.buildPrompt(messages, undefined).prompt,
       )
       if (options.outputSchema) {
         promptText = appendOutputSchemaInstruction(

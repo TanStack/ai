@@ -32,7 +32,11 @@ import {
   projectAcpWorkspace,
   workspaceMcpServers,
 } from '../src/adapters/projection'
-import type { AdapterYieldChunk, CapabilityContext } from '@tanstack/ai'
+import type {
+  AdapterYieldChunk,
+  CapabilityContext,
+  ModelMessage,
+} from '@tanstack/ai'
 import type {
   SandboxHandle,
   SecretRef,
@@ -99,9 +103,10 @@ new AgentSideConnection((conn) => ({
         { optionId: 'reject', name: 'Reject', kind: 'reject_once' },
       ],
     })
+    const prompt = params.prompt.map((block) => block.text ?? '').join('')
     await conn.sessionUpdate({
       sessionId: params.sessionId,
-      update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'OUTCOME=' + JSON.stringify(res.outcome) } },
+      update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'OUTCOME=' + JSON.stringify(res.outcome) + ' PROMPT=' + prompt } },
     })
     return { stopReason: 'end_turn' }
   },
@@ -206,6 +211,7 @@ describe('permission modes (the acpCompatible guardrail surface)', () => {
     permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'
     permissions?: 'headless' | 'interactive'
     approvals?: ReadonlyMap<string, boolean>
+    messages?: Array<ModelMessage>
   }): Promise<Array<AdapterYieldChunk>> {
     const sbx = await provider.create({})
     await sbx.fs.write('/workspace/perm-agent.mjs', PERMISSION_AGENT)
@@ -220,7 +226,7 @@ describe('permission modes (the acpCompatible guardrail surface)', () => {
         threadId: 'thread-1',
         runId: 'run-1',
         model: 'probe',
-        messages: [{ role: 'user', content: 'go' }],
+        messages: opts.messages ?? [{ role: 'user', content: 'go' }],
         logger: noopLogger,
         capabilities: ctxWith(sbx),
         ...(opts.approvals !== undefined && { approvals: opts.approvals }),
@@ -318,6 +324,36 @@ describe('permission modes (the acpCompatible guardrail surface)', () => {
     expect(snapshot).toBeGreaterThan(-1)
     expect(finished).toBeGreaterThan(-1)
     expect(snapshot).toBeLessThan(finished)
+  })
+
+  // `respondToSandboxApproval` starts a run with no new user message.
+  it('interactive continues a run that only answers an approval', async () => {
+    const chunks = await runPermission({
+      permissions: 'interactive',
+      permissionMode: 'default',
+      approvals: new Map([['probe:tool:["execute","rm -rf /",[]]', true]]),
+      messages: [
+        { role: 'user', content: 'go' },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 't1',
+              type: 'function',
+              function: { name: 'execute', arguments: '{}' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 't1', content: 'rejected' },
+      ],
+    })
+    expect(
+      chunks.find((chunk) => chunk.type === EventType.RUN_ERROR),
+    ).toBeUndefined()
+    expect(textOf(chunks)).toContain(
+      'The user answered your approval requests. Continue the task.',
+    )
   })
 })
 

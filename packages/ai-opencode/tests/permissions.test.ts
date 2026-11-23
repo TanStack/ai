@@ -8,7 +8,11 @@ import {
   resolveInteractivePermission,
   resolvePermission,
 } from '../src/process/permissions'
-import type { AdapterYieldChunk, CapabilityContext } from '@tanstack/ai'
+import type {
+  AdapterYieldChunk,
+  CapabilityContext,
+  ModelMessage,
+} from '@tanstack/ai'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 import type { OpencodePermissionRequest } from '../src/process/permissions'
 import type { StartOpencodeSessionOptions } from '../src/process/server'
@@ -20,13 +24,17 @@ vi.mock('../src/process/sandbox-server', () => ({
       dispose: () => Promise.resolve(),
     }),
 }))
+/** The prompt text of each turn that the fake session got. */
+const prompts = vi.hoisted((): Array<string> => [])
+
 // The agent asks once to run a shell command, then ends its turn.
 vi.mock('../src/process/server', () => ({
   startOpencodeSession: (options: StartOpencodeSessionOptions) =>
     Promise.resolve({
       sessionId: 'sess-1',
       resumed: false,
-      prompt: async () => {
+      prompt: async (text: string) => {
+        prompts.push(text)
         await options.onPermissionRequest({
           id: 'perm-1',
           sessionID: 'sess-1',
@@ -199,7 +207,10 @@ const sandbox: SandboxHandle = {
 }
 
 /** Run one turn of the mocked agent in the default permission mode. */
-async function runOpencode(approvals?: ReadonlyMap<string, boolean>) {
+async function runOpencode(
+  approvals?: ReadonlyMap<string, boolean>,
+  messages: Array<ModelMessage> = [{ role: 'user', content: 'clean up' }],
+) {
   const capabilities: CapabilityContext = {
     capabilities: new CapabilityRegistry(),
   }
@@ -211,7 +222,7 @@ async function runOpencode(approvals?: ReadonlyMap<string, boolean>) {
     threadId: 'thread-1',
     runId: 'run-1',
     model: 'anthropic/claude-sonnet-4-5',
-    messages: [{ role: 'user', content: 'clean up' }],
+    messages,
     logger: resolveDebugOption(false),
     capabilities,
     ...(approvals !== undefined && { approvals }),
@@ -308,5 +319,34 @@ describe('opencode sandbox.approval activity', () => {
     expect(snapshot).toBeGreaterThan(-1)
     expect(finished).toBeGreaterThan(-1)
     expect(snapshot).toBeLessThan(finished)
+  })
+
+  // `respondToSandboxApproval` starts a run with no new user message.
+  it('continues a run that only answers an approval', async () => {
+    prompts.length = 0
+    const chunks = await runOpencode(
+      new Map([['opencode:tool:bash:Run rm -rf build', true]]),
+      [
+        { role: 'user', content: 'clean up' },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'bash', arguments: '{}' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call-1', content: 'rejected' },
+      ],
+    )
+    expect(
+      chunks.find((chunk) => chunk.type === EventType.RUN_ERROR),
+    ).toBeUndefined()
+    expect(prompts.at(-1)).toContain(
+      'The user answered your approval requests. Continue the task.',
+    )
   })
 })

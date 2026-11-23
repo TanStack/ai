@@ -12,6 +12,7 @@ import {
   approvalDecisionActivities,
   approvalId,
   emitPendingApproval,
+  withApprovalContinuation,
   createBridgeEventChannel,
   createRunScopedIdGen,
   encodeRunId,
@@ -544,7 +545,7 @@ export class ClaudeCodeTextAdapter<
       }
 
       const built = buildPrompt(
-        options.messages,
+        withApprovalContinuation(options.messages, options.approvals),
         options.modelOptions?.sessionId,
       )
       const resume = built.resume

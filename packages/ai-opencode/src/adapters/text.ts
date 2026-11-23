@@ -14,6 +14,7 @@ import {
   SandboxCapability,
   approvalDecisionActivities,
   emitPendingApproval,
+  withApprovalContinuation,
   createBridgeEventChannel,
   getSandbox,
   getSandboxDurability,
@@ -303,7 +304,11 @@ export class OpencodeTextAdapter<
 
       const modelOptions = options.modelOptions
       const sessionId = modelOptions?.sessionId
-      const { prompt: resumePrompt } = buildPrompt(options.messages, sessionId)
+      const messages = withApprovalContinuation(
+        options.messages,
+        options.approvals,
+      )
+      const { prompt: resumePrompt } = buildPrompt(messages, sessionId)
       const { providerID, modelID } = splitModel(this.model)
 
       // Bridge chat()-provided tools into the in-sandbox server over MCP
@@ -433,7 +438,7 @@ export class OpencodeTextAdapter<
         options,
         session.resumed || sessionId === undefined
           ? resumePrompt
-          : buildPrompt(options.messages, undefined).prompt,
+          : buildPrompt(messages, undefined).prompt,
       )
       if (options.outputSchema) {
         promptText = appendOutputSchemaInstruction(
