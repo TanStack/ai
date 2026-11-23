@@ -15,6 +15,7 @@ import {
 import {
   createInterruptBinding,
   getGenericInterruptDefinitionRegistry,
+  isActivityChunk,
   providePendingTurn,
   rehydrateInterruptRequest,
   toRunErrorPayload,
@@ -283,6 +284,11 @@ interface RunStateEntry {
   merged: boolean
   interrupted: boolean
   /**
+   * Ids of the new rows that this run saved before `onStart`. Their `index`
+   * is not a stored place, so the reload cuts leave them out of the count.
+   */
+  earlyActivityIds: Set<string>
+  /**
    * Resumes accepted in `onConfig` but not yet committed to the interrupt
    * store. They are applied (resolve/cancel) only once the run reaches a
    * successful boundary — see {@link commitPendingResumes}. Left uncommitted
@@ -442,20 +448,44 @@ function stripStalePendingToolRows(
 }
 /**
  * Stored activity rows that sit before the reload cutoff. A reload drops the
- * old assistant turn, so its activity rows go too.
+ * old assistant turn, so its activity rows go too. The `early` rows of this
+ * run have no stored place, so the count leaves them out and they stay.
  */
 function keptActivities(
   records: Array<ActivityRecord>,
   stored: Array<ModelMessage>,
   cutoff: number,
+  early: ReadonlySet<string> = new Set(),
 ): Array<ActivityRecord> {
   if (cutoff >= stored.length) return records
   const keptUi = modelMessagesToUIMessages(stored.slice(0, cutoff)).length
+  const isEarly = (record: ActivityRecord) => early.has(record.id)
   // `index` counts the earlier activity rows too, so subtract them.
   // ponytail: assumes one row per index, which is what chat() writes.
-  return [...records]
-    .sort((a, b) => a.index - b.index)
-    .filter((record, earlier) => record.index - earlier < keptUi)
+  return [
+    ...records
+      .filter((record) => !isEarly(record))
+      .sort((a, b) => a.index - b.index)
+      .filter((record, earlier) => record.index - earlier < keptUi),
+    ...records.filter(isEarly),
+  ]
+}
+
+/**
+ * Merge the rows of this run into the stored rows by id, as the messages
+ * merge. A stored row keeps its place and its `index`, and the current
+ * content of its id wins. A new row keeps its own `index`.
+ */
+function mergeActivities(
+  stored: ReadonlyArray<ActivityRecord>,
+  current: ReadonlyArray<ActivityRecord>,
+) {
+  const byId = new Map(stored.map((record) => [record.id, record]))
+  for (const record of current) {
+    const index = byId.get(record.id)?.index ?? record.index
+    byId.set(record.id, { ...record, index })
+  }
+  return [...byId.values()]
 }
 
 /** `metadata.tanstack.run.id` of a stored message, when set. */
@@ -2379,8 +2409,28 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
     // A hand-built context can have no `activities`. `saveActivities` replaces
     // the thread's rows, so saving `[]` for it would wipe the store.
     if (!activityStore || ctx.activities === undefined) return
+    // `onStart` sets `firstRunMessage`. Before that, `ctx.activities` can miss
+    // the stored rows, so merge them in first. A row from `setup` is then
+    // saved at once, also when the run fails or stops before it starts.
+    // ponytail: one extra store read for each activity chunk before the run
+    // starts. Keep the loaded rows in the run state if a store is slow.
+    const state = runState.get(ctx)
+    const isBeforeStart = state?.firstRunMessage === undefined
+    // With no rows, the merge gives back the stored rows. Skip that save.
+    if (isBeforeStart && ctx.activities.length === 0) return
     try {
-      await activityStore.saveActivities(ctx.threadId, [...ctx.activities])
+      // A failed load skips the save, because the save would delete the
+      // stored rows.
+      let list = [...ctx.activities]
+      if (isBeforeStart) {
+        const stored = await activityStore.loadActivities(ctx.threadId)
+        const storedIds = new Set(stored.map((record) => record.id))
+        for (const { id } of ctx.activities) {
+          if (!storedIds.has(id)) state?.earlyActivityIds.add(id)
+        }
+        list = mergeActivities(stored, ctx.activities)
+      }
+      await activityStore.saveActivities(ctx.threadId, list)
     } catch (error) {
       console.warn(
         `[ai-persistence] saveActivities failed for thread '${ctx.threadId}'`,
@@ -2484,6 +2534,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       runState.set(ctx, {
         merged: false,
         interrupted: false,
+        earlyActivityIds: new Set(),
         completion: {
           promise: completion,
           resolve: resolveCompletion,
@@ -2526,6 +2577,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
                 await activityStore.loadActivities(ctx.threadId),
                 stored,
                 cutoff,
+                runState.get(ctx)?.earlyActivityIds,
               ),
             )
           }
@@ -2706,20 +2758,15 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           if (activityStore) {
             // Not best-effort like the save: a failed load followed by a save
             // would wipe the stored rows, so a load error fails the run.
-            const byId = new Map(
+            patch.activities = mergeActivities(
               keptActivities(
                 await activityStore.loadActivities(ctx.threadId),
                 stored,
                 storedCutoff(stored, incoming),
-              ).map((record) => [record.id, record]),
+                state?.earlyActivityIds,
+              ),
+              ctx.activities ?? [],
             )
-            // Same merge as the messages: an inbound row replaces the stored row
-            // with its id and keeps the stored position.
-            for (const record of ctx.activities ?? []) {
-              const index = byId.get(record.id)?.index ?? record.index
-              byId.set(record.id, { ...record, index })
-            }
-            patch.activities = [...byId.values()]
           }
         }
 
@@ -2762,6 +2809,12 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       const current = runState.get(ctx)
       const isParentChunk =
         !('subagentRunId' in chunk) || chunk.subagentRunId === undefined
+      // Save the rows on each activity chunk of this run, so a reload during
+      // the run shows them. The engine adds the row to `ctx.activities`
+      // before `onChunk`. This includes a row that `setup` sends.
+      // ponytail: one write per activity chunk. Throttle it if a store
+      // cannot keep up with a fast stream of deltas.
+      if (isParentChunk && isActivityChunk(chunk)) await persistActivities(ctx)
       if (snapshotStreaming && isParentChunk && current) {
         if (chunk.type === 'RUN_STARTED') resetStreaming(current)
         // The same call metadata that a finished assistant message gets.
