@@ -43,19 +43,8 @@ describe('resolveInteractivePermission', () => {
   })
 
   it('does not collide when a title or path contains a colon', () => {
-    const colonTitle = {
-      sessionId: 'sess-1',
-      toolCall: {
-        toolCallId: 't1',
-        title: 'Edit:src/a.ts',
-        kind: 'edit',
-        locations: [{ path: 'src/b.ts' }],
-      },
-      options: [
-        { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
-        { optionId: 'reject', name: 'Reject', kind: 'reject_once' },
-      ],
-    }
+    const colonTitle = editRequest('src/b.ts')
+    colonTitle.toolCall.title = 'Edit:src/a.ts'
     const colonPath = editRequest('src/a.ts')
     colonPath.toolCall.title = 'Edit'
     colonPath.toolCall.locations = [{ path: 'src/a.ts' }, { path: 'src/b.ts' }]
