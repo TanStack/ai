@@ -42,6 +42,7 @@ const accessHost = () =>
 
 function setup(
   fetchWrap?: (fetch: typeof globalThis.fetch) => typeof globalThis.fetch,
+  reconnectDelayMs = 1,
 ) {
   const { adapter } = mockAdapter([() => text('hello from the host')])
   const harness = defineHarness({
@@ -58,7 +59,7 @@ function setup(
     url: 'http://local/api/harness',
     threadId: 'thread-r',
     fetch: fetchWrap ? fetchWrap(direct) : direct,
-    reconnectDelayMs: 1,
+    reconnectDelayMs,
   })
   return { host, harness, client, handler }
 }
@@ -280,6 +281,37 @@ describe('client reads and actions', () => {
     await expect(client.describe()).rejects.toThrow(
       'Harness describe failed (500)',
     )
+    await host.close()
+  })
+
+  it('streams the first turn of a new thread when the wait to connect again is long', async () => {
+    const statuses: Array<number> = []
+    // The waits after a 404 are far longer than the test.
+    const { host, client } = setup(
+      (fetch) => async (input, init) => {
+        const response = await fetch(input, init)
+        const url = String(input instanceof Request ? input.url : input)
+        if (url.includes('/events')) statuses.push(response.status)
+        return response
+      },
+      60_000,
+    )
+    const reader = new AbortController()
+    const deltas: Array<string> = []
+    const reading = (async () => {
+      for await (const { event } of client.events({ signal: reader.signal })) {
+        if (event.type === 'TEXT_MESSAGE_CONTENT') deltas.push(event.delta)
+      }
+    })()
+    // The thread has no entry yet, so the stream waits to connect again.
+    await vi.waitFor(() => expect(statuses).toEqual([404]))
+
+    await client.send('hi')
+
+    await vi.waitFor(() => expect(deltas.join('')).toBe('hello from the host'))
+    expect(statuses).toEqual([404, 200])
+    reader.abort()
+    await reading
     await host.close()
   })
 

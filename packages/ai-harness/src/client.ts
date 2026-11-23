@@ -98,7 +98,8 @@ export interface HarnessClientOptions {
   /**
    * The first wait before a reconnect of `events()`. Default 1000 ms. Each
    * failed try after it doubles the wait, up to 30 s, with a random part.
-   * A read from the server sets the wait back to this value.
+   * A read from the server sets the wait back to this value. An input that
+   * this client sends ends the wait and sets it back too.
    */
   reconnectDelayMs?: number
   /**
@@ -732,6 +733,11 @@ export function createHarnessClient<THarness extends AnyHarness>(
     throw failure(action, response, refusal)
   }
 
+  // A wake for each `events()` read. An input can make the thread (the first
+  // message of a new chat), so an `events()` read that waits to connect again
+  // after a 404 connects at once. It does not miss the turn that runs.
+  const sent = new Set<() => void>()
+
   const send = async (
     input: HarnessInput,
     traceparent?: string,
@@ -754,6 +760,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
       body: JSON.stringify({ threadId: options.threadId, input: withId }),
     })
     const body: unknown = await (await checked('request', response)).json()
+    for (const wake of sent) wake()
     // The handler answers /control with a Receipt.
     return body as Receipt
   }
@@ -867,6 +874,13 @@ export function createHarnessClient<THarness extends AnyHarness>(
     })
     // The tries since the last read from the server, for the next wait.
     let attempt = 0
+    // An input of this client ends the wait, and the waits start short again.
+    const onSent = () => {
+      if (!wake) return
+      attempt = 0
+      wake()
+    }
+    sent.add(onSent)
     // The error of a /snapshot answer with the wrong shape. It is not retried.
     let badSnapshot: Error | undefined
     try {
@@ -961,6 +975,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
         wake = undefined
       }
     } finally {
+      sent.delete(onSent)
       stopListening()
     }
   }
