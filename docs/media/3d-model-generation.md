@@ -2,7 +2,7 @@
 title: 3D Model Generation
 id: 3d-model-generation
 order: 7.5
-description: "Turn a concept image or a text prompt into a GLB file with generate3DModel() and fal.ai or Meshy. Show the job status while it runs, then load the model in your app."
+description: "Turn a concept image or a text prompt into a GLB file with generate3DModel() and fal.ai, Meshy, or Tripo. Show the job status while it runs, then load the model in your app."
 keywords:
   - tanstack ai
   - 3d model generation
@@ -275,6 +275,16 @@ The Meshy adapter also does these things:
 - It prepares a model for a 3D printer, and returns a 3MF file for a multi-color print.
 
 See [Meshy](../adapters/meshy).
+
+To call the Tripo API with your own Tripo key, use `tripo3DModel()` from `@tanstack/ai-tripo`. It reads `TRIPO_API_KEY`:
+
+```typescript
+import { tripo3DModel } from '@tanstack/ai-tripo'
+
+const adapter = tripo3DModel('image-to-model')
+```
+
+The Tripo adapter also chains jobs from a Tripo task id. A mesh goes to rigging and animation presets with no upload. See [Tripo](../adapters/tripo).
 
 TypeScript narrows the prompt for each model. For example, a `model3d` part on an image-to-3D model is a compile error.
 

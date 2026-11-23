@@ -2,7 +2,7 @@
 title: "3D Model Generation: Advanced"
 id: 3d-model-generation-advanced
 order: 7.6
-description: "Chain concept art, a low-poly mesh, and new skins on the server with generate3DModel(). Rig characters with Meshy, poll jobs yourself, and handle errors."
+description: "Chain concept art, a low-poly mesh, and new skins on the server with generate3DModel(). Rig characters with Meshy or Tripo, poll jobs yourself, and handle errors."
 keywords:
   - tanstack ai
   - 3d model generation
@@ -13,6 +13,7 @@ keywords:
   - retexture
   - rigging
   - meshy
+  - tripo
   - hunyuan3d
   - trellis
   - fal
@@ -210,6 +211,47 @@ With this path, you can also:
 - Pick a skeleton for your engine, for example `'mixamo'` or `'ue5_mannequin'`.
 
 The full chain is in [Meshy: rig and animate a character](../adapters/meshy#rig-and-animate-a-character).
+
+### Rig and animate with the Tripo API
+
+`tripo3DModel()` from `@tanstack/ai-tripo` runs the rig and each animation as separate jobs. Each job reads the result of the job before it from its Tripo task id, so you upload nothing:
+
+```typescript
+import { generate3DModel } from '@tanstack/ai'
+import { tripo3DModel } from '@tanstack/ai-tripo'
+
+// The jobId of an earlier tripo3DModel('image-to-model') job
+const meshJobId = 'your-mesh-task-id'
+
+const rig = await generate3DModel({
+  adapter: tripo3DModel('rig', 'v3.0-20260909'),
+  prompt: [
+    {
+      type: 'model3d',
+      source: { type: 'file', value: meshJobId, provider: 'tripo' },
+    },
+  ],
+  threadId: 'knight',
+  wait: true,
+})
+
+const walk = await generate3DModel({
+  adapter: tripo3DModel('retarget'),
+  prompt: [
+    {
+      type: 'model3d',
+      source: { type: 'file', value: rig.jobId, provider: 'tripo' },
+    },
+  ],
+  threadId: 'knight',
+  wait: true,
+  modelOptions: { animation: 'preset:walk' },
+})
+
+console.log(walk.url) // The animated GLB
+```
+
+The rig types and the animation presets are in [Tripo](../adapters/tripo). To build a page that makes an animated character from one image, follow the [Tripo Animated Character](../tutorials/tripo-animated-character) tutorial.
 
 ## Poll the job yourself
 
