@@ -193,6 +193,7 @@ function createContext(
     abort() {},
     retry() {},
     emitCustomEvent() {},
+    emitActivity() {},
     context: undefined,
     defer() {},
     activity: 'chat',
