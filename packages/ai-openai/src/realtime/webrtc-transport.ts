@@ -21,6 +21,8 @@ export async function createOpenAIWebRTCTransport(options: {
   /** Runs when the data channel opens, after the queued events are sent. */
   onOpen: () => void
   onError: (error: Error) => void
+  /** Runs when the open data channel closes, and close() did not close it. */
+  onClose?: () => void
   abortSignal?: AbortSignal
 }) {
   const { logger, source, abortSignal } = options
@@ -55,6 +57,8 @@ export async function createOpenAIWebRTCTransport(options: {
   dataChannel = channel
 
   let isChannelOpen = false
+  // True after close() starts, so a local close is not reported as onClose.
+  let isClosedLocally = false
 
   // Resolves when the data channel opens. A close or an error before that
   // rejects it, so the setup cleanup runs and connect() does not hang.
@@ -67,7 +71,11 @@ export async function createOpenAIWebRTCTransport(options: {
     }
 
     channel.onclose = () => {
-      reject(new Error('Data channel closed before it opened'))
+      // Before it opens, a close fails the setup. After it opens, a close
+      // that close() did not start ends the session.
+      if (!isChannelOpen)
+        reject(new Error('Data channel closed before it opened'))
+      else if (!isClosedLocally) options.onClose?.()
     }
 
     channel.onerror = (error) => {
@@ -259,6 +267,7 @@ export async function createOpenAIWebRTCTransport(options: {
   // Stops the microphone, playback, the data channel, the peer connection,
   // and the audio context.
   async function close() {
+    isClosedLocally = true
     if (localStream) {
       stopTracks(localStream)
       localStream = null

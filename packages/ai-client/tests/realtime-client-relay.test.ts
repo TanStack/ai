@@ -139,6 +139,92 @@ describe('RealtimeClient relay connect', () => {
     client.destroy()
   })
 
+  it('relay sends setup changes before a subscriber can send a newer one', async () => {
+    const { connection, updateSession } = fakeConnection()
+    let finishSetup = () => {}
+    let setupDone = false
+    const adapter: RealtimeRelayAdapter = {
+      provider: 'test',
+      kind: 'relay',
+      connect: async (createSession) => {
+        await createSession({ sdp: 'offer-sdp' })
+        await new Promise<void>((resolve) => (finishSetup = resolve))
+        return connection
+      },
+    }
+    const createSession = vi.fn(
+      async (_request: RealtimeSessionRequest) => answer,
+    )
+    const client = new RealtimeClient({
+      ...clientConfig,
+      adapter,
+      createSession,
+    })
+    let sentNewer = false
+    client.onStateChange(() => {
+      if (!setupDone || sentNewer) return
+      sentNewer = true
+      client.updateSession({ instructions: 'newer' })
+    })
+
+    const connecting = client.connect()
+    await vi.waitFor(() => expect(createSession).toHaveBeenCalled())
+    client.updateSession({ instructions: 'during setup' })
+    setupDone = true
+    finishSetup()
+    await connecting
+
+    expect(updateSession.mock.calls.map(([config]) => config)).toEqual([
+      { instructions: 'during setup' },
+      { instructions: 'newer' },
+    ])
+    client.destroy()
+  })
+
+  it('a failed older connect keeps the setup changes of the newer one', async () => {
+    const { connection, updateSession } = fakeConnection()
+    let failFirst = () => {}
+    let finishSecond = () => {}
+    let attempt = 0
+    const adapter: RealtimeRelayAdapter = {
+      provider: 'test',
+      kind: 'relay',
+      connect: async (createSession) => {
+        attempt += 1
+        const isFirst = attempt === 1
+        await createSession({ sdp: 'offer-sdp' })
+        await new Promise<void>((resolve, reject) => {
+          if (isFirst) failFirst = () => reject(new Error('setup failed'))
+          else finishSecond = resolve
+        })
+        return connection
+      },
+    }
+    const createSession = vi.fn(
+      async (_request: RealtimeSessionRequest) => answer,
+    )
+    const client = new RealtimeClient({
+      ...clientConfig,
+      adapter,
+      createSession,
+    })
+
+    const first = client.connect()
+    await vi.waitFor(() => expect(createSession).toHaveBeenCalledTimes(1))
+    const second = client.connect()
+    await vi.waitFor(() => expect(createSession).toHaveBeenCalledTimes(2))
+    client.updateSession({ instructions: 'for the second' })
+    failFirst()
+    await expect(first).rejects.toThrow('setup failed')
+    finishSecond()
+    await second
+
+    expect(updateSession).toHaveBeenCalledWith({
+      instructions: 'for the second',
+    })
+    client.destroy()
+  })
+
   it('relay sends an updateSession change made during setup once, after connect', async () => {
     const { connection, updateSession } = fakeConnection()
     let finishSetup = () => {}

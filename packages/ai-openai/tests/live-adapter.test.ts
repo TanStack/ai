@@ -19,6 +19,7 @@ interface FakeChannel {
   send: ReturnType<typeof vi.fn>
   close: ReturnType<typeof vi.fn>
   onopen?: () => void
+  onclose?: () => void
   onmessage?: (event: { data: string }) => void
 }
 
@@ -389,6 +390,33 @@ describe('openaiLive', () => {
     const { serverSends, track, pc } = await connectLive()
 
     serverSends({ type: 'session.closed', reason: 'remote_hangup' })
+
+    expect(track.stop).toHaveBeenCalled()
+    expect(pc.close).toHaveBeenCalled()
+  })
+
+  it('ends the session when the data channel closes without session.closed', async () => {
+    const { connection, channel, track, pc } = await connectLive()
+    const errors = record(connection, 'error')
+    const statuses = record(connection, 'status_change')
+
+    channel.onclose?.()
+
+    expect(errors[0]?.error.message).toBe(
+      'GPT-Live session closed: connection_lost',
+    )
+    expect(statuses).toEqual([{ status: 'idle' }])
+    expect(track.stop).toHaveBeenCalled()
+    expect(pc.close).toHaveBeenCalled()
+  })
+
+  it('disconnect closes locally when sending session.close throws', async () => {
+    const { connection, channel, track, pc } = await connectLive()
+    channel.send.mockImplementation(() => {
+      throw new Error('OperationError: the send buffer is full')
+    })
+
+    await connection.disconnect()
 
     expect(track.stop).toHaveBeenCalled()
     expect(pc.close).toHaveBeenCalled()

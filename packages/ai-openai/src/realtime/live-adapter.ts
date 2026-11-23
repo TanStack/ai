@@ -152,6 +152,8 @@ async function createLiveConnection(
     // `session.started` tells us that the session is ready.
     onOpen: () => {},
     onError: (error) => emit('error', { error }),
+    // The data channel closed without `session.closed`.
+    onClose: () => endSession('connection_lost'),
     abortSignal,
   })
   const { sendEvent } = transport
@@ -161,6 +163,24 @@ async function createLiveConnection(
       logger.errors(`${SOURCE} close failed`, { error, source: SOURCE })
     })
     return closing
+  }
+
+  // The session ended on the server or the connection was lost: release the
+  // mic and the peer, and report idle once.
+  let hasEnded = false
+  function endSession(reason: string | undefined) {
+    if (hasEnded) return
+    hasEnded = true
+    const error = new Error(
+      `GPT-Live session closed: ${reason ?? 'unknown reason'}`,
+    )
+    failStart(error)
+    markClosed()
+    finishTurn()
+    void closeTransport()
+    if (reason !== 'close_requested') emit('error', { error })
+    setMode('idle')
+    emit('status_change', { status: 'idle' })
   }
 
   const startTimeout = startTimer(START_TIMEOUT_MS)
@@ -292,20 +312,9 @@ async function createLiveConnection(
         })
         break
 
-      case 'session.closed': {
-        const error = new Error(
-          `GPT-Live session closed: ${event.reason ?? 'unknown reason'}`,
-        )
-        failStart(error)
-        markClosed()
-        finishTurn()
-        // The server ended the session: release the mic and the peer.
-        void closeTransport()
-        if (event.reason !== 'close_requested') emit('error', { error })
-        setMode('idle')
-        emit('status_change', { status: 'idle' })
+      case 'session.closed':
+        endSession(event.reason)
         break
-      }
 
       case 'error': {
         const error = new Error(event.error?.message || 'Unknown error')
@@ -318,10 +327,20 @@ async function createLiveConnection(
 
   const connection: RealtimeConnection = {
     async disconnect() {
-      sendEvent({ type: 'session.close' })
       const closeTimeout = startTimer(CLOSE_TIMEOUT_MS)
-      await Promise.race([sessionClosed, closeTimeout.promise])
-      closeTimeout.clear()
+      try {
+        sendEvent({ type: 'session.close' })
+        await Promise.race([sessionClosed, closeTimeout.promise])
+      } catch (error) {
+        // A full send buffer makes send() throw. Close locally anyway.
+        logger.errors(`${SOURCE} session.close failed`, {
+          error,
+          source: SOURCE,
+        })
+      } finally {
+        closeTimeout.clear()
+      }
+      hasEnded = true
       await closeTransport()
       setMode('idle')
       emit('status_change', { status: 'idle' })

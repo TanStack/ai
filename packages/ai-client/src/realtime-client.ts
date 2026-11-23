@@ -167,6 +167,16 @@ export class RealtimeClient {
       }
       this.connection = connection
 
+      // A relay session got its config at start. Send the changes made during
+      // setup now, before a subscriber can call updateSession() again.
+      if (isRelay) {
+        const changes = this.relaySetupChanges
+        this.relaySetupChanges = null
+        if (changes && Object.keys(changes).length > 0) {
+          connection.updateSession(changes)
+        }
+      }
+
       // A new session starts here. Clear the last transcript before events
       // flow, so a greeting that arrives while audio capture starts is kept.
       // A connect that fails before this point keeps the last transcript.
@@ -179,17 +189,8 @@ export class RealtimeClient {
       // Subscribe to connection events
       this.subscribeToConnectionEvents()
 
-      // Auto-configure session with client-provided settings. A relay session
-      // got its config at start: it gets only the changes made during setup.
-      if (!isRelay) {
-        this.applySessionConfig()
-      } else {
-        const changes = this.relaySetupChanges
-        this.relaySetupChanges = null
-        if (changes && Object.keys(changes).length > 0) {
-          connection.updateSession(changes)
-        }
-      }
+      // Auto-configure session with client-provided settings
+      if (!isRelay) this.applySessionConfig()
 
       // Start audio capture if configured
       if (this.options.autoCapture) {
@@ -212,7 +213,8 @@ export class RealtimeClient {
       })
       this.options.onConnect?.()
     } catch (error) {
-      this.relaySetupChanges = null
+      // A newer connect() owns the setup changes now: keep them.
+      if (this.connectAbort === connectAbort) this.relaySetupChanges = null
       const err = error instanceof Error ? error : new Error(String(error))
       // `disconnect()` cancelled this connect: the state is already idle.
       if (connectAbort.signal.aborted) throw err

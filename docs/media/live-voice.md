@@ -351,6 +351,12 @@ export function myProviderLive(): RealtimeRelayAdapter {
         mic = stream
         stream.getTracks().forEach((track) => peer.addTrack(track, stream))
         const events = peer.createDataChannel('events')
+        // The track event can fire before setRemoteDescription() returns.
+        const speaker = new Audio()
+        speaker.autoplay = true
+        peer.ontrack = (event) => {
+          speaker.srcObject = event.streams[0] ?? null
+        }
 
         const offer = await peer.createOffer()
         await peer.setLocalDescription(offer)
@@ -359,7 +365,13 @@ export function myProviderLive(): RealtimeRelayAdapter {
 
         const answer = await createSession({ sdp: offer.sdp })
         await peer.setRemoteDescription({ type: 'answer', sdp: answer.sdp })
-        return createMyConnection({ peer, mic: stream, events, clientTools })
+        return createMyConnection({
+          peer,
+          mic: stream,
+          speaker,
+          events,
+          clientTools,
+        })
       } catch (error) {
         mic?.getTracks().forEach((track) => track.stop())
         peer.close()
@@ -369,6 +381,8 @@ export function myProviderLive(): RealtimeRelayAdapter {
   }
 }
 ```
+
+Set `peer.ontrack` before `setRemoteDescription()`. The browser can fire the `track` event before that call returns, and a later handler misses the audio of the model.
 
 If a step fails, for example `createSession` rejects, the `catch` stops each microphone track and closes the peer. Then it throws the error again.
 

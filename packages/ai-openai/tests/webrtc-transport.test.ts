@@ -57,6 +57,7 @@ function stubBrowser() {
 function connect(
   overrides: {
     onError?: (error: Error) => void
+    onClose?: () => void
     abortSignal?: AbortSignal
   } = {},
 ) {
@@ -71,6 +72,7 @@ function connect(
     onServerEvent: () => {},
     onOpen: () => {},
     onError: overrides.onError ?? (() => {}),
+    onClose: overrides.onClose,
     abortSignal: overrides.abortSignal,
   })
   return { pending, loggedError: error }
@@ -129,6 +131,33 @@ describe('createOpenAIWebRTCTransport', () => {
       new Error('Data channel error: [object Event]'),
     )
     expect(track.stop).not.toHaveBeenCalled()
+  })
+
+  it('calls onClose when the open data channel closes without close()', async () => {
+    const { channel, pc } = stubBrowser()
+    const onClose = vi.fn()
+    const { pending } = connect({ onClose })
+    await untilWaitingForChannel(pc)
+    channel.onopen?.()
+    await pending
+
+    channel.onclose?.()
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not call onClose when close() closes the channel', async () => {
+    const { channel, pc } = stubBrowser()
+    const onClose = vi.fn()
+    const { pending } = connect({ onClose })
+    await untilWaitingForChannel(pc)
+    channel.onopen?.()
+    const transport = await pending
+
+    await transport.close()
+    channel.onclose?.()
+
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('rejects at once when the signal aborts while the microphone prompt is open, and stops a late stream', async () => {
