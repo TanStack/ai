@@ -193,6 +193,133 @@ describe('host.observe snapshot', () => {
   })
 })
 
+describe('host.observe snapshot of a running turn', () => {
+  /**
+   * Two hosts on one log, as behind a load balancer. `owner` runs the
+   * turns. `other` only reads the log, with `host.observe`. The `deploy`
+   * tool runs until `release()`, after an approval when `needsApproval`.
+   */
+  async function twoHosts({ needsApproval }: { needsApproval: boolean }) {
+    let started = () => {}
+    const running = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    let release = () => {}
+    const released = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const deploy = toolDefinition({
+      name: 'deploy',
+      description: 'Deploy',
+      inputSchema: z.object({}),
+      needsApproval,
+    }).server(async () => {
+      started()
+      await released
+      return 'deployed'
+    })
+    const persistence = memoryPersistence()
+    const harness = defineHarness({
+      name: 'test/observe-running',
+      adapter: mockAdapter([
+        () => toolCall('deploy', {}, 'c1'),
+        () => text('Deployed.'),
+      ]).adapter,
+      tools: [deploy],
+    })
+    const hostOf = (hostId: string) =>
+      createHarnessHost({
+        persistence,
+        log: { bufferStreamWriteMs: 0 },
+        ownership: { hostId },
+      })
+    const owner = hostOf('owner')
+    const other = hostOf('other')
+    const session = await owner.open(harness, { threadId: THREAD })
+    const observed = async () =>
+      (await other.observe(harness, { threadId: THREAD })).snapshot()
+    const close = async () => {
+      release()
+      await owner.close()
+      await other.close()
+    }
+    const openOnOther = () => other.open(harness, { threadId: THREAD })
+    return { session, observed, openOnOther, running, release, close }
+  }
+
+  it('reports running and no answered waits while a resumed turn runs', async () => {
+    const { session, observed, running, release, close } = await twoHosts({
+      needsApproval: true,
+    })
+    await session.send('Deploy.')
+    const [wait] = session.snapshot().pendingWaits
+    expect((await observed()).status).toBe('requires_action')
+
+    const receipt = await session.resolve({
+      resume: [
+        { interruptId: wait!.waitId, status: 'resolved', payload: true },
+      ],
+    })
+    expect(receipt.status).not.toBe('rejected')
+    await running
+
+    const live = session.snapshot()
+    expect(live).toMatchObject({ status: 'running', pendingWaits: [] })
+    expect(await observed()).toMatchObject({
+      status: 'running',
+      pendingWaits: [],
+    })
+
+    release()
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    expect(await observed()).toMatchObject({ status: 'idle', pendingWaits: [] })
+    await close()
+  })
+
+  it('reports running and no answered waits in a session open on the host that lost the thread', async () => {
+    const { session, openOnOther, running, close } = await twoHosts({
+      needsApproval: true,
+    })
+    await session.send('Deploy.')
+    const [wait] = session.snapshot().pendingWaits
+    // The other host opens the thread, and answers the stopped turn there:
+    // it owns the log from now on, and runs the resumed turn.
+    const other = await openOnOther()
+    await other.resolve({
+      resume: [
+        { interruptId: wait!.waitId, status: 'resolved', payload: true },
+      ],
+    })
+    await running
+
+    expect(other.snapshot()).toMatchObject({
+      status: 'running',
+      pendingWaits: [],
+    })
+    expect(session.snapshot()).toMatchObject({
+      status: 'running',
+      pendingWaits: [],
+    })
+    await close()
+  })
+
+  it('reports running while a prompt turn runs', async () => {
+    const { session, observed, running, release, close } = await twoHosts({
+      needsApproval: false,
+    })
+    const sent = session.send('Deploy.')
+    await running
+
+    expect(session.snapshot().status).toBe('running')
+    expect((await observed()).status).toBe('running')
+
+    release()
+    await sent
+    expect((await observed()).status).toBe('idle')
+    await close()
+  })
+})
+
 describe('host.observe', () => {
   it('streams what open sessions write, shares one fold, and does not hold the session', async () => {
     const { host, harness, persistence, seed, isOpen } = setup()
