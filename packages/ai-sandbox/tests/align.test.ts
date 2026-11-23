@@ -626,4 +626,36 @@ describe('alignedIfAttaching', () => {
       ],
     )
   })
+
+  it('does not count activity snapshots toward the consecutive skip cap', async () => {
+    // A bridged tool can emit more than 64 ACTIVITY_SNAPSHOT chunks while the
+    // agent waits. Those must not trip DEFAULT_MAX_OUT_OF_BAND_SKIP.
+    const adapter = storedLog([
+      textChunk('m1', 'a'),
+      ...Array.from({ length: 65 }, (_, i) =>
+        sandboxStatusActivity.snapshot(`progress-${i}`, {
+          status: 'starting',
+          provider: 'fake',
+        }),
+      ),
+      textChunk('m1', 'b'),
+    ])
+    const durability = resolveSandboxDurability({
+      runs: new InMemoryRunStore(),
+      durability: { adapter, attach: true },
+    })
+    const replay = fromChunks([
+      textChunk('m1', 'a'),
+      textChunk('m1', 'b'),
+      textChunk('m1', 'c'),
+    ])
+
+    expect(await collectChunks(alignedIfAttaching(replay, durability))).toEqual(
+      [
+        { ...textChunk('m1', 'a'), tanstackStoredReplay: true },
+        { ...textChunk('m1', 'b'), tanstackStoredReplay: true },
+        textChunk('m1', 'c'),
+      ],
+    )
+  })
 })
