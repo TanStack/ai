@@ -108,10 +108,12 @@ import {
   untilFinishReason,
 } from './agent-loop-strategies'
 import { isCancelRequestedReason } from './cancel'
+import { sandboxApprovalActivity } from '../../activity-types'
 import {
   applyActivityDeltaToRecords,
   applyActivitySnapshotToRecords,
   interleaveActivityRecords,
+  isActivityChunk,
   peelInboundActivities,
 } from './activity-records'
 import {
@@ -1031,6 +1033,24 @@ function waitOrAbort(ms: number, signal: AbortSignal | undefined) {
   })
 }
 
+/**
+ * Add the decision of each granted or denied `sandbox.approval` row to
+ * `approvals`, for the harness adapter. A decision that `approvals` already
+ * has wins, for example the decision of a tool-call part.
+ */
+function addSandboxDecisions(
+  approvals: Map<string, ToolApprovalResolution>,
+  records: ReadonlyArray<ActivityRecord>,
+) {
+  for (const record of records) {
+    if (!sandboxApprovalActivity.is(record)) continue
+    const { approvalId, status } = record.content
+    if (status === 'pending') continue
+    if (approvals.has(approvalId)) continue
+    approvals.set(approvalId, status === 'granted')
+  }
+}
+
 class TextEngine<
   TAdapter extends AnyTextAdapter,
   TContext = unknown,
@@ -1273,6 +1293,7 @@ class TextEngine<
     // Convert messages to ModelMessage format (handles both UIMessage and ModelMessage input)
     // This ensures consistent internal format regardless of what the client sends
     this.activities = peelInboundActivities(config.params.messages ?? [])
+    addSandboxDecisions(this.initialApprovals, this.activities)
     this.messages = convertMessagesToModelMessages(config.params.messages)
     this.providerMessages = this.messages
 
@@ -1343,12 +1364,12 @@ class TextEngine<
         this.retryModelCall = true
       },
       emitCustomEvent: (name, value, options) => {
-        this.middlewareCustomQueue.push(
+        this.queueMiddlewareChunk(
           this.createCustomEventChunk(name, value, options),
         )
-        const waiters = this.middlewareCustomWaiters
-        this.middlewareCustomWaiters = []
-        for (const waiter of waiters) waiter()
+      },
+      emitActivity: (definition, id, content) => {
+        this.queueMiddlewareChunk(definition.snapshot(id, content))
       },
       context: config.context as TContext,
       defer: (promise: Promise<unknown>) => {
@@ -2101,6 +2122,9 @@ class TextEngine<
         : undefined
 
     const { approvals } = this.collectClientState()
+    // Stored rows count too. With history paging, a later request does not
+    // carry the row that the client decided in an earlier run.
+    addSandboxDecisions(approvals, this.activities)
     const adapterApprovals = new Map<string, boolean>()
     for (const [approvalId, resolution] of approvals) {
       adapterApprovals.set(
@@ -2379,15 +2403,8 @@ class TextEngine<
         break
 
       case 'ACTIVITY_SNAPSHOT':
-        this.setActivities(
-          applyActivitySnapshotToRecords(
-            this.activities,
-            chunk as Extract<StreamChunk, { type: 'ACTIVITY_SNAPSHOT' }>,
-            interleaveActivityRecords(
-              modelMessagesToUIMessages(this.messages),
-              this.activities,
-            ).length,
-          ),
+        this.handleActivitySnapshotEvent(
+          chunk as Extract<StreamChunk, { type: 'ACTIVITY_SNAPSHOT' }>,
         )
         break
 
@@ -2407,6 +2424,37 @@ class TextEngine<
     }
   }
 
+  /**
+   * Add or replace the activity row of a snapshot. An activity is its own
+   * message. If a transcript message already has the id, two messages would
+   * share one id, so the row is dropped with a warning and the run goes on.
+   */
+  private handleActivitySnapshotEvent(
+    chunk: Extract<StreamChunk, { type: 'ACTIVITY_SNAPSHOT' }>,
+  ) {
+    const { messageId } = chunk
+    const isTranscriptMessageId =
+      messageId === this.currentMessageId ||
+      this.messages.some((message) => message.id === messageId)
+    if (isTranscriptMessageId) {
+      this.logger.warn(
+        `activity=chat ACTIVITY_SNAPSHOT id '${messageId}' is the id of a message, so the activity row is dropped`,
+        { messageId, activityType: chunk.activityType },
+      )
+      return
+    }
+    this.setActivities(
+      applyActivitySnapshotToRecords(
+        this.activities,
+        chunk,
+        interleaveActivityRecords(
+          modelMessagesToUIMessages(this.messages),
+          this.activities,
+        ).length,
+      ),
+    )
+  }
+
   private setActivities(activities: Array<ActivityRecord>): void {
     this.activities = activities
     this.middlewareCtx.activities = this.activities
@@ -2414,20 +2462,15 @@ class TextEngine<
 
   /**
    * Apply an activity event that middleware put on the public stream.
-   * `applied` is the adapter chunk `handleStreamChunk` already applied; a
-   * pass-through or field-for-field copy of it is skipped so a delta lands
+   * `applied` is the chunk that the engine already applied before `onChunk`;
+   * a pass-through or field-for-field copy of it is skipped so a delta lands
    * once.
    */
   private recordPublicActivity(
     chunk: StreamChunk,
     applied?: AdapterYieldChunk,
   ): void {
-    if (
-      chunk.type !== EventType.ACTIVITY_SNAPSHOT &&
-      chunk.type !== EventType.ACTIVITY_DELTA
-    ) {
-      return
-    }
+    if (!isActivityChunk(chunk)) return
     if (
       applied &&
       (chunk === applied || JSON.stringify(chunk) === JSON.stringify(applied))
@@ -2450,11 +2493,7 @@ class TextEngine<
       return chunk
     // Activity records keep their own metadata. The call metadata is for the
     // assistant message.
-    if (
-      chunk.type === EventType.ACTIVITY_SNAPSHOT ||
-      chunk.type === EventType.ACTIVITY_DELTA
-    )
-      return chunk
+    if (isActivityChunk(chunk)) return chunk
     const incoming = tanstackMetadata(chunk)
     if (incoming?.source !== undefined) metadata.source = incoming.source
     if (incoming?.stopReason !== undefined)
@@ -6181,13 +6220,15 @@ class TextEngine<
   /**
    * Spec-normalize middleware output, then yield to the public iterable.
    * Engine state and `onChunk` already saw the raw chunk, except activity
-   * events: no caller applies those first, so they are applied here.
+   * events: they are applied here. A copy of `applied`, the chunk that the
+   * caller applied before `onChunk`, is skipped.
    */
   private *emitPublicChunks(
     outputs: Array<StreamChunk>,
+    applied?: AdapterYieldChunk,
   ): Generator<StreamChunk, void, void> {
     for (const output of outputs) {
-      this.recordPublicActivity(output)
+      this.recordPublicActivity(output, applied)
       for (const spec of normalizeStreamChunk(output as AdapterYieldChunk)) {
         restorePublicUsage(spec)
         if (spec.type === EventType.RUN_STARTED) {
@@ -6207,25 +6248,43 @@ class TextEngine<
 
   /**
    * Pipe a single internal chunk through middleware, then spec-normalize
-   * before the public `for await` stream.
+   * before the public `for await` stream. An activity chunk is recorded
+   * before `onChunk`, so each middleware reads a current `ctx.activities`.
+   * The adapter path does the same in `handleStreamChunk`.
    */
   private async *pipeThroughMiddleware(
     chunk: AdapterYieldChunk,
   ): AsyncGenerator<StreamChunk, void, void> {
+    this.recordPublicActivity(chunk)
     const afterMw = await this.middlewareRunner.runOnChunk(
       this.middlewareCtx,
       chunk,
     )
-    yield* this.emitPublicChunks(afterMw)
+    // Skip `chunk` after the chain, so a delta lands once. A chunk that a
+    // middleware adds is recorded here, as before.
+    yield* this.emitPublicChunks(afterMw, chunk)
     if (!this.drainingMiddlewareCustom) {
       yield* this.drainMiddlewareCustomQueue()
     }
   }
 
   /**
-   * Drain CUSTOM chunks pushed by `ctx.emitCustomEvent` through middleware
-   * and into the public stream. If the run has not yet sent `RUN_STARTED`,
-   * emit that first so CUSTOM events are not the first wire event.
+   * Queue a chunk from `ctx.emitCustomEvent` or `ctx.emitActivity`, and wake
+   * `runWhileYielding`, so the chunk goes out while the hook still runs.
+   * After the run ended, nothing drains the queue, so the chunk is not sent.
+   */
+  private queueMiddlewareChunk(chunk: StreamChunk) {
+    this.middlewareCustomQueue.push(chunk)
+    const waiters = this.middlewareCustomWaiters
+    this.middlewareCustomWaiters = []
+    for (const waiter of waiters) waiter()
+  }
+
+  /**
+   * Drain the chunks of `ctx.emitCustomEvent` and `ctx.emitActivity` through
+   * middleware and into the public stream. If the run has not yet sent
+   * `RUN_STARTED`, emit that first so these chunks are not the first wire
+   * event.
    */
   private async *drainMiddlewareCustomQueue(): AsyncGenerator<StreamChunk> {
     if (this.drainingMiddlewareCustom) return

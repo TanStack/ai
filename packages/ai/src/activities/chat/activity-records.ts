@@ -1,12 +1,25 @@
 import jsonPatch from 'fast-json-patch'
 import { generateMessageId } from './messages'
 import { mergeMetadata } from '../../utilities/merge-metadata'
+import { EventType } from '../../types'
 import type {
+  ActivityDeltaEvent,
   ActivityPart,
   ActivityRecord,
+  ActivitySnapshotEvent,
   StreamChunk,
   UIMessage,
 } from '../../types'
+
+/** Returns `true` when a chunk is an `ACTIVITY_SNAPSHOT` or `ACTIVITY_DELTA`. */
+export function isActivityChunk(
+  chunk: StreamChunk,
+): chunk is ActivitySnapshotEvent | ActivityDeltaEvent {
+  return (
+    chunk.type === EventType.ACTIVITY_SNAPSHOT ||
+    chunk.type === EventType.ACTIVITY_DELTA
+  )
+}
 
 function isActivityPart(
   part: UIMessage['parts'][number],

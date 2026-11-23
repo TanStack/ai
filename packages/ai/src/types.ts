@@ -11,6 +11,10 @@ import type {
 } from './activities/chat/middleware/capabilities'
 import type { InterruptSubmissionError } from './interrupts'
 import type { ReasoningRequest } from './reasoning'
+import type {
+  ActivityContentInput,
+  AnyActivityTypeDefinition,
+} from './activity-types'
 // The canonical usage types live in the leaf `@tanstack/ai-event-client`
 // package (which `@tanstack/ai` already depends on) so there is a single source
 // of truth without a dependency cycle. They are re-exported below.
@@ -1019,6 +1023,42 @@ export type ToolExecutionContext<
     options?: EmitCustomEventOptions,
   ) => void
   /**
+   * Emit an activity during tool execution. An activity is a message with one
+   * part that the client shows, for example a progress card. Each call sends
+   * one `ACTIVITY_SNAPSHOT` that replaces the activity message `id`. To update
+   * the card, call it again with the same `id`.
+   *
+   * `chat()` sets it, and the sandbox tool bridge of the harness adapters
+   * sets it too. It is missing when a tool runs from an MCP server, from
+   * WebMCP, or from a direct `execute()` call. So call it as
+   * `context?.emitActivity?.(definition, id, content)`.
+   *
+   * @param definition - The activity type, from `defineActivityType`
+   * @param id - The id of the activity message
+   * @param content - The content. The schema of `definition` checks it first.
+   * @throws TypeError when the content fails the check
+   *
+   * @example
+   * ```ts
+   * const deployProgress = defineActivityType({
+   *   activityType: 'deploy.progress',
+   *   contentSchema: z.object({ step: z.number(), total: z.number() }),
+   * })
+   *
+   * const tool = toolDefinition({ ... }).server(async (args, context) => {
+   *   context?.emitActivity?.(deployProgress, 'deploy-1', { step: 1, total: 3 })
+   *   // ... do work ...
+   *   context?.emitActivity?.(deployProgress, 'deploy-1', { step: 2, total: 3 })
+   *   return result
+   * })
+   * ```
+   */
+  emitActivity?: <TDef extends AnyActivityTypeDefinition>(
+    definition: TDef,
+    id: string,
+    content: ActivityContentInput<TDef>,
+  ) => void
+  /**
    * Attach app-only metadata to the result of this tool call. It works only
    * in server tools. The model never sees it. The app reads it as
    * `part.resultMetadata`. Each call
@@ -1977,17 +2017,32 @@ export interface SandboxFileDiffEvent extends CustomEvent {
   name: 'sandbox.file.diff'
   value: { path: string; diff: string }
 }
-/** `withSandbox` sends this before it creates or resumes the sandbox. */
+/**
+ * `withSandbox` sends this before it creates or resumes the sandbox.
+ *
+ * @deprecated Use the `sandbox.status` activity (`sandboxStatusActivity`)
+ * with the status `'starting'`. This event is still sent.
+ */
 export interface SandboxStartingEvent extends CustomEvent {
   name: 'sandbox.starting'
   value: { provider: string }
 }
-/** `withSandbox` sends this after it creates a new sandbox. */
+/**
+ * `withSandbox` sends this after it creates a new sandbox.
+ *
+ * @deprecated Use the `sandbox.status` activity (`sandboxStatusActivity`)
+ * with the status `'ready'` and `resumed: false`. This event is still sent.
+ */
 export interface SandboxCreatedEvent extends CustomEvent {
   name: 'sandbox.created'
   value: { sandboxId: string; provider: string }
 }
-/** `withSandbox` sends this after it resumes an existing sandbox. */
+/**
+ * `withSandbox` sends this after it resumes an existing sandbox.
+ *
+ * @deprecated Use the `sandbox.status` activity (`sandboxStatusActivity`)
+ * with the status `'ready'` and `resumed: true`. This event is still sent.
+ */
 export interface SandboxResumedEvent extends CustomEvent {
   name: 'sandbox.resumed'
   value: { sandboxId: string; provider: string }

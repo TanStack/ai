@@ -348,6 +348,24 @@ export {
   INTERRUPT_PAYLOAD_METADATA_KEY,
 } from './interrupt-definition'
 export {
+  defineActivityType,
+  sandboxApprovalActivity,
+  sandboxStatusActivity,
+} from './activity-types'
+export type {
+  ActivityContentInput,
+  ActivityContentOf,
+  ActivityPartOf,
+  ActivityTypeDefinition,
+  AnyActivityTypeDefinition,
+  BuiltInActivityPart,
+  OtherActivityPart,
+  OtherActivityType,
+  SandboxApprovalContent,
+  SandboxStatusContent,
+  TypedActivityPart,
+} from './activity-types'
+export {
   INTERRUPT_CONTINUATION_METADATA_KEY,
   INTERRUPT_CONTINUATION_VERSION,
   genericInterruptContinuationFromDescriptor,

@@ -49,6 +49,11 @@ export type {
   InterruptDefinition,
 } from './interrupt-definition'
 export {
+  applyActivityDeltaToRecords,
+  applyActivitySnapshotToRecords,
+  isActivityChunk,
+} from './activities/chat/activity-records'
+export {
   readInterruptBinding,
   validateInterruptResumeBatch,
 } from './interrupt-resume'

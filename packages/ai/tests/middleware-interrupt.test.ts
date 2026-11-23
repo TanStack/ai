@@ -41,6 +41,7 @@ const context: ChatMiddlewareContext = {
   abort() {},
   retry() {},
   emitCustomEvent() {},
+  emitActivity() {},
   context: undefined,
   defer() {},
   activity: 'chat',
