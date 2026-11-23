@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chat } from '../src'
+import { EventType, chat } from '../src'
 import { collectChunks, createMockAdapter, ev } from './test-utils'
 import type {
   ActivityRecord,
@@ -97,7 +97,54 @@ async function adapterApprovals(
   return calls[0]?.approvals
 }
 
+/**
+ * Run one turn whose adapter sends the decision of the row at its start, as a
+ * harness adapter does. Return the deltas that reach the client.
+ */
+async function decisionDeltas(messages: Array<UIMessage>) {
+  const { adapter } = createMockAdapter({
+    iterations: [
+      [
+        ev.runStarted(),
+        ev.activityDelta(rowId, 'sandbox.approval', [
+          { op: 'replace', path: '/status', value: 'granted' },
+        ]),
+        ev.textStart(),
+        ev.textContent('ok'),
+        ev.textEnd(),
+        ev.runFinished(),
+      ],
+    ],
+  })
+  const chunks = await collectChunks(
+    chat({
+      adapter,
+      threadId: 'thread-1',
+      stream: true,
+      messages: [user, ...messages],
+    }),
+  )
+  return chunks.filter((chunk) => chunk.type === EventType.ACTIVITY_DELTA)
+}
+
 describe('sandbox approval decisions', () => {
+  it('sends no delta for a row that already has the decision', async () => {
+    expect(await decisionDeltas([approvalRow('granted')])).toEqual([])
+  })
+
+  it('sends the delta for a row that is still pending', async () => {
+    expect(await decisionDeltas([approvalRow('pending')])).toEqual([
+      expect.objectContaining({ messageId: rowId }),
+    ])
+  })
+
+  it('sends the delta for a row that the server does not have', async () => {
+    // The client can have the row, for example without persistence.
+    expect(await decisionDeltas([])).toEqual([
+      expect.objectContaining({ messageId: rowId }),
+    ])
+  })
+
   it('gives the adapter true for a granted row', async () => {
     expect(await adapterApprovals([approvalRow('granted')])).toEqual(
       new Map([[approvalId, true]]),

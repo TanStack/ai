@@ -263,6 +263,22 @@ export function applyActivitySnapshotToRecords(
   )
 }
 
+/**
+ * Returns `true` when a delta leaves the content of its row as it is. For a
+ * row that `records` does not have, it returns `false`, because a client can
+ * have that row.
+ */
+export function isUnchangedActivityDelta(
+  records: Array<ActivityRecord>,
+  chunk: StreamChunk,
+): boolean {
+  if (chunk.type !== EventType.ACTIVITY_DELTA) return false
+  const before = records.find((record) => record.id === chunk.messageId)
+  if (!before) return false
+  const [after] = applyActivityDeltaToRecords([before], chunk)
+  return JSON.stringify(after?.content) === JSON.stringify(before.content)
+}
+
 export function applyActivityDeltaToRecords(
   records: Array<ActivityRecord>,
   chunk: Extract<StreamChunk, { type: 'ACTIVITY_DELTA' }>,

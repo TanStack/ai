@@ -141,6 +141,36 @@ describe('emitActivity', () => {
     ])
   })
 
+  it('keeps the place that onConfig gives a row of setup', async () => {
+    const { activities } = await runDeploy({
+      middleware: [
+        {
+          name: 'sandbox',
+          setup(ctx) {
+            ctx.emitActivity(deployProgress, 'deploy-1', firstStep)
+          },
+        },
+        {
+          name: 'persistence',
+          // Like withPersistence: the stored thread moves the row further.
+          onConfig(ctx) {
+            if (ctx.phase !== 'init') return
+            return {
+              activities: (ctx.activities ?? []).map((record) => ({
+                ...record,
+                index: 5,
+              })),
+            }
+          },
+        },
+      ],
+    })
+
+    expect(activities).toEqual([
+      expect.objectContaining({ id: 'deploy-1', content: firstStep, index: 5 }),
+    ])
+  })
+
   it('fails the tool call when the content fails the schema check', async () => {
     const { chunks } = await runDeploy({
       deploy: (_args, context) => {

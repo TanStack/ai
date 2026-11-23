@@ -114,6 +114,7 @@ import {
   applyActivitySnapshotToRecords,
   interleaveActivityRecords,
   isActivityChunk,
+  isUnchangedActivityDelta,
   peelInboundActivities,
 } from './activity-records'
 import {
@@ -1035,7 +1036,9 @@ function waitOrAbort(ms: number, signal: AbortSignal | undefined) {
 
 /**
  * Merge live activity rows into a config list by id. A live row with a new
- * id is appended. When both lists share an id, the live row is kept.
+ * id is appended. When both lists share an id, the live content is kept at
+ * the `index` of the config row. Persistence can move a row of `setup` there,
+ * because `chat()` gave the row its place from the request only.
  */
 function mergeLiveActivities(
   configActivities: ReadonlyArray<ActivityRecord>,
@@ -1043,7 +1046,8 @@ function mergeLiveActivities(
 ): Array<ActivityRecord> {
   const byId = new Map(configActivities.map((record) => [record.id, record]))
   for (const record of liveActivities) {
-    byId.set(record.id, record)
+    const index = byId.get(record.id)?.index ?? record.index
+    byId.set(record.id, { ...record, index })
   }
   return [...byId.values()]
 }
@@ -2214,6 +2218,10 @@ class TextEngine<
       }
 
       this.totalChunkCount++
+
+      // A harness adapter sends each decision again at the start of each run.
+      // A delta that changes no row is not sent and not saved again.
+      if (isUnchangedActivityDelta(this.activities, raw)) continue
 
       this.handleStreamChunk(raw)
 
