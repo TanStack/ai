@@ -196,9 +196,17 @@ It means: **the replay made a different sequence of events than the log already 
 
 Treat it as a bug to fix. Do not catch it and continue. The log already went to the client. A stream past the mismatch has a prefix and a suffix that disagree about message ids, and the client cannot recover. Log the index and both fingerprints, let the run fail, and make sure that every `runId` is unique.
 
-### Bridge events are skipped, up to a limit
+### Bridge events and activity chunks are skipped
 
 `@tanstack/ai-codex` and `@tanstack/ai-claude-code` add host tool-bridge events to their output. The log holds `CUSTOM` chunks from live tool calls, and a replay runs no tools. So alignment skips those chunks, up to `DEFAULT_MAX_OUT_OF_BAND_SKIP` (64) in a row. The limit keeps this a tolerance and not a search. Without it, a real determinism bug scans forward for any fingerprint that happens to match.
+
+The log also holds activity chunks (`ACTIVITY_SNAPSHOT` and `ACTIVITY_DELTA`) from the live run:
+
+- `sandbox.status` chunks from the `withSandbox` setup. An attach sends none.
+- `sandbox.approval` chunks from the adapter.
+- Chunks from a bridged tool that calls `emitActivity`.
+
+A replay does not always send these chunks again, so alignment skips them too. They do not count toward the limit, because a bridged tool can send many progress updates while the agent waits.
 
 ### Reuse the record's threadId on attach
 
