@@ -928,6 +928,8 @@ export class ChatClient<
   private connectionDrainsOnSend = false
   private errorReportedGeneration: number | null = null
   private streamGeneration = 0
+  // Stream generations whose request reached `connection.send`.
+  private readonly streamReachedSend = new Set<number>()
   private continuationGeneration = 0
   // Generation of the run that opened the current stream. Public
   // `addToolResult` must use this, not the live counter: `stop()` increments
@@ -3382,6 +3384,7 @@ export class ChatClient<
       this.devtoolsBridge.emitSnapshot()
 
       // Send through normalized connection (pushes chunks to subscription queue)
+      this.streamReachedSend.add(generation)
       await this.connection.send(messages, mergedBody, signal, runContext)
 
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- mutated asynchronously during await
@@ -3785,17 +3788,30 @@ export class ChatClient<
     // Keep the row pending when send throws so the same call can retry.
     // A false streamResponse result is not a failed send: the server may
     // already have accepted the request.
+    // Restore pending only when this request never reached connection.send.
+    // A later queued continue that throws from streamResponse finally must
+    // not flip a delivered row back.
     const continueRun = async () => {
       if (this.hasPendingInterrupts()) return
+      const expectedGeneration = this.streamGeneration + 1
       try {
         await this.streamResponse()
       } catch (error) {
-        restorePending()
+        if (!this.streamReachedSend.has(expectedGeneration)) {
+          restorePending()
+        }
         throw error
       }
     }
     if (this.isLoading) {
-      this.queuePostStreamAction(continueRun)
+      const continuationGeneration = this.continuationGeneration
+      this.postStreamActions.push(async () => {
+        if (continuationGeneration !== this.continuationGeneration) {
+          restorePending()
+          return
+        }
+        await continueRun()
+      })
       return
     }
     await continueRun()

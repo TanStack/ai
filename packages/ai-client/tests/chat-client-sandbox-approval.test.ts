@@ -207,4 +207,72 @@ describe('ChatClient.respondToSandboxApproval', () => {
     expect(sent).toHaveLength(1)
     expect(client.getMessages()).toEqual([])
   })
+
+  it('restores pending when stop() skips a queued approval continue', async () => {
+    const { client, sent } = createClient()
+
+    const sending = client.sendMessage('Go on')
+    await vi.waitFor(() => expect(client.getIsLoading()).toBe(true))
+    await client.respondToSandboxApproval(approvalId, true)
+    expect(rowStatus(client.getMessages())).toBe('granted')
+    client.stop()
+    await sending
+
+    expect(rowStatus(client.getMessages())).toBe('pending')
+    expect(sent).toHaveLength(1)
+
+    await client.respondToSandboxApproval(approvalId, true)
+    expect(rowStatus(client.getMessages())).toBe('granted')
+    expect(sent).toHaveLength(2)
+    expect(rowStatus(sent[1] ?? [])).toBe('granted')
+  })
+
+  it('does not restore a delivered approval when a later queued continue throws', async () => {
+    const approvalIdB = 'claude-code:command:ls'
+    const rowIdB = `sandbox.approval:${approvalIdB}`
+    const pendingB: UIMessage = {
+      id: rowIdB,
+      role: 'activity',
+      parts: [
+        {
+          type: 'activity',
+          activityType: 'sandbox.approval',
+          content: {
+            approvalId: approvalIdB,
+            title: 'Run ls',
+            status: 'pending',
+          },
+        },
+      ],
+    }
+    let responses = 0
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection: createMockConnectionAdapter({
+        chunks: createTextChunks('done', 'asst-1'),
+        chunkDelay: 5,
+      }),
+      initialMessages: [
+        createUIMessage('user-1', 'Clean up'),
+        pendingRow,
+        pendingB,
+      ],
+      onResponse: () => {
+        responses += 1
+        if (responses === 2) throw new ByokMissingError('openai')
+      },
+    })
+
+    const approvingA = client.respondToSandboxApproval(approvalId, true)
+    await vi.waitFor(() => expect(client.getIsLoading()).toBe(true))
+    await client.respondToSandboxApproval(approvalIdB, true)
+    await expect(approvingA).rejects.toBeInstanceOf(ByokMissingError)
+
+    expect(rowStatus(client.getMessages())).toBe('granted')
+    const rowB = client.getMessages().find((message) => message.id === rowIdB)
+    const partB = rowB?.parts[0]
+    expect(partB?.type === 'activity' ? partB.content.status : undefined).toBe(
+      'pending',
+    )
+  })
 })

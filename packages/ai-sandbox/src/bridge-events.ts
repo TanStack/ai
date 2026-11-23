@@ -41,6 +41,8 @@ export interface BridgeEventChannel {
   close: () => void
 }
 
+const sideChannelClosers = new WeakMap<object, () => void>()
+
 /**
  * Create a channel whose emitted events and activities become
  * {@link StreamChunk}s.
@@ -60,6 +62,11 @@ export function createBridgeEventChannel(meta: {
     ...(meta.runId !== undefined ? { runId: meta.runId } : {}),
   }
 
+  function closeChannel() {
+    closed = true
+    notify?.()
+  }
+
   async function* stream(): AsyncIterable<StreamChunk> {
     for (;;) {
       const next = buffer.shift()
@@ -74,6 +81,9 @@ export function createBridgeEventChannel(meta: {
       notify = null
     }
   }
+
+  const output = stream()
+  sideChannelClosers.set(output, closeChannel)
 
   return {
     emitCustomEvent(eventName, value, options) {
@@ -102,18 +112,22 @@ export function createBridgeEventChannel(meta: {
       buffer.push(withTanstackMetadata(snapshot, runMetadata))
       notify?.()
     },
-    close() {
-      closed = true
-      notify?.()
-    },
-    stream: stream(),
+    close: closeChannel,
+    stream: output,
   }
+}
+
+type SideResult = {
+  from: 'side'
+  r: IteratorResult<StreamChunk, unknown>
 }
 
 /**
  * Merge a `side` chunk stream into a `base` chunk stream, yielding from whichever
- * settles first. Terminates when `base` ends (the run is over), then releases the
- * side iterator — so a never-ending channel (until closed) doesn't hang the merge.
+ * settles first. Terminates when `base` ends (the run is over). If `side` came
+ * from {@link createBridgeEventChannel}, closes that channel and drains
+ * already-buffered side chunks before returning. Then releases the side
+ * iterator — so a never-ending channel (until closed) doesn't hang the merge.
  */
 export async function* mergeChunkStreams(
   base: AsyncIterable<StreamChunk>,
@@ -122,7 +136,9 @@ export async function* mergeChunkStreams(
   const baseIt = base[Symbol.asyncIterator]()
   const sideIt = side[Symbol.asyncIterator]()
   let baseNext = baseIt.next().then((r) => ({ from: 'base' as const, r }))
-  let sideNext = sideIt.next().then((r) => ({ from: 'side' as const, r }))
+  let sideNext: Promise<SideResult> = sideIt
+    .next()
+    .then((r) => ({ from: 'side' as const, r }))
   let sideLive = true
   try {
     for (;;) {
@@ -130,7 +146,23 @@ export async function* mergeChunkStreams(
         sideLive ? [baseNext, sideNext] : [baseNext],
       )
       if (winner.from === 'base') {
-        if (winner.r.done) return
+        if (winner.r.done) {
+          const closeSide = sideChannelClosers.get(side)
+          closeSide?.()
+          if (sideLive && closeSide) {
+            let pending = sideNext
+            for (;;) {
+              const result = await pending
+              if (result.r.done) break
+              yield result.r.value
+              pending = sideIt.next().then((r) => ({
+                from: 'side' as const,
+                r,
+              }))
+            }
+          }
+          return
+        }
         yield winner.r.value
         baseNext = baseIt.next().then((r) => ({ from: 'base' as const, r }))
       } else if (winner.r.done) {
