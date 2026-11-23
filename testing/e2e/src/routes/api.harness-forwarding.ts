@@ -355,6 +355,8 @@ async function approval() {
       resume: [{ interruptId: wait.waitId, status: 'resolved', payload: true }],
     })
     await running
+    // Where the owner's log is once the resumed turn runs.
+    const resumedAt = Number(owner.snapshot().cursor)
     const view = await otherHost.observe(otherHarness, { threadId: THREAD })
     const summary = (snapshot: {
       status: string
@@ -364,13 +366,16 @@ async function approval() {
       waits: snapshot.pendingWaits.map(({ waitId }) => waitId),
     })
     // The other host follows the log: wait until it has the resumed turn.
-    await waitUntil(() => other.snapshot().status === 'running')
+    const hasResumedTurn = () => Number(other.snapshot().cursor) >= resumedAt
+    await waitUntil(hasResumedTurn)
+    const caughtUp = hasResumedTurn()
     const observed = summary(await view.snapshot())
     const open = summary(other.snapshot())
     release()
     await waitUntil(() => owner.snapshot().status === 'idle')
     return {
       receipt: { status: receipt.status },
+      caughtUp,
       observed,
       open,
       ownerCalls: ownerModel.counter.calls,

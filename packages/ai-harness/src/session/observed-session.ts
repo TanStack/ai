@@ -71,9 +71,10 @@ export interface ObservedSession<THarness extends AnyHarness = AnyHarness> {
    * no plugin setup, so the status rule and the shape are the same. What
    * only an open session knows is not there:
    *
-   * - `status` is never `running`: a turn runs in memory. It is
-   *   `requires_action` while the last turn waits for interrupts, else
-   *   `idle`.
+   * - `status` comes from the log: `running` while a turn runs on the
+   *   host that owns the thread, `requires_action` while the last turn
+   *   waits for interrupts, else `idle`. The waits that a running `resolve`
+   *   answered are not in `pendingWaits`.
    * - There are no active operations, queued turns, or waiting inputs. The
    *   waits of `harnessAgent` children come from the log.
    * - `plugins` has only the plugin state that the log keeps. The state of

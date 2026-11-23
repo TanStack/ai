@@ -87,6 +87,7 @@ test.describe('harness: the host that does not own the thread', () => {
     const result: {
       error?: string
       receipt: { status: string }
+      caughtUp: boolean
       observed: { status: string; waits: Array<string> }
       open: { status: string; waits: Array<string> }
       ownerCalls: number
@@ -95,6 +96,8 @@ test.describe('harness: the host that does not own the thread', () => {
     expect(result.error ?? null).toBeNull()
 
     expect(result.receipt.status).toBe('accepted')
+    // The other host has read the log up to the resumed turn.
+    expect(result.caughtUp).toBe(true)
     // Both read the log: the resumed turn runs, and the approval is answered.
     expect(result.observed).toEqual({ status: 'running', waits: [] })
     expect(result.open).toEqual({ status: 'running', waits: [] })
