@@ -289,6 +289,62 @@ describe('LazyToolManager', () => {
     })
   })
 
+  describe('discovery of tools that are already offered', () => {
+    it('returns an eager tool instead of "Unknown tool"', async () => {
+      const manager = new LazyToolManager(
+        [makeTool('eagerA'), makeTool('lazyA', { lazy: true })],
+        [],
+      )
+      const active = manager.getActiveTools()
+      const exec = manager.getExecutableTools(active, [DISCOVERY_TOOL_NAME])
+      const discovery = exec.find((t) => t.name === DISCOVERY_TOOL_NAME)
+
+      const result = await discovery!.execute!({ toolNames: ['eagerA'] })
+
+      expect(result.tools).toEqual([
+        { name: 'eagerA', description: 'Tool: eagerA' },
+      ])
+      expect(result.errors).toBeUndefined()
+      expect(manager.hasNewlyDiscoveredTools()).toBe(false)
+    })
+
+    it('returns a tool that a middleware added to the offered set', async () => {
+      const manager = new LazyToolManager(
+        [makeTool('lazyA', { lazy: true })],
+        [],
+      )
+      const offered = [...manager.getActiveTools(), makeTool('fromMiddleware')]
+      const exec = manager.getExecutableTools(offered, [DISCOVERY_TOOL_NAME])
+      const discovery = exec.find((t) => t.name === DISCOVERY_TOOL_NAME)
+
+      const result = await discovery!.execute!({
+        toolNames: ['fromMiddleware'],
+      })
+
+      expect(result.tools.map((t: Tool) => t.name)).toEqual(['fromMiddleware'])
+      expect(result.errors).toBeUndefined()
+    })
+
+    it('still rejects an eager tool that a middleware filtered out', async () => {
+      const manager = new LazyToolManager(
+        [makeTool('eagerA'), makeTool('lazyA', { lazy: true })],
+        [],
+      )
+      const offered = manager
+        .getActiveTools()
+        .filter((t) => t.name !== 'eagerA')
+      const exec = manager.getExecutableTools(offered, [DISCOVERY_TOOL_NAME])
+      const discovery = exec.find((t) => t.name === DISCOVERY_TOOL_NAME)
+
+      const result = await discovery!.execute!({ toolNames: ['eagerA'] })
+
+      expect(result.tools).toEqual([])
+      expect(result.errors).toEqual([
+        "Unknown tool: 'eagerA'. Available tools: [lazyA]",
+      ])
+    })
+  })
+
   describe('idempotent discovery', () => {
     it('re-discovering an already-discovered tool returns its schema but does not flag a new discovery', async () => {
       const tools = [

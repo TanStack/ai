@@ -1,5 +1,35 @@
 # @tanstack/ai-mistral
 
+## 1.1.3
+
+### Patch Changes
+
+- [#2183](https://github.com/TanStack/ai/pull/2183) [`4c614ad`](https://github.com/TanStack/ai/commit/4c614ad6e60ddef5d9a848c3d783d927e003c0ec) - Mistral streams that end with `finish_reason: "error"` now end the run with `RUN_ERROR` instead of a clean `RUN_FINISHED`.
+
+- Updated dependencies [[`95c1d78`](https://github.com/TanStack/ai/commit/95c1d781c92904612e0d675a9ca38f1a8d9a1c09), [`df6f5a9`](https://github.com/TanStack/ai/commit/df6f5a9f5ff782db85c8a36715bac18a7f090180), [`40d1c61`](https://github.com/TanStack/ai/commit/40d1c61c6bdf1957bd124d09b1f07617a05e759d)]:
+  - @tanstack/ai@1.6.0
+
+## 1.1.2
+
+### Patch Changes
+
+- [#2111](https://github.com/TanStack/ai/pull/2111) [`6484f08`](https://github.com/TanStack/ai/commit/6484f0864f3b6c4476aad0bbf2a79ef5e4e6a9e8) - A Mistral response that stops with `finish_reason` `model_length` (the model's context window is exhausted) is now a `RUN_ERROR` with code `context_overflow`. `structuredOutput` throws the same code. Before, a streamed `model_length` stop was reported as a normal `stop`, and `structuredOutput` surfaced a JSON parse error.
+
+- [#2101](https://github.com/TanStack/ai/pull/2101) [`ece31b9`](https://github.com/TanStack/ai/commit/ece31b911634cb5d5cb1c22260e62626539d2934) - A Mistral chat stream that hits the token limit during a tool call reports `finishReason: 'length'`. Complete arguments are normalized onto `input`. Incomplete arguments keep the raw `args` and omit `input`, and the stream does not throw. A `tool_calls` finish with malformed arguments still throws.
+
+- Updated dependencies [[`1888233`](https://github.com/TanStack/ai/commit/1888233ddb501d14b17aa9a5f3497373a0e9242e)]:
+  - @tanstack/ai@1.4.1
+
+## 1.1.1
+
+### Patch Changes
+
+- [#1973](https://github.com/TanStack/ai/pull/1973) [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce) - The adapters now call the provider HTTP API with `fetch` and do not create the `@mistralai/mistralai` client. At runtime they load only the SDK error classes. Bundles are smaller. A 422 response now throws the adapter's own `HTTPValidationError`, not the SDK class. It has the same `name`, `message`, and `detail` fields, and it is still an `instanceof MistralError`. If your code checks a 422 error with `instanceof` against the SDK `HTTPValidationError`, check `error.name` instead.
+
+- Updated dependencies [[`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai@1.2.0
+  - @tanstack/ai-utils@1.1.0
+
 ## 1.1.0
 
 ### Minor Changes

@@ -24,14 +24,16 @@ Start with persistence. Then add a product page only when you need that action.
 | Snapshots already wired | The agent saves or forks this thread | [Let the Agent Save and Fork](./portable-snapshots-tools) |
 | Snapshots already wired | Only some files, or one file | [Pick Which Files to Keep](./portable-snapshots-files) |
 | Snapshots already wired | Secrets, default excludes, restore safety | [What a Snapshot Stores](./portable-snapshots-safety) |
+| Your own agent loop, no `withSandbox` | Checkpoint and restore at any time | [Checkpoint at Any Time](./portable-snapshots-checkpoints) |
 
 Automatic save and restore needs only the configure page. Save, fork, download,
 and file-policy pages are extra.
 
 ## What a checkpoint holds
 
-After a successful terminal run, the middleware waits for persistence to save
-the conversation. It then writes one checkpoint for the thread.
+When a run completes, fails, or is aborted, the middleware writes one
+checkpoint for the thread. After a completed run, it first waits for
+persistence to save the conversation.
 
 A checkpoint holds:
 

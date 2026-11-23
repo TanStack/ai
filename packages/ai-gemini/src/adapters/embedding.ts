@@ -7,7 +7,7 @@ import {
   getGeminiApiKeyFromEnv,
 } from '../utils'
 import type { EmbeddingOptions, EmbeddingResult } from '@tanstack/ai'
-import type { EmbedContentConfig } from '@google/genai'
+import type { ContentEmbedding, EmbedContentConfig } from '@google/genai'
 import type { GeminiClient } from '../client/index'
 import type {
   GeminiEmbeddingModel,
@@ -16,6 +16,12 @@ import type {
 } from '../model-meta'
 import type { GeminiEmbeddingProviderOptions } from '../embedding/embedding-provider-options'
 import type { GeminiClientConfig } from '../utils/client'
+
+/**
+ * Largest number of inputs sent in one `embedContent` call. The Gemini API
+ * rejects larger batches, so longer inputs are split into sequential requests.
+ */
+const GEMINI_MAX_BATCH_SIZE = 100
 
 /**
  * Configuration for Gemini Embedding adapter
@@ -29,7 +35,7 @@ export interface GeminiEmbeddingConfig extends GeminiClientConfig {}
  * Supports gemini-embedding-001.
  *
  * Features:
- * - Batch embedding (one request for the whole input array)
+ * - Batch embedding (inputs are sent in requests of at most 100 texts)
  * - Matryoshka dimension reduction via the top-level `dimensions` option
  *   (mapped to the SDK's `outputDimensionality`)
  * - Task-type hints (`taskType`, `title`) via provider options
@@ -79,17 +85,32 @@ export class GeminiEmbeddingAdapter<
         { provider: this.name, model },
       )
 
-      const response = await this.client.models.embedContent({
-        model,
-        contents: texts,
-        config,
-      })
+      const embeddings: Array<ContentEmbedding> = []
+      let billableCharacters: number | undefined
+      for (
+        let start = 0;
+        start < texts.length;
+        start += GEMINI_MAX_BATCH_SIZE
+      ) {
+        const batch = texts.slice(start, start + GEMINI_MAX_BATCH_SIZE)
+        const response = await this.client.models.embedContent({
+          model,
+          contents: batch,
+          config,
+        })
 
-      const embeddings = response.embeddings
-      if (!embeddings || embeddings.length !== texts.length) {
-        throw new Error(
-          `Gemini embedContent returned ${embeddings ? embeddings.length : 'no'} embeddings for ${texts.length} inputs (model: ${model}).`,
-        )
+        const batchEmbeddings = response.embeddings
+        if (!batchEmbeddings || batchEmbeddings.length !== batch.length) {
+          throw new Error(
+            `Gemini embedContent returned ${batchEmbeddings ? batchEmbeddings.length : 'no'} embeddings for ${batch.length} inputs (model: ${model}).`,
+          )
+        }
+        embeddings.push(...batchEmbeddings)
+
+        const batchCharacters = response.metadata?.billableCharacterCount
+        if (batchCharacters !== undefined) {
+          billableCharacters = (billableCharacters ?? 0) + batchCharacters
+        }
       }
 
       // Only Vertex reports usage (per-input token counts and billable
@@ -97,7 +118,6 @@ export class GeminiEmbeddingAdapter<
       const tokenCounts = embeddings.flatMap(
         (embedding) => embedding.statistics?.tokenCount ?? [],
       )
-      const billableCharacters = response.metadata?.billableCharacterCount
       const tokens = tokenCounts.reduce((sum, count) => sum + count, 0)
       const hasUsage =
         tokenCounts.length > 0 || billableCharacters !== undefined

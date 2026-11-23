@@ -73,10 +73,15 @@ CREATE TABLE IF NOT EXISTS metadata (
 
 ## 2. Messages: full-transcript overwrite
 
-The store has three rules:
+The store has four rules:
 
 - `saveThread` always gets the complete, merged history. It replaces the row.
   It does not append. `withPersistence` does the merge by id, not this store.
+- Each message comes back exactly as it was saved, `metadata` included. A tool
+  message keeps its [result metadata](../tools/tool-result-metadata): app keys
+  (for example `sources`) and the reserved `tanstack` key, with nested values.
+  When a client copy replaces a stored tool message, `withPersistence` keeps
+  the stored app metadata.
 - `loadThread` with no second argument returns the full array. For a thread
   that was never saved, it returns `[]`, never `null`.
 - `limit` and `before` are an optional hint. Ignore them and return the full
@@ -114,6 +119,10 @@ export function createMessageStore(db: DatabaseSync) {
   })
 }
 ```
+
+The whole array is one JSON text, so `metadata` round-trips with no extra code.
+If your schema puts each message in its own row, keep `metadata` in a JSON
+column. Do not pick single keys out of it.
 
 ## 3. Runs: idempotent create, patch, get
 
@@ -585,6 +594,9 @@ export async function POST(request: Request) {
 Send a message. The `messages` table in `.data/state.sqlite` now holds the
 thread. Next, prove the stores with the
 [conformance suite](./build-your-own-adapter#verify-with-the-conformance-suite).
+Turn on its `'messages.metadata'` check, so that the suite also tests the
+metadata of a tool message. See
+[Turn on the opt-in checks](./build-your-own-adapter#turn-on-the-opt-in-checks).
 
 ## How it works
 

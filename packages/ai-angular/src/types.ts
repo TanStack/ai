@@ -87,6 +87,7 @@ export type InjectChatOptions<
   | 'devtools'
   | 'forwardedProps'
   | 'tools'
+  | 'outputSchema'
 > & {
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions

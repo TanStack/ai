@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { defineAgent } from '@tanstack/ai'
+import { z } from 'zod'
+import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import {
   HARNESS_EVENTS,
@@ -12,6 +13,7 @@ import { createSessionView } from '@tanstack/ai-harness/view'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import type {
   HarnessHost,
+  HarnessRouting,
   HarnessSession,
   HarnessUser,
 } from '@tanstack/ai-harness'
@@ -19,8 +21,8 @@ import type { SessionView } from '@tanstack/ai-harness/view'
 
 /**
  * Handoffs inside one session, over the harness protocol. The harness has
- * `routing` and one root agent, `billing`. The host has `membersOnly()`
- * access: olga owns the thread, and bea is an operator.
+ * `routing` and one root agent, `billing`, with a `refund` tool. The host
+ * has `membersOnly()` access: olga owns the thread, and bea is an operator.
  *
  * - `POST .../start` with `{ scenario }` opens the thread for olga and
  *   shares it with bea. Returns the run id and the thread id.
@@ -29,6 +31,10 @@ import type { SessionView } from '@tanstack/ai-harness/view'
  *     the `handoff` tool to a person.
  *   - `'code'`: the router picks the `triage` agent, and its code hands off
  *     to `billing` with `ctx.harness.handoff`. The main model never runs.
+ *   - `'history'`: the main model hands off to `billing`. On turn 1,
+ *     `billing` calls `refund`, then answers. On turn 2, `billing` answers.
+ *   - `'custom-tool'`: the harness has `routing.handoffTool`. Its tool adds
+ *     `from <speaker>: ` before the note, and the main model calls it.
  * - `POST .../control?runId=` and `GET .../snapshot?runId=` go to the
  *   harness handler. The `authorization` header names the user.
  * - `GET .../settled?runId=&inputId=` waits until an input ends, and
@@ -36,7 +42,7 @@ import type { SessionView } from '@tanstack/ai-harness/view'
  * - `GET .../debug?runId=` returns what the test checks: the
  *   `harness.handoff` events of the session stream, the transcript, the
  *   messages of a session view, the open waits, the model calls, and the
- *   messages of the first request of `billing`.
+ *   messages of each request of `billing`.
  * - `POST .../stop?runId=` closes the host.
  *
  * A custom `fetch` answers with canned Anthropic streams, so no aimock
@@ -78,27 +84,31 @@ const ending = (stopReason: string): Array<AnthropicEvent> => [
   { type: 'message_stop' },
 ]
 
-/** An answer that calls the `handoff` tool with `input`. */
-const callHandoff = (input: Record<string, unknown>) => (id: string) =>
-  sseOf([
-    messageStart(id),
-    {
-      type: 'content_block_start',
-      index: 0,
-      content_block: {
-        type: 'tool_use',
-        id: `toolu_${id}`,
-        name: 'handoff',
-        input: {},
+/** An answer that calls the tool `name` with `input`. */
+const callTool =
+  (name: string, input: Record<string, unknown>) => (id: string) =>
+    sseOf([
+      messageStart(id),
+      {
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'tool_use',
+          id: `toolu_${id}`,
+          name,
+          input: {},
+        },
       },
-    },
-    {
-      type: 'content_block_delta',
-      index: 0,
-      delta: { type: 'input_json_delta', partial_json: JSON.stringify(input) },
-    },
-    ...ending('tool_use'),
-  ])
+      {
+        type: 'content_block_delta',
+        index: 0,
+        delta: {
+          type: 'input_json_delta',
+          partial_json: JSON.stringify(input),
+        },
+      },
+      ...ending('tool_use'),
+    ])
 
 /** An answer with the text `text`. */
 const reply = (text: string) => (id: string) =>
@@ -138,7 +148,7 @@ function scriptedModel(prefix: string, answers: Array<(id: string) => string>) {
   return { adapter, counter, requests }
 }
 
-type Scenario = 'agent' | 'human' | 'code'
+type Scenario = 'agent' | 'human' | 'code' | 'history' | 'custom-tool'
 
 /** The answers of the main model and of `billing`, per scenario. */
 const SCRIPTS: Record<
@@ -149,12 +159,17 @@ const SCRIPTS: Record<
   }
 > = {
   agent: {
-    main: [callHandoff({ to: 'billing', note: 'Refund for order 42.' })],
+    main: [
+      callTool('handoff', { to: 'billing', note: 'Refund for order 42.' }),
+    ],
     billing: [reply('Your refund is on its way.'), reply('Billing again.')],
   },
   human: {
     main: [
-      callHandoff({ to: { human: true }, note: 'The user asks for a person.' }),
+      callTool('handoff', {
+        to: { human: true },
+        note: 'The user asks for a person.',
+      }),
       reply('The main model is back.'),
     ],
     billing: [],
@@ -163,7 +178,47 @@ const SCRIPTS: Record<
     main: [],
     billing: [reply('Your refund is on its way.')],
   },
+  history: {
+    main: [
+      callTool('handoff', { to: 'billing', note: 'Refund for order 42.' }),
+    ],
+    billing: [
+      callTool('refund', { orderId: '42' }),
+      reply('Refunded order 42.'),
+      reply('Anything else?'),
+    ],
+  },
+  'custom-tool': {
+    main: [
+      callTool('handoff', { to: 'billing', note: 'Refund for order 42.' }),
+    ],
+    billing: [reply('Your refund is on its way.')],
+  },
 }
+
+/** The tool of `billing`. It always gives the same result. */
+const refund = toolDefinition({
+  name: 'refund',
+  description: 'Refund an order',
+  inputSchema: z.object({ orderId: z.string() }),
+}).server(async ({ orderId }) => `Refund R-${orderId} issued.`)
+
+/**
+ * The handoff tool of the `'custom-tool'` harness. It adds the speaker
+ * before the note, and gives a fixed result.
+ */
+const prefixedHandoff: NonNullable<HarnessRouting['handoffTool']> = ({
+  from,
+  handoff,
+}) =>
+  toolDefinition({
+    name: 'handoff',
+    description: 'Hand the user to another agent',
+    inputSchema: z.object({ to: z.string(), note: z.string() }),
+  }).server(async ({ to, note }) => {
+    await handoff({ to, note: `from ${from ?? 'main'}: ${note}` })
+    return 'Passed to the next desk.'
+  })
 
 /** An agent with no model: its code hands the turn to `billing`. */
 const triage = defineAgent({
@@ -221,6 +276,7 @@ async function start(request: Request) {
           ctx.chat({
             adapter: billing.adapter,
             systemPrompts: ['You are billing.'],
+            tools: [refund],
           }),
       }),
     ],
@@ -229,6 +285,7 @@ async function start(request: Request) {
     routing: {
       router: () => (scenario === 'code' ? 'triage' : undefined),
       allowHandoffToHuman: scenario === 'human',
+      ...(scenario === 'custom-tool' ? { handoffTool: prefixedHandoff } : {}),
     },
   })
   const host: HarnessHost<User> = createHarnessHost({
@@ -309,7 +366,9 @@ async function debug(run: Run) {
     waits: snapshot.pendingWaits,
     mainCalls: run.main.counter.calls,
     billingCalls: run.billing.counter.calls,
-    billingMessages: run.billing.requests[0]?.messages ?? [],
+    billingRequests: run.billing.requests.map(
+      (request) => request.messages ?? [],
+    ),
   })
 }
 

@@ -19,7 +19,7 @@
  * any single sandbox or test run — see `journal.ts`'s own warning — so a
  * fixed literal here would read a previous run's leftover journal.
  */
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as fsp from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -27,6 +27,7 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import {
   DurableRunIdRequiredError,
   SandboxCapability,
+  isStoredReplayChunk,
   journalPaths,
   journaledCommand,
   provideSandboxDurability,
@@ -41,6 +42,24 @@ import type {
   StreamDurability,
 } from '@tanstack/ai'
 import type { SandboxHandle, SandboxRunDurability } from '@tanstack/ai-sandbox'
+
+// Records how the adapter mounts and releases the host login.
+const hostLogin = vi.hoisted(() => ({
+  mounts: [] as Array<{ adopt?: boolean }>,
+  releases: [] as Array<{ keep?: boolean } | undefined>,
+}))
+vi.mock('@tanstack/ai-sandbox/host-login', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  mountHostLogin: (_sandbox: unknown, options: { adopt?: boolean }) => {
+    hostLogin.mounts.push(options)
+    return Promise.resolve({
+      release: (releaseOptions?: { keep?: boolean }) => {
+        hostLogin.releases.push(releaseOptions)
+        return Promise.resolve()
+      },
+    })
+  },
+}))
 
 const baseDir = path.join(
   os.tmpdir(),
@@ -304,11 +323,13 @@ describe('codex attach wiring', () => {
       }),
     )
 
-    // The RUN_STARTED chunk was already "delivered" per the stored log, so
-    // alignment must suppress it — if `alignedIfAttaching` were bypassed, the
-    // freshly-translated RUN_STARTED would come through unsuppressed and this
-    // would fail.
-    expect(chunks.some((c) => c.type === 'RUN_STARTED')).toBe(false)
+    // The RUN_STARTED chunk was already in the stored log. It is yielded
+    // marked, for the transcript, and is not part of what gets appended.
+    // If `alignedIfAttaching` were bypassed, a fresh unmarked RUN_STARTED
+    // would come through and this would fail.
+    const delivered = chunks.filter((chunk) => !isStoredReplayChunk(chunk))
+    expect(delivered.some((c) => c.type === 'RUN_STARTED')).toBe(false)
+    expect(chunks.some(isStoredReplayChunk)).toBe(true)
     // Everything after the aligned prefix must still arrive.
     expect(textOf(chunks)).toContain('pong')
     expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
@@ -618,6 +639,197 @@ describe('codex attach wiring', () => {
     // stamped on the stream, which is the only thing that makes the replay
     // alignable against the stored log.
     expect(threadIdsOf(chunks)).toEqual([threadId])
+    await sbx.destroy()
+  })
+})
+
+/** A codex that writes its first event, then the rest after a short time. */
+const SLOW_FAKE_CODEX = [
+  `process.stdin.on('data', () => {})`,
+  `process.stdin.on('end', () => {`,
+  `  const w = (o) => process.stdout.write(JSON.stringify(o) + '\\n')`,
+  `  w({ type: 'thread.started', thread_id: 'th-1' })`,
+  `  setTimeout(() => {`,
+  `    w({ type: 'turn.started' })`,
+  `    w({ type: 'item.completed', item: { id: 'i1', type: 'agent_message', text: 'pong' } })`,
+  `    w({ type: 'turn.completed', usage: { input_tokens: 1, output_tokens: 1 } })`,
+  `  }, 300)`,
+  `})`,
+].join('\n')
+
+function hostRun(
+  handle: SandboxHandle,
+  runId: string,
+  durability: SandboxRunDurability,
+  abortController?: AbortController,
+): AsyncIterable<AdapterYieldChunk> {
+  return codexText('gpt-5.5-codex', {
+    codexExecutable: 'node fake-codex.mjs',
+    authMode: 'host',
+  }).chatStream({
+    model: 'gpt-5.5-codex',
+    messages: [{ role: 'user', content: 'say pong' }],
+    logger: noopLogger,
+    runId,
+    threadId: `t-host-${crypto.randomUUID()}`,
+    capabilities: capabilityContext(handle, durability),
+    ...(abortController && { abortController }),
+  })
+}
+
+describe("codex durable runs with authMode 'host'", () => {
+  beforeEach(() => {
+    hostLogin.mounts.length = 0
+    hostLogin.releases.length = 0
+  })
+
+  it('an attach keeps the login in the sandbox, and removes it at the end', async () => {
+    const sbx = await provider.create({})
+    const runId = `r-host-attach-${crypto.randomUUID()}`
+    const durability = durabilityWith({ attach: true })
+    const paths = journalPaths(runId, durability.journalDir)
+    const priorEvents = [
+      '{"type":"thread.started","thread_id":"sess-1"}',
+      '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}',
+    ].join('\\n')
+    const seed = await sbx.process.spawn(
+      journaledCommand(`printf '${priorEvents}\\n'`, paths),
+    )
+    expect(await seed.wait()).toBe(0)
+    const chunks = await collect(
+      hostRun(recordingHandle(sbx).handle, runId, durability),
+    )
+    expect(chunks.find((c) => c.type === 'RUN_ERROR')).toBeUndefined()
+    expect(hostLogin.mounts).toMatchObject([{ adopt: true }])
+    expect(hostLogin.releases).toEqual([{ keep: false }])
+    await sbx.destroy()
+  })
+
+  it('a host that stops reading leaves the login for the next host', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-codex.mjs', SLOW_FAKE_CODEX)
+    const runId = `r-host-leave-${crypto.randomUUID()}`
+    // The host stops with the abort signal, and reads to the end.
+    const controller = new AbortController()
+    const types: Array<string> = []
+    for await (const chunk of hostRun(
+      recordingHandle(sbx).handle,
+      runId,
+      durabilityWith(),
+      controller,
+    )) {
+      types.push(chunk.type)
+      controller.abort()
+    }
+    expect(types).not.toContain('RUN_ERROR')
+    expect(hostLogin.mounts).toMatchObject([{ adopt: false }])
+    expect(hostLogin.releases).toEqual([{ keep: true }])
+    await sbx.destroy()
+  })
+
+  it('an attach setup failure releases with keep: true', async () => {
+    const sbx = await provider.create({})
+    const handle = recordingHandle(sbx).handle
+    const failing = {
+      ...handle,
+      fs: {
+        ...handle.fs,
+        write: () => Promise.reject(new Error('attach setup failed')),
+      },
+    }
+    const chunks = await collect(
+      codexText('gpt-5.5-codex', {
+        codexExecutable: 'node fake-codex.mjs',
+        authMode: 'host',
+      }).chatStream({
+        model: 'gpt-5.5-codex',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        runId: `r-host-attach-setup-${crypto.randomUUID()}`,
+        threadId: `t-host-${crypto.randomUUID()}`,
+        capabilities: capabilityContext(
+          failing,
+          durabilityWith({ attach: true }),
+        ),
+        outputSchema: { type: 'object', properties: {} },
+      }),
+    )
+    expect(chunks.find((c) => c.type === 'RUN_ERROR')).toMatchObject({
+      message: 'attach setup failed',
+    })
+    expect(hostLogin.mounts).toMatchObject([{ adopt: true }])
+    expect(hostLogin.releases).toEqual([{ keep: true }])
+    await sbx.destroy()
+  })
+
+  it('a durable host-auth run with a non-zero CLI exit releases with keep: false', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write(
+      '/workspace/fake-codex.mjs',
+      [
+        `process.stdin.on('data', () => {})`,
+        `process.stdin.on('end', () => process.exit(3))`,
+      ].join('\n'),
+    )
+    const chunks = await collect(
+      hostRun(
+        recordingHandle(sbx).handle,
+        `r-host-fail-${crypto.randomUUID()}`,
+        durabilityWith(),
+      ),
+    )
+    expect(chunks.find((c) => c.type === 'RUN_ERROR')).toMatchObject({
+      message: expect.stringMatching(/code 3/),
+    })
+    expect(hostLogin.mounts).toMatchObject([{ adopt: false }])
+    expect(hostLogin.releases).toEqual([{ keep: false }])
+    await sbx.destroy()
+  })
+
+  it('a stalled journal read keeps the login for the agent that may still run', async () => {
+    const sbx = await provider.create({})
+    // Writes nothing past the first-byte wait, then exits by itself.
+    await sbx.fs.write(
+      '/workspace/fake-codex.mjs',
+      [
+        `process.stdin.on('data', () => {})`,
+        `process.stdin.on('end', () => setTimeout(() => process.exit(0), 12000))`,
+      ].join('\n'),
+    )
+    const chunks = await collect(
+      hostRun(
+        recordingHandle(sbx).handle,
+        `r-host-stall-${crypto.randomUUID()}`,
+        durabilityWith(),
+      ),
+    )
+    expect(chunks.find((c) => c.type === 'RUN_ERROR')).toBeDefined()
+    expect(hostLogin.releases).toEqual([{ keep: true }])
+    await sbx.destroy()
+  }, 30_000)
+
+  it('an aborted run that is not durable removes the login', async () => {
+    const sbx = await provider.create({})
+    // The CLI fails after the abort, so the run ends in the catch.
+    await sbx.fs.write(
+      '/workspace/fake-codex.mjs',
+      SLOW_FAKE_CODEX.replace('}, 300)', 'process.exit(3) }, 300)'),
+    )
+    const controller = new AbortController()
+    for await (const _chunk of codexText('gpt-5.5-codex', {
+      codexExecutable: 'node fake-codex.mjs',
+      authMode: 'host',
+    }).chatStream({
+      model: 'gpt-5.5-codex',
+      messages: [{ role: 'user', content: 'say pong' }],
+      logger: noopLogger,
+      threadId: `t-host-${crypto.randomUUID()}`,
+      capabilities: capabilityContext(sbx),
+      abortController: controller,
+    })) {
+      controller.abort()
+    }
+    expect(hostLogin.releases).toEqual([{ keep: false }])
     await sbx.destroy()
   })
 })

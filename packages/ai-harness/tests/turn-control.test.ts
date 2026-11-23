@@ -1186,6 +1186,7 @@ describe('turn.beforeFinish', () => {
         toolCallId: 'call-lookup',
         content: TRUNCATED_TOOL_RESULT,
         error: TRUNCATED_TOOL_RESULT,
+        metadata: { tanstack: { toolResultKind: 'text' } },
       },
     ])
     await host.close()

@@ -57,6 +57,42 @@ for (const provider of providersFor('chat')) {
   })
 }
 
+// openai streams over the Responses API, openai-compatible over Chat Completions.
+for (const provider of ['openai', 'openai-compatible']) {
+  test(`${provider} — a caller abort mid-stream runs onAbort and logs no error`, async ({
+    request,
+    testId,
+  }) => {
+    const response = await request.post(
+      `/api/chat-caller-abort?provider=${provider}&testId=${encodeURIComponent(testId)}`,
+    )
+    expect(response.ok()).toBe(true)
+    expect(await response.json()).toEqual({ errors: [], aborts: 1 })
+  })
+
+  test(`${provider} — a caller abort before the response is an abort and logs no error`, async ({
+    request,
+    testId,
+  }) => {
+    const response = await request.post(
+      `/api/chat-caller-abort?at=before-response&provider=${provider}&testId=${encodeURIComponent(testId)}`,
+    )
+    expect(response.ok()).toBe(true)
+    expect(await response.json()).toEqual({ errors: [], code: 'aborted' })
+  })
+}
+
+test('a consumer that breaks out of chat() runs onAbort once', async ({
+  request,
+  testId,
+}) => {
+  const response = await request.post(
+    `/api/chat-consumer-stop?provider=openai&testId=${encodeURIComponent(testId)}`,
+  )
+  expect(response.ok()).toBe(true)
+  expect(await response.json()).toEqual({ hooks: ['onAbort'] })
+})
+
 test('preserves UI message IDs at the server conversion boundary', async ({
   request,
 }) => {

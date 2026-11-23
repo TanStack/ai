@@ -24,6 +24,7 @@ import { createBytePlusText } from '@tanstack/ai-byteplus'
 import { createLLMGatewayText } from '@tanstack/ai-llmgateway'
 import { createCloudflareText } from '@tanstack/ai-cloudflare'
 import { createNeonText } from '@tanstack/ai-neon'
+import { createMuseText } from '@tanstack/ai-muse'
 import { HTTPClient } from '@openrouter/sdk'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { BytePlusChatModel } from '@tanstack/ai-byteplus'
@@ -114,13 +115,16 @@ const defaultModels: Record<Provider, string> = {
   // it out of text features, but we still need an entry to satisfy the
   // Record<Provider, …> constraint.
   elevenlabs: '',
+  cartesia: '',
   llmgateway: 'gpt-5.6-terra',
   cloudflare: '@cf/zai-org/glm-5.3-flash',
   neon: 'gemini-3-8-flash',
   'neon-anthropic': 'claude-sonnet-4-5',
   'neon-responses': 'gpt-5-3-codex',
+  muse: 'muse-ember-1.0',
 }
 
+/** Create the selected chat adapter with the test mock configuration. */
 export function createTextAdapter(
   provider: Provider,
   modelOverride?: string,
@@ -397,6 +401,11 @@ export function createTextAdapter(
         'ElevenLabs has no text/chat adapter — use createTTSAdapter or createTranscriptionAdapter.',
       )
     },
+    cartesia: () => {
+      throw new Error(
+        'Cartesia has no text/chat adapter — use createTTSAdapter or createTranscriptionAdapter.',
+      )
+    },
     llmgateway: () =>
       createChatOptions({
         adapter: createLLMGatewayText(model as 'gpt-5.6-terra', DUMMY_KEY, {
@@ -439,6 +448,15 @@ export function createTextAdapter(
       createChatOptions({
         adapter: createNeonText(model as 'gpt-5-3-codex', DUMMY_KEY, {
           baseURL: base,
+          defaultHeaders: testHeaders,
+        }),
+      }),
+    // Muse speaks OpenAI-compatible Chat Completions (openai-base), same wire
+    // as the openai-compatible row — point it at aimock's /v1.
+    muse: () =>
+      createChatOptions({
+        adapter: createMuseText(model as 'muse-ember-1.0', DUMMY_KEY, {
+          baseURL: openaiUrl,
           defaultHeaders: testHeaders,
         }),
       }),

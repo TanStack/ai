@@ -1,10 +1,9 @@
 /**
  * @module @tanstack/ai-bedrock
  *
- * Amazon Bedrock adapter for TanStack AI via Bedrock's OpenAI-compatible APIs
- * and the native Converse API.  The public `bedrockText` / `createBedrockText`
- * factory branches between the Converse adapter (DEFAULT), the Chat Completions
- * adapter (`api: 'chat'`), and the Responses adapter (`api: 'responses'`).
+ * Bedrock chat uses Converse by default, or the OpenAI-compatible APIs with
+ * `api: 'chat'` or `api: 'responses'`. Embeddings and reranking use
+ * `bedrockEmbedding` and `bedrockRerank`.
  */
 
 import { BedrockTextAdapter } from './adapters/text'
@@ -188,6 +187,12 @@ export {
   createBedrockEmbedding,
   type BedrockEmbeddingConfig,
 } from './adapters/embedding'
+export {
+  BedrockRerankAdapter,
+  bedrockRerank,
+  type BedrockRerankConfig,
+  type BedrockRerankProviderOptions,
+} from './adapters/rerank'
 export type {
   BedrockCohereEmbeddingInputType,
   BedrockCohereEmbeddingProviderOptions,
@@ -208,6 +213,8 @@ export {
   BEDROCK_RESPONSES_MODELS,
   BEDROCK_CONVERSE_MODELS,
   BEDROCK_EMBEDDING_MODELS,
+  BEDROCK_RERANK_MODELS,
+  type BedrockRerankModel,
   type BedrockEmbeddingModel,
   type BedrockEmbeddingModelProviderOptionsByName,
   type BedrockEmbeddingModelInputModalitiesByName,

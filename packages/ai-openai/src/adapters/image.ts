@@ -50,8 +50,9 @@ export interface OpenAIImageConfig extends OpenAIClientConfig {
  * OpenAI Image Generation Adapter
  *
  * Tree-shakeable adapter for OpenAI image generation functionality.
- * Supports gpt-image-2.5-flare, gpt-image-2.5-sunburst, gpt-image-2,
- * gpt-image-1, and gpt-image-1-mini models.
+ * Supports gpt-image-2.6-flare, gpt-image-2.6-sunburst, gpt-image-2.5-flare,
+ * gpt-image-2.5-sunburst, gpt-image-2, gpt-image-1, and gpt-image-1-mini
+ * models.
  *
  * Features:
  * - Model-specific type-safe provider options
@@ -119,8 +120,8 @@ export class OpenAIImageAdapter<
     // With exactOptionalPropertyTypes, vendor SDK request shapes reject
     // `T | undefined` in optional fields. Build the request incrementally and
     // only set `size` when it's actually defined. The SDK's `quality` type
-    // does not list the gpt-image-2.5 `xhigh` / `max` levels yet, so cast the
-    // spread.
+    // does not list the gpt-image-2.5 / 2.6 `xhigh` / `max` levels yet, so
+    // cast the spread.
     const request: OpenAI_SDK.Images.ImageGenerateParams = {
       model,
       prompt,
@@ -255,7 +256,7 @@ export class OpenAIImageAdapter<
       : undefined
 
     // The SDK's edit params do not list every gpt-image option (e.g. the
-    // gpt-image-2.5 `xhigh` / `max` quality levels), so cast the spread.
+    // gpt-image-2.5 / 2.6 `xhigh` / `max` quality levels), so cast the spread.
     const request: OpenAI_SDK.Images.ImageEditParamsNonStreaming = {
       model,
       prompt,

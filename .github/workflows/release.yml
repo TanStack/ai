@@ -54,7 +54,7 @@ jobs:
         run: pnpm exec nx run-many --targets=build --exclude=examples/**,testing/** --skip-nx-cache
       - name: Run Changesets (version or publish)
         id: changesets
-        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        uses: changesets/action@6a0a831ff30acef54f2c6aa1cbbc1096b066edaf # v1.7.0
         with:
           version: pnpm run changeset:version
           publish: pnpm run changeset:publish

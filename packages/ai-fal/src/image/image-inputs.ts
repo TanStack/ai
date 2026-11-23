@@ -1,5 +1,6 @@
 import { fileReferenceFor, isFileSource } from '@tanstack/ai'
 import { FAL_IMAGE_FIELD_OVERRIDES } from './generated/image-field-overrides'
+import { FAL_LEGACY_IMAGE_FIELD_OVERRIDES } from './legacy-image-field-overrides'
 import type {
   FalImageFieldName,
   FalImageFieldOverride,
@@ -66,11 +67,15 @@ const LIST_FIELDS = new Set<string>([
   'reference_image_urls',
 ])
 
-/** Resolve the per-role field names for a model: defaults + generated overrides. */
+/**
+ * Resolve the per-role field names for a model: defaults, then the generated
+ * overrides, or the hand-kept ones for live endpoints the SDK has no types for.
+ */
 function fieldSpecFor(model: string): Required<FalImageFieldOverride> {
-  const overrides = (
-    FAL_IMAGE_FIELD_OVERRIDES as Record<string, FalImageFieldOverride>
-  )[model]
+  const overrides =
+    (FAL_IMAGE_FIELD_OVERRIDES as Record<string, FalImageFieldOverride>)[
+      model
+    ] ?? FAL_LEGACY_IMAGE_FIELD_OVERRIDES[model]
   return { ...DEFAULT_FIELDS, ...overrides }
 }
 

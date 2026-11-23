@@ -249,7 +249,7 @@ function interactionUsageToTokenUsage(
  * requires the API key (`x-goog-api-key` header or `?key=` query
  * parameter) to download.
  *
- * **Gemini Omni Flash** (`gemini-omni-1.1-flash`) only serves the Interactions API:
+ * **Gemini Omni Flash** (`gemini-omni-1.2-flash`, `gemini-omni-1.1-flash`) only serves the Interactions API:
  * `createVideoJob` creates a background interaction with
  * `response_modalities: ['video']`, `getVideoStatus` polls it by id, and
  * `getVideo` returns the inline base64 MP4 as a `data:` URL (or the

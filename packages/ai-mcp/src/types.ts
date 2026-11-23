@@ -1,4 +1,4 @@
-import type { ServerTool, ToolDefinition } from '@tanstack/ai'
+import type { MCPRequestMeta, ServerTool, ToolDefinition } from '@tanstack/ai'
 import type {
   ClientOptions,
   PriorDiscovery,
@@ -9,7 +9,14 @@ import type { TransportInput } from './transport'
 import type { MCPEventsOptions } from './events/types'
 
 /** A bare tool definition (from `toolDefinition({...})`, no `.server()`/`.client()` called). */
-export type AnyToolDefinition = ToolDefinition<any, any, string>
+export type AnyToolDefinition = ToolDefinition<
+  any,
+  any,
+  string,
+  false,
+  undefined,
+  any
+>
 
 /**
  * The `mcp` block stamped onto every tool this package produces
@@ -69,7 +76,7 @@ export interface McpToolMetadata {
  * ```
  */
 export type McpServerTool<
-  TTool extends ServerTool<any, any, any> = ServerTool,
+  TTool extends ServerTool<any, any, any, any, any, any, any> = ServerTool,
 > = Omit<TTool, 'metadata'> & {
   metadata: Record<string, any> & { mcp: McpToolMetadata }
 }
@@ -257,6 +264,12 @@ export interface ToolsOptions {
   lazy?: boolean
   /** Cancels the `tools/list` requests. */
   signal?: AbortSignal
+  /**
+   * Called before each call of a returned tool. Its result is sent as the
+   * `tools/call` `_meta`. Each `tools()` call builds new tools, so a hook
+   * passed per request stays with that request.
+   */
+  requestMeta?: MCPRequestMeta
 }
 
 /**
@@ -266,8 +279,25 @@ export interface ToolsOptions {
  * in {@link McpServerTool} because the explicit path stamps `metadata.mcp` too.
  */
 export type ServerToolFromDef<TDef> =
-  TDef extends ToolDefinition<infer TInput, infer TOutput, infer TName>
-    ? McpServerTool<ServerTool<TInput, TOutput, TName>>
+  TDef extends ToolDefinition<
+    infer TInput,
+    infer TOutput,
+    infer TName,
+    false,
+    undefined,
+    infer TResultMetadataSchema
+  >
+    ? McpServerTool<
+        ServerTool<
+          TInput,
+          TOutput,
+          TName,
+          unknown,
+          false,
+          undefined,
+          TResultMetadataSchema
+        >
+      >
     : never
 
 export type MappedServerTools<TDefs extends ReadonlyArray<AnyToolDefinition>> =

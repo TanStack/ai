@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-computer-playwright",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Playwright browser driver for TanStack AI computer use.",
   "author": "",
   "license": "MIT",
@@ -55,7 +55,7 @@
   },
   "devDependencies": {
     "@tanstack/ai-computer-use": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10",
-    "playwright-core": "^1.57.0"
+    "@vitest/coverage-v8": "4.1.12",
+    "playwright-core": "^1.65.1"
   }
 }

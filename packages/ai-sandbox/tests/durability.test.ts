@@ -8,6 +8,7 @@ import {
   resolveDurableRunId,
   resolveSandboxDurability,
 } from '../src/durability'
+import { isStoredReplayChunk } from '../src/align'
 import { captureLogger, collectChunks, fakeLog, fromChunkValues } from './fakes'
 import type {
   SandboxDurabilityOptions,
@@ -317,21 +318,27 @@ describe('alignedIfAttaching', () => {
     expect(await collectChunks(wrapped)).toEqual([text('m1', 'a')])
   })
 
-  it('suppresses the stored prefix when attaching', async () => {
+  it('marks the stored prefix when attaching, and still yields the rest', async () => {
     const adapter = fakeLog([text('m1', 'a')])
     expect(await adapter.snapshot()).toHaveLength(1)
     const durability = resolvedDurability({
       runs: new InMemoryRunStore(),
       durability: { adapter, attach: true },
     })
-    expect(
-      await collectChunks(
-        alignedIfAttaching(
-          fromChunkValues([text('m1', 'a'), text('m1', 'b')]),
-          durability,
-        ),
+    const chunks = await collectChunks(
+      alignedIfAttaching(
+        fromChunkValues([text('m1', 'a'), text('m1', 'b')]),
+        durability,
       ),
-    ).toEqual([text('m1', 'b')])
+    )
+    // The engine needs the stored chunk. The live stream does not: the mark
+    // is what `withSandbox` and `pipeToRunLog` drop.
+    expect(chunks.filter(isStoredReplayChunk)).toEqual([
+      { ...text('m1', 'a'), tanstackStoredReplay: true },
+    ])
+    expect(chunks.filter((chunk) => !isStoredReplayChunk(chunk))).toEqual([
+      text('m1', 'b'),
+    ])
   })
 
   it('tolerates a bridged CUSTOM chunk in the stored log when attaching', async () => {
@@ -343,14 +350,16 @@ describe('alignedIfAttaching', () => {
       runs: new InMemoryRunStore(),
       durability: { adapter, attach: true },
     })
-    expect(
-      await collectChunks(
-        alignedIfAttaching(
-          fromChunkValues([text('m1', 'a'), text('m1', 'b')]),
-          durability,
-        ),
+    const chunks = await collectChunks(
+      alignedIfAttaching(
+        fromChunkValues([text('m1', 'a'), text('m1', 'b')]),
+        durability,
       ),
-    ).toEqual([text('m1', 'b')])
+    )
+    expect(chunks.filter((chunk) => !isStoredReplayChunk(chunk))).toEqual([
+      text('m1', 'b'),
+    ])
+    expect(chunks.filter(isStoredReplayChunk)).toHaveLength(1)
   })
 
   it('forwards the logger so the alignment summary is observable', async () => {

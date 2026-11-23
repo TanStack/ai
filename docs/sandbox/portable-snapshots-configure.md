@@ -7,7 +7,7 @@ description: "Wire portable snapshots so a later run rebuilds completed sandbox 
 
 Configure portable snapshots on a sandbox chat. The next run restores the files the agent wrote after the provider sandbox is gone.
 
-Portable snapshots save those files after each successful run, and restore the latest checkpoint into a new private sandbox.
+Portable snapshots save those files at the end of each run, also a run that fails or is aborted. They restore the latest checkpoint into a new private sandbox.
 
 The rules for every setup:
 
@@ -182,7 +182,7 @@ Each thread has one checkpoint writer lease.
 - A second run for the same thread gets a writer conflict while the lease is
   active.
 - The middleware renews the lease while the run is active.
-- Pause and detach paths release the lease. They do not publish a partial
-  checkpoint.
+- A pause, and a disconnect that detaches the run, release the lease. They do
+  not publish a partial checkpoint.
 - If the writer loses the lease, the middleware does not publish the
-  checkpoint. A later successful run can create a new checkpoint.
+  checkpoint. A later run can create a new checkpoint.

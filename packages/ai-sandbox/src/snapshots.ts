@@ -1,4 +1,6 @@
+import { posix } from 'node:path'
 import type { SandboxHandle, SandboxFsStat } from './contracts'
+import { shellQuote } from './journal'
 import type {
   SandboxSnapshotArtifact,
   SandboxSnapshotEntry,
@@ -206,16 +208,59 @@ function lstat(
   return handle.fs.lstat(path)
 }
 
-function assertSupported(stat: SandboxFsStat, path: string): void {
-  if (
-    stat.type === 'symlink' ||
-    stat.type === 'other' ||
-    (stat.type === 'file' && (stat.mode & 0o111) !== 0)
-  )
+// Fifos, sockets and devices cannot go in a snapshot.
+function assertSupported(
+  stat: SandboxFsStat,
+  path: string,
+): asserts stat is Exclude<SandboxFsStat, { type: 'other' }> {
+  if (stat.type === 'other')
     throw new SandboxSnapshotError(
       'SANDBOX_SNAPSHOT_UNSUPPORTED_ENTRY',
       `Unsupported entry '${path}'`,
     )
+}
+
+// A link is a leaf, so the policy sees it as a file.
+function policyKind(
+  kind: SandboxFsStat['type'] | SandboxSnapshotEntry['kind'],
+) {
+  return kind === 'dir' ? 'dir' : 'file'
+}
+
+/**
+ * The target of the link at `absolute`, as `readlink` gives it. Throws when
+ * the target is outside `rootPath`. A missing target inside the root is fine.
+ */
+async function readLinkTarget(
+  handle: SandboxHandle,
+  rootPath: string,
+  absolute: string,
+  relative: string,
+) {
+  // Run in the folder of the link with a relative name: the sandbox maps the
+  // folder, not the arguments, to its own files.
+  const folder = posix.dirname(absolute)
+  const { exitCode, stdout, stderr } = await handle.process.exec(
+    `readlink -- ${shellQuote(posix.basename(absolute))}`,
+    { cwd: folder },
+  )
+  if (exitCode !== 0)
+    throw new SandboxSnapshotError(
+      'SANDBOX_SNAPSHOT_INVALID_WORKSPACE',
+      `Cannot read the link '${relative}': ${stderr.trim()}`,
+    )
+  const target = stdout.replace(/\n$/, '')
+  const fromRoot = posix.relative(
+    posix.resolve(rootPath),
+    posix.resolve(folder, target),
+  )
+  const isOutside = fromRoot === '..' || fromRoot.startsWith('../')
+  if (isOutside)
+    throw new SandboxSnapshotError(
+      'SANDBOX_SNAPSHOT_UNSUPPORTED_ENTRY',
+      `The link '${relative}' points outside the workspace. Exclude it from the snapshot.`,
+    )
+  return target
 }
 
 function included(
@@ -308,26 +353,33 @@ export async function captureSandboxFiles(
         'SANDBOX_SNAPSHOT_INVALID_WORKSPACE',
         `Snapshot entry disappeared '${relative}'`,
       )
-    assertSupported(stat, relative)
-    if (stat.type !== 'file' && stat.type !== 'dir')
-      throw new SandboxSnapshotError(
-        'SANDBOX_SNAPSHOT_UNSUPPORTED_ENTRY',
-        `Unsupported entry '${relative}'`,
-      )
+    // An excluded path never fails the capture, so check the policy first.
     if (
       relative &&
       (isProtectedPath(relative, policy.workspaceHash) ||
-        policy.exclude?.(relative, stat.type))
+        policy.exclude?.(relative, policyKind(stat.type)))
     )
       return false
-    if (stat.type === 'file') {
+    assertSupported(stat, relative)
+    if (stat.type !== 'dir') {
       const path = normalize(relative)
       if (policy.include && !policy.include(path, 'file')) return false
+      if (stat.type === 'symlink') {
+        const target = await readLinkTarget(handle, rootPath, absolute, path)
+        files.push({ path, kind: 'symlink', target })
+        return true
+      }
       let bytes = await handle.fs.readBytes(absolute)
       if (policy.redact) bytes = policy.redact({ path, bytes, resolvedSecrets })
       bytes = await redactBytes(bytes, resolvedSecrets)
       const blob = await putIfAbsent(bundle.blobs, bytes, destinationKeys)
-      files.push({ path, kind: 'file', blobKey: blob.key, size: blob.size })
+      files.push({
+        path,
+        kind: 'file',
+        blobKey: blob.key,
+        size: blob.size,
+        mode: stat.mode & 0o777,
+      })
       return true
     }
     const children = await handle.fs.list(absolute)
@@ -363,6 +415,7 @@ export async function captureSandboxFiles(
 
 type PlannedEntry = SandboxSnapshotEntry & { path: string }
 type PlannedFile = Extract<PlannedEntry, { kind: 'file' }>
+type PlannedLink = Extract<PlannedEntry, { kind: 'symlink' }>
 
 function validateManifest(
   snapshot: {
@@ -389,7 +442,7 @@ function validateManifest(
         `Protected snapshot path '${path}'`,
       )
     if (
-      !included(path, entry.kind, policy) ||
+      !included(path, policyKind(entry.kind), policy) ||
       (entry.kind === 'dir' && policy.include?.(path, 'dir') === false)
     )
       throw new SandboxSnapshotError(
@@ -402,21 +455,37 @@ function validateManifest(
         `Duplicate path '${path}'`,
       )
     if (entry.kind === 'file') {
-      const { blobKey, size } = entry
+      const { blobKey, size, mode } = entry
+      const hasBadMode =
+        mode !== undefined &&
+        (!Number.isSafeInteger(mode) || mode < 0 || mode > 0o777)
       if (
         typeof blobKey !== 'string' ||
         !FILE_BLOB_KEY.test(blobKey) ||
         typeof size !== 'number' ||
         !Number.isSafeInteger(size) ||
-        size < 0
+        size < 0 ||
+        hasBadMode
       )
         throw new SandboxSnapshotError(
           'SANDBOX_SNAPSHOT_INVALID_PATH',
           `Invalid file entry '${path}'`,
         )
-      paths.set(path, { path, kind: 'file', blobKey, size })
+      paths.set(path, { path, kind: 'file', blobKey, size, mode })
     } else if (entry.kind === 'dir') paths.set(path, { path, kind: 'dir' })
-    else
+    else if (entry.kind === 'symlink') {
+      const { target } = entry
+      if (
+        typeof target !== 'string' ||
+        target.length === 0 ||
+        target.includes('\0')
+      )
+        throw new SandboxSnapshotError(
+          'SANDBOX_SNAPSHOT_INVALID_PATH',
+          `Invalid symlink entry '${path}'`,
+        )
+      paths.set(path, { path, kind: 'symlink', target })
+    } else
       throw new SandboxSnapshotError(
         'SANDBOX_SNAPSHOT_INVALID_PATH',
         `Unknown snapshot entry '${path}'`,
@@ -429,7 +498,7 @@ function validateManifest(
       index = path.indexOf('/', index + 1)
     ) {
       const parent = paths.get(path.slice(0, index))
-      if (parent?.kind === 'file')
+      if (parent && parent.kind !== 'dir')
         throw new SandboxSnapshotError(
           'SANDBOX_SNAPSHOT_INVALID_PATH',
           `File ancestor '${parent.path}'`,
@@ -472,7 +541,11 @@ async function loadBlobs(
   return blobs
 }
 
-type CurrentEntry = { path: string; kind: 'file' | 'dir'; protected?: boolean }
+type CurrentEntry = {
+  path: string
+  kind: SandboxSnapshotEntry['kind']
+  protected?: boolean
+}
 
 async function scanCurrent(
   handle: SandboxHandle,
@@ -483,7 +556,8 @@ async function scanCurrent(
   const stat = await lstat(handle, absolute)
   if (!stat) return []
   assertSupported(stat, relative)
-  if (stat.type === 'file') return [{ path: relative, kind: 'file' }]
+  // Never look inside a link: it is a leaf like a file.
+  if (stat.type !== 'dir') return [{ path: relative, kind: stat.type }]
   const paths: Array<CurrentEntry> = []
   for (const child of await handle.fs.list(absolute)) {
     const childEntry = childPath(absolute, child)
@@ -576,15 +650,21 @@ function buildRestorePlan(
   removes: Array<string>
   mkdirs: Array<string>
   writes: Array<PlannedFile>
+  links: Array<PlannedLink>
 } {
-  const desired = new Map<string, 'file' | 'dir'>()
+  const desired = new Map<string, SandboxSnapshotEntry['kind']>()
   for (const entry of entries) {
     desired.set(entry.path, entry.kind)
     for (const parent of parents(entry.path)) desired.set(parent, 'dir')
   }
   const currentKinds = new Map(current.map((entry) => [entry.path, entry.kind]))
+  // ponytail: every current link is removed and made again, so a link with
+  // an old target never stays.
   const candidates = current
-    .filter((entry) => desired.get(entry.path) !== entry.kind)
+    .filter(
+      (entry) =>
+        entry.kind === 'symlink' || desired.get(entry.path) !== entry.kind,
+    )
     .map((entry) => entry.path)
     .sort((a, b) => depth(a) - depth(b) || comparePath(a, b))
   const removes: Array<string> = []
@@ -607,7 +687,53 @@ function buildRestorePlan(
   const writes = entries
     .filter((entry): entry is PlannedFile => entry.kind === 'file')
     .sort((a, b) => comparePath(a.path, b.path))
-  return { removes, mkdirs, writes }
+  const links = entries
+    .filter((entry): entry is PlannedLink => entry.kind === 'symlink')
+    .sort((a, b) => comparePath(a.path, b.path))
+  return { removes, mkdirs, writes, links }
+}
+
+/** Runs one shell command in the workspace root. Throws when it fails. */
+async function execInRoot(
+  handle: SandboxHandle,
+  rootPath: string,
+  command: string,
+  action: string,
+) {
+  // Paths are relative to `cwd`: the sandbox maps the folder, not the
+  // arguments, to its own files.
+  const { exitCode, stderr } = await handle.process.exec(command, {
+    cwd: rootPath,
+  })
+  if (exitCode !== 0)
+    throw new SandboxSnapshotError(
+      'SANDBOX_SNAPSHOT_INVALID_WORKSPACE',
+      `Cannot ${action} during snapshot restore: ${stderr.trim()}`,
+    )
+}
+
+// ponytail: one shell command for all links and one for all modes. A very
+// large workspace can hit the shell argument limit; split into chunks then.
+function linkCommand(links: ReadonlyArray<PlannedLink>) {
+  return links
+    .map(
+      (link) => `ln -s -- ${shellQuote(link.target)} ${shellQuote(link.path)}`,
+    )
+    .join(' && ')
+}
+
+function chmodCommand(files: ReadonlyArray<PlannedFile>) {
+  const pathsByMode = new Map<number, Array<string>>()
+  for (const file of files) {
+    if (file.mode === undefined) continue
+    const paths = pathsByMode.get(file.mode) ?? []
+    paths.push(shellQuote(file.path))
+    pathsByMode.set(file.mode, paths)
+  }
+  return Array.from(
+    pathsByMode,
+    ([mode, paths]) => `chmod ${mode.toString(8)} -- ${paths.join(' ')}`,
+  ).join(' && ')
 }
 
 export async function restoreSandboxFiles(
@@ -630,7 +756,7 @@ export async function restoreSandboxFiles(
   const current = await scanDestination(handle, policy, rootPath)
   for (const entry of entries) {
     if (
-      entry.kind === 'file' &&
+      entry.kind !== 'dir' &&
       current.some(
         (currentEntry) =>
           currentEntry.protected &&
@@ -653,6 +779,10 @@ export async function restoreSandboxFiles(
       `${rootPath}/${entry.path}`,
       getRequiredBlob(blobs, entry.blobKey),
     )
+  if (plan.links.length > 0)
+    await execInRoot(handle, rootPath, linkCommand(plan.links), 'create links')
+  const chmod = chmodCommand(plan.writes)
+  if (chmod) await execInRoot(handle, rootPath, chmod, 'set file modes')
 }
 
 export async function captureSandboxArtifacts(

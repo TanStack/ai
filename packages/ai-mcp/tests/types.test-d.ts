@@ -14,7 +14,7 @@ import type {
   McpToolMetadata,
   ServerDescriptor,
 } from '../src/types'
-import type { ServerTool } from '@tanstack/ai'
+import type { InferToolResultMetadata, ServerTool } from '@tanstack/ai'
 import type {
   CallToolResult,
   ToolAnnotations,
@@ -53,6 +53,19 @@ const getWeather = toolDefinition({
 })
 const bound = await client.tools([getWeather])
 expectTypeOf(bound).toEqualTypeOf<MappedServerTools<[typeof getWeather]>>()
+
+// The defs path keeps `resultMetadataSchema`, so the definition types the
+// result `_meta`.
+const searchDocs = toolDefinition({
+  name: 'search_docs',
+  description: 'Search the docs',
+  inputSchema: z.object({ query: z.string() }),
+  resultMetadataSchema: z.object({ sources: z.array(z.string()) }),
+})
+const [boundSearch] = await client.tools([searchDocs])
+expectTypeOf<InferToolResultMetadata<typeof boundSearch>>().toEqualTypeOf<{
+  sources: Array<string>
+}>()
 
 // `metadata.mcp` is typed on EVERY tools() path, so a consumer reads the
 // server's title / annotations with no annotation, no optional chaining on

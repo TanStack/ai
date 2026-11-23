@@ -1,5 +1,34 @@
 # @tanstack/ai-openai
 
+## 1.2.0
+
+### Minor Changes
+
+- [#2156](https://github.com/TanStack/ai/pull/2156) [`df6f5a9`](https://github.com/TanStack/ai/commit/df6f5a9f5ff782db85c8a36715bac18a7f090180) - The OpenAI-compatible adapters support `chat({ reasoning })`. Add the levels of a model to its `createModel` definition (`reasoning: { levels, budget }`), or to the `reasoning` config of `openaiCompatibleText`. The adapter sends the level as `reasoning_effort` on Chat Completions, or as `reasoning: { effort, summary }` on Responses. `chat()` accepts only the levels of the model.
+
+  `OpenAICompatibleChatAdapter` and `OpenAICompatibleResponsesAdapter` take the same levels in a new `reasoning` constructor option, and in their last type parameter. TypeScript shows an error when the option is missing or its levels are different from the type parameter. The new `OpenAICompatibleAdapterOptions` type is exported from `@tanstack/ai-openai/compatible`.
+
+### Patch Changes
+
+- Updated dependencies [[`95c1d78`](https://github.com/TanStack/ai/commit/95c1d781c92904612e0d675a9ca38f1a8d9a1c09), [`df6f5a9`](https://github.com/TanStack/ai/commit/df6f5a9f5ff782db85c8a36715bac18a7f090180), [`40d1c61`](https://github.com/TanStack/ai/commit/40d1c61c6bdf1957bd124d09b1f07617a05e759d)]:
+  - @tanstack/ai@1.6.0
+  - @tanstack/openai-base@1.1.0
+
+## 1.1.1
+
+### Patch Changes
+
+- [#1986](https://github.com/TanStack/ai/pull/1986) [`b23df66`](https://github.com/TanStack/ai/commit/b23df66975997e35860df382ba57c699fd8c1b3e) - `embed()` with the OpenAI adapter now sends inputs in sequential requests of at most 2048 inputs each, the endpoint's limit, and sums the token usage. Before, more than 2048 texts failed with a 400 error. OpenAI also limits one request to 300,000 tokens across all inputs, so a large array of long texts can still fail. Split those calls yourself.
+
+- [#1973](https://github.com/TanStack/ai/pull/1973) [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce) - The adapters now call the provider HTTP API with `fetch` and do not create the `openai` SDK client. At runtime they load only small SDK modules, for example the error classes from `openai/core/error`. With a bundler that splits chunks, the startup bundle is smaller. A single-file bundle can be a little larger, because a few rare options still load the full SDK on first use. Errors keep the same classes and fields.
+
+- [#1895](https://github.com/TanStack/ai/pull/1895) [`e024981`](https://github.com/TanStack/ai/commit/e024981ed2c0481c506595dae1280a94a7fba2e4) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai@1.2.0
+  - @tanstack/ai-utils@1.1.0
+  - @tanstack/openai-base@1.0.2
+
 ## 1.1.0
 
 ### Minor Changes

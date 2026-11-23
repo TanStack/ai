@@ -130,6 +130,20 @@ export type {
   GeminiVideoSize,
 } from './video/video-provider-options'
 
+// Evaluate adapter — typed decisions via Gemini's /v1beta/decisions endpoint
+export {
+  GeminiEvaluateAdapter,
+  createGeminiDecider,
+  geminiDecider,
+  type GeminiEvaluateConfig,
+} from './adapters/evaluate'
+export {
+  GEMINI_EVALUATE_MODELS,
+  type GeminiEvaluateModel,
+  type KnownGeminiEvaluateModel,
+  type GeminiEvaluateProviderOptions,
+} from './evaluate/evaluate-provider-options'
+
 // Re-export models from model-meta for convenience
 export {
   GEMINI_MODELS,

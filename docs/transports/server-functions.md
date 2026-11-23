@@ -40,7 +40,7 @@ import { openaiText } from "@tanstack/ai-openai";
 import type { UIMessage } from "@tanstack/ai";
 
 export const chatFn = createServerFn({ method: "POST" })
-  .inputValidator((data: { messages: Array<UIMessage>; threadId: string }) => data)
+  .validator((data: { messages: Array<UIMessage>; threadId: string }) => data)
   .handler(({ data }) =>
     toServerSentEventsResponse(
       chat({

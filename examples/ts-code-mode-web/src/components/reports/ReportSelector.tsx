@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { ChevronDown, X, Trash2 } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence } from 'motion/react'
 import type { Report } from '@/lib/reports/types'
 
 interface ReportSelectorProps {

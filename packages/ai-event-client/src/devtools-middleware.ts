@@ -44,6 +44,7 @@ interface DevtoolsToolCallResultChunk {
   type: 'TOOL_CALL_RESULT'
   toolCallId: string
   content?: string
+  metadata?: Record<string, unknown>
 }
 interface DevtoolsRunFinishedChunk {
   type: 'RUN_FINISHED'
@@ -119,6 +120,17 @@ function chunkTanstack(
   const tanstack = chunk.metadata?.tanstack
   if (tanstack == null || typeof tanstack !== 'object') return undefined
   return tanstack
+}
+
+/**
+ * The app keys of a tool result chunk's metadata, without the reserved
+ * `tanstack` key. Returns `undefined` when no app key is left.
+ */
+function chunkAppMetadata(chunk: DevtoolsToolCallResultChunk) {
+  if (chunk.metadata == null) return undefined
+  const app = { ...chunk.metadata }
+  delete app.tanstack
+  return Object.keys(app).length > 0 ? app : undefined
 }
 
 /** The TanStack usage of a terminal chunk, from either usage shape. */
@@ -479,11 +491,13 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
           // the parsed input). Surface them to devtools from here so results
           // still show up now that the post-execution END is no longer
           // re-emitted (#519).
+          const metadata = chunkAppMetadata(chunk)
           safeEmit('text:chunk:tool-result', {
             ...base,
             messageId: localMessageId || undefined,
             toolCallId: chunk.toolCallId,
             result: chunk.content || '',
+            ...(metadata ? { metadata } : {}),
             timestamp: Date.now(),
           })
           break

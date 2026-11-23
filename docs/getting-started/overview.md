@@ -86,11 +86,14 @@ Each tutorial builds one small app from start to finish:
 
 - [Basic Chat](../tutorials/basic-chat): a streaming React chat. The key stays in the browser tab.
 - [Generate Image](../tutorials/generate-image): an image from a prompt.
+- [Generate Motion](../tutorials/generate-motion): two FBX animation clips for a game ability, with live job status.
+- [Game Asset Pipeline](../tutorials/game-asset-pipeline): a game-ready 3D model from one line of text.
 - [Streaming Structured Table](../tutorials/streaming-structured-table): a typed table that fills in from `chat({ outputSchema })`.
 - [Subagents](../tutorials/subagents): a researcher, an SEO agent, and a writer in one blog-writing chat.
 - [Build an MCP Server](../tutorials/mcp-server): serve a tool, a resource, and a prompt.
 - [Computer Use](../tutorials/computer-use): let the model use a web page from screenshots.
 - [Voice Support Agent](../tutorials/voice-support-agent): a phone agent that answers questions from the docs.
+- [Sign In Without the Model](../tutorials/computer-use-login): let the model sign in to a site, and keep the password away from it.
 
 ## Reference
 
@@ -135,6 +138,7 @@ Each adapter is its own package. Install only the ones you use.
 | `@tanstack/ai-grok` | xAI Grok. |
 | `@tanstack/ai-bedrock` | Amazon Bedrock (Claude, Nova, Llama, and more through AWS). |
 | `@tanstack/ai-byteplus` | BytePlus (Seed chat, Seedance video, Seedream image, Seed Speech). |
+| `@tanstack/ai-cartesia` | Cartesia (Sonic speech and Ink Whisper transcription). |
 | `@tanstack/ai-fal` | fal (image and video generation). |
 | `@tanstack/ai-reactor` | Reactor (live world and video generation: Orbis, Happy Oyster, LingBot, Helios, FastH3). |
 | `@tanstack/ai-worldlabs` | World Labs Marble (persistent 3D world generation). |

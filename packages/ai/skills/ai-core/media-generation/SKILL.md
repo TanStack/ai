@@ -5,8 +5,8 @@ description: >
   activity-specific adapters: generateImage() with openaiImage/geminiImage/byteplusImage,
   generateAudio() with geminiAudio/falAudio, generateVideo() with async
   polling (openaiVideo/geminiVideo/grokVideo/falVideo/byteplusVideo/openRouterVideo,
-  per-model typed durations), generateSpeech() with openaiSpeech/byteplusSpeech/elevenlabsSpeech,
-  generateTranscription() with openaiTranscription/byteplusTranscription,
+  per-model typed durations), generateSpeech() with openaiSpeech/byteplusSpeech/elevenlabsSpeech/cartesiaSpeech,
+  generateTranscription() with openaiTranscription/byteplusTranscription/cartesiaTranscription,
   transcriptionSession() for live server-side speech-to-text (phone calls,
   voice agents) with deepgramLiveTranscription/elevenlabsLiveTranscription/
   openaiLiveTranscription/grokLiveTranscription/geminiLiveTranscription/
@@ -138,7 +138,7 @@ import { openaiImage } from '@tanstack/ai-openai'
 import type { OpenAIImageModel } from '@tanstack/ai-openai'
 
 export const generateImageStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     (data: { prompt: string; model?: OpenAIImageModel; threadId: string }) =>
       data,
   )
@@ -410,7 +410,11 @@ const { generate, result, isLoading } = useGenerateAudio({
 ### 3. Text-to-Speech
 
 Adapters include `openaiSpeech` (tts-1, tts-1-hd, gpt-4o-mini-tts),
-`byteplusSpeech` (`seed-audio-1.0`), and `elevenlabsSpeech` (`eleven_v4`).
+`byteplusSpeech` (`seed-audio-1.0`), `elevenlabsSpeech` (`eleven_v4`), and
+`cartesiaSpeech` (`sonic-3.6`).
+
+`cartesiaSpeech` requires a Cartesia voice id as `voice`. It accepts
+`format: 'mp3' | 'wav' | 'pcm'`. `speed` must be from 0.6 to 1.5.
 
 `elevenlabsSpeech` accepts `format: 'mp3' | 'pcm' | 'opus' | 'wav'`.
 WAV output contains 44.1 kHz, 16-bit mono PCM with a RIFF header.
@@ -589,9 +593,15 @@ OpenAI, Gemini, and Cloudflare have fixed voice catalogs and will not get one.
 ### 5. Audio Transcription
 
 Adapters: `openaiTranscription` (whisper-1, gpt-4o-transcribe,
-gpt-4o-mini-transcribe, gpt-4o-transcribe-diarize) and `byteplusTranscription`
+gpt-4o-mini-transcribe, gpt-4o-transcribe-diarize), `byteplusTranscription`
 (`seed-asr` — synchronous, no polling; audio up to 2 hours / 100 MB; also reads
-**`BYTEPLUS_VOICE_API_KEY`**).
+**`BYTEPLUS_VOICE_API_KEY`**), and `cartesiaTranscription` (`ink-whisper`).
+
+`cartesiaTranscription` accepts `responseFormat` `json` or `verbose_json`.
+`verbose_json` fills `result.words` (`{ word, start, end }`) and leaves
+`segments` empty. A `prompt` throws. Omit `language` only for English audio:
+Cartesia translates other speech into English. When the recording is not
+English, pass `language` (ISO-639-1).
 
 > **Capturing audio in the browser:** Use `useAudioRecorder` from `@tanstack/ai-react` to record directly in the browser, then pass the recording as the `audio` input to `generate()`, or use `recording.part` as a prompt part in chat/generation calls. No transcoding or extra dependencies required — the recorder returns the native browser format (`audio/webm` or `audio/mp4`). For transcription, wrap it as a `data:` URL so the provider gets the real content type; passing raw `recording.base64` makes the adapter assume `audio/mpeg` and mislabel the webm/mp4 bytes.
 >
@@ -1196,7 +1206,7 @@ import { generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 export const generateImageStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: string }) => data)
+  .validator((data: { prompt: string }) => data)
   .handler(({ data }) => {
     // BUG: returning raw stream -- client cannot parse this
     // (also a type error: an AsyncIterable is not a valid server-function return)
@@ -1217,7 +1227,7 @@ import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 export const generateImageStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: string }) => data)
+  .validator((data: { prompt: string }) => data)
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       generateImage({

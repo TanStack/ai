@@ -10,6 +10,7 @@ const KIND_BY_CODE: Record<number, MCPEventRequestKind> = {
   [-32025]: 'resource-exhausted',
   [-32026]: 'unsupported',
   [-32027]: 'callback-endpoint',
+  [-32020]: 'header-mismatch',
 }
 
 function redactData(data: unknown): unknown {

@@ -6,6 +6,11 @@ import type { ChatMiddleware } from './types'
 export interface ToolCacheEntry {
   result: unknown
   timestamp: number
+  /**
+   * App-only result metadata of the tool call. A cache hit gives it back to
+   * the skipped call. Entries without it still work.
+   */
+  metadata?: Record<string, unknown>
 }
 
 /**
@@ -157,7 +162,11 @@ export function toolCacheMiddleware(
       if (entry) {
         const age = Date.now() - entry.timestamp
         if (age < ttl) {
-          return { type: 'skip', result: entry.result }
+          return {
+            type: 'skip',
+            result: entry.result,
+            ...(entry.metadata !== undefined && { metadata: entry.metadata }),
+          }
         }
         // Expired — remove
         await storage.deleteItem(key)
@@ -183,6 +192,7 @@ export function toolCacheMiddleware(
       await storage.setItem(key, {
         result: info.result,
         timestamp: Date.now(),
+        ...(info.metadata !== undefined && { metadata: info.metadata }),
       })
     },
   }

@@ -16,7 +16,7 @@ An MCP server can push work to you: a new incident, a finished job, a ticket cha
 
 `@tanstack/ai-mcp` implements the MCP Events extension (SEP-3415) for webhook delivery. You list event types, subscribe with a callback URL, and handle deliveries with `createMCPEventWebhook`.
 
-> **Experimental.** The wire format follows [SEP-3415](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/3415) draft revision `2ec39b9`. Method names and error codes can still change.
+> **Experimental.** The wire format is the final text of [SEP-3415](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/seps/3415-events-extension.md). This package sends webhook deliveries only.
 
 A TanStack Start app that subscribes and receives a signed webhook is in [Subscribe to MCP Events](../tutorials/mcp-events).
 
@@ -154,8 +154,8 @@ import { queue } from './queue'
 const store = inMemoryMCPEventStore()
 const webhook = createMCPEventWebhook({
   store,
-  onEvent: async ({ event }) => {
-    await queue.send(event)
+  onEvent: async ({ event, messageId }) => {
+    await queue.send({ messageId, event })
   },
 })
 
@@ -177,8 +177,8 @@ const app = express()
 const store = inMemoryMCPEventStore()
 const webhook = createMCPEventWebhook({
   store,
-  onEvent: async ({ event }) => {
-    await queue.send(event)
+  onEvent: async ({ event, messageId }) => {
+    await queue.send({ messageId, event })
   },
 })
 
@@ -254,7 +254,7 @@ async function renewDue(store: MCPEventStore, mcp: MCPClient) {
 | Payload | Handler | Store effect |
 |---|---|---|
 | Event | `onEvent` | Writes `event.cursor` when the field is present |
-| `{ type: 'gap', cursor }` | `onGap` | Sets `cursor` and `truncated: true` |
+| `{ type: 'gap', cursor }` | `onGap` | Sets `cursor`. A missing cursor is stored as `null`. Also sets `truncated: true` |
 | `{ type: 'terminated', error }` | `onTerminated` | Deletes the subscription |
 | `{ type: 'verification', challenge }` | none | Echoes `{ challenge }` with 200 |
 
@@ -382,6 +382,6 @@ Treat that snippet as a sketch. Production delivery needs a durable store, retri
 | 401 without a query string | A proxy dropped `mcp_event_subscription` |
 | Duplicate `onEvent` calls | Dedupe on `messageId`. 503 after a store failure retries |
 | Subscribe times out | The client deletes the pending record. Call `subscribe` again |
-| `Mcp-Name` missing | With `experimental_events` set, HTTP and SSE transports add it to `events/subscribe` and `events/unsubscribe`. Non-ASCII names use `=?base64?...?=` |
+| `Mcp-Name` or `Mcp-Param-*` missing | With `experimental_events` set, HTTP, SSE, and a Streamable HTTP `Transport` instance add `Mcp-Name` and `Mcp-Param-*` to `events/subscribe` and `events/unsubscribe`. Non-ASCII values use `=?base64?...?=`. An event type with an invalid `x-mcp-header` annotation is left out of `list()`. A `-32020` HeaderMismatch makes the client list events again and retry that request once |
 
 Next: follow [Subscribe to MCP Events](../tutorials/mcp-events), or put `createMCPEventWebhook` on a POST route and subscribe with `{ store }`.
