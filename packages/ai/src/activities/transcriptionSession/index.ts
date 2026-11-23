@@ -49,7 +49,8 @@ export interface TranscriptionSessionOptions<
 export interface TranscriptionSession extends AsyncIterable<LiveTranscriptionEvent> {
   /**
    * Send a chunk of audio in the session's `audio` format. A string is read as
-   * base64, which is what Twilio, Telnyx and Vonage send.
+   * base64, which is what Twilio, Telnyx and Vonage send. After `close()`
+   * starts, audio is dropped.
    */
   send: (audio: string | Uint8Array | ArrayBuffer) => void
   /** Flush the last text and close the session. */
@@ -125,9 +126,12 @@ export async function transcriptionSession<
     }
   }
 
+  // After close() starts, audio would go out after the provider's last
+  // commit or end message, so it is dropped.
+  let closing = false
   return {
     send: (chunk) => {
-      if (done) return
+      if (done || closing) return
       const bytes =
         typeof chunk === 'string'
           ? base64ToUint8Array(chunk)
@@ -137,7 +141,10 @@ export async function transcriptionSession<
       const out = convert(bytes)
       if (out.length) connection.send(out)
     },
-    close: () => connection.close(),
+    close: () => {
+      closing = true
+      return connection.close()
+    },
     [Symbol.asyncIterator]: events,
   }
 }

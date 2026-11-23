@@ -114,4 +114,40 @@ describe('elevenlabsLiveTranscription', () => {
       ]).toString('base64'),
     })
   })
+
+  it('waits on close when a VAD commit for an earlier segment comes first', async () => {
+    const ws = fakeWebSocket()
+    const fetchToken = (async () =>
+      new Response(JSON.stringify({ token: 'sutkn_1' }))) as typeof fetch
+    const opening = transcriptionSession({
+      adapter: elevenlabsLiveTranscription('scribe_v2_realtime', {
+        apiKey: 'xi',
+        fetch: fetchToken,
+        WebSocket: ws.WebSocket,
+      }),
+      audio: { encoding: 'mulaw', sampleRate: 8000 },
+    })
+    await new Promise((r) => setTimeout(r, 0))
+    const socket = ws.sockets[0]!
+    socket.open()
+    const session = await opening
+    const events: Array<LiveTranscriptionEvent> = []
+    const reading = (async () => {
+      for await (const e of session) events.push(e)
+    })()
+
+    session.send(new Uint8Array(100))
+    const closing = session.close()
+    // VAD commit of segment A, then segment B, which close() committed.
+    socket.receive({ message_type: 'committed_transcript', text: 'A.' })
+    await new Promise((r) => setTimeout(r, 10))
+    socket.receive({ message_type: 'partial_transcript', text: 'B' })
+    socket.receive({ message_type: 'committed_transcript', text: 'B.' })
+    await closing
+    await reading
+    expect(events.filter((e) => e.type === 'final')).toEqual([
+      { type: 'final', text: 'A.' },
+      { type: 'final', text: 'B.' },
+    ])
+  })
 })

@@ -87,4 +87,26 @@ describe('openLiveSocket', () => {
     await vi.advanceTimersByTimeAsync(1000)
     await rejected
   })
+
+  it('ends the session when the peer never answers the close', async () => {
+    vi.useFakeTimers()
+    const ws = fakeWebSocket()
+    const socket = new ws.WebSocket('wss://example.test')
+    ws.sockets[0]!.open()
+    // This peer never sends a close frame back, so no `close` event fires.
+    socket.close = () => {}
+    let ended = 0
+    const live = await openLiveSocket({
+      socket,
+      connect: { emit: () => {}, end: () => ended++ },
+      onMessage: () => {},
+    })
+    let done = false
+    void live.finish(undefined, 500).then(() => (done = true))
+    await vi.advanceTimersByTimeAsync(500) // finish gives up and closes
+    expect(done).toBe(false)
+    await vi.advanceTimersByTimeAsync(1000) // no close event: end anyway
+    expect(done).toBe(true)
+    expect(ended).toBe(1)
+  })
 })

@@ -147,4 +147,25 @@ describe('transcriptionSession', () => {
     session.send(new Uint8Array([1]))
     expect(fake.sent).toEqual([])
   })
+
+  it('drops audio sent while close() is still flushing', async () => {
+    const fake = fakeAdapter([{ encoding: 'mulaw' }])
+    let finish!: () => void
+    const connect = fake.adapter.connect
+    fake.adapter.connect = async (o) => {
+      const connection = await connect(o)
+      // The provider has not answered the last commit yet.
+      return { ...connection, close: () => new Promise((r) => (finish = r)) }
+    }
+    const session = await transcriptionSession({
+      adapter: fake.adapter,
+      audio: { encoding: 'mulaw', sampleRate: 8000 },
+    })
+    session.send(new Uint8Array([1]))
+    const closing = session.close()
+    session.send(new Uint8Array([2]))
+    expect(fake.sent).toEqual([new Uint8Array([1])])
+    finish()
+    await closing
+  })
 })

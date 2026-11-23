@@ -95,6 +95,17 @@ export function openLiveSocket(
   let resolveClosed!: () => void
   const closed = new Promise<void>((r) => (resolveClosed = r))
   let rejectConnect: (error: Error) => void = () => {}
+  // Ends the session once, from the close event or from the fallback below.
+  let settled = false
+  let forced: ReturnType<typeof setTimeout> | undefined
+  const settle = () => {
+    if (settled) return
+    settled = true
+    clearTimeout(forced)
+    abortSignal?.removeEventListener('abort', onAbort)
+    resolveClosed()
+    end()
+  }
 
   const live: LiveSocket = {
     sendJson: (value) => {
@@ -111,13 +122,23 @@ export function openLiveSocket(
       if (closing) return closed
       closing = true
       if (lastMessage !== undefined) live.sendJson(lastMessage)
-      const timer = setTimeout(() => ws.close(1000), timeoutMs)
+      const timer = setTimeout(() => live.close(), timeoutMs)
       await closed
       clearTimeout(timer)
     },
     close: () => {
       closing = true
       if (ws.readyState < 2) ws.close(1000)
+      // A peer that never answers the close frame never fires `close`. End
+      // the session anyway, so `close()` and the event loop do not hang.
+      // ponytail: fixed 1 s wait for the close handshake.
+      forced ??= setTimeout(() => {
+        if ('terminate' in ws && typeof ws.terminate === 'function')
+          ws.terminate()
+        if (!ready)
+          rejectConnect(new Error('The connection closed before it was ready.'))
+        settle()
+      }, 1000)
     },
     fail: (error) => {
       if (ready) {
@@ -173,7 +194,7 @@ export function openLiveSocket(
       options.onMessage(message, live)
     })
     ws.addEventListener('close', (event: CloseEvent) => {
-      abortSignal?.removeEventListener('abort', onAbort)
+      if (settled) return
       const clean = event.code === 1000 || event.code === 1005
       if (!ready) {
         clearTimeout(timer)
@@ -190,8 +211,7 @@ export function openLiveSocket(
           ),
         })
       }
-      resolveClosed()
-      end()
+      settle()
     })
   })
 }

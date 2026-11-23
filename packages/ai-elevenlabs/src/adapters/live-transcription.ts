@@ -1,6 +1,9 @@
 import { bytesToBase64, openLiveSocket } from '@tanstack/ai/adapter-internals'
 import { getElevenLabsApiKeyFromEnv } from '../utils/client'
-import type { WebSocketConstructor } from '@tanstack/ai/adapter-internals'
+import type {
+  LiveSocket,
+  WebSocketConstructor,
+} from '@tanstack/ai/adapter-internals'
 import type { LiveTranscriptionAdapter } from '@tanstack/ai'
 
 /** ElevenLabs Scribe models for realtime speech-to-text. */
@@ -121,6 +124,16 @@ export function elevenlabsLiveTranscription<
         query.set(k, String(v))
 
       let lastInterim = ''
+      // With VAD, a commit for an earlier segment can arrive after close()
+      // sent its own. So while closing, close 1 s after a commit, unless new
+      // partial text shows that another segment is still coming.
+      // ponytail: fixed 1 s grace, like Gemini. Make it an option if needed.
+      const vad = query.get('commit_strategy') === 'vad'
+      let grace: ReturnType<typeof setTimeout> | undefined
+      const closeSoon = (socket: LiveSocket) => {
+        clearTimeout(grace)
+        grace = setTimeout(() => socket.close(), 1000)
+      }
       const live = await openLiveSocket({
         url: `${base.replace(/^http/, 'ws')}/v1/speech-to-text/realtime?${query}`,
         WebSocket: config.WebSocket,
@@ -132,6 +145,7 @@ export function elevenlabsLiveTranscription<
             const text = m.text?.trim() ?? ''
             if (text && text !== lastInterim) {
               lastInterim = text
+              clearTimeout(grace)
               options.emit({ type: 'interim', text })
             }
           } else if (m.message_type === 'committed_transcript') {
@@ -139,7 +153,10 @@ export function elevenlabsLiveTranscription<
             const text = m.text?.trim()
             if (text) options.emit({ type: 'final', text })
             options.emit({ type: 'turn-end' })
-            if (socket.closing) socket.close()
+            if (socket.closing) {
+              if (vad) closeSoon(socket)
+              else socket.close()
+            }
           } else if (m.error) {
             socket.fail(new Error(`ElevenLabs ${m.message_type}: ${m.error}`))
           }
@@ -176,7 +193,10 @@ export function elevenlabsLiveTranscription<
           pendingBytes += audio.length
           if (pendingBytes >= batchBytes) live.sendJson(chunk(drain(), false))
         },
-        close: () => live.finish(chunk(drain(), true)),
+        close: async () => {
+          await live.finish(chunk(drain(), true))
+          clearTimeout(grace)
+        },
       }
     },
   }
