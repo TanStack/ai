@@ -1617,10 +1617,12 @@ function buildRunAgentInputBody(
     )
   }
   // Server snapshots also use uiMessagesToWire and keep all the metadata,
-  // so the strip is done here.
-  const wireMessages = uiMessagesToWire(messages).map((row) =>
-    row.role === 'tool' ? withReservedMetadataOnly(row) : row,
-  )
+  // so the strip is done here. Activity rows go out as given: ChatClient
+  // sends only decided `sandbox.approval` rows, which carry the user's
+  // decision to the server.
+  const wireMessages = uiMessagesToWire(messages, {
+    includeActivity: true,
+  }).map((row) => (row.role === 'tool' ? withReservedMetadataOnly(row) : row))
   const forwardedProps = {
     ...options.body,
     ...runContext.forwardedProps,

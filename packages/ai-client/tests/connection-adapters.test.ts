@@ -10,6 +10,8 @@ import {
   stream,
 } from '../src/connection-adapters'
 import { UnsupportedResponseStreamError } from '../src'
+import { ChatClient } from '../src/chat-client'
+import { createUIMessage } from './test-utils'
 import type { RunAgentInput, StreamChunk } from '@tanstack/ai/client'
 
 const RUN_CONTEXT = { threadId: 'thread-1', runId: 'run-1' }
@@ -1735,5 +1737,72 @@ describe('connection-adapters', () => {
         before: 'c1',
       })
     })
+  })
+
+  describe('activity rows in the request body', () => {
+    const approvalId = 'claude-code:command:rm -rf build'
+
+    function pendingApprovalRow(id: string) {
+      return {
+        id: `sandbox.approval:${id}`,
+        role: 'activity' as const,
+        parts: [
+          {
+            type: 'activity' as const,
+            activityType: 'sandbox.approval',
+            content: { approvalId: id, title: `Run ${id}`, status: 'pending' },
+          },
+        ],
+      }
+    }
+
+    it.each([
+      ['fetchServerSentEvents', fetchServerSentEvents],
+      ['fetchHttpStream', fetchHttpStream],
+    ])(
+      '%s sends the decided sandbox.approval row and no other activity row',
+      async (_name, createAdapter) => {
+        fetchMock.mockResolvedValue(new Response(''))
+        const client = new ChatClient({
+          threadId: 'thread-1',
+          connection: createAdapter('/api/chat'),
+          initialMessages: [
+            createUIMessage('user-1', 'Clean up'),
+            {
+              id: 'search-1',
+              role: 'activity',
+              parts: [
+                {
+                  type: 'activity',
+                  activityType: 'search',
+                  content: { query: 'docs' },
+                },
+              ],
+            },
+            pendingApprovalRow('claude-code:command:ls'),
+            pendingApprovalRow(approvalId),
+          ],
+        })
+
+        await client.respondToSandboxApproval(approvalId, true)
+
+        const request: RequestInit | undefined = fetchMock.mock.calls[0]?.[1]
+        const body: RunAgentInput = JSON.parse(String(request?.body))
+        expect(
+          body.messages.filter((message) => message.role === 'activity'),
+        ).toEqual([
+          {
+            id: `sandbox.approval:${approvalId}`,
+            role: 'activity',
+            activityType: 'sandbox.approval',
+            content: {
+              approvalId,
+              title: `Run ${approvalId}`,
+              status: 'granted',
+            },
+          },
+        ])
+      },
+    )
   })
 })

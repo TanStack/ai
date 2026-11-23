@@ -6,6 +6,9 @@ export {
   selectMessageUI,
 } from './ui/selectors'
 export type {
+  ChatUIActivitiesOf,
+  ChatUIActivityPartOf,
+  ChatUIActivityType,
   ChatUIApprovalToolName,
   ChatUIApprovalToolsOf,
   ChatUIData,

@@ -1,3 +1,4 @@
+import type { AnyActivityTypeDefinition } from '@tanstack/ai/client'
 import type {
   MessagePart,
   ToolApprovalInterrupt,
@@ -106,7 +107,10 @@ function collectToolParts(
   }
 }
 
-export function selectChatUI(input: ChatUISelectInput): ChatUISelection {
+export function selectChatUI<
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> | undefined =
+    undefined,
+>(input: ChatUISelectInput<TActivities>): ChatUISelection<TActivities> {
   const messages = input.messages
   const interrupts = input.interrupts ?? []
   const inlineToolNames = new Set(input.inlineToolNames ?? [])
@@ -122,14 +126,13 @@ export function selectChatUI(input: ChatUISelectInput): ChatUISelection {
     }
   }
 
-  const selectedMessages: Array<ChatUISelectedMessage> = messages.map(
-    (message) => ({
+  const selectedMessages: Array<ChatUISelectedMessage<TActivities>> =
+    messages.map((message) => ({
       message,
       parts: message.parts.map((part) =>
         toSelectedPart(part, resultsByCallId, approvalByCallId, callIds),
       ),
-    }),
-  )
+    }))
 
   return {
     messages: selectedMessages,
@@ -178,17 +181,20 @@ function toSelectedPart(
 }
 
 export function automaticPartsForMessage(
-  selected: ChatUISelectedMessage,
+  selected: Pick<ChatUISelectedMessage, 'parts'>,
 ): Array<ChatUISelectedPart> {
   return selected.parts.filter(
     (part) => !(part.key === 'toolResult' && part.matched),
   )
 }
 
-export function selectMessageUI(
-  message: UIMessage,
+export function selectMessageUI<
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> | undefined =
+    undefined,
+>(
+  message: UIMessage<any, unknown, undefined, TActivities>,
   input: Omit<ChatUISelectInput, 'messages'>,
-): ChatUISelectedMessage {
+): ChatUISelectedMessage<TActivities> {
   return (
     selectChatUI({ ...input, messages: [message] }).messages[0] ?? {
       message,
