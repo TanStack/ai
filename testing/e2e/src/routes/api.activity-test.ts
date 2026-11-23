@@ -3,6 +3,8 @@ import {
   EventType,
   chat,
   chatParamsFromRequestBody,
+  memoryStream,
+  resumeServerSentEventsResponse,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import {
@@ -10,11 +12,18 @@ import {
   reconstructChat,
   withPersistence,
 } from '@tanstack/ai-persistence'
+import {
+  approvalDecisionActivities,
+  approvalId,
+  buildApprovalActivity,
+} from '@tanstack/ai-sandbox'
+import { deployProgress } from '@/lib/activity-types'
 import type {
   AnyTextAdapter,
   AdapterYieldChunk,
   ChatMiddleware,
   StreamChunk,
+  Tool,
 } from '@tanstack/ai'
 
 /**
@@ -33,6 +42,19 @@ import type {
  * `?mode=persist-middleware` also adds an activity from middleware `onChunk`.
  * `?mode=persist-error` fails the run after the activity (issue #1804).
  *
+ * Persist-live mode (`?mode=persist-live`) streams `chat()` through
+ * `withPersistence` and a `memoryStream` log, for a `persistence: true` page:
+ *
+ * - `[activity] deploy` calls the `deploy` tool. The tool emits step 1 of a
+ *   typed `deploy.progress` row, waits for `POST ?action=finish&threadId=`,
+ *   then emits step 2 with the same id.
+ * - `[activity] approval` sends a pending `sandbox.approval` row. The page
+ *   answers with `respondToSandboxApproval`. The run after that carries the
+ *   decided row, so the engine gives the decision to the adapter in
+ *   `options.approvals`. The adapter then sets that row to `granted`.
+ *
+ * GET with `?offset=-1&runId=` replays a persist-live run (`joinRun`).
+ *
  * Exempt from the aimock policy: a fixed AG-UI sequence, never an LLM provider.
  */
 
@@ -42,8 +64,43 @@ const ACTIVITY_NEEDLE = 'e2e-activity-needle'
 const ACTIVITY_FOUND = 'ACTIVITY_FOUND cats'
 const ACTIVITY_CLEAN = 'ACTIVITY_CLEAN'
 const ACTIVITY_LEAK = 'ACTIVITY_LEAK'
+const DEPLOY_TEXT = '[activity] deploy'
+const APPROVAL_TEXT = '[activity] approval'
+const DEPLOY_ACTIVITY_ID = 'act-e2e-deploy'
+const DEPLOY_CALL_ID = 'call-e2e-deploy'
+const APPROVAL_PROVIDER = 'activity-test'
+const APPROVAL_ID = approvalId({
+  provider: APPROVAL_PROVIDER,
+  kind: 'command',
+  target: 'deploy',
+})
 
 const activityPersistence = memoryPersistence()
+
+// The `deploy` tool of each thread waits here after step 1, until the spec
+// sends `POST ?action=finish&threadId=`.
+// ponytail: a gate that the spec never opens keeps its run open for the life
+// of the test server.
+const deployGates = new Map<string, () => void>()
+
+const deployTool: Tool = {
+  name: 'deploy',
+  description: 'Deploy in two steps.',
+  execute: async (_args, context) => {
+    const threadId = context?.threadId ?? ''
+    context?.emitActivity?.(deployProgress, DEPLOY_ACTIVITY_ID, {
+      step: 1,
+      total: 2,
+    })
+    await new Promise<void>((resolve) => deployGates.set(threadId, resolve))
+    deployGates.delete(threadId)
+    context?.emitActivity?.(deployProgress, DEPLOY_ACTIVITY_ID, {
+      step: 2,
+      total: 2,
+    })
+    return { deployed: true }
+  },
+}
 
 const adapter: AnyTextAdapter = {
   kind: 'text',
@@ -60,10 +117,24 @@ const adapter: AnyTextAdapter = {
   async *chatStream(options): AsyncGenerator<AdapterYieldChunk> {
     const runId = options.runId ?? 'activity-test-run'
     const threadId = options.threadId ?? 'activity-test-thread'
-    const userTurns = options.messages.filter(
+    const userMessages = options.messages.filter(
       (message) => message.role === 'user',
-    ).length
-    if (userTurns > 1) {
+    )
+    switch (userMessages.at(-1)?.content) {
+      case DEPLOY_TEXT:
+        // The second model call has the tool result. It ends the run.
+        yield* options.messages.at(-1)?.role === 'tool'
+          ? textRun(threadId, runId, 'asst-deploy', 'DEPLOY_DONE')
+          : deployCall(threadId, runId)
+        return
+      case APPROVAL_TEXT:
+        // The run after `respondToSandboxApproval` has the decision here.
+        yield* options.approvals?.has(APPROVAL_ID)
+          ? decisionRun(threadId, runId, options.approvals)
+          : approvalRun(threadId, runId)
+        return
+    }
+    if (userMessages.length > 1) {
       yield* textRun(threadId, runId, 'asst-clean', ACTIVITY_CLEAN)
       return
     }
@@ -143,6 +214,87 @@ async function* textRun(
     runId,
     timestamp: Date.now(),
   }
+}
+
+/** `[activity] deploy`, first model call: call the `deploy` tool. */
+async function* deployCall(
+  threadId: string,
+  runId: string,
+): AsyncGenerator<AdapterYieldChunk> {
+  yield {
+    type: EventType.RUN_STARTED,
+    threadId,
+    runId,
+    timestamp: Date.now(),
+  }
+  yield {
+    type: EventType.TOOL_CALL_START,
+    toolCallId: DEPLOY_CALL_ID,
+    toolCallName: 'deploy',
+    timestamp: Date.now(),
+  }
+  yield {
+    type: EventType.TOOL_CALL_ARGS,
+    toolCallId: DEPLOY_CALL_ID,
+    delta: '{}',
+    timestamp: Date.now(),
+  }
+  yield {
+    type: EventType.TOOL_CALL_END,
+    toolCallId: DEPLOY_CALL_ID,
+    timestamp: Date.now(),
+  }
+  yield {
+    type: EventType.RUN_FINISHED,
+    threadId,
+    runId,
+    finishReason: 'tool_calls',
+    timestamp: Date.now(),
+  }
+}
+
+/** `[activity] approval`: an action waits for a decision, so send a pending row. */
+async function* approvalRun(
+  threadId: string,
+  runId: string,
+): AsyncGenerator<AdapterYieldChunk> {
+  yield {
+    type: EventType.RUN_STARTED,
+    threadId,
+    runId,
+    timestamp: Date.now(),
+  }
+  yield buildApprovalActivity({
+    approvalId: APPROVAL_ID,
+    title: 'Approve deploy',
+    threadId,
+    runId,
+  })
+  yield* textRun(threadId, runId, 'asst-approval', 'APPROVAL_PENDING', false)
+}
+
+/**
+ * The run after `respondToSandboxApproval`. The request carries the decided
+ * row, and the engine turns it into `options.approvals`. Like a harness
+ * adapter, this sends the decision deltas right after RUN_STARTED.
+ */
+async function* decisionRun(
+  threadId: string,
+  runId: string,
+  approvals: ReadonlyMap<string, boolean>,
+): AsyncGenerator<AdapterYieldChunk> {
+  yield {
+    type: EventType.RUN_STARTED,
+    threadId,
+    runId,
+    timestamp: Date.now(),
+  }
+  yield* approvalDecisionActivities(approvals, {
+    provider: APPROVAL_PROVIDER,
+    threadId,
+    runId,
+  })
+  yield* textRun(threadId, runId, 'asst-approve', 'APPROVAL_GRANTED', false)
 }
 
 function snapshotRun(
@@ -250,7 +402,12 @@ export const Route = createFileRoute('/api/activity-test')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const mode = new URL(request.url).searchParams.get('mode')
+        const url = new URL(request.url)
+        if (url.searchParams.get('action') === 'finish') {
+          deployGates.get(url.searchParams.get('threadId') ?? '')?.()
+          return new Response(null, { status: 204 })
+        }
+        const mode = url.searchParams.get('mode')
         const extra = mode ? persistMiddleware[mode] : undefined
         if (extra) {
           const body: unknown = await request.json()
@@ -275,6 +432,21 @@ export const Route = createFileRoute('/api/activity-test')({
           )
         }
 
+        if (mode === 'persist-live') {
+          const stream = chat({
+            adapter,
+            messages: params.messages,
+            tools: [deployTool],
+            stream: true,
+            threadId: params.threadId,
+            runId: params.runId,
+            middleware: [withPersistence(activityPersistence)],
+          })
+          return toServerSentEventsResponse(stream, {
+            durability: { adapter: memoryStream(request) },
+          })
+        }
+
         if (inboundLeakedActivity(params.messages)) {
           return toServerSentEventsResponse(
             leakRun(params.threadId, params.runId),
@@ -291,10 +463,15 @@ export const Route = createFileRoute('/api/activity-test')({
         })
         return toServerSentEventsResponse(stream)
       },
-      GET: ({ request }) =>
-        reconstructChat(activityPersistence, request, {
+      GET: ({ request }) => {
+        const durability = memoryStream(request)
+        if (durability.resumeFrom() !== null) {
+          return resumeServerSentEventsResponse({ adapter: durability })
+        }
+        return reconstructChat(activityPersistence, request, {
           authorize: (threadId) => threadId.length > 0,
-        }),
+        })
+      },
     },
   },
 })

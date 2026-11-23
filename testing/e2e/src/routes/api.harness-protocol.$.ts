@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { defineAgent } from '@tanstack/ai'
+import { defineAgent, sandboxStatusActivity } from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import {
   retryTransientErrors,
@@ -11,15 +11,20 @@ import {
   durableTool,
   membersOnly,
 } from '@tanstack/ai-harness'
+import { compact } from '@tanstack/ai-harness/plugins'
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
+import { createSessionView } from '@tanstack/ai-harness/view'
 import { mcp } from '@tanstack/ai-mcp/harness'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import {
   askName,
   deploy,
+  deployProgress,
+  deployWithProgress,
   probe,
   slowBuild,
+  startSandboxes,
   whoami,
 } from '@/lib/harness-protocol-tools'
 import { createImageAdapter } from '@/lib/media-providers'
@@ -216,6 +221,30 @@ function harnessFor(request: Request) {
         const detach = toolContext?.detach
         return detach ? Promise.race([work, detach(work)]) : work
       }),
+      // Sends step 1, then step 2, of one `deploy.progress` activity. Both
+      // steps have the same id, so the second one replaces the first.
+      deployWithProgress.server((_input, toolContext) => {
+        for (const step of [1, 2]) {
+          toolContext?.emitActivity?.(deployProgress, 'deploy-progress', {
+            step,
+            total: 2,
+          })
+        }
+        return { deployed: true }
+      }),
+      // Sends two `sandbox.status` rows with different ids: the older one
+      // is ready, the newer one starts. `/compact` keeps only the newer one.
+      startSandboxes.server((_input, toolContext) => {
+        toolContext?.emitActivity?.(sandboxStatusActivity, 'sandbox-run-1', {
+          status: 'ready',
+          provider: 'e2e',
+        })
+        toolContext?.emitActivity?.(sandboxStatusActivity, 'sandbox-run-2', {
+          status: 'starting',
+          provider: 'e2e',
+        })
+        return { started: 2 }
+      }),
     ],
     subagents: { agents: [painter] },
     agents: [
@@ -248,14 +277,17 @@ function harnessFor(request: Request) {
       agents: ['echo', 'drafter'],
       settings: ['model', 'instructions', 'cwd'],
       config: ['tone'],
-      // `undo` lets a client revert and unrevert the transcript.
-      commands: ['greet', 'release', 'undo'],
+      // `undo` lets a client revert and unrevert the transcript. `compact`
+      // replaces the transcript with a summary.
+      commands: ['greet', 'release', 'undo', 'compact'],
       // A client runs `probe` with no model, and adds `app.signal` records.
       tools: ['probe'],
       records: ['app.signal'],
     },
     plugins: () => [
       ...servers,
+      // `/compact` gets its summary from the aimock model of this test.
+      compact({ adapter }),
       // The user who started the run, as its tools see it.
       definePlugin({
         name: 'e2e/whoami',
@@ -367,10 +399,38 @@ async function forkThread(request: Request) {
   }
 }
 
+/**
+ * Test only: `GET .../view-activities?threadId=` opens the thread, makes a
+ * new session view of it, and answers with the activities of the view when
+ * it is ready. On the `x-harness-idle: close` host, the session closed after
+ * its turn, so the open loads the thread from the log.
+ */
+async function viewActivities(request: Request) {
+  const user = getUser({ request })
+  if (!user) return Response.json({ error: 'unauthorized' }, { status: 401 })
+  const threadId = new URL(request.url).searchParams.get('threadId')
+  if (!threadId) {
+    return Response.json({ error: 'threadId is required' }, { status: 400 })
+  }
+  const { harness, host: hostOf } = harnessFor(request)
+  const session = await hostOf.open(harness, { threadId, user })
+  const view = createSessionView(session)
+  try {
+    await view.ready
+    return Response.json(view.store.get().activities)
+  } finally {
+    view.dispose()
+    await session.close()
+  }
+}
+
 export const Route = createFileRoute('/api/harness-protocol/$')({
   server: {
     handlers: {
-      GET: ({ request }) => handlerFor(request)(request),
+      GET: ({ request }) =>
+        new URL(request.url).pathname.endsWith('/view-activities')
+          ? viewActivities(request)
+          : handlerFor(request)(request),
       POST: ({ request }) =>
         new URL(request.url).pathname.endsWith('/fork')
           ? forkThread(request)

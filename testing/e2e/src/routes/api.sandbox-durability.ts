@@ -1,13 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { EventType, chat } from '@tanstack/ai'
 import { InMemoryLockStore, withLocks } from '@tanstack/ai/locks'
+import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
 import {
   InMemorySandboxInstanceStore,
   defineSandbox,
   defineWorkspace,
   withSandbox,
 } from '@tanstack/ai-sandbox'
-import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
+import type {
+  ActivitySnapshotEvent,
+  AnyTextAdapter,
+  StreamChunk,
+} from '@tanstack/ai'
 import type { SandboxHandle, SandboxProvider } from '@tanstack/ai-sandbox'
 
 /**
@@ -15,16 +20,20 @@ import type { SandboxHandle, SandboxProvider } from '@tanstack/ai-sandbox'
  *
  * Proves that a durable `SandboxInstanceStore` (module-singleton stand-in for a
  * BYO backend) makes resume durable ACROSS independent runs: each POST is a
- * fresh `chat()` with a brand-new middleware context; the only shared state is
- * the instance store. A second run for the same `threadId` must RESUME the
- * sandbox the first run created.
+ * fresh `chat()` with a brand-new middleware context; the only shared state the
+ * resume reads is the instance store. A second run for the same `threadId`
+ * must RESUME the sandbox the first run created.
  *
  * Wired as production apps do: `withLocks` plus the instance store handed
- * straight to `withSandbox`. No chat persistence required.
+ * straight to `withSandbox`. The resume does not need chat persistence.
+ * `withPersistence` only stores the `sandbox.status` activity row of each run,
+ * which the response returns as `storedActivities`. With `failBoot: true`, the
+ * sandbox start throws, and the response still returns `storedActivities`.
  *
  * Provider-free: fixed AG-UI stream + fake sandbox provider (exempt from aimock).
  */
 
+const persistence = memoryPersistence()
 const instanceStore = new InMemorySandboxInstanceStore()
 const locks = new InMemoryLockStore()
 
@@ -104,6 +113,18 @@ const sandbox = defineSandbox({
   fileEvents: false,
 })
 
+/** The same sandbox, but its start throws. A run with `failBoot` uses it. */
+const failingSandbox = defineSandbox({
+  id: 'durable',
+  provider: {
+    ...provider,
+    create: () => Promise.reject(new Error('sandbox boot failed')),
+    resume: () => Promise.reject(new Error('sandbox boot failed')),
+  },
+  workspace: defineWorkspace({ source: { type: 'none' } }),
+  fileEvents: false,
+})
+
 function fixedRun(threadId: string, runId: string): AsyncIterable<StreamChunk> {
   return (async function* () {
     yield { type: EventType.RUN_STARTED, threadId, runId, timestamp: 1 }
@@ -142,6 +163,11 @@ export const Route = createFileRoute('/api/sandbox-durability')({
         const body: unknown = await request.json()
         const threadId = stringField(body, 'threadId') ?? 'sandbox-thread'
         const runId = stringField(body, 'runId') ?? crypto.randomUUID()
+        const failBoot =
+          typeof body === 'object' &&
+          body !== null &&
+          'failBoot' in body &&
+          body.failBoot === true
 
         const stream = chat({
           adapter,
@@ -149,19 +175,37 @@ export const Route = createFileRoute('/api/sandbox-durability')({
           runId,
           threadId,
           middleware: [
+            withPersistence(persistence),
             withLocks(locks),
-            withSandbox(sandbox, { instances: instanceStore }),
+            withSandbox(failBoot ? failingSandbox : sandbox, {
+              instances: instanceStore,
+            }),
           ],
         })
         // Lifecycle events and RUN_STARTED, in stream order.
         const events: Array<string> = []
-        for await (const chunk of stream) {
-          if (chunk.type === EventType.RUN_STARTED) events.push('RUN_STARTED')
-          else if (
-            chunk.type === EventType.CUSTOM &&
-            chunk.name.startsWith('sandbox.')
-          )
-            events.push(chunk.name)
+        // The ACTIVITY_SNAPSHOT chunks of this run, in stream order.
+        const activities: Array<
+          Pick<ActivitySnapshotEvent, 'messageId' | 'activityType' | 'content'>
+        > = []
+        try {
+          for await (const chunk of stream) {
+            if (chunk.type === EventType.RUN_STARTED) events.push('RUN_STARTED')
+            else if (
+              chunk.type === EventType.CUSTOM &&
+              chunk.name.startsWith('sandbox.')
+            )
+              events.push(chunk.name)
+            else if (chunk.type === EventType.ACTIVITY_SNAPSHOT)
+              activities.push({
+                messageId: chunk.messageId,
+                activityType: chunk.activityType,
+                content: chunk.content,
+              })
+          }
+        } catch (error) {
+          // A `failBoot` run fails in setup. Answer with the stored rows.
+          if (!failBoot) throw error
         }
 
         const key = sandbox.key({ threadId, runId })
@@ -173,6 +217,9 @@ export const Route = createFileRoute('/api/sandbox-durability')({
           providerSandboxId: record?.providerSandboxId ?? null,
           latestRunId: record?.latestRunId ?? null,
           events,
+          activities,
+          storedActivities:
+            await persistence.stores.activities.loadActivities(threadId),
         })
       },
     },
