@@ -85,4 +85,33 @@ describe('elevenlabsLiveTranscription', () => {
       { type: 'turn-end' },
     ])
   })
+
+  it('keeps each chunk when the caller reuses its buffer', async () => {
+    const ws = fakeWebSocket()
+    const fetchToken = (async () =>
+      new Response(JSON.stringify({ token: 'sutkn_1' }))) as typeof fetch
+    const opening = transcriptionSession({
+      adapter: elevenlabsLiveTranscription('scribe_v2_realtime', {
+        apiKey: 'xi',
+        fetch: fetchToken,
+        WebSocket: ws.WebSocket,
+      }),
+      audio: { encoding: 'mulaw', sampleRate: 8000 },
+    })
+    await new Promise((r) => setTimeout(r, 0))
+    const socket = ws.sockets[0]!
+    socket.open()
+    const session = await opening
+
+    // One buffer, filled and sent twice. 2000 bytes is one 250 ms message.
+    const buffer = new Uint8Array(1000)
+    session.send(buffer.fill(0x11))
+    session.send(buffer.fill(0x22))
+    expect(socket.json()[0]).toMatchObject({
+      audio_base_64: Buffer.concat([
+        Buffer.alloc(1000, 0x11),
+        Buffer.alloc(1000, 0x22),
+      ]).toString('base64'),
+    })
+  })
 })

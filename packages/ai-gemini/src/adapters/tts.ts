@@ -194,6 +194,13 @@ export class GeminiTTSAdapter<
         })),
       }
     } else if (modelOptions?.multiSpeakerVoiceConfig) {
+      // 3.8 models read the speaker from each part, not from labels in the
+      // text, so one text part cannot carry a dialogue.
+      if (!legacy) {
+        throw new Error(
+          `Gemini TTS model ${model} does not read speaker labels from the text. Pass \`turns\` for multi-speaker speech.`,
+        )
+      }
       // Validate multi-speaker config: 1 or 2 speakers allowed.
       const speakerConfigs =
         modelOptions.multiSpeakerVoiceConfig.speakerVoiceConfigs

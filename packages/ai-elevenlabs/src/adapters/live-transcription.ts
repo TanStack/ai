@@ -171,7 +171,8 @@ export function elevenlabsLiveTranscription<
       }
       return {
         send: (audio) => {
-          pending.push(audio)
+          // Copy: the caller can reuse its buffer before the batch goes out.
+          pending.push(new Uint8Array(audio))
           pendingBytes += audio.length
           if (pendingBytes >= batchBytes) live.sendJson(chunk(drain(), false))
         },

@@ -35,34 +35,25 @@ export function browserCarrier(ws: WebSocket): Carrier {
 
 /**
  * A Twilio Media Stream. Twilio sends JSON text frames with base64 G.711
- * μ-law audio at 8 kHz, and wants the same back.
+ * μ-law audio at 8 kHz, and wants the same back. `streamSid` comes from the
+ * `start` frame, which the plugin reads before the call starts.
  * https://www.twilio.com/docs/voice/media-streams/websocket-messages
  */
-export function twilioCarrier(ws: WebSocket): Carrier {
-  let streamSid = ''
-  const toPcm8k = createAudioConverter(PCM_24K, {
-    encoding: 'linear16',
-    sampleRate: 8000,
-  })
+export function twilioCarrier(ws: WebSocket, streamSid: string): Carrier {
   return {
     audio: { encoding: 'mulaw', sampleRate: 8000 },
     audioIn: (data) => {
-      let frame: unknown
-      try {
-        frame = JSON.parse(toBytes(data).toString())
-      } catch {
-        // Twilio only sends JSON. Anything else is not a Media Stream.
-        ws.close(1003, 'expected a Twilio Media Stream frame')
-        return undefined
-      }
-      if (!isTwilioFrame(frame)) return undefined
-      if (frame.event === 'start') streamSid = frame.start.streamSid
-      if (frame.event === 'media') {
-        return Buffer.from(frame.media.payload, 'base64')
-      }
-      return undefined
+      const frame = parseTwilioFrame(data)
+      return frame?.event === 'media'
+        ? Buffer.from(frame.media.payload, 'base64')
+        : undefined
     },
     speak: (pcm) => {
+      // One converter per clip, so no samples carry into the next clip.
+      const toPcm8k = createAudioConverter(PCM_24K, {
+        encoding: 'linear16',
+        sampleRate: 8000,
+      })
       const payload = Buffer.from(toMulaw(toPcm8k(pcm))).toString('base64')
       ws.send(JSON.stringify({ event: 'media', streamSid, media: { payload } }))
     },
@@ -72,23 +63,73 @@ export function twilioCarrier(ws: WebSocket): Carrier {
 }
 
 type TwilioFrame =
-  | { event: 'start'; start: { streamSid: string } }
+  | {
+      event: 'start'
+      start: { streamSid: string; customParameters: Record<string, string> }
+    }
   | { event: 'media'; media: { payload: string } }
-  | { event: 'stop' }
 
-function isTwilioFrame(value: unknown): value is TwilioFrame {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'event' in value &&
-    typeof value.event === 'string'
-  )
+/**
+ * Read one Twilio frame. Anyone can open the socket, so check each field
+ * before use. Other events and bad frames give undefined.
+ */
+export function parseTwilioFrame(data: RawData): TwilioFrame | undefined {
+  let frame: unknown
+  try {
+    frame = JSON.parse(toBytes(data).toString())
+  } catch {
+    return undefined
+  }
+  if (typeof frame !== 'object' || frame === null || !('event' in frame)) {
+    return undefined
+  }
+  if (frame.event === 'media' && 'media' in frame) {
+    const { media } = frame
+    if (
+      typeof media === 'object' &&
+      media !== null &&
+      'payload' in media &&
+      typeof media.payload === 'string'
+    ) {
+      return { event: 'media', media: { payload: media.payload } }
+    }
+  }
+  if (frame.event === 'start' && 'start' in frame) {
+    const { start } = frame
+    if (
+      typeof start === 'object' &&
+      start !== null &&
+      'streamSid' in start &&
+      typeof start.streamSid === 'string'
+    ) {
+      const params =
+        'customParameters' in start ? start.customParameters : undefined
+      return {
+        event: 'start',
+        start: {
+          streamSid: start.streamSid,
+          customParameters: isStringRecord(params) ? params : {},
+        },
+      }
+    }
+  }
+  return undefined
 }
 
 function toBytes(data: RawData): Buffer {
   if (Buffer.isBuffer(data)) return data
   if (Array.isArray(data)) return Buffer.concat(data)
   return Buffer.from(data)
+}
+
+export function isStringRecord(
+  value: unknown,
+): value is Record<string, string> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    Object.values(value).every((entry) => typeof entry === 'string')
+  )
 }
 
 /** G.711 μ-law encode of 16-bit little-endian PCM. */

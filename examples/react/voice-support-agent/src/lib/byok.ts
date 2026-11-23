@@ -1,4 +1,4 @@
-import { defaultByokStorage, defineByok } from '@tanstack/ai-client/byok'
+import { defaultByokStorage, defineByok } from '@tanstack/ai-react/byok'
 import { elevenlabsByok } from '@tanstack/ai-elevenlabs/byok'
 import { geminiByok } from '@tanstack/ai-gemini/byok'
 import { grokByok } from '@tanstack/ai-grok/byok'

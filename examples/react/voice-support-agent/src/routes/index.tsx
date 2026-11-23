@@ -40,21 +40,45 @@ async function startCall(
   onClose: (reason: string) => void,
 ) {
   const context = new AudioContext({ sampleRate: 24000 })
-  const mic = await navigator.mediaDevices.getUserMedia({
-    audio: { echoCancellation: true, noiseSuppression: true },
-  })
   const workletUrl = URL.createObjectURL(
     new Blob([PCM_WORKLET], { type: 'text/javascript' }),
   )
-  await context.audioWorklet.addModule(workletUrl)
+  let mic: MediaStream | undefined
+  let ws: WebSocket | undefined
+  let ended = false
+  // Release everything the call holds. Safe to run twice, and safe to run
+  // when startup failed halfway.
+  const hangUp = () => {
+    if (ended) return
+    ended = true
+    if (ws) {
+      ws.onclose = null
+      ws.close()
+    }
+    for (const track of mic?.getTracks() ?? []) track.stop()
+    void context.close()
+    URL.revokeObjectURL(workletUrl)
+  }
 
-  const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
-  const ws = new WebSocket(`${protocol}://${location.host}/voice`)
-  ws.binaryType = 'arraybuffer'
-  await new Promise<void>((resolve, reject) => {
-    ws.onopen = () => resolve()
-    ws.onerror = () => reject(new Error('Could not open the voice socket'))
-  })
+  try {
+    mic = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true },
+    })
+    await context.audioWorklet.addModule(workletUrl)
+
+    const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
+    const socket = new WebSocket(`${protocol}://${location.host}/voice`)
+    ws = socket
+    socket.binaryType = 'arraybuffer'
+    await new Promise<void>((resolve, reject) => {
+      socket.onopen = () => resolve()
+      socket.onerror = () =>
+        reject(new Error('Could not open the voice socket'))
+    })
+  } catch (error) {
+    hangUp()
+    throw error
+  }
   // The server reads the character, the provider per hop, and your keys from
   // this frame. Keys never touch the URL.
   ws.send(
@@ -65,7 +89,12 @@ async function startCall(
     }),
   )
 
-  ws.onclose = (event) => onClose(event.reason)
+  // The server ended the call. A hang-up from the page removes this handler
+  // first, so a late close never touches a newer call.
+  ws.onclose = (event) => {
+    hangUp()
+    onClose(event.reason)
+  }
 
   const sender = new AudioWorkletNode(context, 'pcm-sender')
   sender.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
@@ -109,12 +138,7 @@ async function startCall(
     source.onended = () => playing.delete(source)
   }
 
-  return () => {
-    ws.close()
-    for (const track of mic.getTracks()) track.stop()
-    void context.close()
-    URL.revokeObjectURL(workletUrl)
-  }
+  return hangUp
 }
 
 function isCaption(value: object): value is Caption {
@@ -135,11 +159,21 @@ function CallPage() {
   const [character, setCharacter] = useState<CharacterName>('perky')
   const [choice, setChoice] = useState<Choice>(DEFAULT_CHOICE)
   const hangUp = useRef<(() => void) | null>(null)
+  const starting = useRef(false)
+  const mounted = useRef(true)
   const [keysOpen, setKeysOpen] = useState(false)
   const [envStatus, setEnvStatus] = useState<Record<string, boolean>>()
   const [missingKey, setMissingKey] = useState<ProviderId | null>(null)
   useEffect(() => {
     void getEnvKeyStatus().then(setEnvStatus)
+  }, [])
+  // Hang up when the page unmounts, for example on a Fast Refresh remount.
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      hangUp.current?.()
+    }
   }, [])
 
   // The server closes with "missing <provider> key" when no key covers a hop.
@@ -172,9 +206,15 @@ function CallPage() {
       setCaptions([])
       return
     }
+    // A second click while a call starts must not open a second call.
+    if (starting.current) return
+    starting.current = true
     try {
       setError('')
-      hangUp.current = await startCall(character, choice, onCaption, onClose)
+      const stop = await startCall(character, choice, onCaption, onClose)
+      // The page unmounted while the call started.
+      if (!mounted.current) return stop()
+      hangUp.current = stop
       setInCall(true)
       setCaptions([
         {
@@ -187,6 +227,8 @@ function CallPage() {
       setError(
         caught instanceof Error ? caught.message : 'Could not start the call',
       )
+    } finally {
+      starting.current = false
     }
   }
 

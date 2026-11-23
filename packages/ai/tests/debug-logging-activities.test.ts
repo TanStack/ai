@@ -62,6 +62,27 @@ describe('debug logging — non-chat activities', () => {
     expect(logger.error).not.toHaveBeenCalled()
   })
 
+  it('does not log a request aborted with a custom Error reason', async () => {
+    const adapter = {
+      kind: 'tts' as const,
+      name: 'mock',
+      model: 'mock-tts-model',
+      generateSpeech: () => new Promise<never>(() => {}),
+    }
+    const controller = new AbortController()
+    const run = generateSpeech({
+      threadId: 'thread-1',
+      adapter: adapter as any,
+      text: 'hi',
+      abortSignal: controller.signal,
+      debug: { logger: logger as unknown as Logger },
+    })
+    const reason = new Error('call ended')
+    controller.abort(reason)
+    await expect(run).rejects.toBe(reason)
+    expect(logger.error).not.toHaveBeenCalled()
+  })
+
   it('summarize emits request and output categories', async () => {
     const adapter = {
       kind: 'summarize' as const,

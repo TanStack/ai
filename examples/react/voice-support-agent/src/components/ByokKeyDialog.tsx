@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { KeyRound, X } from 'lucide-react'
 import { useByok } from '@tanstack/ai-react'
 import { byok, KEYED_PROVIDERS } from '@/lib/byok'
-import type { KeyStatus } from '@tanstack/ai-client/byok'
+import type { KeyStatus } from '@tanstack/ai-react/byok'
 import type { ProviderId } from '@tanstack/ai/byok'
 import type { ReactNode } from 'react'
 
@@ -38,6 +38,13 @@ export function ByokKeyDialog({
   const snapshot = useByok(byok)
   const [unlocking, setUnlocking] = useState(false)
   const [actionError, setActionError] = useState('')
+  // A native modal dialog: it takes focus, keeps it inside, makes the page
+  // behind it inert, closes on Escape, and gives focus back when it closes.
+  const dialog = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    if (open && !dialog.current?.open) dialog.current?.showModal()
+    if (!open && dialog.current?.open) dialog.current.close()
+  }, [open])
 
   const activeStatus = activeProvider
     ? snapshot.status[activeProvider]
@@ -64,93 +71,97 @@ export function ByokKeyDialog({
         </button>
       )}
 
-      {open ? (
-        <div
-          className="fixed inset-0 z-50 overflow-y-auto bg-black/60"
-          onClick={() => onOpenChange(false)}
-        >
-          <div className="flex min-h-full items-center justify-center p-4">
-            <div
-              className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-2xl"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="mb-1 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-white">API keys</h2>
+      <dialog
+        ref={dialog}
+        aria-labelledby="byok-dialog-title"
+        onClose={() => onOpenChange(false)}
+        // A click on the backdrop lands on the dialog itself.
+        onClick={(event) => {
+          if (event.target === event.currentTarget) onOpenChange(false)
+        }}
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md rounded-xl border border-gray-700 bg-gray-900 p-0 shadow-2xl backdrop:bg-black/60"
+      >
+        {open ? (
+          <div className="p-5">
+            <div className="mb-1 flex items-center justify-between">
+              <h2
+                id="byok-dialog-title"
+                className="text-lg font-semibold text-white"
+              >
+                API keys
+              </h2>
+              <button
+                type="button"
+                onClick={() => onOpenChange(false)}
+                aria-label="Close"
+                className="text-2xl leading-none text-gray-400 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-4 text-sm leading-snug text-gray-400">
+              {description}
+            </p>
+
+            {snapshot.locked ? (
+              <div className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-gray-700 bg-gray-800 p-3 text-sm text-gray-200">
+                <span>Your saved keys are locked ({byok.storage.label}).</span>
                 <button
                   type="button"
-                  onClick={() => onOpenChange(false)}
-                  aria-label="Close"
-                  className="text-2xl leading-none text-gray-400 hover:text-white"
+                  disabled={unlocking}
+                  className="rounded-md bg-orange-500 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                  onClick={() => {
+                    setUnlocking(true)
+                    setActionError('')
+                    void byok
+                      .unlock()
+                      .catch((error: unknown) =>
+                        setActionError(
+                          error instanceof Error
+                            ? error.message
+                            : 'Could not unlock keys',
+                        ),
+                      )
+                      .finally(() => setUnlocking(false))
+                  }}
                 >
-                  <X className="h-5 w-5" />
+                  {unlocking ? 'Unlocking…' : 'Unlock'}
                 </button>
               </div>
-              <p className="mb-4 text-sm leading-snug text-gray-400">
-                {description}
+            ) : null}
+
+            {byok.storage.warning ? (
+              <p className="mb-3 text-xs text-amber-400">
+                {byok.storage.warning}
               </p>
+            ) : null}
+            {snapshot.storageError ? (
+              <p className="mb-3 text-xs text-red-400">
+                {snapshot.storageError}
+              </p>
+            ) : null}
+            {actionError ? (
+              <p className="mb-3 text-xs text-red-400">{actionError}</p>
+            ) : null}
 
-              {snapshot.locked ? (
-                <div className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-gray-700 bg-gray-800 p-3 text-sm text-gray-200">
-                  <span>
-                    Your saved keys are locked ({byok.storage.label}).
-                  </span>
-                  <button
-                    type="button"
-                    disabled={unlocking}
-                    className="rounded-md bg-orange-500 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-                    onClick={() => {
-                      setUnlocking(true)
-                      setActionError('')
-                      void byok
-                        .unlock()
-                        .catch((error: unknown) =>
-                          setActionError(
-                            error instanceof Error
-                              ? error.message
-                              : 'Could not unlock keys',
-                          ),
-                        )
-                        .finally(() => setUnlocking(false))
-                    }}
-                  >
-                    {unlocking ? 'Unlocking…' : 'Unlock'}
-                  </button>
-                </div>
-              ) : null}
-
-              {byok.storage.warning ? (
-                <p className="mb-3 text-xs text-amber-400">
-                  {byok.storage.warning}
-                </p>
-              ) : null}
-              {snapshot.storageError ? (
-                <p className="mb-3 text-xs text-red-400">
-                  {snapshot.storageError}
-                </p>
-              ) : null}
-              {actionError ? (
-                <p className="mb-3 text-xs text-red-400">{actionError}</p>
-              ) : null}
-
-              <div className="flex flex-col gap-4">
-                {KEYED_PROVIDERS.map((provider) => {
-                  return (
-                    <ProviderRow
-                      key={provider.id}
-                      id={provider.id}
-                      label={provider.label}
-                      status={snapshot.status[provider.id]}
-                      locked={snapshot.locked}
-                      hasEnvKey={Boolean(envStatus?.[provider.id])}
-                      highlight={provider.id === highlightProvider}
-                    />
-                  )
-                })}
-              </div>
+            <div className="flex flex-col gap-4">
+              {KEYED_PROVIDERS.map((provider) => {
+                return (
+                  <ProviderRow
+                    key={provider.id}
+                    id={provider.id}
+                    label={provider.label}
+                    status={snapshot.status[provider.id]}
+                    locked={snapshot.locked}
+                    hasEnvKey={Boolean(envStatus?.[provider.id])}
+                    highlight={provider.id === highlightProvider}
+                  />
+                )
+              })}
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </dialog>
     </>
   )
 }
@@ -285,6 +296,11 @@ function PresenceBadge({
   isLocked: boolean
   hasEnvKey: boolean
 }) {
+  if (state === 'error') {
+    return (
+      <span className="text-xs font-semibold text-red-400">Save failed</span>
+    )
+  }
   if (hasKey && !isLocked) {
     return (
       <span className="text-xs font-semibold text-emerald-400">Your key</span>

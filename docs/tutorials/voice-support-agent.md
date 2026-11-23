@@ -31,7 +31,7 @@ Pick React. Install the TanStack AI packages and the WebSocket server:
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @tanstack/ai @tanstack/ai-openai @tanstack/ai-gemini @tanstack/ai-grok @tanstack/ai-elevenlabs ws zod
+react: @tanstack/ai @tanstack/ai-react @tanstack/ai-openai @tanstack/ai-gemini @tanstack/ai-grok @tanstack/ai-elevenlabs ws zod
 
 <!-- ::end:tabs -->
 
@@ -99,9 +99,19 @@ function toBytes(data: RawData): Buffer {
   if (Array.isArray(data)) return Buffer.concat(data)
   return Buffer.from(data)
 }
+
+export function isStringRecord(
+  value: unknown,
+): value is Record<string, string> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    Object.values(value).every((entry) => typeof entry === 'string')
+  )
+}
 ```
 
-The Twilio carrier comes in step 8. `createAudioConverter` is for that one.
+The Twilio carrier comes in step 8. `createAudioConverter` is for that one. `isStringRecord` checks the JSON frames that arrive on the sockets in step 6.
 
 ## 4. Give the agent the docs
 
@@ -193,7 +203,8 @@ export const searchDocs = toolDefinition({
     .sort((a, b) => b.score - a.score)
     .slice(0, 2)
 
-  const results = await Promise.all(
+  // One page that fails to load must not lose the other one.
+  const results = await Promise.allSettled(
     ranked.map(async ({ page }) => {
       const markdown = await fetchDoc(`${page.to}.md`).then((r) => r.text())
       const text = markdown.replace(/^---[\s\S]*?---\s*/, '').slice(0, 4000)
@@ -204,7 +215,9 @@ export const searchDocs = toolDefinition({
       }
     }),
   )
-  return { pages: results }
+  return {
+    pages: results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : [])),
+  }
 })
 ```
 
@@ -358,7 +371,7 @@ export const CHARACTERS = {
 export type CharacterName = keyof typeof CHARACTERS
 
 export function isCharacterName(name: string): name is CharacterName {
-  return name in CHARACTERS
+  return Object.hasOwn(CHARACTERS, name)
 }
 ```
 
@@ -656,10 +669,12 @@ export function setupCall(
     hop: Hop,
     keyed: Record<string, Keyed<T>>,
   ): { value: T } | { missing: string } => {
-    // A hop left out, as on a Twilio query string, takes the default. A name
+    // A hop left out, as in Twilio parameters, takes the default. A name
     // that is not a provider is a typo, and must not bill some other key.
     const name = choice[hop] ?? DEFAULT_CHOICE[hop]
-    if (!(name in HOPS[hop])) throw new Error(`Unknown ${hop}: ${name}`)
+    if (!Object.hasOwn(HOPS[hop], name)) {
+      throw new Error(`Unknown ${hop}: ${name}`)
+    }
     const entry = keyed[name]
     if (!entry) throw new Error(`No provider for ${hop}`)
     const key = getByokKey(request, entry.byok)
@@ -718,40 +733,52 @@ export async function handleCall(
     const audio = carrier.audioIn(data, isBinary)
     if (audio) send(audio)
   })
+  // `replying` owns what the agent says now: the greeting, then each reply.
+  // A barge-in or a hang-up aborts it.
+  const hello = new AbortController()
+  let replying: AbortController | undefined = hello
   const hungUp = new AbortController()
-  ws.on('close', () => hungUp.abort())
+  ws.on('close', () => {
+    hungUp.abort()
+    replying?.abort()
+  })
+  const stopTalking = () => {
+    if (!replying) return
+    replying.abort()
+    replying = undefined
+    carrier.clear()
+  }
 
   // Say hello while the transcriber connects. The greeting is a fixed line,
-  // so it needs no model round trip, only one speech call.
+  // so it needs no model round trip, only one speech call. It plays as soon
+  // as it is ready, and the caller can talk over it like over a reply.
   const { greeting } = setup.character
-  const hello = setup.speak(greeting, setup.character, callId, hungUp.signal)
+  setup
+    .speak(greeting, setup.character, callId, hello.signal)
+    .then((pcm) => {
+      if (hello.signal.aborted) return
+      carrier.speak(pcm)
+      carrier.caption('agent', greeting, true)
+      messages.push({ role: 'assistant', content: greeting })
+    })
+    .catch((error: unknown) => {
+      if (!hello.signal.aborted) console.error('greeting failed', error)
+    })
+
   const session = await setup.listen(carrier.audio, hungUp.signal)
   send = (audio) => session.send(audio)
   for (const chunk of early) session.send(chunk)
   ws.on('close', () => {
-    session.close().catch((error: unknown) => console.error('close failed', error))
+    session
+      .close()
+      .catch((error: unknown) => console.error('close failed', error))
   })
-  hello.then(
-    (pcm) => {
-      carrier.speak(pcm)
-      carrier.caption('agent', greeting, true)
-      messages.push({ role: 'assistant', content: greeting })
-    },
-    (error: unknown) => {
-      if (!hungUp.signal.aborted) console.error('greeting failed', error)
-    },
-  )
 
   let turn = ''
-  let replying: AbortController | undefined
   for await (const event of session) {
     switch (event.type) {
       case 'interim':
-        if (replying) {
-          replying.abort()
-          replying = undefined
-          carrier.clear()
-        }
+        stopTalking()
         carrier.caption('caller', `${turn} ${event.text}`.trim(), false)
         break
       case 'final':
@@ -763,6 +790,8 @@ export async function handleCall(
         turn = ''
         carrier.caption('caller', question, true)
         messages.push({ role: 'user', content: question })
+        // A turn can end with no interim event first. Stop the last reply.
+        stopTalking()
         replying = new AbortController()
         reply(callId, messages, carrier, setup, replying).catch(
           (error: unknown) => {
@@ -790,6 +819,7 @@ async function reply(
   let pending = ''
   let full = ''
   let filled = false
+  let failed: unknown
   // Start text-to-speech for each sentence at once. Deliver them in order.
   let delivery = Promise.resolve()
   const say = (sentence: string) => {
@@ -797,8 +827,12 @@ async function reply(
       .speak(sentence, setup.character, callId, signal)
       .catch((error: unknown) => {
         // A barge-in aborts every clip still in flight. That is not a failure.
-        if (signal.aborted) return undefined
-        throw error
+        // A real failure stops the reply, so no later sentence plays.
+        if (!signal.aborted) {
+          failed = error
+          abortController.abort()
+        }
+        return undefined
       })
     delivery = delivery.then(async () => {
       const pcm = await audio
@@ -834,9 +868,11 @@ async function reply(
     if (pending.trim()) say(pending)
     await delivery
   } catch (error) {
-    if (signal.aborted) return
-    throw error
+    // A barge-in aborts the stream. That is not a failure.
+    if (signal.aborted && failed === undefined) return
+    throw failed ?? error
   }
+  if (failed !== undefined) throw failed
   if (full) {
     messages.push({ role: 'assistant', content: full })
     carrier.caption('agent', full, true)
@@ -849,28 +885,39 @@ Five things make it feel like a call and not a form:
 - **Pin the language.** The transcriber guesses the language for each utterance unless you set `language`. A one-word answer gives it nothing to guess from. The `prompt` tells it which product names to expect.
 - **Listen first.** The socket listeners attach before `transcriptionSession()` opens. Audio that arrives in that gap waits in `early`, then goes in.
 - **Turns, not files.** `final` text piles up in `turn`. `turn-end` means the caller paused, so that text becomes one user message and `chat()` runs.
-- **Speak by the sentence.** `generateSpeech()` starts the moment a sentence is complete, while the model still writes the next one. The promise chain keeps playback in order. The caller hears the first sentence in about a second.
-- **Barge-in.** An `interim` event while the agent is talking means the caller spoke over it. Abort the reply, tell the carrier to clear its audio, and the next `turn-end` starts fresh.
+- **Speak by the sentence.** `generateSpeech()` starts the moment a sentence is complete, while the model still writes the next one. The promise chain keeps playback in order. The caller hears the first sentence in about a second. If one clip fails, the reply stops and the error goes to the `.catch` on `reply()`.
+- **Barge-in.** An `interim` event while the agent is talking means the caller spoke over it. `stopTalking()` aborts the greeting or the reply and tells the carrier to clear its audio. A new `turn-end` and a hang-up stop the last reply too.
 
 The system prompt is a procedure for a reader that cannot see. Short answers, no URLs, and a rule to search before it speaks.
 
 Silence is the other enemy. A model round with the docs tool takes a few seconds, and a thinking model takes longer. Three lines keep the caller from hearing nothing:
 
-- The greeting is spoken as soon as the call connects, while the transcriber is still opening.
+- The greeting is spoken as soon as its clip is ready, while the transcriber is still opening. It has its own `.catch`, so a failed greeting does not end the call.
 - The filler is spoken the moment the model asks for the docs tool, so the search runs under a sentence.
 - `reasoning: 'low'` on the think hop. With default thinking, Gemini 3.8 Flash took 12 seconds to the first word in a test call. With low it took 6.
 
 ## 6. Host the socket
 
-Create `src/server/vite-plugin.ts`. It takes WebSocket upgrades on two paths. The page sends a `start` frame first with its choices and keys, because a browser cannot set headers on a WebSocket. Twilio gets its choices from the query string and its keys from env. A missing key closes the socket with a caption that says which one.
+Create `src/server/vite-plugin.ts`. It takes WebSocket upgrades on two paths:
+
+- `/voice`: the page sends a `start` frame first with its choices and keys, because a browser cannot set headers on a WebSocket. This path takes local connections only, so a tunnel cannot use your env keys.
+- `/twilio`: Twilio sends a `start` frame with its `<Parameter>` values. The call starts only when the `token` value matches `TWILIO_STREAM_TOKEN`. Keys come from env.
+
+A missing key closes the socket with a caption that says which one.
 
 ```typescript ignore
 import { WebSocketServer } from 'ws'
 import { handleCall } from './call.ts'
-import { browserCarrier, twilioCarrier } from './carriers.ts'
+import {
+  browserCarrier,
+  isStringRecord,
+  parseTwilioFrame,
+  twilioCarrier,
+} from './carriers.ts'
 import { setupCall } from './providers.ts'
-import type { WebSocket } from 'ws'
+import type { RawData, WebSocket } from 'ws'
 import type { Plugin } from 'vite'
+import type { Carrier } from './carriers.ts'
 
 export function voiceServer(): Plugin {
   return {
@@ -881,15 +928,18 @@ export function voiceServer(): Plugin {
       server.httpServer.on('upgrade', (request, socket, head) => {
         const url = new URL(request.url ?? '/', 'http://localhost')
         if (url.pathname !== '/voice' && url.pathname !== '/twilio') return
+        // A request through a tunnel has the tunnel's host name.
+        const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(
+          request.headers.host ?? '',
+        )
+        if (url.pathname === '/voice' && !local) {
+          socket.end('HTTP/1.1 403 Forbidden\r\n\r\n')
+          return
+        }
         wss.handleUpgrade(request, socket, head, (ws) => {
           const run =
             url.pathname === '/twilio'
-              ? start(
-                  ws,
-                  twilioCarrier(ws),
-                  Object.fromEntries(url.searchParams),
-                  {},
-                )
+              ? startFromTwilio(ws)
               : startFromFirstFrame(ws)
           run.catch((error: unknown) => {
             console.error('call failed', error)
@@ -899,6 +949,28 @@ export function voiceServer(): Plugin {
       })
     },
   }
+}
+
+function startFromTwilio(ws: WebSocket) {
+  return new Promise<void>((resolve, reject) => {
+    const onFrame = (data: RawData) => {
+      const frame = parseTwilioFrame(data)
+      if (frame?.event !== 'start') return
+      ws.off('message', onFrame)
+      const { streamSid, customParameters } = frame.start
+      const token = process.env.TWILIO_STREAM_TOKEN
+      if (!token || customParameters.token !== token) {
+        ws.close(1008, 'bad token')
+        resolve()
+        return
+      }
+      start(ws, twilioCarrier(ws, streamSid), customParameters, {}).then(
+        resolve,
+        reject,
+      )
+    }
+    ws.on('message', onFrame)
+  })
 }
 
 function startFromFirstFrame(ws: WebSocket) {
@@ -927,7 +999,7 @@ function startFromFirstFrame(ws: WebSocket) {
 
 async function start(
   ws: WebSocket,
-  carrier: ReturnType<typeof browserCarrier>,
+  carrier: Carrier,
   choice: Record<string, string>,
   headers: Record<string, string>,
 ) {
@@ -960,14 +1032,6 @@ function isStartFrame(value: unknown): value is StartFrame {
     isStringRecord(value.headers)
   )
 }
-
-function isStringRecord(value: unknown): value is Record<string, string> {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    Object.values(value).every((entry) => typeof entry === 'string')
-  )
-}
 ```
 
 Add it to `vite.config.ts` before the other plugins, and load `.env.local` so the server sees the key:
@@ -992,10 +1056,10 @@ export default defineConfig({
 
 ## 7. Build the softphone
 
-First create `src/lib/byok.ts`. The keyring from `@tanstack/ai-client/byok` stores keys in the browser, and `byok.headers()` gives them back as `x-byok-<provider>` headers. `getEnvKeyStatus` is a server function that says which providers already have a key in env, as booleans, so the dialog can show "Server key" instead of asking for one.
+First create `src/lib/byok.ts`. The keyring from `@tanstack/ai-react/byok` stores keys in the browser, and `byok.headers()` gives them back as `x-byok-<provider>` headers. `getEnvKeyStatus` is a server function that says which providers already have a key in env, as booleans, so the dialog can show "Server key" instead of asking for one.
 
 ```typescript ignore
-import { defaultByokStorage, defineByok } from '@tanstack/ai-client/byok'
+import { defaultByokStorage, defineByok } from '@tanstack/ai-react/byok'
 import { elevenlabsByok } from '@tanstack/ai-elevenlabs/byok'
 import { geminiByok } from '@tanstack/ai-gemini/byok'
 import { grokByok } from '@tanstack/ai-grok/byok'
@@ -1027,7 +1091,7 @@ export const getEnvKeyStatus = createServerFn({ method: 'GET' }).handler(
 )
 ```
 
-Next, the key dialog. Copy `src/components/ByokKeyDialog.tsx` from the [ts-react-chat example](https://github.com/TanStack/ai/blob/main/examples/ts-react-chat/src/components/ByokKeyDialog.tsx). It is the same dialog, without the OpenRouter and ChatGPT sign-in buttons and the Cloudflare group card, since this example does not use them. One card per provider, with a badge for your key, a server key, or none.
+Next, the key dialog. Copy `src/components/ByokKeyDialog.tsx` from the [ts-react-chat example](https://github.com/TanStack/ai/blob/main/examples/ts-react-chat/src/components/ByokKeyDialog.tsx). It is the same dialog, without the OpenRouter and ChatGPT sign-in buttons and the Cloudflare group card, since this example does not use them. One card per provider, with a badge for your key, a server key, or none. In this example the dialog opens as a native `<dialog>` with `showModal()`, so keyboard focus stays in the dialog until it closes.
 
 Then replace `src/routes/index.tsx`. The page sends microphone PCM up the socket, plays PCM that comes down, and shows captions. Four dropdowns pick the character and the provider per hop, and the key icon opens the dialog. The `start` frame carries the choices and the keys. When the server closes a call with `missing <provider> key`, the page opens the dialog with that provider highlighted.
 
@@ -1071,21 +1135,45 @@ async function startCall(
   onClose: (reason: string) => void,
 ) {
   const context = new AudioContext({ sampleRate: 24000 })
-  const mic = await navigator.mediaDevices.getUserMedia({
-    audio: { echoCancellation: true, noiseSuppression: true },
-  })
   const workletUrl = URL.createObjectURL(
     new Blob([PCM_WORKLET], { type: 'text/javascript' }),
   )
-  await context.audioWorklet.addModule(workletUrl)
+  let mic: MediaStream | undefined
+  let ws: WebSocket | undefined
+  let ended = false
+  // Release everything the call holds. Safe to run twice, and safe to run
+  // when startup failed halfway.
+  const hangUp = () => {
+    if (ended) return
+    ended = true
+    if (ws) {
+      ws.onclose = null
+      ws.close()
+    }
+    for (const track of mic?.getTracks() ?? []) track.stop()
+    void context.close()
+    URL.revokeObjectURL(workletUrl)
+  }
 
-  const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
-  const ws = new WebSocket(`${protocol}://${location.host}/voice`)
-  ws.binaryType = 'arraybuffer'
-  await new Promise<void>((resolve, reject) => {
-    ws.onopen = () => resolve()
-    ws.onerror = () => reject(new Error('Could not open the voice socket'))
-  })
+  try {
+    mic = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true },
+    })
+    await context.audioWorklet.addModule(workletUrl)
+
+    const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
+    const socket = new WebSocket(`${protocol}://${location.host}/voice`)
+    ws = socket
+    socket.binaryType = 'arraybuffer'
+    await new Promise<void>((resolve, reject) => {
+      socket.onopen = () => resolve()
+      socket.onerror = () =>
+        reject(new Error('Could not open the voice socket'))
+    })
+  } catch (error) {
+    hangUp()
+    throw error
+  }
   // The server reads the character, the provider per hop, and your keys from
   // this frame. Keys never touch the URL.
   ws.send(
@@ -1096,7 +1184,12 @@ async function startCall(
     }),
   )
 
-  ws.onclose = (event) => onClose(event.reason)
+  // The server ended the call. A hang-up from the page removes this handler
+  // first, so a late close never touches a newer call.
+  ws.onclose = (event) => {
+    hangUp()
+    onClose(event.reason)
+  }
 
   const sender = new AudioWorkletNode(context, 'pcm-sender')
   sender.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
@@ -1140,12 +1233,7 @@ async function startCall(
     source.onended = () => playing.delete(source)
   }
 
-  return () => {
-    ws.close()
-    for (const track of mic.getTracks()) track.stop()
-    void context.close()
-    URL.revokeObjectURL(workletUrl)
-  }
+  return hangUp
 }
 
 function isCaption(value: object): value is Caption {
@@ -1166,11 +1254,21 @@ function CallPage() {
   const [character, setCharacter] = useState<CharacterName>('perky')
   const [choice, setChoice] = useState<Choice>(DEFAULT_CHOICE)
   const hangUp = useRef<(() => void) | null>(null)
+  const starting = useRef(false)
+  const mounted = useRef(true)
   const [keysOpen, setKeysOpen] = useState(false)
   const [envStatus, setEnvStatus] = useState<Record<string, boolean>>()
   const [missingKey, setMissingKey] = useState<ProviderId | null>(null)
   useEffect(() => {
     void getEnvKeyStatus().then(setEnvStatus)
+  }, [])
+  // Hang up when the page unmounts, for example on a Fast Refresh remount.
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      hangUp.current?.()
+    }
   }, [])
 
   // The server closes with "missing <provider> key" when no key covers a hop.
@@ -1203,9 +1301,15 @@ function CallPage() {
       setCaptions([])
       return
     }
+    // A second click while a call starts must not open a second call.
+    if (starting.current) return
+    starting.current = true
     try {
       setError('')
-      hangUp.current = await startCall(character, choice, onCaption, onClose)
+      const stop = await startCall(character, choice, onCaption, onClose)
+      // The page unmounted while the call started.
+      if (!mounted.current) return stop()
+      hangUp.current = stop
       setInCall(true)
       setCaptions([
         {
@@ -1218,6 +1322,8 @@ function CallPage() {
       setError(
         caught instanceof Error ? caught.message : 'Could not start the call',
       )
+    } finally {
+      starting.current = false
     }
   }
 
@@ -1370,34 +1476,29 @@ Run the app and click Start call. Ask "How do I add a server tool?" and pause. T
 
 ## 8. Take a phone call
 
-Twilio Media Streams send JSON text frames with base64 G.711 μ-law audio at 8 kHz, and want the same back. Add this carrier to `src/server/carriers.ts`. `transcriptionSession()` takes the μ-law as is. On the way out, `createAudioConverter` resamples the 24 kHz speech to 8 kHz and `toMulaw` encodes it.
+Twilio Media Streams send JSON text frames with base64 G.711 μ-law audio at 8 kHz, and want the same back. Add this carrier to `src/server/carriers.ts`:
+
+- `parseTwilioFrame` checks each field, because anyone can open the socket.
+- `streamSid` comes from the `start` frame, which the plugin reads before the call starts.
+- `transcriptionSession()` takes the μ-law as is.
+- On the way out, `createAudioConverter` resamples the 24 kHz speech to 8 kHz and `toMulaw` encodes it. Each clip gets a new converter, so no samples carry into the next clip.
 
 ```typescript ignore
-export function twilioCarrier(ws: WebSocket): Carrier {
-  let streamSid = ''
-  const toPcm8k = createAudioConverter(PCM_24K, {
-    encoding: 'linear16',
-    sampleRate: 8000,
-  })
+export function twilioCarrier(ws: WebSocket, streamSid: string): Carrier {
   return {
     audio: { encoding: 'mulaw', sampleRate: 8000 },
     audioIn: (data) => {
-      let frame: unknown
-      try {
-        frame = JSON.parse(toBytes(data).toString())
-      } catch {
-        // Twilio only sends JSON. Anything else is not a Media Stream.
-        ws.close(1003, 'expected a Twilio Media Stream frame')
-        return undefined
-      }
-      if (!isTwilioFrame(frame)) return undefined
-      if (frame.event === 'start') streamSid = frame.start.streamSid
-      if (frame.event === 'media') {
-        return Buffer.from(frame.media.payload, 'base64')
-      }
-      return undefined
+      const frame = parseTwilioFrame(data)
+      return frame?.event === 'media'
+        ? Buffer.from(frame.media.payload, 'base64')
+        : undefined
     },
     speak: (pcm) => {
+      // One converter per clip, so no samples carry into the next clip.
+      const toPcm8k = createAudioConverter(PCM_24K, {
+        encoding: 'linear16',
+        sampleRate: 8000,
+      })
       const payload = Buffer.from(toMulaw(toPcm8k(pcm))).toString('base64')
       ws.send(JSON.stringify({ event: 'media', streamSid, media: { payload } }))
     },
@@ -1407,17 +1508,53 @@ export function twilioCarrier(ws: WebSocket): Carrier {
 }
 
 type TwilioFrame =
-  | { event: 'start'; start: { streamSid: string } }
+  | {
+      event: 'start'
+      start: { streamSid: string; customParameters: Record<string, string> }
+    }
   | { event: 'media'; media: { payload: string } }
-  | { event: 'stop' }
 
-function isTwilioFrame(value: unknown): value is TwilioFrame {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'event' in value &&
-    typeof value.event === 'string'
-  )
+export function parseTwilioFrame(data: RawData): TwilioFrame | undefined {
+  let frame: unknown
+  try {
+    frame = JSON.parse(toBytes(data).toString())
+  } catch {
+    return undefined
+  }
+  if (typeof frame !== 'object' || frame === null || !('event' in frame)) {
+    return undefined
+  }
+  if (frame.event === 'media' && 'media' in frame) {
+    const { media } = frame
+    if (
+      typeof media === 'object' &&
+      media !== null &&
+      'payload' in media &&
+      typeof media.payload === 'string'
+    ) {
+      return { event: 'media', media: { payload: media.payload } }
+    }
+  }
+  if (frame.event === 'start' && 'start' in frame) {
+    const { start } = frame
+    if (
+      typeof start === 'object' &&
+      start !== null &&
+      'streamSid' in start &&
+      typeof start.streamSid === 'string'
+    ) {
+      const params =
+        'customParameters' in start ? start.customParameters : undefined
+      return {
+        event: 'start',
+        start: {
+          streamSid: start.streamSid,
+          customParameters: isStringRecord(params) ? params : {},
+        },
+      }
+    }
+  }
+  return undefined
 }
 
 /** G.711 μ-law encode of 16-bit little-endian PCM. */
@@ -1442,18 +1579,23 @@ function toMulaw(pcm16: Uint8Array): Uint8Array {
 
 Then connect a number:
 
-1. Run `ngrok http 3100` and copy the `https` host. The `/twilio` socket has no login. Anyone with that host can place calls on your keys, so keep it private and stop the tunnel when you are done.
-2. In the Twilio console, set the number's voice webhook to return this TwiML:
+1. Add `TWILIO_STREAM_TOKEN` to `.env.local` with a long random value, and restart the dev server.
+2. Run `ngrok http 3100` and copy the `https` host.
+3. In the Twilio console, set the number's voice webhook to return this TwiML:
 
 ```xml
 <Response>
   <Connect>
-    <Stream url="wss://YOUR-NGROK-HOST/twilio?character=startup&amp;think=gemini" />
+    <Stream url="wss://YOUR-NGROK-HOST/twilio">
+      <Parameter name="token" value="YOUR-TWILIO-STREAM-TOKEN" />
+      <Parameter name="character" value="startup" />
+      <Parameter name="think" value="gemini" />
+    </Stream>
   </Connect>
 </Response>
 ```
 
-3. Call the number and ask a question. The query takes `character`, `listen`, `think`, and `speak`. Leave one off for the default.
+4. Call the number and ask a question. The `<Parameter>` names are `token`, `character`, `listen`, `think`, and `speak`. Leave out a hop or the character for the default.
 
 The same `handleCall` runs. Only the carrier changed.
 

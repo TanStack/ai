@@ -260,10 +260,12 @@ export function setupCall(
     hop: Hop,
     keyed: Record<string, Keyed<T>>,
   ): { value: T } | { missing: string } => {
-    // A hop left out, as on a Twilio query string, takes the default. A name
+    // A hop left out, as in Twilio parameters, takes the default. A name
     // that is not a provider is a typo, and must not bill some other key.
     const name = choice[hop] ?? DEFAULT_CHOICE[hop]
-    if (!(name in HOPS[hop])) throw new Error(`Unknown ${hop}: ${name}`)
+    if (!Object.hasOwn(HOPS[hop], name)) {
+      throw new Error(`Unknown ${hop}: ${name}`)
+    }
     const entry = keyed[name]
     if (!entry) throw new Error(`No provider for ${hop}`)
     const key = getByokKey(request, entry.byok)

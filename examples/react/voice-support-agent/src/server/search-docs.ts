@@ -89,7 +89,8 @@ export const searchDocs = toolDefinition({
     .sort((a, b) => b.score - a.score)
     .slice(0, 2)
 
-  const results = await Promise.all(
+  // One page that fails to load must not lose the other one.
+  const results = await Promise.allSettled(
     ranked.map(async ({ page }) => {
       const markdown = await fetchDoc(`${page.to}.md`).then((r) => r.text())
       // ponytail: keyword match on titles plus the first 4000 chars of each
@@ -102,5 +103,7 @@ export const searchDocs = toolDefinition({
       }
     }),
   )
-  return { pages: results }
+  return {
+    pages: results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : [])),
+  }
 })

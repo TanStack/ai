@@ -150,5 +150,5 @@ export const CHARACTERS = {
 export type CharacterName = keyof typeof CHARACTERS
 
 export function isCharacterName(name: string): name is CharacterName {
-  return name in CHARACTERS
+  return Object.hasOwn(CHARACTERS, name)
 }

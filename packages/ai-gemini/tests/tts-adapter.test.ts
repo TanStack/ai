@@ -199,6 +199,31 @@ describe('Gemini TTS Adapter', () => {
     expect(args.config.systemInstruction).toBeUndefined()
   })
 
+  it('rejects multiSpeakerVoiceConfig without turns on Gemini 3.8 TTS', async () => {
+    await expect(
+      generateSpeech({
+        threadId: 'thread-1',
+        adapter: createGeminiSpeech('gemini-3.8-flash-tts', 'key'),
+        text: 'Joe: hello\nJane: hi',
+        modelOptions: {
+          multiSpeakerVoiceConfig: {
+            speakerVoiceConfigs: [
+              {
+                speaker: 'Joe',
+                voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } },
+              },
+              {
+                speaker: 'Jane',
+                voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
+              },
+            ],
+          },
+        },
+      }),
+    ).rejects.toThrow(/Pass `turns` for multi-speaker speech/)
+    expect(mockGenerateContent).not.toHaveBeenCalled()
+  })
+
   it('honors TTSOptions.voice as a fallback for the prebuilt voice', async () => {
     // Regression: the adapter used to ignore `options.voice` and hard-code
     // 'Kore' even when the caller asked for something else.

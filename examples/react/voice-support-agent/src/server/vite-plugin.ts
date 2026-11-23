@@ -1,16 +1,23 @@
 import { WebSocketServer } from 'ws'
 import { handleCall } from './call.ts'
-import { browserCarrier, twilioCarrier } from './carriers.ts'
+import {
+  browserCarrier,
+  isStringRecord,
+  parseTwilioFrame,
+  twilioCarrier,
+} from './carriers.ts'
 import { setupCall } from './providers.ts'
-import type { WebSocket } from 'ws'
+import type { RawData, WebSocket } from 'ws'
 import type { Plugin } from 'vite'
+import type { Carrier } from './carriers.ts'
 
 /**
  * Hosts two WebSocket paths on the Vite dev server:
  * - `/voice`: the softphone page. Its first frame is a JSON `start` message
  *   with the character, the provider per hop, and the caller's own keys.
+ *   It takes local connections only, so a tunnel cannot use the env keys.
  * - `/twilio`: a Twilio Media Stream. Point a `<Stream url>` at it. Choices
- *   come from the query string and keys from env.
+ *   and a `token` come from `<Parameter>` elements, keys from env.
  *
  * Start server routes answer HTTP requests, so the sockets live here instead.
  */
@@ -23,15 +30,20 @@ export function voiceServer(): Plugin {
       server.httpServer.on('upgrade', (request, socket, head) => {
         const url = new URL(request.url ?? '/', 'http://localhost')
         if (url.pathname !== '/voice' && url.pathname !== '/twilio') return
+        // A request through a tunnel has the tunnel's host name.
+        const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(
+          request.headers.host ?? '',
+        )
+        if (url.pathname === '/voice' && !local) {
+          socket.end('HTTP/1.1 403 Forbidden\r\n\r\n')
+          return
+        }
         wss.handleUpgrade(request, socket, head, (ws) => {
+          // A bad frame emits `error`. With no listener, it stops the server.
+          ws.on('error', (error) => console.error('socket error', error))
           const run =
             url.pathname === '/twilio'
-              ? start(
-                  ws,
-                  twilioCarrier(ws),
-                  Object.fromEntries(url.searchParams),
-                  {},
-                )
+              ? startFromTwilio(ws)
               : startFromFirstFrame(ws)
           run.catch((error: unknown) => {
             console.error('call failed', error)
@@ -41,6 +53,34 @@ export function voiceServer(): Plugin {
       })
     },
   }
+}
+
+/**
+ * Twilio sends `connected`, then `start` with the stream id and the
+ * `<Parameter>` values, then audio. The call starts on `start`, so it hears
+ * all of the audio. The `token` must match `TWILIO_STREAM_TOKEN`. Only your
+ * TwiML has it, so no one else can place a call on your keys.
+ */
+function startFromTwilio(ws: WebSocket) {
+  return new Promise<void>((resolve, reject) => {
+    const onFrame = (data: RawData) => {
+      const frame = parseTwilioFrame(data)
+      if (frame?.event !== 'start') return
+      ws.off('message', onFrame)
+      const { streamSid, customParameters } = frame.start
+      const token = process.env.TWILIO_STREAM_TOKEN
+      if (!token || customParameters.token !== token) {
+        ws.close(1008, 'bad token')
+        resolve()
+        return
+      }
+      start(ws, twilioCarrier(ws, streamSid), customParameters, {}).then(
+        resolve,
+        reject,
+      )
+    }
+    ws.on('message', onFrame)
+  })
 }
 
 /** The page sends `{ type: 'start', choice, headers }` before any audio. */
@@ -70,7 +110,7 @@ function startFromFirstFrame(ws: WebSocket) {
 
 async function start(
   ws: WebSocket,
-  carrier: ReturnType<typeof browserCarrier>,
+  carrier: Carrier,
   choice: Record<string, string>,
   headers: Record<string, string>,
 ) {
@@ -101,13 +141,5 @@ function isStartFrame(value: unknown): value is StartFrame {
     isStringRecord(value.choice) &&
     'headers' in value &&
     isStringRecord(value.headers)
-  )
-}
-
-function isStringRecord(value: unknown): value is Record<string, string> {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    Object.values(value).every((entry) => typeof entry === 'string')
   )
 }

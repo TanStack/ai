@@ -18,18 +18,25 @@ Characters live in `src/server/characters.ts`: helpful, startup founder, frightf
 
 ## Take a phone call
 
-1. Run `ngrok http 3100` and copy the `https` host. The `/twilio` socket has no login. Anyone with that host can place calls on your keys, so keep it private and stop the tunnel when you are done.
-2. In Twilio, set the number's voice webhook to return this TwiML:
+1. Set `TWILIO_STREAM_TOKEN` in `.env.local` to a long random string, and restart the dev server.
+2. Run `ngrok http 3100` and copy the `https` host.
+3. In Twilio, set the number's voice webhook to return this TwiML:
 
 ```xml
 <Response>
   <Connect>
-    <Stream url="wss://YOUR-NGROK-HOST/twilio?character=surfie&amp;speak=gemini" />
+    <Stream url="wss://YOUR-NGROK-HOST/twilio">
+      <Parameter name="token" value="YOUR-TWILIO-STREAM-TOKEN" />
+      <Parameter name="character" value="surfie" />
+      <Parameter name="speak" value="gemini" />
+    </Stream>
   </Connect>
 </Response>
 ```
 
-3. Call the number.
+4. Call the number.
+
+The `/twilio` socket takes a call only when `token` matches `TWILIO_STREAM_TOKEN`. The `/voice` socket takes local connections only, so the tunnel cannot use your keys from the page.
 
 ## Files
 
