@@ -364,7 +364,7 @@ async function approval() {
       waits: snapshot.pendingWaits.map(({ waitId }) => waitId),
     })
     // The other host follows the log: wait until it has the resumed turn.
-    await waitUntil(() => other.snapshot().status !== 'requires_action')
+    await waitUntil(() => other.snapshot().status === 'running')
     const observed = summary(await view.snapshot())
     const open = summary(other.snapshot())
     release()
