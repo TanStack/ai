@@ -257,12 +257,12 @@ export type FalAudioProviderOptions<TModel extends string> = Omit<
 >
 
 /**
- * The fal 3D endpoints that `fal3DModel()` knows. Each id is a key of the
+ * The fal 3D endpoints that `fal3dModel()` knows. Each id is a key of the
  * installed SDK's `EndpointTypeMap`, and each endpoint returns a mesh file.
  *
  * @experimental 3D model generation is experimental and may change.
  */
-export type Fal3DKnownModel =
+export type Fal3dKnownModel =
   | 'fal-ai/hunyuan3d/v2'
   | 'fal-ai/hunyuan3d/v2/turbo'
   | 'fal-ai/hunyuan3d/v2/mini'
@@ -300,24 +300,24 @@ export type Fal3DKnownModel =
  *
  * @experimental 3D model generation is experimental and may change.
  */
-export type Fal3DModel = Fal3DKnownModel | (string & {})
+export type Fal3dModel = Fal3dKnownModel | (string & {})
 
 /**
  * Input fields that take the text of a 3D prompt: `prompt`, or
  * `text_style_prompt` for Meshy retexture.
  */
-export type Fal3DTextFieldName = 'prompt' | 'text_style_prompt'
+export type Fal3dTextFieldName = 'prompt' | 'text_style_prompt'
 
 /**
  * Input fields that take the image parts of a 3D prompt: the fields of the
  * generated image field map, and `image_style_url` for Meshy retexture.
  */
-export type Fal3DImageFieldName = FalImageFieldName | 'image_style_url'
+export type Fal3dImageFieldName = FalImageFieldName | 'image_style_url'
 
 /** Input fields that the 3D adapter fills from the prompt. */
-type Fal3DPromptFieldName =
-  | Fal3DTextFieldName
-  | Fal3DImageFieldName
+type Fal3dPromptFieldName =
+  | Fal3dTextFieldName
+  | Fal3dImageFieldName
   | FalMeshFieldName
 
 /**
@@ -327,30 +327,30 @@ type Fal3DPromptFieldName =
  * take any options.
  *
  * @example
- * type Options = Fal3DModelProviderOptions<'fal-ai/hunyuan3d-v3/image-to-3d'>
+ * type Options = Fal3dModelProviderOptions<'fal-ai/hunyuan3d-v3/image-to-3d'>
  * // { face_count?: number; generate_type?: 'Normal' | 'LowPoly' | 'Geometry'; ... }
  *
  * @experimental 3D model generation is experimental and may change.
  */
-export type Fal3DModelProviderOptions<TModel extends string> =
+export type Fal3dModelProviderOptions<TModel extends string> =
   TModel extends keyof EndpointTypeMap
-    ? Omit<FalModelInput<TModel>, Fal3DPromptFieldName>
+    ? Omit<FalModelInput<TModel>, Fal3dPromptFieldName>
     : Record<string, unknown>
 
 /**
  * Prompt input modalities for a fal 3D endpoint. An endpoint takes image
- * parts when its input has one of the {@link Fal3DImageFieldName} fields. It
+ * parts when its input has one of the {@link Fal3dImageFieldName} fields. It
  * takes a `model3d` part when the generated mesh field map lists it.
  * Endpoints that the installed SDK does not know are unconstrained.
  *
  * @experimental 3D model generation is experimental and may change.
  */
-export type Fal3DPromptModalitiesFor<TModel extends string> =
+export type Fal3dPromptModalitiesFor<TModel extends string> =
   TModel extends keyof EndpointTypeMap
     ? ReadonlyArray<
         | (Extract<
             keyof FalModelInput<TModel>,
-            Fal3DImageFieldName
+            Fal3dImageFieldName
           > extends never
             ? never
             : 'image')

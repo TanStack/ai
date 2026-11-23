@@ -8,8 +8,8 @@ keywords:
   - tutorial
   - game assets
   - 3d model generation
-  - generate3DModel
-  - useGenerate3DModel
+  - generate3dModel
+  - useGenerate3dModel
   - tripo
   - rigging
   - animation
@@ -56,7 +56,7 @@ Get a key from [Tripo](https://developers.tripo3d.ai/en/keys). Put it in a `.env
 TRIPO_API_KEY=
 ```
 
-`tripo3DModel()` reads `TRIPO_API_KEY` from the server environment. The key never goes to the browser.
+`tripo3dModel()` reads `TRIPO_API_KEY` from the server environment. The key never goes to the browser.
 
 ## 3. Know the two sides
 
@@ -80,15 +80,15 @@ The page sends two things in each request:
 ```typescript ignore
 import { createFileRoute } from '@tanstack/react-router'
 import {
-  generate3DModel,
+  generate3dModel,
   generationParamsFromRequest,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { tripo3DModel } from '@tanstack/ai-tripo'
+import { tripo3dModel } from '@tanstack/ai-tripo'
 
 // One POST runs one step. The page sends the step in the body and a string
 // prompt: the text for the 'model' step, or the Tripo task id of the step
-// before it for the 'rig' and 'animate' steps. tripo3DModel() reads
+// before it for the 'rig' and 'animate' steps. tripo3dModel() reads
 // TRIPO_API_KEY from the server environment.
 export async function POST({ request }: { request: Request }) {
   const params = await generationParamsFromRequest('3dModel', request).catch(
@@ -109,8 +109,8 @@ export async function POST({ request }: { request: Request }) {
   switch (step) {
     // Step 1: text to a 3D model.
     case 'model': {
-      const stream = generate3DModel({
-        adapter: tripo3DModel('text-to-model'),
+      const stream = generate3dModel({
+        adapter: tripo3dModel('text-to-model'),
         prompt,
         stream: true,
         threadId,
@@ -123,8 +123,8 @@ export async function POST({ request }: { request: Request }) {
     // preset for the v3.0 rig, so this step asks for that rig model. The
     // model goes in as its Tripo task id.
     case 'rig': {
-      const stream = generate3DModel({
-        adapter: tripo3DModel('rig', 'v3.0-20260909'),
+      const stream = generate3dModel({
+        adapter: tripo3dModel('rig', 'v3.0-20260909'),
         prompt: [
           {
             type: 'model3d',
@@ -144,8 +144,8 @@ export async function POST({ request }: { request: Request }) {
     // only as its Tripo task id. 'animate_in_place' keeps the character in the
     // middle of the viewer. Without it, the walk moves the character out.
     case 'animate': {
-      const stream = generate3DModel({
-        adapter: tripo3DModel('retarget'),
+      const stream = generate3dModel({
+        adapter: tripo3dModel('retarget'),
         prompt: [
           {
             type: 'model3d',
@@ -183,7 +183,7 @@ What the route does:
 - The `rig` step asks for the `v3.0-20260909` rig model, because `preset:walk` is a preset for that rig.
 - `out_format: 'glb'` makes the rig a GLB file. `<model-viewer>` shows GLB.
 - `animate_in_place: true` makes the character walk on the spot. Without it, the walk moves the character forward and out of the viewer.
-- `stream: true` makes `generate3DModel` start the Tripo task, poll it, and stream each status to the page.
+- `stream: true` makes `generate3dModel` start the Tripo task, poll it, and stream each status to the page.
 - `abortSignal` stops the polling when the page closes the request. Tripo cannot stop a task that it started, so it still bills the task.
 
 For other presets and rig options, open [Rig and animate a character](../adapters/tripo#rig-and-animate-a-character).
@@ -260,12 +260,12 @@ declare module 'react' {
 }
 ```
 
-Then replace `src/routes/index.tsx` with this file. It has one `useGenerate3DModel` hook for each job. All 3 hooks post to `/api/character`, and each one sends its own `step` in `body`.
+Then replace `src/routes/index.tsx` with this file. It has one `useGenerate3dModel` hook for each job. All 3 hooks post to `/api/character`, and each one sends its own `step` in `body`.
 
 ```tsx ignore
 import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { fetchServerSentEvents, useGenerate3DModel } from '@tanstack/ai-react'
+import { fetchServerSentEvents, useGenerate3dModel } from '@tanstack/ai-react'
 
 // All three steps POST to /api/character. The `body` tells the server which
 // step to run.
@@ -282,14 +282,14 @@ function CharacterPage() {
   }, [])
 
   // Step 3: the walk animation. Its result is the file the page shows.
-  const animate = useGenerate3DModel({
+  const animate = useGenerate3dModel({
     connection,
     body: { step: 'animate' },
     threadId: 'character-animate',
     onProgress: setProgress,
   })
   // Step 2: the skeleton. When it is done, start step 3 with its task id.
-  const rig = useGenerate3DModel({
+  const rig = useGenerate3dModel({
     connection,
     body: { step: 'rig' },
     threadId: 'character-rig',
@@ -300,7 +300,7 @@ function CharacterPage() {
     },
   })
   // Step 1: the model. When it is done, start step 2 with its task id.
-  const model = useGenerate3DModel({
+  const model = useGenerate3dModel({
     connection,
     body: { step: 'model' },
     threadId: 'character-model',

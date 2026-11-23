@@ -9,12 +9,12 @@ keywords:
   - decimate
   - uv unwrap
   - segment
-  - generate3DModel
-  - get3DModelJobStatus
+  - generate3dModel
+  - get3dModelJobStatus
   - adapter
 ---
 
-Pass a model that you already have to a Tripo endpoint, for example `tripo3DModel('decimate')`. You get back a changed model: new textures, a new file format, fewer faces, a new UV layout, or parts. To make a first model, start at [Tripo](./tripo).
+Pass a model that you already have to a Tripo endpoint, for example `tripo3dModel('decimate')`. You get back a changed model: new textures, a new file format, fewer faces, a new UV layout, or parts. To make a first model, start at [Tripo](./tripo).
 
 ## Change a model
 
@@ -25,11 +25,11 @@ A mesh is a `model3d` part. Use a Tripo task id to change the result of an earli
 `texture` paints new textures on a mesh. The text describes the textures:
 
 ```ts
-import { generate3DModel } from '@tanstack/ai'
-import { tripo3DModel } from '@tanstack/ai-tripo'
+import { generate3dModel } from '@tanstack/ai'
+import { tripo3dModel } from '@tanstack/ai-tripo'
 
-const bronze = await generate3DModel({
-  adapter: tripo3DModel('texture'),
+const bronze = await generate3dModel({
+  adapter: tripo3dModel('texture'),
   prompt: [
     {
       type: 'model3d',
@@ -59,11 +59,11 @@ The default model is `'v3.5-20260815'`. `texture_quality: 'extreme'` makes 8K te
 `convert` writes the model in a new format. `format` is required:
 
 ```ts
-import { generate3DModel } from '@tanstack/ai'
-import { tripo3DModel } from '@tanstack/ai-tripo'
+import { generate3dModel } from '@tanstack/ai'
+import { tripo3dModel } from '@tanstack/ai-tripo'
 
-const fbx = await generate3DModel({
-  adapter: tripo3DModel('convert'),
+const fbx = await generate3dModel({
+  adapter: tripo3dModel('convert'),
   prompt: [
     {
       type: 'model3d',
@@ -85,11 +85,11 @@ console.log(fbx.format, fbx.url) // 'fbx' and the link
 `decimate` makes a model with fewer faces. The `'v3.0'` model can also unwrap the UVs in the same job:
 
 ```ts
-import { generate3DModel } from '@tanstack/ai'
-import { tripo3DModel } from '@tanstack/ai-tripo'
+import { generate3dModel } from '@tanstack/ai'
+import { tripo3dModel } from '@tanstack/ai-tripo'
 
-const lowPoly = await generate3DModel({
-  adapter: tripo3DModel('decimate', 'v3.0'),
+const lowPoly = await generate3dModel({
+  adapter: tripo3dModel('decimate', 'v3.0'),
   prompt: [
     {
       type: 'model3d',
@@ -111,11 +111,11 @@ The models are `'v1.0'`, `'v2.0'` (the default), and `'v3.0'`. From `'v2.0'`, `b
 `uv` makes a new UV layout and bakes the textures onto it:
 
 ```ts
-import { generate3DModel } from '@tanstack/ai'
-import { tripo3DModel } from '@tanstack/ai-tripo'
+import { generate3dModel } from '@tanstack/ai'
+import { tripo3dModel } from '@tanstack/ai-tripo'
 
-const unwrapped = await generate3DModel({
-  adapter: tripo3DModel('uv'),
+const unwrapped = await generate3dModel({
+  adapter: tripo3dModel('uv'),
   prompt: [
     {
       type: 'model3d',
@@ -137,11 +137,11 @@ The mesh can have at most 80,000 triangles. A quad counts as two triangles.
 `segment` splits a model into parts. The `'v2.0-20260430'` model lets you set the size of the parts:
 
 ```ts
-import { generate3DModel } from '@tanstack/ai'
-import { tripo3DModel } from '@tanstack/ai-tripo'
+import { generate3dModel } from '@tanstack/ai'
+import { tripo3dModel } from '@tanstack/ai-tripo'
 
-const parts = await generate3DModel({
-  adapter: tripo3DModel('segment', 'v2.0-20260430'),
+const parts = await generate3dModel({
+  adapter: tripo3dModel('segment', 'v2.0-20260430'),
   prompt: [
     {
       type: 'model3d',
@@ -203,8 +203,8 @@ A `data` source goes up to Tripo on each job. To use one file in many jobs, uplo
 
 ```ts
 import { openAsBlob } from 'node:fs'
-import { generate3DModel } from '@tanstack/ai'
-import { tripo3DModel, uploadTripoFile } from '@tanstack/ai-tripo'
+import { generate3dModel } from '@tanstack/ai'
+import { tripo3dModel, uploadTripoFile } from '@tanstack/ai-tripo'
 
 const file = await openAsBlob('ship.png', { type: 'image/png' })
 const token = await uploadTripoFile(file)
@@ -215,14 +215,14 @@ const concept = {
 } as const
 
 const [detailed, lowPoly] = await Promise.all([
-  generate3DModel({
-    adapter: tripo3DModel('image-to-model'),
+  generate3dModel({
+    adapter: tripo3dModel('image-to-model'),
     prompt: [concept],
     threadId: 'ship',
     wait: true,
   }),
-  generate3DModel({
-    adapter: tripo3DModel('image-to-model', 'P1-20260311'),
+  generate3dModel({
+    adapter: tripo3dModel('image-to-model', 'P1-20260311'),
     prompt: [concept],
     threadId: 'ship',
     wait: true,
@@ -247,11 +247,11 @@ The links in a Tripo result are signed, and they expire. Download each file that
 
 ```ts
 import { writeFile } from 'node:fs/promises'
-import { generate3DModel } from '@tanstack/ai'
-import { tripo3DModel } from '@tanstack/ai-tripo'
+import { generate3dModel } from '@tanstack/ai'
+import { tripo3dModel } from '@tanstack/ai-tripo'
 
-const chair = await generate3DModel({
-  adapter: tripo3DModel('text-to-model'),
+const chair = await generate3dModel({
+  adapter: tripo3dModel('text-to-model'),
   prompt: 'A mid-century wooden lounge chair',
   threadId: 'chair',
   wait: true,
@@ -270,15 +270,15 @@ What to know:
 
 ## Check a job from another request
 
-Without `wait` or `stream`, `generate3DModel()` only submits the job and returns `{ jobId, model }`. Save the id, then read the job in another request with `get3DModelJobStatus()`:
+Without `wait` or `stream`, `generate3dModel()` only submits the job and returns `{ jobId, model }`. Save the id, then read the job in another request with `get3dModelJobStatus()`:
 
 ```ts
-import { generate3DModel, get3DModelJobStatus } from '@tanstack/ai'
-import { tripo3DModel } from '@tanstack/ai-tripo'
+import { generate3dModel, get3dModelJobStatus } from '@tanstack/ai'
+import { tripo3dModel } from '@tanstack/ai-tripo'
 
 // Request 1: submit the job, and save the id
-const { jobId } = await generate3DModel({
-  adapter: tripo3DModel('rig'),
+const { jobId } = await generate3dModel({
+  adapter: tripo3dModel('rig'),
   prompt: [
     {
       type: 'model3d',
@@ -289,8 +289,8 @@ const { jobId } = await generate3DModel({
 })
 
 // Request 2: read the job with an adapter for the same endpoint
-const status = await get3DModelJobStatus({
-  adapter: tripo3DModel('rig'),
+const status = await get3dModelJobStatus({
+  adapter: tripo3dModel('rig'),
   jobId,
 })
 
@@ -320,12 +320,12 @@ The endpoint sets the roles of the result files, for example `'rigged'` for a ri
 The adapter repeats a status request on 408, 409, 429, and 5xx. It never repeats a create request or an upload, so one call cannot charge twice.
 
 ```ts
-import { generate3DModel } from '@tanstack/ai'
-import { TripoApiError, tripo3DModel } from '@tanstack/ai-tripo'
+import { generate3dModel } from '@tanstack/ai'
+import { TripoApiError, tripo3dModel } from '@tanstack/ai-tripo'
 
 try {
-  const model = await generate3DModel({
-    adapter: tripo3DModel('text-to-model'),
+  const model = await generate3dModel({
+    adapter: tripo3dModel('text-to-model'),
     prompt: 'A wooden barrel, game asset',
     threadId: 'barrel',
     wait: true,
@@ -343,13 +343,13 @@ try {
 
 ## Bring your own key
 
-`tripoByok` from `@tanstack/ai-tripo/byok` declares Tripo for the BYOK store, with `TRIPO_API_KEY` as its env var. On the server, pass the key as `apiKey` in the last argument of `tripo3DModel()` or of a helper. See [Bring Your Own Key](../advanced/byok).
+`tripoByok` from `@tanstack/ai-tripo/byok` declares Tripo for the BYOK store, with `TRIPO_API_KEY` as its env var. On the server, pass the key as `apiKey` in the last argument of `tripo3dModel()` or of a helper. See [Bring Your Own Key](../advanced/byok).
 
 ## API reference
 
 | Export | What it does |
 | --- | --- |
-| `tripo3DModel(endpoint, model?, config?)` | Creates a 3D model adapter for `generate3DModel()` |
+| `tripo3dModel(endpoint, model?, config?)` | Creates a 3D model adapter for `generate3dModel()` |
 | `getTripoBalance(options?)` | Returns the credit balance |
 | `checkTripoRig(source, options?)` | Checks if Tripo can rig a model, and returns the rig type |
 | `uploadTripoFile(file, options?)` | Uploads a file, and returns its file token |

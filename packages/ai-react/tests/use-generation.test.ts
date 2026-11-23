@@ -3,7 +3,7 @@ import { renderHook, waitFor, act } from '@testing-library/react'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { useGeneration } from '../src/use-generation'
 import { useGenerateImage } from '../src/use-generate-image'
-import { useGenerate3DModel } from '../src/use-generate-3d-model'
+import { useGenerate3dModel } from '../src/use-generate-3d-model'
 import { useGenerateAudio } from '../src/use-generate-audio'
 import { useGenerateSpeech } from '../src/use-generate-speech'
 import { useTranscription } from '../src/use-transcription'
@@ -11,7 +11,7 @@ import { useSummarize } from '../src/use-summarize'
 import { useGenerateVideo } from '../src/use-generate-video'
 import { createMockConnectionAdapter } from './test-utils'
 import type {
-  Model3DResult,
+  Model3dResult,
   PersistedArtifactRef,
   StreamChunk,
   TTSResult,
@@ -652,15 +652,15 @@ describe('useGenerateImage', () => {
   })
 })
 
-describe('useGenerate3DModel', () => {
-  const modelResult: Model3DResult = {
+describe('useGenerate3dModel', () => {
+  const modelResult: Model3dResult = {
     jobId: 'job-3d',
     url: 'https://example.com/fox.glb',
     format: 'glb',
   }
 
   // One `generation:progress` chunk per provider poll, before the result.
-  function create3DModelChunks(): Array<StreamChunk> {
+  function create3dModelChunks(): Array<StreamChunk> {
     const chunks = createGenerationChunks(modelResult)
     const progressChunks: Array<StreamChunk> = [
       { progress: 10, message: 'pending' },
@@ -679,11 +679,11 @@ describe('useGenerate3DModel', () => {
   it('streams progress and exposes the finished model', async () => {
     const onProgress = vi.fn()
     const adapter = createMockConnectionAdapter({
-      chunks: create3DModelChunks(),
+      chunks: create3dModelChunks(),
     })
 
     const { result } = renderHook(() =>
-      useGenerate3DModel({
+      useGenerate3dModel({
         threadId: 'thread-1',
         connection: adapter,
         onProgress,
@@ -712,7 +712,7 @@ describe('useGenerate3DModel', () => {
     })
 
     const { result } = renderHook(() =>
-      useGenerate3DModel({ threadId: 'thread-1', connection: adapter }),
+      useGenerate3dModel({ threadId: 'thread-1', connection: adapter }),
     )
 
     await act(async () => {

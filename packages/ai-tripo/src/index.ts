@@ -1,4 +1,4 @@
-export { tripo3DModel, TripoModel3DAdapter } from './adapters/model3d'
+export { tripo3dModel, TripoModel3dAdapter } from './adapters/model3d'
 export { checkTripoRig, getTripoBalance, uploadTripoFile } from './helpers'
 export type {
   CheckTripoRigOptions,
@@ -14,9 +14,9 @@ export type {
   TripoDefaultModelFor,
   TripoGenerationModel,
   TripoImageToModelOptions,
-  TripoModel3DEndpoint,
-  TripoModel3DInputModalities,
-  TripoModel3DProviderOptions,
+  TripoModel3dEndpoint,
+  TripoModel3dInputModalities,
+  TripoModel3dProviderOptions,
   TripoModelFor,
   TripoMultiviewToModelOptions,
   TripoRetargetOptions,

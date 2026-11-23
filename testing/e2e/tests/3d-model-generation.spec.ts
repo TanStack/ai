@@ -117,7 +117,7 @@ async function generateAndWait(
   return body
 }
 
-test.describe('generate3DModel activity (fal)', () => {
+test.describe('generate3dModel activity (fal)', () => {
   test('wait mode returns a GLB and sends the image as input_image_url', async ({
     request,
   }) => {
@@ -161,7 +161,7 @@ test.describe('generate3DModel activity (fal)', () => {
   })
 })
 
-test.describe('generate3DModel activity (meshy)', () => {
+test.describe('generate3dModel activity (meshy)', () => {
   test('image-to-3d waits for the task and sends the image as image_url', async ({
     request,
   }) => {
@@ -286,7 +286,7 @@ test.describe('generate3DModel activity (meshy)', () => {
   })
 })
 
-test.describe('generate3DModel activity (tripo)', () => {
+test.describe('generate3dModel activity (tripo)', () => {
   test('image-to-model uploads the image, then sends the file_token as input', async ({
     request,
   }) => {

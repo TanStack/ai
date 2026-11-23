@@ -1,14 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
-  generate3DModel,
+  generate3dModel,
   generationParamsFromRequest,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { tripo3DModel } from '@tanstack/ai-tripo'
+import { tripo3dModel } from '@tanstack/ai-tripo'
 
 // One POST runs one step. The page sends the step in the body and a string
 // prompt: the text for the 'model' step, or the Tripo task id of the step
-// before it for the 'rig' and 'animate' steps. tripo3DModel() reads
+// before it for the 'rig' and 'animate' steps. tripo3dModel() reads
 // TRIPO_API_KEY from the server environment.
 export async function POST({ request }: { request: Request }) {
   const params = await generationParamsFromRequest('3dModel', request).catch(
@@ -29,8 +29,8 @@ export async function POST({ request }: { request: Request }) {
   switch (step) {
     // Step 1: text to a 3D model.
     case 'model': {
-      const stream = generate3DModel({
-        adapter: tripo3DModel('text-to-model'),
+      const stream = generate3dModel({
+        adapter: tripo3dModel('text-to-model'),
         prompt,
         stream: true,
         threadId,
@@ -43,8 +43,8 @@ export async function POST({ request }: { request: Request }) {
     // preset for the v3.0 rig, so this step asks for that rig model. The
     // model goes in as its Tripo task id.
     case 'rig': {
-      const stream = generate3DModel({
-        adapter: tripo3DModel('rig', 'v3.0-20260909'),
+      const stream = generate3dModel({
+        adapter: tripo3dModel('rig', 'v3.0-20260909'),
         prompt: [
           {
             type: 'model3d',
@@ -64,8 +64,8 @@ export async function POST({ request }: { request: Request }) {
     // only as its Tripo task id. 'animate_in_place' keeps the character in the
     // middle of the viewer. Without it, the walk moves the character out.
     case 'animate': {
-      const stream = generate3DModel({
-        adapter: tripo3DModel('retarget'),
+      const stream = generate3dModel({
+        adapter: tripo3dModel('retarget'),
         prompt: [
           {
             type: 'model3d',

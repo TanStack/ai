@@ -1,10 +1,10 @@
 /**
- * The Tripo 3D endpoints that `tripo3DModel()` can call. The endpoint is the
+ * The Tripo 3D endpoints that `tripo3dModel()` can call. The endpoint is the
  * adapter model.
  *
  * @experimental Tripo support is experimental and may change.
  */
-export type TripoModel3DEndpoint =
+export type TripoModel3dEndpoint =
   | 'text-to-model'
   | 'image-to-model'
   | 'multiview-to-model'
@@ -22,7 +22,7 @@ export type TripoModel3DEndpoint =
  *
  * @experimental Tripo support is experimental and may change.
  */
-export const TRIPO_ENDPOINT_PATHS: Record<TripoModel3DEndpoint, string> = {
+export const TRIPO_ENDPOINT_PATHS: Record<TripoModel3dEndpoint, string> = {
   'text-to-model': '/generation/text-to-model',
   'image-to-model': '/generation/image-to-model',
   'multiview-to-model': '/generation/multiview-to-model',
@@ -72,18 +72,18 @@ export const TRIPO_PROMPT_ROUTES = {
   decimate: { text: null, image: null, mesh: ANY_MESH },
   uv: { text: null, image: null, mesh: ANY_MESH },
   segment: { text: null, image: null, mesh: ANY_MESH },
-} as const satisfies Record<TripoModel3DEndpoint, TripoPromptRoute>
+} as const satisfies Record<TripoModel3dEndpoint, TripoPromptRoute>
 
-type TripoPromptRouteFor<E extends TripoModel3DEndpoint> =
+type TripoPromptRouteFor<E extends TripoModel3dEndpoint> =
   (typeof TRIPO_PROMPT_ROUTES)[E]
 
 /**
  * The non-text prompt parts that an endpoint takes, for the
- * `generate3DModel()` prompt type.
+ * `generate3dModel()` prompt type.
  *
  * @experimental Tripo support is experimental and may change.
  */
-export type TripoModel3DInputModalities<E extends TripoModel3DEndpoint> =
+export type TripoModel3dInputModalities<E extends TripoModel3dEndpoint> =
   ReadonlyArray<
     | (TripoPromptRouteFor<E>['image'] extends null ? never : 'image')
     | (TripoPromptRouteFor<E>['mesh'] extends null ? never : 'model3d')
@@ -162,7 +162,7 @@ interface TripoModelByEndpoint {
  *
  * @experimental Tripo support is experimental and may change.
  */
-export type TripoModelFor<E extends TripoModel3DEndpoint> =
+export type TripoModelFor<E extends TripoModel3dEndpoint> =
   TripoModelByEndpoint[E]
 
 interface TripoDefaultModelByEndpoint {
@@ -185,7 +185,7 @@ interface TripoDefaultModelByEndpoint {
  *
  * @experimental Tripo support is experimental and may change.
  */
-export type TripoDefaultModelFor<E extends TripoModel3DEndpoint> =
+export type TripoDefaultModelFor<E extends TripoModel3dEndpoint> =
   TripoDefaultModelByEndpoint[E]
 
 type TripoExportOrientation = '+x' | '-x' | '+y' | '-y'
@@ -568,7 +568,7 @@ interface TripoSegmentOptionsByModel {
 export type TripoSegmentOptions<M extends TripoSegmentModel> =
   TripoSegmentOptionsByModel[M]
 
-interface TripoModel3DProviderOptionsByEndpoint<M> {
+interface TripoModel3dProviderOptionsByEndpoint<M> {
   'text-to-model': TripoTextToModelOptions<Extract<M, TripoGenerationModel>>
   'image-to-model': TripoImageToModelOptions<Extract<M, TripoGenerationModel>>
   'multiview-to-model': TripoMultiviewToModelOptions<
@@ -591,7 +591,7 @@ interface TripoModel3DProviderOptionsByEndpoint<M> {
  *
  * @experimental Tripo support is experimental and may change.
  */
-export type TripoModel3DProviderOptions<
-  E extends TripoModel3DEndpoint,
+export type TripoModel3dProviderOptions<
+  E extends TripoModel3dEndpoint,
   M extends TripoModelFor<E> = TripoDefaultModelFor<E>,
-> = TripoModel3DProviderOptionsByEndpoint<M>[E]
+> = TripoModel3dProviderOptionsByEndpoint<M>[E]

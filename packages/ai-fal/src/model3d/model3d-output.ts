@@ -1,5 +1,5 @@
 import { extractUrlExtension } from '../utils/client'
-import type { Model3DFile, Model3DFileRole, Model3DFormat } from '@tanstack/ai'
+import type { Model3dFile, Model3dFileRole, Model3dFormat } from '@tanstack/ai'
 
 /** The fields of a fal `File` that the mapper reads. */
 interface FalFileLike {
@@ -8,7 +8,7 @@ interface FalFileLike {
   file_name?: unknown
 }
 
-const FORMAT_BY_EXTENSION: Partial<Record<string, Model3DFormat>> = {
+const FORMAT_BY_EXTENSION: Partial<Record<string, Model3dFormat>> = {
   glb: 'glb',
   gltf: 'gltf',
   fbx: 'fbx',
@@ -17,7 +17,7 @@ const FORMAT_BY_EXTENSION: Partial<Record<string, Model3DFormat>> = {
   stl: 'stl',
 }
 
-const FORMAT_BY_CONTENT_TYPE: Partial<Record<string, Model3DFormat>> = {
+const FORMAT_BY_CONTENT_TYPE: Partial<Record<string, Model3dFormat>> = {
   'model/gltf-binary': 'glb',
   'model/gltf+json': 'gltf',
   'model/obj': 'obj',
@@ -61,7 +61,7 @@ function fileNameExtension(fileName: unknown) {
 /**
  * Find the format of a fal file from its file name, then its URL extension,
  * then its content type. Returns `undefined` when the file is not a mesh
- * format that `Model3DFormat` names (for example a PNG texture).
+ * format that `Model3dFormat` names (for example a PNG texture).
  */
 function detectFormat(file: FalFileLike) {
   const extension =
@@ -76,7 +76,7 @@ function detectFormat(file: FalFileLike) {
 }
 
 /** A mesh file. Unlike a texture, a mesh always has a format. */
-type Model3DMeshFile = Model3DFile & { format: Model3DFormat }
+type Model3dMeshFile = Model3dFile & { format: Model3dFormat }
 
 function contentTypeField(file: FalFileLike) {
   return typeof file.content_type === 'string'
@@ -86,13 +86,13 @@ function contentTypeField(file: FalFileLike) {
 
 function toMeshFile(
   value: unknown,
-  role: Model3DFileRole,
-  knownFormat?: Model3DFormat,
+  role: Model3dFileRole,
+  knownFormat?: Model3dFormat,
 ) {
   if (!isFalFile(value)) return undefined
   const format = detectFormat(value) ?? knownFormat
   if (!format) return undefined
-  const file: Model3DMeshFile = {
+  const file: Model3dMeshFile = {
     url: value.url,
     format,
     role,
@@ -104,14 +104,14 @@ function toMeshFile(
 /**
  * Read every mesh file from a fal 3D output, in the order the mapper prefers
  * them, without two files that share a URL. Files that are not a
- * `Model3DFormat` (textures, MTL files, Gaussian splats) are left out.
+ * `Model3dFormat` (textures, MTL files, Gaussian splats) are left out.
  */
 function collectMeshFiles(output: Record<string, unknown>) {
-  const files: Array<Model3DMeshFile> = []
+  const files: Array<Model3dMeshFile> = []
   const add = (
     value: unknown,
-    role: Model3DFileRole,
-    knownFormat?: Model3DFormat,
+    role: Model3dFileRole,
+    knownFormat?: Model3dFormat,
   ) => {
     const file = toMeshFile(value, role, knownFormat)
     const isNewFile = file && !files.some((seen) => seen.url === file.url)
@@ -154,7 +154,7 @@ function collectTextureFiles(output: Record<string, unknown>) {
   }
   for (const field of TEXTURE_FIELDS) values.push(output[field])
 
-  const files: Array<Model3DFile> = []
+  const files: Array<Model3dFile> = []
   for (const value of values) {
     if (!isFalFile(value)) continue
     files.push({ url: value.url, role: 'texture', ...contentTypeField(value) })
@@ -163,7 +163,7 @@ function collectTextureFiles(output: Record<string, unknown>) {
 }
 
 /** The first GLB in the list, else the first file. */
-function pickMainFile(files: ReadonlyArray<Model3DMeshFile>) {
+function pickMainFile(files: ReadonlyArray<Model3dMeshFile>) {
   return files.find((file) => file.format === 'glb') ?? files[0]
 }
 
@@ -176,7 +176,7 @@ function findPreviewUrl(output: Record<string, unknown>) {
 }
 
 /**
- * Map the output of any fal 3D endpoint to a `Model3DResult`. One generic
+ * Map the output of any fal 3D endpoint to a `Model3dResult`. One generic
  * mapper reads the known output fields, so there is no table per model.
  *
  * `url` is the best mesh of the PBR and base files: the first GLB in the
@@ -192,7 +192,7 @@ function findPreviewUrl(output: Record<string, unknown>) {
  *
  * Throws when the output has no mesh file.
  */
-export function mapFalModel3DOutput(jobId: string, output: unknown) {
+export function mapFalModel3dOutput(jobId: string, output: unknown) {
   const fields = isRecord(output) ? output : {}
   const meshFiles = collectMeshFiles(fields)
   const primaryFiles = meshFiles.filter(

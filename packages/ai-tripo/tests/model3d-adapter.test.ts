@@ -1,12 +1,12 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
-import { tripo3DModel } from '../src/adapters/model3d'
+import { tripo3dModel } from '../src/adapters/model3d'
 import type { MediaPrompt } from '@tanstack/ai'
-import type { TripoModel3DAdapter } from '../src/adapters/model3d'
+import type { TripoModel3dAdapter } from '../src/adapters/model3d'
 import type { TripoClientConfig, TripoTask } from '../src/client'
 import type {
-  TripoModel3DEndpoint,
-  TripoModel3DProviderOptions,
+  TripoModel3dEndpoint,
+  TripoModel3dProviderOptions,
   TripoModelFor,
 } from '../src/model-meta'
 
@@ -50,12 +50,12 @@ function fakeTripo(task: TripoTask = { task_id: 'task-1', status: 'queued' }) {
   return { fetch, requests }
 }
 
-function createJob<E extends TripoModel3DEndpoint, M extends TripoModelFor<E>>(
-  adapter: TripoModel3DAdapter<E, M>,
+function createJob<E extends TripoModel3dEndpoint, M extends TripoModelFor<E>>(
+  adapter: TripoModel3dAdapter<E, M>,
   prompt: MediaPrompt,
-  modelOptions?: TripoModel3DProviderOptions<E, M>,
+  modelOptions?: TripoModel3dProviderOptions<E, M>,
 ) {
-  return adapter.create3DModelJob({
+  return adapter.create3dModelJob({
     model: adapter.model,
     prompt,
     modelOptions,
@@ -65,12 +65,12 @@ function createJob<E extends TripoModel3DEndpoint, M extends TripoModelFor<E>>(
 
 /** Creates a job and returns the requests that reached Tripo. */
 async function submit<
-  E extends TripoModel3DEndpoint,
+  E extends TripoModel3dEndpoint,
   M extends TripoModelFor<E>,
 >(
-  makeAdapter: (config: TripoClientConfig) => TripoModel3DAdapter<E, M>,
+  makeAdapter: (config: TripoClientConfig) => TripoModel3dAdapter<E, M>,
   prompt: MediaPrompt,
-  modelOptions?: TripoModel3DProviderOptions<E, M>,
+  modelOptions?: TripoModel3dProviderOptions<E, M>,
 ) {
   const tripo = fakeTripo()
   const adapter = makeAdapter({ apiKey: 'key', fetch: tripo.fetch })
@@ -80,12 +80,12 @@ async function submit<
 }
 
 /** Creates a job that must fail, and returns the error and the requests. */
-async function submitError<E extends TripoModel3DEndpoint>(
+async function submitError<E extends TripoModel3dEndpoint>(
   endpoint: E,
   prompt: MediaPrompt,
 ) {
   const tripo = fakeTripo()
-  const adapter = tripo3DModel(endpoint, { apiKey: 'key', fetch: tripo.fetch })
+  const adapter = tripo3dModel(endpoint, { apiKey: 'key', fetch: tripo.fetch })
   const error = await createJob(adapter, prompt).catch(
     (caught: unknown) => caught,
   )
@@ -94,18 +94,18 @@ async function submitError<E extends TripoModel3DEndpoint>(
 
 /** Reads finished task `task-9` of an endpoint with this `output`. */
 function resultFor(
-  endpoint: TripoModel3DEndpoint,
+  endpoint: TripoModel3dEndpoint,
   output: TripoTask['output'],
   status = 'success',
 ) {
   const tripo = fakeTripo({ task_id: 'task-9', status, output })
-  return tripo3DModel(endpoint, {
+  return tripo3dModel(endpoint, {
     apiKey: 'key',
     fetch: tripo.fetch,
-  }).get3DModel('task-9')
+  }).get3dModel('task-9')
 }
 
-// The `modelOptions` type that `generate3DModel()` reads from an adapter.
+// The `modelOptions` type that `generate3dModel()` reads from an adapter.
 type ModelOptionsOf<A extends { '~types': { providerOptions: object } }> =
   A['~types']['providerOptions']
 
@@ -139,33 +139,33 @@ const post = (path: string, body: object) => ({
   body,
 })
 
-describe('tripo3DModel types', () => {
+describe('tripo3dModel types', () => {
   it('types modelOptions by the model', () => {
     const config = { apiKey: 'key' }
-    const p1 = tripo3DModel('text-to-model', 'P1-20260311', config)
-    const v31 = tripo3DModel('text-to-model', 'v3.1-20260211', config)
-    const byDefault = tripo3DModel('text-to-model', config)
+    const p1 = tripo3dModel('text-to-model', 'P1-20260311', config)
+    const v31 = tripo3dModel('text-to-model', 'v3.1-20260211', config)
+    const byDefault = tripo3dModel('text-to-model', config)
     // @ts-expect-error P1 has no quad
     const p1Options: ModelOptionsOf<typeof p1> = { quad: true }
     const v31Options: ModelOptionsOf<typeof v31> = { quad: true }
     const defaultOptions: ModelOptionsOf<typeof byDefault> = { quad: true }
     expect([p1Options, v31Options, defaultOptions]).toHaveLength(3)
     expectTypeOf(byDefault).toEqualTypeOf<
-      TripoModel3DAdapter<'text-to-model', 'v3.1-20260211'>
+      TripoModel3dAdapter<'text-to-model', 'v3.1-20260211'>
     >()
-    expectTypeOf(tripo3DModel('rig', config)).toEqualTypeOf<
-      TripoModel3DAdapter<'rig', 'v1.0-20240301'>
+    expectTypeOf(tripo3dModel('rig', config)).toEqualTypeOf<
+      TripoModel3dAdapter<'rig', 'v1.0-20240301'>
     >()
     // @ts-expect-error convert has no model choice
-    tripo3DModel('convert', 'v3.1-20260211', config)
-    expect(tripo3DModel('convert', config).model).toBe('convert')
+    tripo3dModel('convert', 'v3.1-20260211', config)
+    expect(tripo3dModel('convert', config).model).toBe('convert')
   })
 })
 
-describe('tripo3DModel create3DModelJob', () => {
+describe('tripo3dModel create3dModelJob', () => {
   it('text-to-model sends the prompt and the default model', async () => {
     const requests = await submit(
-      (config) => tripo3DModel('text-to-model', config),
+      (config) => tripo3dModel('text-to-model', config),
       'a wooden chest',
       { face_limit: 20000 },
     )
@@ -180,7 +180,7 @@ describe('tripo3DModel create3DModelJob', () => {
 
   it('text-to-model sends an explicit model', async () => {
     const requests = await submit(
-      (config) => tripo3DModel('text-to-model', 'P1-20260311', config),
+      (config) => tripo3dModel('text-to-model', 'P1-20260311', config),
       'a wooden chest',
     )
     expect(requests).toEqual([
@@ -198,7 +198,7 @@ describe('tripo3DModel create3DModelJob', () => {
     'image-to-model sends %s as input',
     async (_name, part, input) => {
       const requests = await submit(
-        (config) => tripo3DModel('image-to-model', config),
+        (config) => tripo3dModel('image-to-model', config),
         [part],
       )
       expect(requests).toEqual([
@@ -209,7 +209,7 @@ describe('tripo3DModel create3DModelJob', () => {
 
   it('uploads a data image and sends its file_token, not a data URI', async () => {
     const requests = await submit(
-      (config) => tripo3DModel('image-to-model', config),
+      (config) => tripo3dModel('image-to-model', config),
       [dataImage],
     )
     expect(requests.map((request) => request.url)).toEqual([
@@ -250,7 +250,7 @@ describe('tripo3DModel create3DModelJob', () => {
     ],
   ] as const)('multiview-to-model sends %s', async (_name, images, inputs) => {
     const requests = await submit(
-      (config) => tripo3DModel('multiview-to-model', config),
+      (config) => tripo3dModel('multiview-to-model', config),
       [...images],
     )
     expect(requests).toEqual([
@@ -282,7 +282,7 @@ describe('tripo3DModel create3DModelJob', () => {
     'texture maps %s to texture_prompt',
     async (_name, parts, texturePrompt) => {
       const requests = await submit(
-        (config) => tripo3DModel('texture', 'v3.5-20260815', config),
+        (config) => tripo3dModel('texture', 'v3.5-20260815', config),
         [tripoTask('mesh-1'), ...parts],
         { pbr: true },
       )
@@ -301,7 +301,7 @@ describe('tripo3DModel create3DModelJob', () => {
     '%s sends the mesh as input with no model',
     async (endpoint) => {
       const requests = await submit(
-        (config) => tripo3DModel(endpoint, config),
+        (config) => tripo3dModel(endpoint, config),
         [mesh(MESH_URL)],
       )
       expect(requests).toEqual([
@@ -321,7 +321,7 @@ describe('tripo3DModel create3DModelJob', () => {
 
   it('uploads a data mesh and sends its file_token', async () => {
     const requests = await submit(
-      (config) => tripo3DModel('rig', 'v3.0-20260909', config),
+      (config) => tripo3dModel('rig', 'v3.0-20260909', config),
       [dataMesh],
       { rig_type: 'others' },
     )
@@ -336,7 +336,7 @@ describe('tripo3DModel create3DModelJob', () => {
 
   it('retarget sends the rig task id', async () => {
     const requests = await submit(
-      (config) => tripo3DModel('retarget', config),
+      (config) => tripo3dModel('retarget', config),
       [tripoTask('rig-1')],
       { animation: 'preset:walk' },
     )
@@ -349,7 +349,7 @@ describe('tripo3DModel create3DModelJob', () => {
   })
 
   const rejectedPrompts: Array<
-    [string, TripoModel3DEndpoint, MediaPrompt, RegExp]
+    [string, TripoModel3dEndpoint, MediaPrompt, RegExp]
   > = [
     [
       'a url mesh on retarget',
@@ -439,16 +439,16 @@ describe('tripo3DModel create3DModelJob', () => {
   )
 })
 
-describe('tripo3DModel get3DModelStatus', () => {
+describe('tripo3dModel get3dModelStatus', () => {
   it('maps the Tripo task status', async () => {
     const tripo = fakeTripo({
       task_id: 'task 1',
       status: 'running',
       progress: 40,
     })
-    const adapter = tripo3DModel('rig', { apiKey: 'key', fetch: tripo.fetch })
+    const adapter = tripo3dModel('rig', { apiKey: 'key', fetch: tripo.fetch })
 
-    const status = await adapter.get3DModelStatus('task 1')
+    const status = await adapter.get3dModelStatus('task 1')
 
     expect(status).toEqual({
       jobId: 'task 1',
@@ -459,7 +459,7 @@ describe('tripo3DModel get3DModelStatus', () => {
   })
 })
 
-describe('tripo3DModel get3DModel', () => {
+describe('tripo3dModel get3dModel', () => {
   it('maps model_url, a signed URL, and the preview image', async () => {
     const result = await resultFor('image-to-model', {
       model_url: 'https://cdn.tripo3d.ai/out/model.FBX?sig=abc.glb#x',
@@ -553,11 +553,11 @@ describe('tripo3DModel get3DModel', () => {
       status: 'failed',
       error_message: 'mesh has no skeleton',
     })
-    const adapter = tripo3DModel('retarget', {
+    const adapter = tripo3dModel('retarget', {
       apiKey: 'key',
       fetch: tripo.fetch,
     })
-    await expect(adapter.get3DModel('task-9')).rejects.toThrow(
+    await expect(adapter.get3dModel('task-9')).rejects.toThrow(
       'tripo: retarget task task-9 failed: mesh has no skeleton',
     )
   })

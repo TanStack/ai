@@ -9,10 +9,10 @@ import { useGenerateSpeech } from '../src/use-generate-speech'
 import { useTranscription } from '../src/use-transcription'
 import { useSummarize } from '../src/use-summarize'
 import { useGenerateVideo } from '../src/use-generate-video'
-import { useGenerate3DModel } from '../src/use-generate-3d-model'
+import { useGenerate3dModel } from '../src/use-generate-3d-model'
 import { createMockConnectionAdapter } from './test-utils'
 import type {
-  Model3DResult,
+  Model3dResult,
   PersistedArtifactRef,
   StreamChunk,
   TTSResult,
@@ -614,8 +614,8 @@ describe('useGenerateImage', () => {
   })
 })
 
-describe('useGenerate3DModel', () => {
-  const model3DResult: Model3DResult = {
+describe('useGenerate3dModel', () => {
+  const model3dResult: Model3dResult = {
     jobId: 'job-3d',
     url: 'https://example.com/chest.glb',
     format: 'glb',
@@ -623,7 +623,7 @@ describe('useGenerate3DModel', () => {
   }
 
   // The server route emits one progress event per poll, then the result.
-  function create3DModelChunks(): Array<StreamChunk> {
+  function create3dModelChunks(): Array<StreamChunk> {
     return [
       {
         type: EventType.RUN_STARTED,
@@ -646,7 +646,7 @@ describe('useGenerate3DModel', () => {
       {
         type: 'CUSTOM',
         name: 'generation:result',
-        value: model3DResult,
+        value: model3dResult,
         timestamp: 4,
       },
       {
@@ -661,12 +661,12 @@ describe('useGenerate3DModel', () => {
 
   it('reports progress, then stores the 3D model result', async () => {
     const adapter = createMockConnectionAdapter({
-      chunks: create3DModelChunks(),
+      chunks: create3dModelChunks(),
     })
     const onProgress = vi.fn()
 
     const { result } = renderHook(() =>
-      useGenerate3DModel({
+      useGenerate3dModel({
         threadId: 'thread-3d',
         connection: adapter,
         onProgress,
@@ -697,7 +697,7 @@ describe('useGenerate3DModel', () => {
     const onError = vi.fn()
 
     const { result } = renderHook(() =>
-      useGenerate3DModel({
+      useGenerate3dModel({
         threadId: 'thread-3d',
         connection: adapter,
         onError,

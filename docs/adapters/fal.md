@@ -189,14 +189,14 @@ The `duration` values of each model are in [Video durations](#video-durations). 
 
 ## 3D models
 
-`fal3DModel()` turns an image, a text prompt, or an existing mesh into a 3D model file. Like video, it runs as a job. With `wait: true`, `generate3DModel()` returns the finished model:
+`fal3dModel()` turns an image, a text prompt, or an existing mesh into a 3D model file. Like video, it runs as a job. With `wait: true`, `generate3dModel()` returns the finished model:
 
 ```typescript
-import { generate3DModel } from "@tanstack/ai";
-import { fal3DModel } from "@tanstack/ai-fal";
+import { generate3dModel } from "@tanstack/ai";
+import { fal3dModel } from "@tanstack/ai-fal";
 
-const model = await generate3DModel({
-  adapter: fal3DModel("fal-ai/hunyuan-3d/v3.1/pro/image-to-3d"),
+const model = await generate3dModel({
+  adapter: fal3dModel("fal-ai/hunyuan-3d/v3.1/pro/image-to-3d"),
   prompt: [
     {
       type: "image",
@@ -226,15 +226,15 @@ console.log(model.url, model.format); // "https://...glb", "glb"
 
 ## Motion
 
-`falMotion` makes a skeletal animation clip (FBX) from a prompt. It runs as a job. `generateMotion()` submits it, and `getMotionJobStatus()` reads its status:
+`fal3dMotion` makes a skeletal animation clip (FBX) from a prompt. It runs as a job. `generate3dMotion()` submits it, and `get3dMotionJobStatus()` reads its status:
 
 ```typescript
-import { generateMotion, getMotionJobStatus } from "@tanstack/ai";
-import { falMotion } from "@tanstack/ai-fal";
+import { generate3dMotion, get3dMotionJobStatus } from "@tanstack/ai";
+import { fal3dMotion } from "@tanstack/ai-fal";
 
-const adapter = falMotion("fal-ai/hunyuan-motion");
+const adapter = fal3dMotion("fal-ai/hunyuan-motion");
 
-const { jobId } = await generateMotion({
+const { jobId } = await generate3dMotion({
   adapter,
   prompt: "A heavy two-handed overhead axe swing with a slow wind-up",
   threadId: "orc-attacks",
@@ -245,7 +245,7 @@ const { jobId } = await generateMotion({
   },
 });
 
-const status = await getMotionJobStatus({ adapter, jobId });
+const status = await get3dMotionJobStatus({ adapter, jobId });
 
 console.log(status.status); // "pending" | "processing" | "completed" | "failed"
 console.log(status.motion?.assets[0]?.url); // The FBX, when the job is complete
@@ -270,7 +270,7 @@ What you get back:
 - fal takes no character or skeleton input.
 - File URLs expire after the media expiry time in your fal account. Download the files and store them.
 
-`cancelMotionJob()` uses the fal queue cancel. fal removes a queued job. A running job can still finish. fal refuses a cancel for a completed job.
+`cancel3dMotionJob()` uses the fal queue cancel. fal removes a queued job. A running job can still finish. fal refuses a cancel for a completed job.
 
 See [Motion Generation](../media/motion-generation) for streaming, agent tools, and engine import.
 
@@ -415,7 +415,7 @@ fal has hundreds of models. These are popular picks. Any fal model id works.
 
 ### 3D model endpoints
 
-`fal3DModel()` knows these families. Write the id as a string literal, and TypeScript completes `modelOptions` and narrows the prompt parts. Any other fal 3D id also works, with no types.
+`fal3dModel()` knows these families. Write the id as a string literal, and TypeScript completes `modelOptions` and narrows the prompt parts. Any other fal 3D id also works, with no types.
 
 | Family | Ids | Input |
 |--------|-----|-------|
@@ -454,7 +454,7 @@ For a low-poly mesh with quad faces, set `topology: 'quad'` and `target_polycoun
 | `fal-ai/hunyuan-motion` | Hunyuan Motion 1B. About $0.08 per generation. |
 | `fal-ai/hunyuan-motion/fast` | Hunyuan Motion 0.46B, faster. About $0.06 per generation. |
 
-Both take the same options and return FBX. Use them with `falMotion()` and `generateMotion()`. Prices are from the fal model pages and can change.
+Both take the same options and return FBX. Use them with `fal3dMotion()` and `generate3dMotion()`. Prices are from the fal model pages and can change.
 
 ### Text-to-speech models
 
@@ -586,7 +586,7 @@ Each factory takes `model` first and an optional `config` (`apiKey`, `proxyUrl`,
 | `falSpeech(model, config?)` | `FalSpeechAdapter` | `generateSpeech()`. The audio comes back as base64 in `result.audio`. |
 | `falTranscription(model, config?)` | `FalTranscriptionAdapter` | `generateTranscription()` |
 | `falAudio(model, config?)` | `FalAudioAdapter` | `generateAudio()`. The result has a URL at `result.audio.url`. |
-| `fal3DModel(model, config?)` | `Fal3DModelAdapter` | `generate3DModel()`, `get3DModelJobStatus()`. Experimental. |
+| `fal3dModel(model, config?)` | `Fal3dModelAdapter` | `generate3dModel()`, `get3dModelJobStatus()`. Experimental. |
 | `falFiles(config?)` | `FalFilesAdapter` | The [Files API](../advanced/files-api) |
 
 Helpers:

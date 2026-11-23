@@ -2,15 +2,18 @@
 //
 //   FAL_KEY=... node scripts/generate-orc-clips.ts [--only clip,clip] [--out dir]
 //
-// Each clip runs generateMotion({ stream: true }) against fal Hunyuan Motion,
+// Each clip runs generate3dMotion({ stream: true }) against fal Hunyuan Motion,
 // downloads every returned file (fal URLs expire), and writes manifest.json.
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { generateMotion } from '@tanstack/ai'
-import { falMotion } from '@tanstack/ai-fal'
-import { uthanaMotion } from '@tanstack/ai-uthana'
-import type { MotionGenerationResult, MotionStatusResult } from '@tanstack/ai'
+import { generate3dMotion } from '@tanstack/ai'
+import { fal3dMotion } from '@tanstack/ai-fal'
+import { uthana3dMotion } from '@tanstack/ai-uthana'
+import type {
+  Motion3dGenerationResult,
+  Motion3dStatusResult,
+} from '@tanstack/ai'
 
 const MODEL = 'fal-ai/hunyuan-motion'
 const GUIDANCE_SCALE = 5 // fal default; listed so the manifest is explicit
@@ -141,9 +144,9 @@ interface ClipRecord extends ClipSpec {
   model: string
   settings: Record<string, unknown>
   jobId?: string
-  statuses: Array<MotionStatusResult & { at: string }>
+  statuses: Array<Motion3dStatusResult & { at: string }>
   elapsedMs?: number
-  result?: MotionGenerationResult
+  result?: Motion3dGenerationResult
   files: Array<{ path: string; format: string; bytes: number; sha256: string }>
   error?: string
 }
@@ -190,13 +193,13 @@ async function runClip(spec: ClipSpec, out: string): Promise<ClipRecord> {
     maxDuration: 20 * 60_000,
   }
   const stream = uthana
-    ? generateMotion({
+    ? generate3dMotion({
         ...common,
-        adapter: uthanaMotion(UTHANA_MODEL, { defaults: uthanaOptions }),
+        adapter: uthana3dMotion(UTHANA_MODEL, { defaults: uthanaOptions }),
       })
-    : generateMotion({
+    : generate3dMotion({
         ...common,
-        adapter: falMotion(MODEL),
+        adapter: fal3dMotion(MODEL),
         modelOptions: {
           seed: spec.seed,
           guidance_scale: spec.guidance ?? GUIDANCE_SCALE,
@@ -205,19 +208,19 @@ async function runClip(spec: ClipSpec, out: string): Promise<ClipRecord> {
       })
 
   for await (const chunk of stream) {
-    if (chunk.type === 'CUSTOM' && chunk.name === 'motion:job:created') {
+    if (chunk.type === 'CUSTOM' && chunk.name === 'motion3d:job:created') {
       const value = chunk.value as { jobId: string }
       record.jobId = value.jobId
       console.log(`[${spec.name}] job ${value.jobId}`)
-    } else if (chunk.type === 'CUSTOM' && chunk.name === 'motion:status') {
-      const status = chunk.value as MotionStatusResult
+    } else if (chunk.type === 'CUSTOM' && chunk.name === 'motion3d:status') {
+      const status = chunk.value as Motion3dStatusResult
       const last = record.statuses.at(-1)
       if (last?.status !== status.status) {
         console.log(`[${spec.name}] ${status.status}`)
       }
       record.statuses.push({ ...status, at: new Date().toISOString() })
     } else if (chunk.type === 'CUSTOM' && chunk.name === 'generation:result') {
-      record.result = chunk.value as MotionGenerationResult
+      record.result = chunk.value as Motion3dGenerationResult
     } else if (chunk.type === 'RUN_ERROR') {
       record.error = chunk.message
     }
@@ -292,8 +295,8 @@ async function main() {
       {
         generatedWith:
           ran?.provider === 'uthana'
-            ? '@tanstack/ai generateMotion + @tanstack/ai-uthana uthanaMotion'
-            : '@tanstack/ai generateMotion + @tanstack/ai-fal falMotion',
+            ? '@tanstack/ai generate3dMotion + @tanstack/ai-uthana uthana3dMotion'
+            : '@tanstack/ai generate3dMotion + @tanstack/ai-fal fal3dMotion',
         provider: ran?.provider ?? 'fal',
         model: ran?.model ?? MODEL,
         updatedAt: new Date().toISOString(),

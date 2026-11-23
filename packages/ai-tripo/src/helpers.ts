@@ -106,7 +106,7 @@ async function abortable<T>(
  *
  * @param source - The model. A `url` source is a public GLB, FBX, OBJ, or STL
  * link. A `file` source is a Tripo task id or `file_token`, for example a
- * `jobId` from `tripo3DModel()`. A `data` source is uploaded to Tripo first.
+ * `jobId` from `tripo3dModel()`. A `data` source is uploaded to Tripo first.
  * @param options - `pollInterval`, `abortSignal`, and the client settings.
  * @throws {Error} When the task fails, with a message that starts with
  * `tripo: `.

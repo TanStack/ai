@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
-  cancelMotionJob,
-  generateMotion,
-  getMotionJobStatus,
+  cancel3dMotionJob,
+  generate3dMotion,
+  get3dMotionJobStatus,
 } from '@tanstack/ai'
 import {
   createUthanaCharacter,
-  uthanaMotion,
+  uthana3dMotion,
   UTHANA_DEFAULT_CHARACTER_ID,
 } from '../src/index'
 import type { StreamChunk } from '@tanstack/ai'
@@ -109,14 +109,14 @@ function decodeDataUrl(url: string): string {
   )
 }
 
-describe('uthanaMotion', () => {
+describe('uthana3dMotion', () => {
   it('streams a job and downloads FBX and GLB on the chosen character', async () => {
     const uthana = fakeUthana({
       jobs: [{ status: 'READY' }, { status: 'RESERVED' }, finished],
     })
     const chunks: Array<StreamChunk> = []
-    for await (const chunk of generateMotion({
-      adapter: uthanaMotion('text-to-motion-3.0', {
+    for await (const chunk of generate3dMotion({
+      adapter: uthana3dMotion('text-to-motion-3.0', {
         apiKey: 'uth-test',
         fetch: uthana.fetch,
       }),
@@ -142,7 +142,7 @@ describe('uthanaMotion', () => {
     })
     expect(uthana.seen.every((r) => r.authorization === AUTH)).toBe(true)
     const statuses = chunks.flatMap((c) =>
-      c.type === 'CUSTOM' && c.name === 'motion:status' ? [c.value] : [],
+      c.type === 'CUSTOM' && c.name === 'motion3d:status' ? [c.value] : [],
     )
     expect(statuses).toEqual([
       { jobId: ORC_JOB, status: 'pending' },
@@ -193,13 +193,13 @@ describe('uthanaMotion', () => {
 
   it('downloads with the submit options on every poll, from any adapter', async () => {
     const uthana = fakeUthana({ jobs: [finished] })
-    const adapter = uthanaMotion('text-to-motion-3.0', {
+    const adapter = uthana3dMotion('text-to-motion-3.0', {
       apiKey: 'uth-test',
       fetch: uthana.fetch,
     })
 
     for (let i = 0; i < 2; i += 1) {
-      await getMotionJobStatus({
+      await get3dMotionJobStatus({
         adapter,
         jobId: 'job-1?character=orc-1&formats=glb&fps=60',
       })
@@ -219,8 +219,8 @@ describe('uthanaMotion', () => {
 
   it('downloads library fallbacks when a second adapter has different defaults', async () => {
     const uthana = fakeUthana({ jobs: [finished] })
-    const { jobId } = await generateMotion({
-      adapter: uthanaMotion('text-to-motion-3.0', {
+    const { jobId } = await generate3dMotion({
+      adapter: uthana3dMotion('text-to-motion-3.0', {
         apiKey: 'uth-test',
         fetch: uthana.fetch,
       }),
@@ -229,8 +229,8 @@ describe('uthanaMotion', () => {
     })
     expect(jobId).toBe('job-1')
 
-    await getMotionJobStatus({
-      adapter: uthanaMotion('text-to-motion-3.0', {
+    await get3dMotionJobStatus({
+      adapter: uthana3dMotion('text-to-motion-3.0', {
         apiKey: 'uth-test',
         fetch: uthana.fetch,
         defaults: {
@@ -255,8 +255,8 @@ describe('uthanaMotion', () => {
       jobs: [{ status: 'FAILED', result: { exc: 'Generation crashed' } }],
     })
 
-    const status = await getMotionJobStatus({
-      adapter: uthanaMotion('text-to-motion-3.0', {
+    const status = await get3dMotionJobStatus({
+      adapter: uthana3dMotion('text-to-motion-3.0', {
         apiKey: 'uth-test',
         fetch: uthana.fetch,
       }),
@@ -273,8 +273,8 @@ describe('uthanaMotion', () => {
   it('fails the status poll when the download is refused', async () => {
     const uthana = fakeUthana({ jobs: [finished], downloadStatus: 403 })
 
-    const status = await getMotionJobStatus({
-      adapter: uthanaMotion('text-to-motion-3.0', {
+    const status = await get3dMotionJobStatus({
+      adapter: uthana3dMotion('text-to-motion-3.0', {
         apiKey: 'uth-test',
         fetch: uthana.fetch,
       }),
@@ -294,8 +294,8 @@ describe('uthanaMotion', () => {
     })
 
     await expect(
-      generateMotion({
-        adapter: uthanaMotion('text-to-motion-3.0', {
+      generate3dMotion({
+        adapter: uthana3dMotion('text-to-motion-3.0', {
           apiKey: 'uth-test',
           fetch: uthana.fetch,
         }),
@@ -309,8 +309,8 @@ describe('uthanaMotion', () => {
     const uthana = fakeUthana({ jobs: [{ status: 'RESERVED' }] })
 
     await expect(
-      cancelMotionJob({
-        adapter: uthanaMotion('text-to-motion-3.0', {
+      cancel3dMotionJob({
+        adapter: uthana3dMotion('text-to-motion-3.0', {
           apiKey: 'uth-test',
           fetch: uthana.fetch,
         }),

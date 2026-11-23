@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { fetchServerSentEvents, useGenerate3DModel } from '@tanstack/ai-react'
+import { fetchServerSentEvents, useGenerate3dModel } from '@tanstack/ai-react'
 
 // All three steps POST to /api/character. The `body` tells the server which
 // step to run.
@@ -17,14 +17,14 @@ function CharacterPage() {
   }, [])
 
   // Step 3: the walk animation. Its result is the file the page shows.
-  const animate = useGenerate3DModel({
+  const animate = useGenerate3dModel({
     connection,
     body: { step: 'animate' },
     threadId: 'character-animate',
     onProgress: setProgress,
   })
   // Step 2: the skeleton. When it is done, start step 3 with its task id.
-  const rig = useGenerate3DModel({
+  const rig = useGenerate3dModel({
     connection,
     body: { step: 'rig' },
     threadId: 'character-rig',
@@ -35,7 +35,7 @@ function CharacterPage() {
     },
   })
   // Step 1: the model. When it is done, start step 2 with its task id.
-  const model = useGenerate3DModel({
+  const model = useGenerate3dModel({
     connection,
     body: { step: 'model' },
     threadId: 'character-model',

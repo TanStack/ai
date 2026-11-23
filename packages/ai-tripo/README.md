@@ -20,7 +20,7 @@
 
 # @tanstack/ai-tripo
 
-Tripo adapter for TanStack AI 3D model generation. Use it with `generate3DModel()` to make 3D models from text, from one image, or from multiview images. You can also texture, convert, rig, retarget, decimate, UV unwrap, and segment a model.
+Tripo adapter for TanStack AI 3D model generation. Use it with `generate3dModel()` to make 3D models from text, from one image, or from multiview images. You can also texture, convert, rig, retarget, decimate, UV unwrap, and segment a model.
 
 ## Installation
 
@@ -33,11 +33,11 @@ Set the `TRIPO_API_KEY` environment variable, or pass `apiKey` to the adapter.
 ## Usage
 
 ```typescript
-import { generate3DModel } from '@tanstack/ai'
-import { tripo3DModel } from '@tanstack/ai-tripo'
+import { generate3dModel } from '@tanstack/ai'
+import { tripo3dModel } from '@tanstack/ai-tripo'
 
-const model = await generate3DModel({
-  adapter: tripo3DModel('image-to-model'),
+const model = await generate3dModel({
+  adapter: tripo3dModel('image-to-model'),
   prompt: [
     {
       type: 'image',

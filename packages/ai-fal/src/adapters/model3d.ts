@@ -1,17 +1,17 @@
-import { BaseModel3DAdapter } from '@tanstack/ai/adapters'
+import { BaseModel3dAdapter } from '@tanstack/ai/adapters'
 import {
   createAdapterFalClient,
   generateId as utilGenerateId,
 } from '../utils/client'
 import { buildFalUsage, takeBillableUnits } from '../utils/billing'
 import { ApiError, ValidationError } from '../client/index'
-import { mapModel3DPromptToFalFields } from '../model3d/model3d-inputs'
-import { mapFalModel3DOutput } from '../model3d/model3d-output'
-import type { Model3DGenerationOptions } from '@tanstack/ai'
+import { mapModel3dPromptToFalFields } from '../model3d/model3d-inputs'
+import { mapFalModel3dOutput } from '../model3d/model3d-output'
+import type { Model3dGenerationOptions } from '@tanstack/ai'
 import type {
-  Fal3DModel,
-  Fal3DModelProviderOptions,
-  Fal3DPromptModalitiesFor,
+  Fal3dModel,
+  Fal3dModelProviderOptions,
+  Fal3dPromptModalitiesFor,
 } from '../model-meta'
 import type { FalClientConfig } from '../utils/client'
 import type { FalClient } from '../client/index'
@@ -50,13 +50,13 @@ function falErrorMessage(error: unknown) {
  *
  * @experimental 3D model generation is experimental and may change.
  */
-export class Fal3DModelAdapter<
-  TModel extends Fal3DModel,
-> extends BaseModel3DAdapter<
+export class Fal3dModelAdapter<
+  TModel extends Fal3dModel,
+> extends BaseModel3dAdapter<
   TModel,
-  Fal3DModelProviderOptions<TModel>,
-  Record<TModel, Fal3DModelProviderOptions<TModel>>,
-  Record<TModel, Fal3DPromptModalitiesFor<TModel>>
+  Fal3dModelProviderOptions<TModel>,
+  Record<TModel, Fal3dModelProviderOptions<TModel>>,
+  Record<TModel, Fal3dPromptModalitiesFor<TModel>>
 > {
   readonly name = 'fal' as const
   // Consumes fal storage URLs uploaded via falFiles().
@@ -68,20 +68,20 @@ export class Fal3DModelAdapter<
     this.client = createAdapterFalClient(config)
   }
 
-  async create3DModelJob(
-    options: Model3DGenerationOptions<Fal3DModelProviderOptions<TModel>>,
+  async create3dModelJob(
+    options: Model3dGenerationOptions<Fal3dModelProviderOptions<TModel>>,
   ) {
     const { modelOptions, logger } = options
 
     logger.request(
-      `activity=generate3DModel provider=fal model=${this.model}`,
+      `activity=generate3dModel provider=fal model=${this.model}`,
       { provider: 'fal', model: this.model },
     )
 
     try {
       // A plain string id, so the fal client takes any input object.
       const endpoint: string = this.model
-      const promptFields = mapModel3DPromptToFalFields(
+      const promptFields = mapModel3dPromptToFalFields(
         this.model,
         options.prompt,
       )
@@ -93,9 +93,9 @@ export class Fal3DModelAdapter<
       })
       return { jobId: request_id, model: this.model }
     } catch (error) {
-      logger.errors('fal.create3DModelJob fatal', {
+      logger.errors('fal.create3dModelJob fatal', {
         error,
-        source: 'fal.create3DModelJob',
+        source: 'fal.create3dModelJob',
       })
       throw error
     }
@@ -105,7 +105,7 @@ export class Fal3DModelAdapter<
    * Reads the queue status. fal has no failed queue status: a failed job is
    * `COMPLETED` with an `error` message, and this maps it to `failed`.
    */
-  async get3DModelStatus(
+  async get3dModelStatus(
     jobId: string,
     options?: { abortSignal?: AbortSignal },
   ) {
@@ -138,10 +138,10 @@ export class Fal3DModelAdapter<
   }
 
   /**
-   * Reads the finished job and maps it to one `Model3DResult`. A failed job
+   * Reads the finished job and maps it to one `Model3dResult`. A failed job
    * throws an `Error` with the message from fal.
    */
-  async get3DModel(jobId: string, options?: { abortSignal?: AbortSignal }) {
+  async get3dModel(jobId: string, options?: { abortSignal?: AbortSignal }) {
     const endpoint: string = this.model
     let result
     try {
@@ -159,7 +159,7 @@ export class Fal3DModelAdapter<
 
     const usage = buildFalUsage(takeBillableUnits(result.requestId))
     return {
-      ...mapFalModel3DOutput(jobId, result.data),
+      ...mapFalModel3dOutput(jobId, result.data),
       ...(usage ? { usage } : {}),
     }
   }
@@ -168,7 +168,7 @@ export class Fal3DModelAdapter<
    * Cancels a queued job with the fal queue cancel endpoint. fal can refuse
    * when the job already runs, and then this rejects.
    */
-  async cancel3DModelJob(
+  async cancel3dModelJob(
     jobId: string,
     options?: { abortSignal?: AbortSignal },
   ) {
@@ -195,11 +195,11 @@ export class Fal3DModelAdapter<
  *
  * @example
  * ```ts
- * import { generate3DModel } from '@tanstack/ai'
- * import { fal3DModel } from '@tanstack/ai-fal'
+ * import { generate3dModel } from '@tanstack/ai'
+ * import { fal3dModel } from '@tanstack/ai-fal'
  *
- * const { url, format } = await generate3DModel({
- *   adapter: fal3DModel('fal-ai/hunyuan3d-v3/image-to-3d'),
+ * const { url, format } = await generate3dModel({
+ *   adapter: fal3dModel('fal-ai/hunyuan3d-v3/image-to-3d'),
  *   threadId: 'thread-1',
  *   prompt: [
  *     { type: 'image', source: { type: 'url', value: 'https://example.com/chair.png' } },
@@ -211,9 +211,9 @@ export class Fal3DModelAdapter<
  *
  * @experimental 3D model generation is experimental and may change.
  */
-export function fal3DModel<TModel extends Fal3DModel>(
+export function fal3dModel<TModel extends Fal3dModel>(
   model: TModel,
   config?: FalClientConfig,
 ) {
-  return new Fal3DModelAdapter(model, config)
+  return new Fal3dModelAdapter(model, config)
 }

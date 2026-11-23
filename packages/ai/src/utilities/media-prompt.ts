@@ -4,7 +4,7 @@ import type {
   MediaInputMetadata,
   MediaPrompt,
   MediaPromptPart,
-  Model3DPart,
+  Model3dPart,
   TextPart,
   VideoPart,
 } from '../types'
@@ -40,7 +40,7 @@ export interface ResolvedMediaPrompt {
    *
    * @experimental 3D model generation is experimental and may change.
    */
-  models3d: Array<Model3DPart>
+  models3d: Array<Model3dPart>
 }
 
 /**
@@ -65,7 +65,7 @@ export function resolveMediaPrompt(prompt: MediaPrompt): ResolvedMediaPrompt {
   const images: Array<ImagePart<MediaInputMetadata>> = []
   const videos: Array<VideoPart<MediaInputMetadata>> = []
   const audios: Array<AudioPart<MediaInputMetadata>> = []
-  const models3d: Array<Model3DPart> = []
+  const models3d: Array<Model3dPart> = []
   const textSegments: Array<string> = []
 
   for (const part of prompt) {

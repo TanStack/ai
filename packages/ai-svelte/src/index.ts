@@ -36,10 +36,10 @@ export type {
   CreateGenerateImageReturn,
 } from './create-generate-image.svelte'
 
-export { createGenerate3DModel } from './create-generate-3d-model.svelte'
+export { createGenerate3dModel } from './create-generate-3d-model.svelte'
 export type {
-  CreateGenerate3DModelOptions,
-  CreateGenerate3DModelReturn,
+  CreateGenerate3dModelOptions,
+  CreateGenerate3dModelReturn,
 } from './create-generate-3d-model.svelte'
 
 export { createGenerateAudio } from './create-generate-audio.svelte'
@@ -157,7 +157,7 @@ export {
   type TranscriptionGenerateInput,
   type SummarizeGenerateInput,
   type VideoGenerateInput,
-  type Model3DGenerateInput,
+  type Model3dGenerateInput,
   type VideoGenerateResult,
   type VideoStatusInfo,
 } from '@tanstack/ai-client'

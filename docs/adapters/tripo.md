@@ -6,7 +6,7 @@ keywords:
   - tanstack ai
   - tripo
   - 3d model generation
-  - generate3DModel
+  - generate3dModel
   - text-to-model
   - image-to-model
   - rigging
@@ -17,7 +17,7 @@ keywords:
   - adapter
 ---
 
-`tripo3DModel()` with `generate3DModel()` turns a text prompt or an image into a textured GLB. The `jobId` of one job is the input of the next job, so you can rig and animate a character with no upload. The adapter has no chat.
+`tripo3dModel()` with `generate3dModel()` turns a text prompt or an image into a textured GLB. The `jobId` of one job is the input of the next job, so you can rig and animate a character with no upload. The adapter has no chat.
 
 > [!WARNING]
 > 3D model generation is experimental. The API can change. Tripo charges credits when it creates a task, and gives them back when the task fails. Tripo cannot stop a task that it started.
@@ -45,15 +45,15 @@ Create an API key on the [Tripo developer console](https://developers.tripo3d.ai
 TRIPO_API_KEY=your-tripo-key
 ```
 
-`tripo3DModel` reads `TRIPO_API_KEY`. To pass the key in code, set `apiKey` in the last argument:
+`tripo3dModel` reads `TRIPO_API_KEY`. To pass the key in code, set `apiKey` in the last argument:
 
 ```ts
-import { tripo3DModel } from '@tanstack/ai-tripo'
+import { tripo3dModel } from '@tanstack/ai-tripo'
 
 const apiKey = process.env.TRIPO_API_KEY
 
-const imageToModel = tripo3DModel('image-to-model', { apiKey })
-const rig = tripo3DModel('rig', 'v3.0-20260909', { apiKey })
+const imageToModel = tripo3dModel('image-to-model', { apiKey })
+const rig = tripo3dModel('rig', 'v3.0-20260909', { apiKey })
 ```
 
 The first argument is the Tripo endpoint. The second argument is the Tripo `model`, and you can leave it out. See [Endpoints](#endpoints).
@@ -61,9 +61,9 @@ The first argument is the Tripo endpoint. The second argument is the Tripo `mode
 For a Tripo account in China, set `baseUrl` in the same object:
 
 ```ts
-import { tripo3DModel } from '@tanstack/ai-tripo'
+import { tripo3dModel } from '@tanstack/ai-tripo'
 
-const adapter = tripo3DModel('image-to-model', {
+const adapter = tripo3dModel('image-to-model', {
   baseUrl: 'https://openapi.tripo3d.com/v3',
 })
 ```
@@ -74,11 +74,11 @@ const adapter = tripo3DModel('image-to-model', {
 
 ```ts
 import { writeFile } from 'node:fs/promises'
-import { generate3DModel } from '@tanstack/ai'
-import { tripo3DModel } from '@tanstack/ai-tripo'
+import { generate3dModel } from '@tanstack/ai'
+import { tripo3dModel } from '@tanstack/ai-tripo'
 
-const lantern = await generate3DModel({
-  adapter: tripo3DModel('image-to-model'),
+const lantern = await generate3dModel({
+  adapter: tripo3dModel('image-to-model'),
   prompt: [
     {
       type: 'image',
@@ -110,11 +110,11 @@ What to know:
 Pass the model as the second argument. TypeScript then types `modelOptions` for that model:
 
 ```ts
-import { generate3DModel } from '@tanstack/ai'
-import { tripo3DModel } from '@tanstack/ai-tripo'
+import { generate3dModel } from '@tanstack/ai'
+import { tripo3dModel } from '@tanstack/ai-tripo'
 
-const barrel = await generate3DModel({
-  adapter: tripo3DModel('text-to-model', 'P2-20260801'),
+const barrel = await generate3dModel({
+  adapter: tripo3dModel('text-to-model', 'P2-20260801'),
   prompt: 'A wooden barrel with iron bands, game asset',
   threadId: 'barrel',
   wait: true,
@@ -143,11 +143,11 @@ Server route at `/api/generate/3d-model`:
 
 ```ts
 import {
-  generate3DModel,
+  generate3dModel,
   generationParamsFromRequest,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { tripo3DModel } from '@tanstack/ai-tripo'
+import { tripo3dModel } from '@tanstack/ai-tripo'
 
 export async function POST(request: Request) {
   const { input, threadId } = await generationParamsFromRequest(
@@ -161,8 +161,8 @@ export async function POST(request: Request) {
     return new Response('Send one image.', { status: 400 })
   }
 
-  const stream = generate3DModel({
-    adapter: tripo3DModel('image-to-model'),
+  const stream = generate3dModel({
+    adapter: tripo3dModel('image-to-model'),
     prompt: images,
     threadId,
     stream: true,
@@ -177,13 +177,13 @@ React component:
 
 ```tsx
 import { useState } from 'react'
-import { fetchServerSentEvents, useGenerate3DModel } from '@tanstack/ai-react'
+import { fetchServerSentEvents, useGenerate3dModel } from '@tanstack/ai-react'
 
 const conceptUrl = 'https://example.com/concept/lantern.png'
 
 export function TripoModel() {
   const [progress, setProgress] = useState(0)
-  const { generate, result, isLoading, error } = useGenerate3DModel({
+  const { generate, result, isLoading, error } = useGenerate3dModel({
     connection: fetchServerSentEvents('/api/generate/3d-model'),
     threadId: 'lantern',
     onProgress: (value) => setProgress(value),
@@ -230,20 +230,20 @@ This script makes a walking robot and saves the GLB:
 
 ```ts
 import { writeFile } from 'node:fs/promises'
-import { generate3DModel } from '@tanstack/ai'
-import { tripo3DModel } from '@tanstack/ai-tripo'
+import { generate3dModel } from '@tanstack/ai'
+import { tripo3dModel } from '@tanstack/ai-tripo'
 
 const threadId = 'robot'
 
-const mesh = await generate3DModel({
-  adapter: tripo3DModel('text-to-model'),
+const mesh = await generate3dModel({
+  adapter: tripo3dModel('text-to-model'),
   prompt: 'A friendly cartoon robot, full body, standing in a T-pose',
   threadId,
   wait: true,
 })
 
-const rig = await generate3DModel({
-  adapter: tripo3DModel('rig', 'v3.0-20260909'),
+const rig = await generate3dModel({
+  adapter: tripo3dModel('rig', 'v3.0-20260909'),
   prompt: [
     {
       type: 'model3d',
@@ -255,8 +255,8 @@ const rig = await generate3DModel({
   modelOptions: { rig_type: 'biped' },
 })
 
-const walk = await generate3DModel({
-  adapter: tripo3DModel('retarget'),
+const walk = await generate3dModel({
+  adapter: tripo3dModel('retarget'),
   prompt: [
     {
       type: 'model3d',
@@ -293,7 +293,7 @@ To check a model before you pay for the rig, see [Check that a model can be rigg
 
 ## Endpoints
 
-The first argument of `tripo3DModel()` picks the endpoint. TypeScript types the prompt parts and `modelOptions` for each endpoint.
+The first argument of `tripo3dModel()` picks the endpoint. TypeScript types the prompt parts and `modelOptions` for each endpoint.
 
 | Endpoint | Prompt | Tripo `model` |
 | --- | --- | --- |

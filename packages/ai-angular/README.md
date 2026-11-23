@@ -135,7 +135,7 @@ export async function POST(request: Request) {
 | `injectGenerateImage`   | Image generation                                                 |
 | `injectGenerateAudio`   | Audio generation                                                 |
 | `injectGenerateVideo`   | Video generation                                                 |
-| `injectGenerate3DModel` | 3D model generation (experimental)                               |
+| `injectGenerate3dModel` | 3D model generation (experimental)                               |
 | `injectGenerateSpeech`  | Text-to-speech                                                   |
 | `injectSummarize`       | Summarization                                                    |
 | `injectTranscription`   | Audio transcription                                              |
