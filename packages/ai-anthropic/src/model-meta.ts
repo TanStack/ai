@@ -1184,6 +1184,25 @@ export const ANTHROPIC_NO_FORCED_TOOL_MODELS: ReadonlySet<string> = new Set(
     .map((model) => model.id),
 )
 
+/**
+ * Models that 400 on a non-default `temperature`, `top_p`, or `top_k`. The
+ * text adapter drops those keys, because callers (and the summarize default
+ * `temperature: 0.3`) can't know a given model rejects them (#1703).
+ */
+export const ANTHROPIC_MODELS_REJECTING_SAMPLING: ReadonlySet<string> = new Set(
+  [
+    CLAUDE_OPUS_4_7.id,
+    CLAUDE_OPUS_4_8.id,
+    CLAUDE_FABLE_5.id,
+    CLAUDE_FABLE_5_1.id,
+    CLAUDE_SONNET_5.id,
+    CLAUDE_OPUS_5.id,
+    CLAUDE_OPUS_5_5.id,
+    CLAUDE_SONNET_5_5.id,
+    CLAUDE_HAIKU_5_5.id,
+  ],
+)
+
 // Reasoning
 //
 // Each model's `reasoning` field holds its data for `chat({ reasoning })`: the

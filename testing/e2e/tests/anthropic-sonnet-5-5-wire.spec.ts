@@ -35,4 +35,24 @@ test.describe('anthropic — claude-sonnet-5-5 model options wire format', () =>
       ]),
     )
   })
+
+  // #1703: the model rejects non-default sampling, so summarize must not send
+  // its default temperature.
+  test('summarize sends no sampling parameters', async ({ request }) => {
+    const res = await request.post(
+      '/api/anthropic-sonnet-5-5-wire?activity=summarize',
+    )
+    expect(res.ok()).toBe(true)
+    const payload = (await res.json()) as WireResponse
+    expect(payload.error).toBeUndefined()
+    expect(payload.ok).toBe(true)
+
+    expect(payload.capturedRequests).toHaveLength(1)
+    const body = payload.capturedRequests[0]
+    expect(body?.['model']).toBe('claude-sonnet-5-5')
+    expect(body?.['max_tokens']).toBe(64)
+    expect(body).not.toHaveProperty('temperature')
+    expect(body).not.toHaveProperty('top_p')
+    expect(body).not.toHaveProperty('top_k')
+  })
 })

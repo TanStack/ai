@@ -1,6 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat } from '@tanstack/ai'
-import { createAnthropicChat } from '@tanstack/ai-anthropic'
+import { chat, summarize } from '@tanstack/ai'
+import {
+  createAnthropicChat,
+  createAnthropicSummarize,
+} from '@tanstack/ai-anthropic'
 import { webSearchTool } from '@tanstack/ai-anthropic/tools'
 
 const DUMMY_KEY = 'sk-ant-e2e-test-dummy-key'
@@ -69,7 +72,7 @@ function makeSyntheticAnthropicStream(): ReadableStream<Uint8Array> {
 export const Route = createFileRoute('/api/anthropic-sonnet-5-5-wire')({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
         const capturedRequests: Array<Record<string, unknown> | null> = []
 
         /** Records the outgoing request and answers with the synthetic stream. */
@@ -90,6 +93,26 @@ export const Route = createFileRoute('/api/anthropic-sonnet-5-5-wire')({
         }
 
         try {
+          // `?activity=summarize`: this model rejects sampling, so the
+          // summarize default `temperature: 0.3` must stay off the wire (#1703).
+          if (
+            new URL(request.url).searchParams.get('activity') === 'summarize'
+          ) {
+            await summarize({
+              threadId: 'anthropic-sonnet-5-5-summarize-wire',
+              adapter: createAnthropicSummarize(
+                'claude-sonnet-5-5',
+                DUMMY_KEY,
+                {
+                  fetch: capturingFetch,
+                },
+              ),
+              text: '[sonnet-5-5] summarize a short trip plan',
+              maxLength: 64,
+            })
+            return Response.json({ ok: true, capturedRequests })
+          }
+
           for await (const _ of chat({
             threadId: 'anthropic-sonnet-5-5-wire',
             adapter: createAnthropicChat('claude-sonnet-5-5', DUMMY_KEY, {
