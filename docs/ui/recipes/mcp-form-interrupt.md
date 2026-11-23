@@ -15,7 +15,11 @@ When an MCP server pauses a tool for a form, `chat()` ends the run with an inter
 
 You need [MCP Client Input](../../tools/mcp-input) on the server route first (`parentRunId` + `resume`).
 
+This example assumes the form schema has a string `value` property (the default for `createMCPServer` forms). For other schemas, render and submit the properties that `requestedSchema` lists.
+
 ## Full example (React)
+
+`sendMessage` starts the run on this same `useChat` instance so interrupts arrive here.
 
 ```tsx
 import { useState } from 'react'
@@ -32,46 +36,68 @@ function readMcpForm(metadata: Readonly<Record<string, unknown>> | undefined) {
   return payload.request
 }
 
-export function McpFormInterrupt() {
+type ChatInterrupt = {
+  id: string
+  kind: string
+  message: string
+  metadata?: Readonly<Record<string, unknown>>
+  resolveInterrupt: (value: unknown) => void
+  cancel: () => void
+}
+
+function McpFormCard({ interrupt }: { interrupt: ChatInterrupt }) {
   const [answer, setAnswer] = useState('')
-  const { interrupts } = useChat({
+  const request = readMcpForm(interrupt.metadata)
+  if (!request) return null
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault()
+        // Matches a schema with a string `value` property.
+        interrupt.resolveInterrupt({ value: answer })
+      }}
+    >
+      <label>
+        {String(request.message ?? interrupt.message)}
+        <input
+          value={answer}
+          onChange={(event) => setAnswer(event.target.value)}
+        />
+      </label>
+      <button type="submit">Send</button>
+      <button type="button" onClick={() => interrupt.cancel()}>
+        Cancel
+      </button>
+    </form>
+  )
+}
+
+export function McpFormInterrupt() {
+  const { interrupts, sendMessage } = useChat({
     threadId: 'thread-1',
     connection: fetchServerSentEvents('/api/chat'),
   })
 
   return (
     <>
+      <button
+        type="button"
+        onClick={() => void sendMessage('Please ask me for the form')}
+      >
+        Start
+      </button>
       {interrupts.map((interrupt) => {
         if (!interrupt.id.startsWith('mcp_input_')) return null
         if (interrupt.kind !== 'generic') return null
-        const request = readMcpForm(interrupt.metadata)
-        if (!request) return null
-        return (
-          <form
-            key={interrupt.id}
-            onSubmit={(event) => {
-              event.preventDefault()
-              interrupt.resolveInterrupt({ value: answer })
-            }}
-          >
-            <label>
-              {String(request.message ?? interrupt.message)}
-              <input
-                value={answer}
-                onChange={(event) => setAnswer(event.target.value)}
-              />
-            </label>
-            <button type="submit">Send</button>
-            <button type="button" onClick={() => interrupt.cancel()}>
-              Cancel
-            </button>
-          </form>
-        )
+        return <McpFormCard key={interrupt.id} interrupt={interrupt} />
       })}
     </>
   )
 }
 ```
+
+Each form keeps its own answer state in `McpFormCard`, so two interrupts do not share one input.
 
 ## Solid
 

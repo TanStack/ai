@@ -44,6 +44,14 @@ function decodedByteLength(base64: string): number {
   return Math.max(0, Math.floor((trimmed.length * 3) / 4) - padding)
 }
 
+function decodeBase64Utf8(base64: string): string {
+  const cleaned = base64.replace(/\s/g, '')
+  const binary = atob(cleaned)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return new TextDecoder().decode(bytes)
+}
+
 function mediaPart(
   type: 'image' | 'audio' | 'document',
   blob: string,
@@ -83,14 +91,21 @@ export function mcpResourceToContentPart(
     if (mime.startsWith('audio/')) {
       return mediaPart('audio', content.blob, mime)
     }
-    if (
-      mime === 'application/pdf' ||
-      mime === 'text/plain' ||
-      mime.startsWith('text/')
-    ) {
-      return mediaPart('document', content.blob, mime || 'application/pdf')
+    if (mime.startsWith('text/')) {
+      try {
+        return { type: 'text', content: decodeBase64Utf8(content.blob) }
+      } catch {
+        return reject(content.uri, 'invalid text blob', onReject)
+      }
     }
-    return reject(content.uri, mime ? `unsupported mime ${mime}` : 'no mimeType', onReject)
+    if (mime === 'application/pdf') {
+      return mediaPart('document', content.blob, mime)
+    }
+    return reject(
+      content.uri,
+      mime ? `unsupported mime ${mime}` : 'no mimeType',
+      onReject,
+    )
   }
 
   return {

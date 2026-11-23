@@ -143,9 +143,14 @@ async function readUriFromSources(
         serverId: undefined,
         uri,
       })
-      return await source.readResource(uri, {
+      const result = await source.readResource(uri, {
         ...(meta && { meta }),
       })
+      // Match pool.readResource: only accept a result that includes the
+      // requested URI so a non-owning server does not stop the fallback.
+      if (result.contents.some((entry) => entry.uri === uri)) {
+        return result
+      }
     } catch (error) {
       errors.push(error)
     }
@@ -336,6 +341,9 @@ export class MCPManager {
  * Merge resolved MCP context into a chat message list.
  * Prompt messages are prepended. Content parts append to the last user
  * message, or create a user message when none exists.
+ *
+ * When the last user message is a UIMessage (`parts` present), parts are
+ * updated so `convertMessagesToModelMessages` keeps the MCP content.
  */
 export function mergeMcpContextIntoMessages(
   messages: ReadonlyArray<ModelMessage>,
@@ -363,7 +371,17 @@ export function mergeMcpContextIntoMessages(
     return next
   }
 
-  const user = next[lastUserIndex]!
+  const user = next[lastUserIndex]! as ModelMessage & {
+    parts?: Array<ContentPart>
+  }
+  if (Array.isArray(user.parts)) {
+    next[lastUserIndex] = {
+      ...user,
+      parts: [...user.parts, ...context.contentParts],
+    } as ModelMessage
+    return next
+  }
+
   const existing = user.content
   const parts: Array<ContentPart> =
     typeof existing === 'string'

@@ -196,7 +196,9 @@ const resources = await mcp.resources()
 // resources: Array<{ uri: string; name: string; ... }>
 
 const readResult = await mcp.readResource(resources[0]!.uri)
-const parts = readResult.contents.map(mcpResourceToContentPart)
+const parts = readResult.contents
+  .map((block) => mcpResourceToContentPart(block))
+  .filter((part) => part !== null)
 
 // Add the resource to a user message
 const stream = chat({
@@ -221,7 +223,8 @@ const stream = chat({
 | Has a `text` field | `{ type: 'text', content: text }` |
 | Has a `blob` + `image/*` | `{ type: 'image', source: { type: 'data', ... } }` |
 | Has a `blob` + `audio/*` | `{ type: 'audio', source: { type: 'data', ... } }` |
-| Has a `blob` + PDF / `text/*` | `{ type: 'document', source: { type: 'data', ... } }` |
+| Has a `blob` + `text/*` | `{ type: 'text', content: decoded }` |
+| Has a `blob` + PDF | `{ type: 'document', source: { type: 'data', ... } }` |
 | Has a `blob` without a known mime | text placeholder (or `onReject: 'omit' \| 'throw'`) |
 | Anything else | `{ type: 'text', content: JSON.stringify(content) }` |
 

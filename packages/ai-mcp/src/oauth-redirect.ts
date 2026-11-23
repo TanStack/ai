@@ -1,6 +1,7 @@
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 import type {
   OAuthClientProvider,
+  OAuthDiscoveryState,
   OAuthTokens,
   StoredOAuthClientInformation,
 } from '@modelcontextprotocol/client'
@@ -28,6 +29,8 @@ export type McpOAuthPending = {
     clientSecret?: string
     issuer?: string
   }
+  /** Restored on callback so discovery is not repeated with a different AS. */
+  discovery?: OAuthDiscoveryState
 }
 
 export type McpTokenStore = {
@@ -65,6 +68,8 @@ async function tokenStoreProvider(
     clientName: string
     scopes: ReadonlyArray<string> | undefined
     tokenStore: McpTokenStore
+    /** When true, `tokens()` returns saved credentials (reconnect path). */
+    useSavedTokens: boolean
   },
   hooks: {
     onRedirect?: (url: URL) => void
@@ -72,8 +77,10 @@ async function tokenStoreProvider(
 ): Promise<OAuthClientProvider> {
   let client: StoredOAuthClientInformation | undefined
   let verifier = ''
+  let discovery: OAuthDiscoveryState | undefined
   const pending = await options.tokenStore.loadPending?.()
   if (pending?.codeVerifier) verifier = pending.codeVerifier
+  if (pending?.discovery) discovery = pending.discovery
   if (pending?.client) {
     client = {
       client_id: pending.client.clientId,
@@ -101,14 +108,16 @@ async function tokenStoreProvider(
     },
     clientInformation: async () => {
       if (client) return client
-      const pending = await options.tokenStore.loadPending?.()
-      if (pending?.client) {
+      const pendingNow = await options.tokenStore.loadPending?.()
+      if (pendingNow?.client) {
         client = {
-          client_id: pending.client.clientId,
-          ...(pending.client.clientSecret
-            ? { client_secret: pending.client.clientSecret }
+          client_id: pendingNow.client.clientId,
+          ...(pendingNow.client.clientSecret
+            ? { client_secret: pendingNow.client.clientSecret }
             : {}),
-          ...(pending.client.issuer ? { issuer: pending.client.issuer } : {}),
+          ...(pendingNow.client.issuer
+            ? { issuer: pendingNow.client.issuer }
+            : {}),
         }
         return client
       }
@@ -127,7 +136,8 @@ async function tokenStoreProvider(
       client = information
     },
     tokens: async () => {
-      if (hooks.onRedirect) return undefined
+      // Fresh-auth path: never surface tokens so the SDK starts authorization.
+      if (!options.useSavedTokens) return undefined
       const saved = await options.tokenStore.load()
       if (!saved) return undefined
       return {
@@ -185,6 +195,10 @@ async function tokenStoreProvider(
       verifier = value
     },
     codeVerifier: () => verifier,
+    saveDiscoveryState: (state) => {
+      discovery = state
+    },
+    discoveryState: () => discovery,
   }
 }
 
@@ -200,6 +214,7 @@ async function persistPending(
   const verifier =
     typeof provider.codeVerifier === 'function' ? provider.codeVerifier() : ''
   const information = await provider.clientInformation?.()
+  const discovery = await provider.discoveryState?.()
   await tokenStore.savePending({
     codeVerifier: typeof verifier === 'string' ? verifier : await verifier,
     ...(information
@@ -213,6 +228,7 @@ async function persistPending(
           },
         }
       : {}),
+    ...(discovery ? { discovery } : {}),
   })
 }
 
@@ -220,6 +236,7 @@ async function persistPending(
  * Connect to an OAuth-protected MCP server.
  *
  * - When tokens are already in `tokenStore`, returns `{ status: 'connected' }`.
+ * - If those tokens are rejected and consent is required, returns a redirect.
  * - Otherwise returns `{ status: 'redirect', authorizationUrl }` — send the
  *   user there, then call {@link finishMCPOAuthRedirect} with the `code`.
  *
@@ -230,16 +247,23 @@ export async function createMCPClientWithOAuthRedirect(
   options: CreateMCPClientWithOAuthRedirectOptions,
 ): Promise<MCPClientWithOAuthResult> {
   const saved = await options.tokenStore.load()
-  if (saved?.accessToken) {
-    const provider = await tokenStoreProvider(
-      {
-        redirectUri: options.callbackUrl,
-        clientName: options.clientName ?? 'TanStack AI',
-        scopes: options.scopes,
-        tokenStore: options.tokenStore,
+  let authorizationUrl: string | undefined
+  const provider = await tokenStoreProvider(
+    {
+      redirectUri: options.callbackUrl,
+      clientName: options.clientName ?? 'TanStack AI',
+      scopes: options.scopes,
+      tokenStore: options.tokenStore,
+      useSavedTokens: Boolean(saved?.accessToken),
+    },
+    {
+      onRedirect: (url) => {
+        authorizationUrl = url.href
       },
-      {},
-    )
+    },
+  )
+
+  try {
     const client = await createMCPClient({
       ...options.client,
       transport: {
@@ -250,35 +274,10 @@ export async function createMCPClientWithOAuthRedirect(
       },
     })
     return { status: 'connected', client }
-  }
-
-  let authorizationUrl: string | undefined
-  const provider = await tokenStoreProvider(
-    {
-      redirectUri: options.callbackUrl,
-      clientName: options.clientName ?? 'TanStack AI',
-      scopes: options.scopes,
-      tokenStore: options.tokenStore,
-    },
-    {
-      onRedirect: (url) => {
-        authorizationUrl = url.href
-      },
-    },
-  )
-  try {
-    await createMCPClient({
-      ...options.client,
-      transport: {
-        type: 'http',
-        url: options.url,
-        authProvider: provider,
-        ...(options.fetch ? { fetch: options.fetch } : {}),
-      },
-    })
   } catch {
     // Expected when auth redirects before the session opens.
   }
+
   if (!authorizationUrl) {
     throw new Error(
       'MCP OAuth did not produce an authorization URL. Check callbackUrl and the server metadata.',
@@ -291,9 +290,16 @@ export async function createMCPClientWithOAuthRedirect(
 /**
  * Finish an OAuth redirect: exchange `code`, save tokens, return a connected
  * MCP client. Call this from your callback route.
+ *
+ * Prefer `callbackParams` (the full callback query) when the authorization
+ * server may send `iss`. `code` + optional `iss` also works.
  */
 export async function finishMCPOAuthRedirect(
-  options: CreateMCPClientWithOAuthRedirectOptions & { code: string },
+  options: CreateMCPClientWithOAuthRedirectOptions &
+    (
+      | { callbackParams: URLSearchParams; code?: never; iss?: never }
+      | { code: string; iss?: string; callbackParams?: never }
+    ),
 ): Promise<MCPClient> {
   const provider = await tokenStoreProvider(
     {
@@ -301,6 +307,7 @@ export async function finishMCPOAuthRedirect(
       clientName: options.clientName ?? 'TanStack AI',
       scopes: options.scopes,
       tokenStore: options.tokenStore,
+      useSavedTokens: false,
     },
     {},
   )
@@ -308,7 +315,11 @@ export async function finishMCPOAuthRedirect(
     authProvider: provider,
     fetch: options.fetch,
   })
-  await transport.finishAuth(options.code)
+  if ('callbackParams' in options && options.callbackParams) {
+    await transport.finishAuth(options.callbackParams)
+  } else {
+    await transport.finishAuth(options.code, options.iss)
+  }
   return createMCPClient({
     ...options.client,
     transport,

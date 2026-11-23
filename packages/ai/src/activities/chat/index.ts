@@ -6703,6 +6703,8 @@ async function applyMcpToTextOptions(
     }
   } catch (error) {
     if (signal?.aborted) return
+    // discover() already disposed on its own failures; resolveContext does not.
+    await mcpManager.dispose()
     throw error
   }
 }

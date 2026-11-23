@@ -41,6 +41,15 @@ describe('mcpResourceToContentPart', () => {
     expect(part?.type).toBe('document')
   })
 
+  it('decodes a text/* blob to a TextPart', () => {
+    const part = mcpResourceToContentPart({
+      uri: 'file:///notes.txt',
+      mimeType: 'text/plain',
+      blob: btoa('hello notes'),
+    })
+    expect(part).toEqual({ type: 'text', content: 'hello notes' })
+  })
+
   it('falls back to a text placeholder when mime is missing', () => {
     const part = mcpResourceToContentPart({
       uri: 'file:///img.png',

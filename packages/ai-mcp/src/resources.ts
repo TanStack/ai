@@ -12,6 +12,14 @@ export type McpResourceToContentPartOptions = {
   onReject?: 'placeholder' | 'omit' | 'throw'
 }
 
+type McpResourceContent = {
+  uri?: string
+  mimeType?: string
+  text?: string
+  blob?: string
+  [key: string]: unknown
+}
+
 function placeholder(uri: string | undefined): ContentPart {
   return {
     type: 'text',
@@ -37,6 +45,14 @@ function decodedByteLength(base64: string): number {
   return Math.max(0, Math.floor((trimmed.length * 3) / 4) - padding)
 }
 
+function decodeBase64Utf8(base64: string): string {
+  const cleaned = base64.replace(/\s/g, '')
+  const binary = atob(cleaned)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return new TextDecoder().decode(bytes)
+}
+
 function mediaPart(
   type: 'image' | 'audio' | 'document',
   blob: string,
@@ -52,22 +68,31 @@ function mediaPart(
  * Converts a single MCP resource content block to a TanStack `ContentPart`.
  *
  * - `text` field present → `{ type: 'text', content: text }`
- * - `blob` + `image/*` / `audio/*` / PDF / `text/*` → multimodal data part
+ * - `blob` + `image/*` / `audio/*` → multimodal data part
+ * - `blob` + `text/*` → decoded text part
+ * - `blob` + `application/pdf` → document part
  * - otherwise → text placeholder, omit, or throw (see `onReject`)
  *
  * Returns `null` only when `onReject: 'omit'`.
  *
  * Keep in sync with `@tanstack/ai`'s internal
  * `activities/chat/mcp/resource-parts.ts` (used by `chat({ mcp })`).
+ *
+ * Do not pass this function directly to `Array.map` — map supplies an index as
+ * the second argument. Use `.map((block) => mcpResourceToContentPart(block))`.
  */
 export function mcpResourceToContentPart(
-  content: {
-    uri?: string
-    mimeType?: string
-    text?: string
-    blob?: string
-    [key: string]: unknown
+  content: McpResourceContent,
+  options: McpResourceToContentPartOptions & { onReject: 'omit' },
+): ContentPart | null
+export function mcpResourceToContentPart(
+  content: McpResourceContent,
+  options?: Omit<McpResourceToContentPartOptions, 'onReject'> & {
+    onReject?: 'placeholder' | 'throw'
   },
+): ContentPart
+export function mcpResourceToContentPart(
+  content: McpResourceContent,
   options?: McpResourceToContentPartOptions,
 ): ContentPart | null {
   const onReject = options?.onReject ?? 'placeholder'
@@ -91,12 +116,15 @@ export function mcpResourceToContentPart(
     if (mime.startsWith('audio/')) {
       return mediaPart('audio', content.blob, mime)
     }
-    if (
-      mime === 'application/pdf' ||
-      mime === 'text/plain' ||
-      mime.startsWith('text/')
-    ) {
-      return mediaPart('document', content.blob, mime || 'application/pdf')
+    if (mime.startsWith('text/')) {
+      try {
+        return { type: 'text', content: decodeBase64Utf8(content.blob) }
+      } catch {
+        return reject(content.uri, 'invalid text blob', onReject)
+      }
+    }
+    if (mime === 'application/pdf') {
+      return mediaPart('document', content.blob, mime)
     }
     return reject(
       content.uri,

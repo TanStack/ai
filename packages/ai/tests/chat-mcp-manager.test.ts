@@ -557,4 +557,51 @@ describe('mergeMcpContextIntoMessages', () => {
       },
     ])
   })
+
+  it('appends to UIMessage parts so conversion keeps MCP content', () => {
+    const merged = mergeMcpContextIntoMessages(
+      [
+        {
+          id: 'u1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'hi' }],
+        } as never,
+      ],
+      {
+        promptMessages: [],
+        contentParts: [{ type: 'text', content: 'doc' }],
+      },
+    )
+    expect(merged[0]).toMatchObject({
+      role: 'user',
+      parts: [
+        { type: 'text', content: 'hi' },
+        { type: 'text', content: 'doc' },
+      ],
+    })
+  })
+})
+
+describe('MCPManager readUri fallback', () => {
+  it('tries the next source when the first returns no matching URI', async () => {
+    const empty = {
+      tools: async () => [] as Array<AnyServerTool>,
+      close: async () => {},
+      readResource: async () => ({ contents: [] }),
+    }
+    const owner = {
+      tools: async () => [] as Array<AnyServerTool>,
+      close: async () => {},
+      readResource: async (uri: string) => ({
+        contents: [{ uri, text: 'from-owner' }],
+      }),
+    }
+    const m = MCPManager.from({
+      clients: [empty, owner],
+      attachResources: { uris: ['file:///x'] },
+      connection: 'keep-alive',
+    })
+    const ctx = await m.resolveContext()
+    expect(ctx.contentParts).toEqual([{ type: 'text', content: 'from-owner' }])
+  })
 })

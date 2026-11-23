@@ -67,7 +67,8 @@ Default `max` is `8`.
 | --- | --- |
 | `image/*` | image |
 | `audio/*` | audio |
-| `application/pdf` or `text/*` | document |
+| `text/*` | text (decoded from the blob) |
+| `application/pdf` | document |
 | missing or other | text placeholder (or omit / throw) |
 
 Control size and reject policy:
@@ -96,11 +97,31 @@ Pass an array for more than one prompt. Prompt messages go at the start of the c
 
 ## Slash-style prompts in the UI
 
-List prompts on the server, then send the chosen name in your chat body. On the server, map that name to `mcp.prompts`:
+1. Expose the prompt list from a small API route:
+
+```ts
+// api/mcp-prompts.ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: process.env.MCP_URL! },
+})
+
+export async function GET() {
+  const prompts = await mcp.prompts()
+  return Response.json(prompts)
+}
+```
+
+2. On the chat server, map the chosen name to `mcp.prompts`:
 
 ```ts
 // api/chat.ts
-const { messages, threadId, promptName, promptArgs } = await request.json()
+const body = await request.json()
+if (typeof body !== 'object' || body === null) {
+  return new Response('Bad request', { status: 400 })
+}
+const { messages, threadId, promptName, promptArgs } = body
 
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
@@ -109,13 +130,36 @@ const stream = chat({
   mcp: {
     clients: [mcp],
     ...(typeof promptName === 'string'
-      ? { prompts: { name: promptName, args: promptArgs } }
+      ? {
+          prompts: {
+            name: promptName,
+            args:
+              typeof promptArgs === 'object' && promptArgs !== null
+                ? promptArgs
+                : undefined,
+          },
+        }
       : {}),
   },
 })
 ```
 
-In the UI, show `await mcp.prompts()` (from a small API route) as `/`-commands. When the user picks one, put `promptName` on the next request.
+3. In the client, load the list and send `promptName` / `promptArgs` with the next chat request:
+
+```ts
+const prompts = await fetch('/api/mcp-prompts').then((r) => r.json())
+
+await fetch('/api/chat', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({
+    messages,
+    threadId: 'thread-1',
+    promptName: prompts[0]?.name,
+    promptArgs: { tone: 'short' },
+  }),
+})
+```
 
 ## Cap tools from many servers
 
