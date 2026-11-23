@@ -275,4 +275,97 @@ describe('ChatClient.respondToSandboxApproval', () => {
       'pending',
     )
   })
+
+  it('restores pending when stop() cancels a rejoin before the approval continue runs', async () => {
+    const sent: Array<Array<UIMessage | ModelMessage>> = []
+    const joinRun = vi.fn(async function* (
+      _runId: string,
+      signal?: AbortSignal,
+    ) {
+      await new Promise<void>((resolve) => {
+        if (signal?.aborted) {
+          resolve()
+          return
+        }
+        signal?.addEventListener('abort', () => resolve(), { once: true })
+      })
+    })
+    const mock = createMockConnectionAdapter({
+      chunks: createTextChunks('done', 'asst-1'),
+      chunkDelay: 5,
+      onConnect: (messages) => {
+        sent.push(messages)
+      },
+    })
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection: {
+        ...mock,
+        joinRun,
+      },
+      initialMessages: [createUIMessage('user-1', 'Clean up'), pendingRow],
+      initialResumeSnapshot: {
+        resumeState: { threadId: 'thread-1', runId: 'run-live' },
+      },
+    })
+    client.attach()
+    await vi.waitFor(() => expect(client.getIsLoading()).toBe(true))
+    await client.respondToSandboxApproval(approvalId, true)
+    expect(rowStatus(client.getMessages())).toBe('granted')
+    client.stop()
+    await vi.waitFor(() =>
+      expect(rowStatus(client.getMessages())).toBe('pending'),
+    )
+    expect(sent).toHaveLength(0)
+
+    await client.respondToSandboxApproval(approvalId, true)
+    expect(rowStatus(client.getMessages())).toBe('granted')
+    expect(sent).toHaveLength(1)
+    expect(rowStatus(sent[0] ?? [])).toBe('granted')
+  })
+
+  it('sends a decided approval even when paging already knows its id', async () => {
+    const painted = [
+      createUIMessage('user-1', 'Clean up'),
+      pendingRow,
+      createUIMessage('user-2', 'also this'),
+    ]
+    const sent: Array<Array<UIMessage | ModelMessage>> = []
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      persistence: true,
+      history: { pageSize: 50 },
+      connection: {
+        async *connect(messages) {
+          sent.push(messages)
+          for (const chunk of createTextChunks('done', 'asst-1')) {
+            yield chunk
+          }
+        },
+        hydrate: () =>
+          Promise.resolve({
+            messages: painted,
+            activeRun: null,
+            interrupts: null,
+            page: { truncated: false },
+          }),
+      },
+    })
+    client.attach()
+    await vi.waitFor(() => {
+      expect(client.getMessages().some((message) => message.id === rowId)).toBe(
+        true,
+      )
+    })
+
+    await client.respondToSandboxApproval(approvalId, true)
+
+    expect(sent).toHaveLength(1)
+    expect(rowStatus(sent[0] ?? [])).toBe('granted')
+    expect(
+      (sent[0] ?? []).map((message) =>
+        'id' in message ? message.id : undefined,
+      ),
+    ).toEqual([rowId])
+  })
 })

@@ -2744,8 +2744,10 @@ export class ChatClient<
           this.setCurrentRunId(null)
           this.setIsLoading(false)
           if (this.status === 'streaming') this.setStatus('ready')
-          await this.drainPostStreamActions()
         }
+        // stop() nulls abortController, so the identity check above can skip.
+        // Still settle queued approval rollbacks without starting another run.
+        await this.drainPostStreamActions()
       }
     })()
   }
@@ -3668,6 +3670,8 @@ export class ChatClient<
     if (hadLocalStream) {
       this.resetSessionGenerating()
     }
+    // Settle queued approval rollbacks even when a rejoin never drains.
+    void this.drainPostStreamActions()
     this.events.stopped()
   }
 
@@ -4267,7 +4271,7 @@ export class ChatClient<
     const unknownMessages: Array<UIMessage> = []
     for (const message of forModel) {
       const isKnown = this.knownServerMessageIds.has(message.id)
-      if (isKnown) {
+      if (isKnown && !isDecidedApproval(message)) {
         continue
       }
       unknownMessages.push(message)
