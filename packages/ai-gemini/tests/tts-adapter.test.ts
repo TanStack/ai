@@ -224,6 +224,35 @@ describe('Gemini TTS Adapter', () => {
     expect(mockGenerateContent).not.toHaveBeenCalled()
   })
 
+  it('rejects a 3.8 style on Vertex AI, where the SDK drops speechMetadata', async () => {
+    const adapter = new GeminiTTSAdapter(
+      { vertexai: true, project: 'p', location: 'us-central1' },
+      'gemini-3.8-flash-tts',
+    )
+    await expect(
+      generateSpeech({
+        threadId: 'thread-1',
+        adapter,
+        text: 'hello',
+        modelOptions: { systemInstruction: 'whispering' },
+      }),
+    ).rejects.toThrow(/does not send that field/)
+    expect(mockGenerateContent).not.toHaveBeenCalled()
+
+    // Without a style or turns, nothing is lost, so the request goes out.
+    mockGenerateContent.mockResolvedValueOnce({
+      candidates: [
+        {
+          content: {
+            parts: [{ inlineData: { mimeType: 'audio/wav', data: 'B' } }],
+          },
+        },
+      ],
+    })
+    await generateSpeech({ threadId: 'thread-1', adapter, text: 'hello' })
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1)
+  })
+
   it('honors TTSOptions.voice as a fallback for the prebuilt voice', async () => {
     // Regression: the adapter used to ignore `options.voice` and hard-code
     // 'Kore' even when the caller asked for something else.

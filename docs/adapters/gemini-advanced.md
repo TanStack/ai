@@ -407,6 +407,7 @@ const result = await generateSpeech({
 - Gemini accepts **two different voices** in one request. The adapter rejects a third before the call.
 - Each voice must be one of the prebuilt Gemini voices (`GeminiTTSVoices`).
 - Gemini reports no timings, so this adapter rejects `timestamps: true`.
+- On the 3.8 models, `turns` and `systemInstruction` need an API key. With `vertexai` or Google auth, the adapter throws, because the `@google/genai` SDK does not send them.
 - Gemini TTS is experimental. Full support can need the Live API.
 
 ## Provider tools

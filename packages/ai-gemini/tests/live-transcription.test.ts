@@ -111,4 +111,57 @@ describe('geminiLiveTranscription', () => {
       { type: 'turn-end' },
     ])
   })
+
+  it('waits on close for a segment that comes after an earlier final', async () => {
+    const ws = fakeWebSocket()
+    const opening = transcriptionSession({
+      adapter: geminiLiveTranscription('gemini-3.5-transcribe-live', {
+        apiKey: 'g-key',
+        WebSocket: ws.WebSocket,
+      }),
+      audio: { encoding: 'linear16', sampleRate: 16000 },
+    })
+    const socket = ws.sockets[0]!
+    socket.open()
+    socket.receive({ setupComplete: {} })
+    const session = await opening
+    const events: Array<LiveTranscriptionEvent> = []
+    const reading = (async () => {
+      for await (const e of session) events.push(e)
+    })()
+    const final = (text: string) => ({
+      serverContent: { inputTranscription: { text } },
+    })
+
+    session.send(new Uint8Array(320)) // segment 1
+    session.send(new Uint8Array(320)) // segment 2
+    socket.receive(final('One.'))
+    const closing = session.close()
+    await new Promise((r) => setTimeout(r, 10))
+    socket.receive({
+      serverContent: { interimInputTranscription: { text: 'Tw' } },
+    })
+    socket.receive(final('Two.'))
+    await closing
+    await reading
+    expect(events.filter((e) => e.type === 'final')).toEqual([
+      { type: 'final', text: 'One.' },
+      { type: 'final', text: 'Two.' },
+    ])
+  })
+
+  it('rejects SMART mode', async () => {
+    const ws = fakeWebSocket()
+    await expect(
+      transcriptionSession({
+        adapter: geminiLiveTranscription('gemini-3.5-transcribe-live', {
+          apiKey: 'g-key',
+          WebSocket: ws.WebSocket,
+        }),
+        audio: { encoding: 'linear16', sampleRate: 16000 },
+        modelOptions: { mode: 'SMART' },
+      }),
+    ).rejects.toThrow("mode 'SMART'")
+    expect(ws.sockets).toHaveLength(0)
+  })
 })

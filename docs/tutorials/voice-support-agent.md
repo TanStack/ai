@@ -513,9 +513,9 @@ export const LISTEN = {
           apiKey,
         }),
         audio,
-        // Gemini wants a BCP-47 tag. SMART drops fillers and false starts.
+        // Gemini wants a BCP-47 tag.
         language: 'en-US',
-        modelOptions: { customVocabulary: VOCABULARY, mode: 'SMART' },
+        modelOptions: { customVocabulary: VOCABULARY },
         abortSignal,
       }),
   },

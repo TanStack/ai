@@ -4,6 +4,7 @@ import {
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../utils'
+import { usesVertexAI } from '../client/api'
 import { GEMINI_TTS_VOICES } from '../model-meta'
 import { buildGeminiUsage } from '../usage'
 import type { GEMINI_TTS_MODELS, GeminiTTSVoice } from '../model-meta'
@@ -137,10 +138,13 @@ export class GeminiTTSAdapter<
   override readonly capabilities: TTSCapabilities = { maxSpeakers: 2 }
 
   private readonly client: GeminiClient
+  /** Requests go through `@google/genai`, the same rule as `createGoogleGenAI`. */
+  private readonly viaSdk: boolean
 
   constructor(config: GeminiTTSConfig, model: TModel) {
     super(model, config)
     this.client = createGeminiClient(config)
+    this.viaSdk = usesVertexAI(config) || !config.apiKey
   }
 
   /**
@@ -165,6 +169,12 @@ export class GeminiTTSAdapter<
     // label. Legacy models read the label from the text; 3.8 models take it,
     // and the style, as `speechMetadata` on each part.
     const legacy = LEGACY_STYLE_MODELS.has(model)
+    // @google/genai 2.10 drops `speechMetadata` from a part without an error.
+    if (!legacy && (turns || style) && this.viaSdk) {
+      throw new Error(
+        `Gemini TTS model ${model} sends a style or turns as \`speechMetadata\`, and the @google/genai SDK does not send that field. Use an API key, not Vertex AI or Google auth, for a style or turns on this model.`,
+      )
+    }
     const input: Array<SpeechPart> = legacy
       ? [
           {

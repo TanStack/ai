@@ -1,6 +1,9 @@
 import { bytesToBase64, openLiveSocket } from '@tanstack/ai/adapter-internals'
 import { getGeminiApiKeyFromEnv } from '../utils/client'
-import type { WebSocketConstructor } from '@tanstack/ai/adapter-internals'
+import type {
+  LiveSocket,
+  WebSocketConstructor,
+} from '@tanstack/ai/adapter-internals'
 import type { LiveTranscriptionAdapter } from '@tanstack/ai'
 
 /** Gemini Live models for transcription-only sessions. */
@@ -14,7 +17,10 @@ export type GeminiLiveTranscriptionModel =
 export interface GeminiLiveTranscriptionProviderOptions {
   /** Terms the model should recognize (up to 1000). */
   customVocabulary?: Array<string>
-  /** `VERBATIM` (default) keeps disfluencies. `SMART` removes them. */
+  /**
+   * `VERBATIM` (default) keeps disfluencies. `SMART` is not supported yet:
+   * `transcriptionSession()` rejects it, because its finals repeat earlier text.
+   */
   mode?: 'VERBATIM' | 'SMART'
   /** Automatic voice activity detection settings. */
   automaticActivityDetection?: {
@@ -75,11 +81,27 @@ export function geminiLiveTranscription<
     audioInputs: [{ encoding: 'linear16', sampleRates: [16000, 24000] }],
     '~types': {} as never,
     connect: async (options) => {
-      const apiKey = config.apiKey ?? getGeminiApiKeyFromEnv()
       const opts = options.modelOptions ?? {}
+      // SMART finals hold the whole text so far, not one segment. A `final`
+      // event must be one segment, so SMART cannot be used here yet.
+      if (opts.mode === 'SMART') {
+        throw new Error(
+          "Gemini live transcription does not support mode 'SMART' yet: its finals repeat earlier text. Use 'VERBATIM'.",
+        )
+      }
+      const apiKey = config.apiKey ?? getGeminiApiKeyFromEnv()
       const mimeType = `audio/pcm;rate=${options.audio.sampleRate}`
-      // Audio or text with no final yet. When there is none, close does not wait.
-      let pending = false
+      // With no audio sent, close does not wait.
+      let sentAudio = false
+      // While closing: close 1 s after the last final, unless more interim
+      // text arrives first. Gemini sends no segment ids, so a final cannot
+      // tell if it was the last one.
+      // ponytail: fixed 1 s grace. Make it an option if a provider is slower.
+      let grace: ReturnType<typeof setTimeout> | undefined
+      const closeSoon = (socket: LiveSocket) => {
+        clearTimeout(grace)
+        grace = setTimeout(() => socket.close(), 1000)
+      }
 
       const live = await openLiveSocket({
         url: `${config.baseURL ?? DEFAULT_URL}?key=${encodeURIComponent(apiKey)}`,
@@ -109,33 +131,37 @@ export function geminiLiveTranscription<
           const content = (message as LiveServerMessage).serverContent
           const interim = content?.interimInputTranscription?.text?.trim()
           if (interim) {
-            pending = true
+            clearTimeout(grace)
             options.emit({ type: 'interim', text: interim })
           }
           const final = content?.inputTranscription
           if (final) {
-            pending = false
             const text = final.text?.trim()
             if (text) options.emit({ type: 'final', text })
             // Each final covers one speech segment, ended by a pause.
             options.emit({ type: 'turn-end' })
-            if (socket.closing) socket.close()
+            if (socket.closing) closeSoon(socket)
           }
         },
       })
 
       return {
         send: (audio) => {
-          pending = true
+          sentAudio = true
           live.sendJson({
             realtimeInput: { audio: { data: bytesToBase64(audio), mimeType } },
           })
         },
-        close: () =>
-          live.finish(
+        close: async () => {
+          const done = live.finish(
             { realtimeInput: { audioStreamEnd: true } },
-            pending ? 5000 : 0,
-          ),
+            sentAudio ? 5000 : 0,
+          )
+          // The last final can be in already. Then no final comes.
+          if (sentAudio) closeSoon(live)
+          await done
+          clearTimeout(grace)
+        },
       }
     },
   }
