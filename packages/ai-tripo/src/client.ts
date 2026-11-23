@@ -167,21 +167,6 @@ export function createTripoClient(config?: TripoClientConfig) {
 }
 
 /**
- * The status of a Tripo task. Tripo can also send other values, for example
- * `unknown`.
- *
- * @experimental Tripo support is experimental and may change.
- */
-export type TripoTaskStatus =
-  | 'queued'
-  | 'running'
-  | 'success'
-  | 'failed'
-  | 'cancelled'
-  | 'banned'
-  | 'expired'
-
-/**
  * The `output` of a Tripo task. Each task type fills different fields.
  *
  * @experimental Tripo support is experimental and may change.
@@ -198,8 +183,9 @@ export interface TripoTaskOutput {
 }
 
 /**
- * A Tripo task from `GET /tasks/{task_id}`. `status` is a string because
- * Tripo can send a value that is not a {@link TripoTaskStatus}.
+ * A Tripo task from `GET /tasks/{task_id}`. `status` is a string, for example
+ * `queued`, `running`, or `success`. Tripo can also send other values, for
+ * example `unknown`.
  *
  * @experimental Tripo support is experimental and may change.
  */

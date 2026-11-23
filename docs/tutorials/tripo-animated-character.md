@@ -194,7 +194,7 @@ The page shows the file in `<model-viewer>`, which loads the file with a script.
 
 Create `src/routes/api.file.ts`. Start maps it to the `/api/file` path:
 
-```typescript
+```typescript ignore
 import { createFileRoute } from '@tanstack/react-router'
 
 // Tripo serves its files with no CORS header, so the browser cannot load them.
