@@ -1,23 +1,23 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
   EventType,
-  generate3DModel,
+  generate3dModel,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { fal3DModel } from '@tanstack/ai-fal'
-import { meshy3DModel } from '@tanstack/ai-meshy'
-import type { MediaPromptFor, Model3DResult, StreamChunk } from '@tanstack/ai'
+import { fal3dModel } from '@tanstack/ai-fal'
+import { meshy3dModel } from '@tanstack/ai-meshy'
+import type { MediaPromptFor, Model3dResult, StreamChunk } from '@tanstack/ai'
 
 const REQUEST_ID = 'req-e2e'
 const MODEL_URL = 'https://fal.media/files/e2e/model.glb'
 const PREVIEW_URL = 'https://fal.media/files/e2e/preview.png'
 
 /**
- * The request body. `prompt` is the prompt of `generate3DModel`. The two
+ * The request body. `prompt` is the prompt of `generate3dModel`. The two
  * models cover the image field (`input_image_url`) and the mesh field
  * (`mesh_url`).
  */
-interface Model3DRequest {
+interface Model3dRequest {
   /** Leave it out for fal. */
   provider?: 'fal'
   mode: 'wait' | 'stream'
@@ -76,7 +76,7 @@ const MESHY_BASE_URL = 'https://api.meshy.ai/openapi'
  * - `animation` (stream): `jobId` is the Meshy rigging task, and `actionIds`
  *   are the Meshy library animations.
  */
-type MeshyModel3DRequest =
+type MeshyModel3dRequest =
   | { provider: 'meshy'; step: 'image-to-3d'; imageUrl: string }
   | { provider: 'meshy'; step: 'rigging'; jobId: string }
   | {
@@ -191,7 +191,7 @@ function fakeMeshy() {
 
 /** Answers with the finished model and the Meshy requests, or the error. */
 async function meshyWaitResponse(
-  generation: Promise<Model3DResult>,
+  generation: Promise<Model3dResult>,
   requests: Array<MeshyRequest>,
 ) {
   try {
@@ -232,7 +232,7 @@ async function* withMeshyRequests(
 }
 
 /** Runs one Meshy step against a new fake Meshy. */
-function handleMeshy(body: MeshyModel3DRequest) {
+function handleMeshy(body: MeshyModel3dRequest) {
   const meshy = fakeMeshy()
   const config = { apiKey: 'meshy-e2e', fetch: meshy.fetch }
   const shared = { threadId: '3d-model-meshy', pollInterval: 10, debug: false }
@@ -240,9 +240,9 @@ function handleMeshy(body: MeshyModel3DRequest) {
   switch (body.step) {
     case 'image-to-3d':
       return meshyWaitResponse(
-        generate3DModel({
+        generate3dModel({
           ...shared,
-          adapter: meshy3DModel('image-to-3d', config),
+          adapter: meshy3dModel('image-to-3d', config),
           prompt: [
             { type: 'image', source: { type: 'url', value: body.imageUrl } },
           ],
@@ -254,9 +254,9 @@ function handleMeshy(body: MeshyModel3DRequest) {
       // A `file` source is a Meshy task id. Rigging sends it as
       // `input_task_id`.
       return meshyWaitResponse(
-        generate3DModel({
+        generate3dModel({
           ...shared,
-          adapter: meshy3DModel('rigging', config),
+          adapter: meshy3dModel('rigging', config),
           prompt: [
             {
               type: 'model3d',
@@ -269,9 +269,9 @@ function handleMeshy(body: MeshyModel3DRequest) {
       )
     case 'animation': {
       // Animation sends the `file` source as `rig_task_id`.
-      const stream = generate3DModel({
+      const stream = generate3dModel({
         ...shared,
-        adapter: meshy3DModel('animation', config),
+        adapter: meshy3dModel('animation', config),
         prompt: [
           {
             type: 'model3d',
@@ -292,11 +292,11 @@ export const Route = createFileRoute('/api/3d-model')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const body: Model3DRequest | MeshyModel3DRequest = await request.json()
+        const body: Model3dRequest | MeshyModel3dRequest = await request.json()
         if (body.provider === 'meshy') return handleMeshy(body)
         const queue = mockFalQueue()
         const options = {
-          adapter: fal3DModel(body.model, {
+          adapter: fal3dModel(body.model, {
             apiKey: 'test',
             fetch: queue.fetch,
           }),
@@ -308,12 +308,12 @@ export const Route = createFileRoute('/api/3d-model')({
 
         if (body.mode === 'stream') {
           return toServerSentEventsResponse(
-            generate3DModel({ ...options, stream: true }),
+            generate3dModel({ ...options, stream: true }),
           )
         }
 
         try {
-          const result = await generate3DModel({ ...options, wait: true })
+          const result = await generate3dModel({ ...options, wait: true })
           // `submitted` is the input fal received, so the spec can check
           // which field each prompt part went to.
           return Response.json({ result, submitted: queue.submitted[0] })

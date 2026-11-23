@@ -47,7 +47,7 @@ Image parts in prompt order.
 ### models3d
 
 ```ts
-models3d: Model3DPart<Model3DInputMetadata>[];
+models3d: Model3dPart<Model3dInputMetadata>[];
 ```
 
 Defined in: [packages/ai/src/utilities/media-prompt.ts:43](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/media-prompt.ts#L43)

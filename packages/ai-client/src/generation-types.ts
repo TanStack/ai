@@ -809,7 +809,7 @@ export interface VideoGenerateInput {
  * @experimental 3D model generation is experimental. The shape can change in
  * a minor release.
  */
-export interface Model3DGenerateInput {
+export interface Model3dGenerateInput {
   /**
    * Description of the desired 3D model: plain text, or an ordered array of
    * content parts (text + image + model3d) for image-to-3D and 3D-to-3D

@@ -1,17 +1,17 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
-  generateMotion,
+  generate3dMotion,
   generationParamsFromRequest,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { falMotion } from '@tanstack/ai-fal'
+import { fal3dMotion } from '@tanstack/ai-fal'
 import { falByok } from '@tanstack/ai-fal/byok'
 import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 
 export async function POST({ request }: { request: Request }) {
   // Unwrap the prompt and duration the hook POSTed. Then read the fal key.
   const { input, threadId, runId } = await generationParamsFromRequest(
-    'motion',
+    'motion3d',
     request,
   )
   const apiKey = getByokKey(request, falByok)
@@ -24,8 +24,8 @@ export async function POST({ request }: { request: Request }) {
 
   // Submit the job to fal Hunyuan Motion. stream: true polls the job and
   // sends each status to the page over SSE. The last event holds the files.
-  const stream = generateMotion({
-    adapter: falMotion('fal-ai/hunyuan-motion', { apiKey }),
+  const stream = generate3dMotion({
+    adapter: fal3dMotion('fal-ai/hunyuan-motion', { apiKey }),
     prompt: input.prompt,
     duration: typeof input.duration === 'number' ? input.duration : undefined,
     stream: true,

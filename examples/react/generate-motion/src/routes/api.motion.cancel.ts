@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { cancelMotionJob } from '@tanstack/ai'
-import { falMotion } from '@tanstack/ai-fal'
+import { cancel3dMotionJob } from '@tanstack/ai'
+import { fal3dMotion } from '@tanstack/ai-fal'
 import { falByok } from '@tanstack/ai-fal/byok'
 import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 
@@ -24,8 +24,8 @@ export async function POST({ request }: { request: Request }) {
   // Ask fal to stop the job. This is a remote cancel. The hook's stop()
   // only closes the stream in this tab.
   try {
-    await cancelMotionJob({
-      adapter: falMotion('fal-ai/hunyuan-motion', { apiKey }),
+    await cancel3dMotionJob({
+      adapter: fal3dMotion('fal-ai/hunyuan-motion', { apiKey }),
       jobId: body.jobId,
     })
     return Response.json({ ok: true })

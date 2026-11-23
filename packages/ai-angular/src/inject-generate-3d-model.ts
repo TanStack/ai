@@ -1,10 +1,10 @@
 import { injectGeneration } from './inject-generation'
 import type { Signal } from '@angular/core'
-import type { Model3DResult } from '@tanstack/ai'
+import type { Model3dResult } from '@tanstack/ai'
 import type {
   GenerationClientState,
   InferGenerationOutputFromReturn,
-  Model3DGenerateInput,
+  Model3dGenerateInput,
 } from '@tanstack/ai-client'
 import type {
   InjectGenerationOptions,
@@ -12,32 +12,32 @@ import type {
 } from './inject-generation'
 
 /**
- * Options for {@link injectGenerate3DModel}.
+ * Options for {@link injectGenerate3dModel}.
  *
  * @experimental 3D model generation is experimental. The shape can change in
  * a minor release.
  */
-export type InjectGenerate3DModelOptions<TOutput = Model3DResult> = Omit<
-  InjectGenerationOptions<Model3DGenerateInput, Model3DResult, TOutput>,
+export type InjectGenerate3dModelOptions<TOutput = Model3dResult> = Omit<
+  InjectGenerationOptions<Model3dGenerateInput, Model3dResult, TOutput>,
   | 'onResult'
   | 'reconstructResult'
   | 'persistence'
   | 'hydrateGeneration'
   | 'joinRun'
 > & {
-  onResult?: (result: Model3DResult) => TOutput | null | void
+  onResult?: (result: Model3dResult) => TOutput | null | void
 }
 
 /**
- * Return type of {@link injectGenerate3DModel}.
+ * Return type of {@link injectGenerate3dModel}.
  *
  * @experimental 3D model generation is experimental. The shape can change in
  * a minor release.
  */
-export interface InjectGenerate3DModelResult<
-  TOutput = Model3DResult,
+export interface InjectGenerate3dModelResult<
+  TOutput = Model3dResult,
 > extends Omit<InjectGenerationResult<TOutput>, 'generate'> {
-  generate: (input: Model3DGenerateInput) => Promise<void>
+  generate: (input: Model3dGenerateInput) => Promise<void>
   result: Signal<TOutput | null>
   isLoading: Signal<boolean>
   error: Signal<Error | undefined>
@@ -47,9 +47,9 @@ export interface InjectGenerate3DModelResult<
 /**
  * Generates a 3D model from a text or image prompt, with Angular signals.
  *
- * The server route runs `generate3DModel()` and streams the response. The
+ * The server route runs `generate3dModel()` and streams the response. The
  * stream sends `generation:progress` events while the provider job runs, then
- * one `generation:result` event with the `Model3DResult`. Call it in an
+ * one `generation:result` event with the `Model3dResult`. Call it in an
  * injection context (a component field initializer, the constructor, or
  * `runInInjectionContext`).
  *
@@ -59,7 +59,7 @@ export interface InjectGenerate3DModelResult<
  *
  * @example
  * ```ts
- * model = injectGenerate3DModel({
+ * model = injectGenerate3dModel({
  *   threadId: 'product-model',
  *   connection: fetchServerSentEvents('/api/generate/3d-model'),
  * })
@@ -71,19 +71,19 @@ export interface InjectGenerate3DModelResult<
  * @experimental 3D model generation is experimental. The shape can change in
  * a minor release.
  */
-export function injectGenerate3DModel<TTransformed = void>(
-  options: Omit<InjectGenerate3DModelOptions, 'onResult'> & {
-    onResult?: (result: Model3DResult) => TTransformed
+export function injectGenerate3dModel<TTransformed = void>(
+  options: Omit<InjectGenerate3dModelOptions, 'onResult'> & {
+    onResult?: (result: Model3dResult) => TTransformed
   },
-): InjectGenerate3DModelResult<
-  InferGenerationOutputFromReturn<Model3DResult, TTransformed>
+): InjectGenerate3dModelResult<
+  InferGenerationOutputFromReturn<Model3dResult, TTransformed>
 > {
   const devtools = {
     ...options.devtools,
     framework: 'angular' as const,
-    hookName: 'injectGenerate3DModel',
+    hookName: 'injectGenerate3dModel',
   }
-  return injectGeneration<Model3DGenerateInput, Model3DResult, TTransformed>({
+  return injectGeneration<Model3dGenerateInput, Model3dResult, TTransformed>({
     ...options,
     devtools,
     // 3D results are never persisted, even if an untyped caller sets it.

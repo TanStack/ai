@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures'
 import type { APIRequestContext } from '@playwright/test'
 
-// /api/motion runs falMotion against a fake fal queue (see the route file).
+// /api/motion runs fal3dMotion against a fake fal queue (see the route file).
 // The fake answers only for this job id.
 const JOB_ID = 'motion-e2e-job'
 const MODEL = 'fal-ai/hunyuan-motion'
@@ -96,7 +96,7 @@ function jobIdOf(body: unknown) {
   return body.jobId
 }
 
-test.describe('generateMotion activity (fal)', () => {
+test.describe('generate3dMotion activity (fal)', () => {
   test('streams a queued job over SSE until the FBX asset is ready', async ({
     request,
     testId,
@@ -108,19 +108,19 @@ test.describe('generateMotion activity (fal)', () => {
     expect(events[0]?.type).toBe('RUN_STARTED')
     expect(customEvents(events)).toEqual([
       {
-        name: 'motion:job:created',
+        name: 'motion3d:job:created',
         value: { jobId: JOB_ID, model: MODEL },
       },
       {
-        name: 'motion:status',
+        name: 'motion3d:status',
         value: { jobId: JOB_ID, status: 'pending', queuePosition: 2 },
       },
       {
-        name: 'motion:status',
+        name: 'motion3d:status',
         value: { jobId: JOB_ID, status: 'processing' },
       },
       {
-        name: 'motion:status',
+        name: 'motion3d:status',
         value: { jobId: JOB_ID, status: 'completed' },
       },
       {
@@ -246,7 +246,7 @@ test.describe('generateMotion activity (fal)', () => {
   })
 })
 
-test.describe('generateMotion activity (uthana)', () => {
+test.describe('generate3dMotion activity (uthana)', () => {
   test('streams an Uthana job and returns the FBX inline on the chosen character', async ({
     request,
     testId,
@@ -254,17 +254,17 @@ test.describe('generateMotion activity (uthana)', () => {
     const events = await streamMotion(request, testId, { provider: 'uthana' })
     const custom = customEvents(events)
 
-    expect(custom.filter((e) => e.name === 'motion:status')).toEqual([
+    expect(custom.filter((e) => e.name === 'motion3d:status')).toEqual([
       {
-        name: 'motion:status',
+        name: 'motion3d:status',
         value: { jobId: UTHANA_JOB_ID, status: 'pending' },
       },
       {
-        name: 'motion:status',
+        name: 'motion3d:status',
         value: { jobId: UTHANA_JOB_ID, status: 'processing' },
       },
       {
-        name: 'motion:status',
+        name: 'motion3d:status',
         value: { jobId: UTHANA_JOB_ID, status: 'completed' },
       },
     ])
@@ -299,7 +299,7 @@ test.describe('generateMotion activity (uthana)', () => {
   })
 })
 
-test.describe('generateMotion activity (meshy)', () => {
+test.describe('generate3dMotion activity (meshy)', () => {
   test('streams a Meshy text to motion task until the FBX clip is ready', async ({
     request,
     testId,
@@ -308,11 +308,11 @@ test.describe('generateMotion activity (meshy)', () => {
 
     expect(customEvents(events)).toEqual([
       {
-        name: 'motion:job:created',
+        name: 'motion3d:job:created',
         value: { jobId: MESHY_JOB_ID, model: 'prime' },
       },
       {
-        name: 'motion:status',
+        name: 'motion3d:status',
         value: { jobId: MESHY_JOB_ID, status: 'pending', progress: 0 },
       },
       {
@@ -320,7 +320,7 @@ test.describe('generateMotion activity (meshy)', () => {
         value: { progress: 0, message: 'pending' },
       },
       {
-        name: 'motion:status',
+        name: 'motion3d:status',
         value: { jobId: MESHY_JOB_ID, status: 'processing', progress: 60 },
       },
       {
@@ -328,7 +328,7 @@ test.describe('generateMotion activity (meshy)', () => {
         value: { progress: 60, message: 'processing' },
       },
       {
-        name: 'motion:status',
+        name: 'motion3d:status',
         value: { jobId: MESHY_JOB_ID, status: 'completed', progress: 100 },
       },
       {

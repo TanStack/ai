@@ -2,14 +2,14 @@ import { useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import {
   fetchServerSentEvents,
-  useGenerate3DModel,
+  useGenerate3dModel,
   useGenerateImage,
 } from '@tanstack/ai-react'
 import { falByok } from '@tanstack/ai-fal/byok'
 import { meshyByok } from '@tanstack/ai-meshy/byok'
 import { KeyForm } from '@/components/key-form'
 import { byok } from '@/lib/byok'
-import type { MediaPrompt, MediaPromptPart, Model3DResult } from '@tanstack/ai'
+import type { MediaPrompt, MediaPromptPart, Model3dResult } from '@tanstack/ai'
 
 const imagePart = (url: string): MediaPromptPart => ({
   type: 'image',
@@ -144,7 +144,7 @@ interface ModelStepProps {
   action: string
   // The prompt parts for this step. null until the earlier steps are done.
   prompt: Array<MediaPromptPart> | null
-  onModel?: (model: Model3DResult) => void
+  onModel?: (model: Model3dResult) => void
   onStart?: () => void
   // A short note under the title.
   hint?: string
@@ -156,7 +156,7 @@ function ModelStep(props: ModelStepProps) {
   const [status, setStatus] = useState('')
   // POST to /api/model3d?step=... over SSE. The server polls the job and
   // streams the job status, then the finished model.
-  const { generate, result, isLoading, error, stop } = useGenerate3DModel({
+  const { generate, result, isLoading, error, stop } = useGenerate3dModel({
     connection: fetchServerSentEvents(`/api/model3d?step=${step}`),
     threadId: `asset-${step}`,
     byok,
