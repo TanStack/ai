@@ -94,6 +94,10 @@ export function mcpResourceToContentPart(
 export function mcpResourceToContentPart(
   content: McpResourceContent,
   options?: McpResourceToContentPartOptions,
+): ContentPart | null
+export function mcpResourceToContentPart(
+  content: McpResourceContent,
+  options?: McpResourceToContentPartOptions,
 ): ContentPart | null {
   const onReject = options?.onReject ?? 'placeholder'
   const maxBytes = options?.maxBytes ?? DEFAULT_MAX_BYTES

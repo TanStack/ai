@@ -78,6 +78,10 @@ async function tokenStoreProvider(
   let client: StoredOAuthClientInformation | undefined
   let verifier = ''
   let discovery: OAuthDiscoveryState | undefined
+  // Fresh-auth / callback start: hide pre-existing store tokens so the SDK
+  // begins authorization. After `saveTokens`, flip this so the new bearer is
+  // available for the post-callback connection.
+  let allowStoredTokens = options.useSavedTokens
   const pending = await options.tokenStore.loadPending?.()
   if (pending?.codeVerifier) verifier = pending.codeVerifier
   if (pending?.discovery) discovery = pending.discovery
@@ -136,8 +140,7 @@ async function tokenStoreProvider(
       client = information
     },
     tokens: async () => {
-      // Fresh-auth path: never surface tokens so the SDK starts authorization.
-      if (!options.useSavedTokens) return undefined
+      if (!allowStoredTokens) return undefined
       const saved = await options.tokenStore.load()
       if (!saved) return undefined
       return {
@@ -178,6 +181,7 @@ async function tokenStoreProvider(
         },
       })
       await options.tokenStore.clearPending?.()
+      allowStoredTokens = true
     },
     invalidateCredentials: async () => {
       await options.tokenStore.clear()
@@ -274,14 +278,10 @@ export async function createMCPClientWithOAuthRedirect(
       },
     })
     return { status: 'connected', client }
-  } catch {
-    // Expected when auth redirects before the session opens.
-  }
-
-  if (!authorizationUrl) {
-    throw new Error(
-      'MCP OAuth did not produce an authorization URL. Check callbackUrl and the server metadata.',
-    )
+  } catch (error) {
+    // Auth redirect before the session opens is expected. Other failures
+    // (offline server, bad URL, …) must stay visible.
+    if (!authorizationUrl) throw error
   }
   await persistPending(options.tokenStore, provider)
   return { status: 'redirect', authorizationUrl }

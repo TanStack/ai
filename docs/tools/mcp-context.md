@@ -32,19 +32,22 @@ const mcp = await createMCPClient({
 })
 
 const stream = chat({
+  // Latest OpenAI chat models take text + image. Attach an image resource here.
+  // For a PDF (`application/pdf` → document part), pick a model whose
+  // `supports.input` includes `document`.
   adapter: openaiText('gpt-6.1-sol'),
-  messages: [{ role: 'user', content: 'Summarize this document.' }],
+  messages: [{ role: 'user', content: 'Describe this chart.' }],
   threadId: 'thread-1',
   mcp: {
     clients: [mcp],
-    attachResources: { uris: ['file:///reports/q3.pdf'] },
+    attachResources: { uris: ['file:///charts/q3.png'] },
   },
 })
 
 return toServerSentEventsResponse(stream)
 ```
 
-2. Ask the model about the document. The PDF (or image, or text) is already on the last user message.
+2. Ask the model about the image. The resource is already on the last user message.
 
 ### Auto-pick resources
 
@@ -113,10 +116,13 @@ export async function GET() {
 }
 ```
 
-2. On the chat server, map the chosen name to `mcp.prompts`:
+2. On the chat server, map the chosen name to `mcp.prompts` and return SSE:
 
 ```ts
 // api/chat.ts
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
 const body = await request.json()
 if (typeof body !== 'object' || body === null) {
   return new Response('Bad request', { status: 400 })
@@ -142,23 +148,40 @@ const stream = chat({
       : {}),
   },
 })
+
+return toServerSentEventsResponse(stream)
 ```
 
-3. In the client, load the list and send `promptName` / `promptArgs` with the next chat request:
+3. In the client, send the prompt the user picked (and its args). `useChat` streams the SSE answer into `messages`:
 
-```ts
-const prompts = await fetch('/api/mcp-prompts').then((r) => r.json())
+```tsx
+import { useChat } from '@tanstack/ai-react'
+import { fetchServerSentEvents } from '@tanstack/ai-client'
 
-await fetch('/api/chat', {
-  method: 'POST',
-  headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({
-    messages,
+// From your prompt picker + argument form (not hard-coded to prompts[0]).
+const selectedPromptName = userSelectedPrompt.name
+const promptArgs = userSelectedPromptArgs
+
+export function ChatWithPrompt() {
+  const { messages, sendMessage } = useChat({
     threadId: 'thread-1',
-    promptName: prompts[0]?.name,
-    promptArgs: { tone: 'short' },
-  }),
-})
+    connection: fetchServerSentEvents('/api/chat', {
+      body: {
+        promptName: selectedPromptName,
+        promptArgs,
+      },
+    }),
+  })
+
+  return (
+    <button
+      type="button"
+      onClick={() => void sendMessage('Run with the selected prompt')}
+    >
+      Send
+    </button>
+  )
+}
 ```
 
 ## Cap tools from many servers
