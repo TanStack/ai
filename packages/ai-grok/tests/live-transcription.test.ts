@@ -44,6 +44,9 @@ describe('grokLiveTranscription', () => {
     socket.receive(partial('book a', false, false))
     socket.receive(partial('Book a table.', true, false))
     socket.receive(partial('Book a table. For two.', true, true))
+    // The repeat can change punctuation and case.
+    socket.receive(partial('at seven', true, false))
+    socket.receive(partial('At seven. Thanks.', true, true))
     const closing = session.close()
     expect(socket.json()).toEqual([{ type: 'audio.done' }])
     socket.serverClose(1000)
@@ -53,6 +56,9 @@ describe('grokLiveTranscription', () => {
       { type: 'interim', text: 'book a' },
       { type: 'final', text: 'Book a table.' },
       { type: 'final', text: 'For two.' },
+      { type: 'turn-end' },
+      { type: 'final', text: 'at seven' },
+      { type: 'final', text: 'Thanks.' },
       { type: 'turn-end' },
     ])
   })

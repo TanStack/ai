@@ -121,6 +121,26 @@ const session = await transcriptionSession({
 
 A `break` out of the `for await` loop also closes the session.
 
+After `close()` starts, `send()` drops the audio.
+
+Two options set how long `close()` waits:
+
+- `closeGraceMs`: the wait for more text after a `final`. Gemini, and ElevenLabs with VAD, do not mark their last `final`. Default `1000`.
+- `closeHandshakeMs`: the wait for the provider to answer the close. Then the session ends anyway. Default `1000`.
+
+```typescript
+import { transcriptionSession } from '@tanstack/ai'
+import { geminiLiveTranscription } from '@tanstack/ai-gemini'
+
+const session = await transcriptionSession({
+  adapter: geminiLiveTranscription('gemini-3.5-transcribe-live'),
+  audio: { encoding: 'mulaw', sampleRate: 8000 },
+  closeGraceMs: 2000,
+})
+```
+
+If the last words of a call are missing, increase `closeGraceMs`.
+
 ## Write an adapter
 
 An adapter has a name, a model, the audio formats it takes, and a `connect()` function. `connect()` opens the provider connection, and calls `emit()` for each event and `end()` once when the connection is gone:

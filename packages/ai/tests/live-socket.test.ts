@@ -98,14 +98,14 @@ describe('openLiveSocket', () => {
     let ended = 0
     const live = await openLiveSocket({
       socket,
-      connect: { emit: () => {}, end: () => ended++ },
+      connect: { emit: () => {}, end: () => ended++, closeHandshakeMs: 200 },
       onMessage: () => {},
     })
     let done = false
     void live.finish(undefined, 500).then(() => (done = true))
     await vi.advanceTimersByTimeAsync(500) // finish gives up and closes
     expect(done).toBe(false)
-    await vi.advanceTimersByTimeAsync(1000) // no close event: end anyway
+    await vi.advanceTimersByTimeAsync(200) // no close event: end anyway
     expect(done).toBe(true)
     expect(ended).toBe(1)
   })

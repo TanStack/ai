@@ -48,6 +48,10 @@ export interface LiveTranscriptionConnectOptions<
   /** Call once, when the provider connection is gone. It ends the session. */
   end: () => void
   abortSignal?: AbortSignal
+  /** How long `close()` waits for more text after a `final`, in ms. */
+  closeGraceMs?: number
+  /** How long the socket waits for the provider to answer the close, in ms. */
+  closeHandshakeMs?: number
 }
 
 /** An open provider connection. */

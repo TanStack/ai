@@ -148,6 +148,26 @@ describe('transcriptionSession', () => {
     expect(fake.sent).toEqual([])
   })
 
+  it('passes the close timings to the adapter, with 1000 ms defaults', async () => {
+    const fake = fakeAdapter([{ encoding: 'mulaw' }])
+    const audio = { encoding: 'mulaw', sampleRate: 8000 } as const
+    await transcriptionSession({ adapter: fake.adapter, audio })
+    expect(fake.options()).toMatchObject({
+      closeGraceMs: 1000,
+      closeHandshakeMs: 1000,
+    })
+    await transcriptionSession({
+      adapter: fake.adapter,
+      audio,
+      closeGraceMs: 300,
+      closeHandshakeMs: 50,
+    })
+    expect(fake.options()).toMatchObject({
+      closeGraceMs: 300,
+      closeHandshakeMs: 50,
+    })
+  })
+
   it('drops audio sent while close() is still flushing', async () => {
     const fake = fakeAdapter([{ encoding: 'mulaw' }])
     let finish!: () => void

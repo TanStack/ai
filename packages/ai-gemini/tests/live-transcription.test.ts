@@ -120,6 +120,7 @@ describe('geminiLiveTranscription', () => {
         WebSocket: ws.WebSocket,
       }),
       audio: { encoding: 'linear16', sampleRate: 16000 },
+      closeGraceMs: 50,
     })
     const socket = ws.sockets[0]!
     socket.open()

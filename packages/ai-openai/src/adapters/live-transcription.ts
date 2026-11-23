@@ -112,10 +112,10 @@ export function openaiLiveTranscription<
       // Audio sent since the last commit. With none, and no open item, close
       // does not wait.
       let uncommitted = false
-      // The server answered the commit that close() sent.
-      // ponytail: a VAD commit that is in flight when close() starts also sets
-      // this. Its item stays open, so only the close-time item can be missed,
-      // and then only in that small window.
+      // Every commit before close() has its `committed` event. close() sends
+      // two commits. The server answers in order, and the second always
+      // fails with an empty buffer. So that error comes after the answer to
+      // the first commit and to a VAD commit that was in flight.
       let flushed = false
       const closeWhenDone = (socket: LiveSocket) => {
         if (socket.closing && flushed && interim.size === 0) socket.close()
@@ -164,7 +164,6 @@ export function openaiLiveTranscription<
             case 'input_audio_buffer.committed':
               uncommitted = false
               interim.set(m.item_id ?? '', interim.get(m.item_id ?? '') ?? '')
-              if (socket.closing) flushed = true
               break
             case 'conversation.item.input_audio_transcription.delta': {
               const text =
@@ -210,11 +209,11 @@ export function openaiLiveTranscription<
             audio: bytesToBase64(audio),
           })
         },
-        close: () =>
-          live.finish(
-            { type: 'input_audio_buffer.commit' },
-            uncommitted || interim.size > 0 ? 5000 : 0,
-          ),
+        close: () => {
+          const commit = { type: 'input_audio_buffer.commit' }
+          live.sendJson(commit)
+          return live.finish(commit, uncommitted || interim.size > 0 ? 5000 : 0)
+        },
       }
     },
   }

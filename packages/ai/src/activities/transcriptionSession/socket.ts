@@ -18,8 +18,11 @@ export interface LiveSocketOptions {
    * Used instead of opening `url`.
    */
   socket?: WebSocket
-  /** The `emit`, `end` and `abortSignal` from the adapter's connect options. */
-  connect: Pick<LiveTranscriptionConnectOptions, 'emit' | 'end' | 'abortSignal'>
+  /** The adapter's connect options: `emit`, `end`, `abortSignal`, `closeHandshakeMs`. */
+  connect: Pick<
+    LiveTranscriptionConnectOptions,
+    'emit' | 'end' | 'abortSignal' | 'closeHandshakeMs'
+  >
   /** Runs once the socket is open. Send setup messages here. */
   onOpen?: (socket: LiveSocket) => void
   /**
@@ -131,14 +134,13 @@ export function openLiveSocket(
       if (ws.readyState < 2) ws.close(1000)
       // A peer that never answers the close frame never fires `close`. End
       // the session anyway, so `close()` and the event loop do not hang.
-      // ponytail: fixed 1 s wait for the close handshake.
       forced ??= setTimeout(() => {
         if ('terminate' in ws && typeof ws.terminate === 'function')
           ws.terminate()
         if (!ready)
           rejectConnect(new Error('The connection closed before it was ready.'))
         settle()
-      }, 1000)
+      }, options.connect.closeHandshakeMs ?? 1000)
     },
     fail: (error) => {
       if (ready) {

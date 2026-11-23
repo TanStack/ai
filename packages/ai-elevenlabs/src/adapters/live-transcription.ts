@@ -125,14 +125,13 @@ export function elevenlabsLiveTranscription<
 
       let lastInterim = ''
       // With VAD, a commit for an earlier segment can arrive after close()
-      // sent its own. So while closing, close 1 s after a commit, unless new
-      // partial text shows that another segment is still coming.
-      // ponytail: fixed 1 s grace, like Gemini. Make it an option if needed.
+      // sent its own. So while closing, close `closeGraceMs` after a commit,
+      // unless new partial text shows that another segment is still coming.
       const vad = query.get('commit_strategy') === 'vad'
       let grace: ReturnType<typeof setTimeout> | undefined
       const closeSoon = (socket: LiveSocket) => {
         clearTimeout(grace)
-        grace = setTimeout(() => socket.close(), 1000)
+        grace = setTimeout(() => socket.close(), options.closeGraceMs ?? 1000)
       }
       const live = await openLiveSocket({
         url: `${base.replace(/^http/, 'ws')}/v1/speech-to-text/realtime?${query}`,

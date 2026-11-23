@@ -111,10 +111,16 @@ export function grokLiveTranscription<
               return
             }
             // An utterance-final repeats the whole utterance. Emit only the
-            // part that earlier chunk-finals did not.
+            // part that earlier chunk-finals did not. Skip by word count, not
+            // by exact text: the repeat can change punctuation or case.
+            // ponytail: a repeat that merges or splits words shifts the cut
+            // by that many words. Align words if that shows up.
             const rest =
-              m.speech_final && committed && text.startsWith(committed)
-                ? text.slice(committed.length).trim()
+              m.speech_final && committed
+                ? text
+                    .split(/\s+/)
+                    .slice(committed.split(/\s+/).length)
+                    .join(' ')
                 : text
             if (rest) options.emit({ type: 'final', text: rest })
             committed = m.speech_final ? '' : `${committed} ${rest}`.trim()

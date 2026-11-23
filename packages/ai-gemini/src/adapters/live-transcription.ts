@@ -93,14 +93,13 @@ export function geminiLiveTranscription<
       const mimeType = `audio/pcm;rate=${options.audio.sampleRate}`
       // With no audio sent, close does not wait.
       let sentAudio = false
-      // While closing: close 1 s after the last final, unless more interim
-      // text arrives first. Gemini sends no segment ids, so a final cannot
-      // tell if it was the last one.
-      // ponytail: fixed 1 s grace. Make it an option if a provider is slower.
+      // While closing: close `closeGraceMs` after the last final, unless more
+      // interim text arrives first. Gemini sends no segment ids, so a final
+      // cannot tell if it was the last one.
       let grace: ReturnType<typeof setTimeout> | undefined
       const closeSoon = (socket: LiveSocket) => {
         clearTimeout(grace)
-        grace = setTimeout(() => socket.close(), 1000)
+        grace = setTimeout(() => socket.close(), options.closeGraceMs ?? 1000)
       }
 
       const live = await openLiveSocket({

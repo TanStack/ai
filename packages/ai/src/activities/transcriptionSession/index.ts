@@ -40,6 +40,17 @@ export interface TranscriptionSessionOptions<
   modelOptions?: LiveTranscriptionProviderOptions<TAdapter>
   /** Closes the session when it aborts. */
   abortSignal?: AbortSignal
+  /**
+   * How long `close()` waits for more text after a `final`, in ms. Used by
+   * providers that do not mark their last final (Gemini, and ElevenLabs with
+   * VAD). Default 1000.
+   */
+  closeGraceMs?: number
+  /**
+   * How long the socket waits for the provider to answer the close, in ms.
+   * Then the session ends anyway. Default 1000.
+   */
+  closeHandshakeMs?: number
 }
 
 /**
@@ -83,7 +94,15 @@ export async function transcriptionSession<
 >(
   options: TranscriptionSessionOptions<TAdapter>,
 ): Promise<TranscriptionSession> {
-  const { adapter, audio, language, modelOptions, abortSignal } = options
+  const {
+    adapter,
+    audio,
+    language,
+    modelOptions,
+    abortSignal,
+    closeGraceMs,
+    closeHandshakeMs,
+  } = options
   const target = pickAudioFormat(audio, adapter.audioInputs)
   const convert = createAudioConverter(audio, target)
 
@@ -101,6 +120,8 @@ export async function transcriptionSession<
     language,
     modelOptions,
     abortSignal,
+    closeGraceMs: closeGraceMs ?? 1000,
+    closeHandshakeMs: closeHandshakeMs ?? 1000,
     emit: (event) => {
       if (done) return
       queue.push(event)

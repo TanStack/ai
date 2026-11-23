@@ -4,6 +4,16 @@ import { fakeWebSocket } from '@tanstack/ai/testing'
 import { openaiLiveTranscription } from '../src'
 import type { LiveTranscriptionEvent } from '@tanstack/ai'
 
+const completed = (id: string, transcript: string) => ({
+  type: 'conversation.item.input_audio_transcription.completed',
+  item_id: id,
+  transcript,
+})
+const empty = {
+  type: 'error',
+  error: { code: 'input_audio_buffer_commit_empty', message: 'empty' },
+}
+
 describe('openaiLiveTranscription', () => {
   it('configures a transcription session and maps deltas to events', async () => {
     const ws = fakeWebSocket()
@@ -100,15 +110,9 @@ describe('openaiLiveTranscription', () => {
     socket.receive({ type: 'input_audio_buffer.committed', item_id: 'a' })
     const closing = session.close()
     // The buffer is empty: VAD committed it already. Item a is in progress.
-    socket.receive({
-      type: 'error',
-      error: { code: 'input_audio_buffer_commit_empty', message: 'empty' },
-    })
-    socket.receive({
-      type: 'conversation.item.input_audio_transcription.completed',
-      item_id: 'a',
-      transcript: 'Last words.',
-    })
+    socket.receive(empty)
+    socket.receive(empty)
+    socket.receive(completed('a', 'Last words.'))
     await closing
     await reading
     expect(events).toEqual([
@@ -134,11 +138,6 @@ describe('openaiLiveTranscription', () => {
     const reading = (async () => {
       for await (const e of session) events.push(e)
     })()
-    const completed = (id: string, transcript: string) => ({
-      type: 'conversation.item.input_audio_transcription.completed',
-      item_id: id,
-      transcript,
-    })
 
     session.send(new Uint8Array([0xff]))
     socket.receive({ type: 'input_audio_buffer.committed', item_id: 'a' })
@@ -148,12 +147,53 @@ describe('openaiLiveTranscription', () => {
     // Without the wait, the socket closes here and B is lost.
     await new Promise((r) => setTimeout(r, 10))
     socket.receive({ type: 'input_audio_buffer.committed', item_id: 'b' })
+    socket.receive(empty) // the second commit
     socket.receive(completed('b', 'Second.'))
     await closing
     await reading
     expect(events.filter((e) => e.type === 'final')).toEqual([
       { type: 'final', text: 'First.' },
       { type: 'final', text: 'Second.' },
+    ])
+  })
+
+  it('waits for its own commit when a VAD commit is in flight at close', async () => {
+    const ws = fakeWebSocket()
+    const opening = transcriptionSession({
+      adapter: openaiLiveTranscription('gpt-transcribe', {
+        apiKey: 'k',
+        WebSocket: ws.WebSocket,
+      }),
+      audio: { encoding: 'mulaw', sampleRate: 8000 },
+    })
+    const socket = ws.sockets[0]!
+    socket.open()
+    socket.receive({ type: 'session.updated' })
+    const session = await opening
+    const events: Array<LiveTranscriptionEvent> = []
+    const reading = (async () => {
+      for await (const e of session) events.push(e)
+    })()
+
+    session.send(new Uint8Array([0xff]))
+    const closing = session.close()
+    expect(socket.json().slice(-2)).toEqual([
+      { type: 'input_audio_buffer.commit' },
+      { type: 'input_audio_buffer.commit' },
+    ])
+    // VAD committed x just before close. Its transcript is in before the
+    // answer to close's commit.
+    socket.receive({ type: 'input_audio_buffer.committed', item_id: 'x' })
+    socket.receive(completed('x', 'First.'))
+    await new Promise((r) => setTimeout(r, 10))
+    socket.receive({ type: 'input_audio_buffer.committed', item_id: 'y' })
+    socket.receive(empty) // the second commit
+    socket.receive(completed('y', 'Last.'))
+    await closing
+    await reading
+    expect(events.filter((e) => e.type === 'final')).toEqual([
+      { type: 'final', text: 'First.' },
+      { type: 'final', text: 'Last.' },
     ])
   })
 
