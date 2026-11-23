@@ -23,6 +23,8 @@ export interface AcpToolCallUpdate {
   status?: AcpToolCallStatus | null
   rawInput?: unknown
   rawOutput?: unknown
+  /** The files that the tool call reads or changes. */
+  locations?: Array<{ path: string; line?: number | null }> | null
   content?: Array<{
     type: string
     content?: AcpContentBlock

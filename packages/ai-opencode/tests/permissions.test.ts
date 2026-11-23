@@ -5,6 +5,7 @@ import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { opencodeText } from '../src/index'
 import {
   matchBridgedToolName,
+  resolveInteractivePermission,
   resolvePermission,
 } from '../src/process/permissions'
 import type { AdapterYieldChunk, CapabilityContext } from '@tanstack/ai'
@@ -220,6 +221,25 @@ async function runOpencode(approvals?: ReadonlyMap<string, boolean>) {
   return chunks
 }
 
+describe('resolveInteractivePermission', () => {
+  it('keys a decision to one action, not to the whole permission type', () => {
+    const approvals = new Map([['opencode:tool:bash:pnpm install', true]])
+    const decide = (title: string) =>
+      resolveInteractivePermission(
+        request({ title }),
+        'default',
+        undefined,
+        approvals,
+      )
+    expect(decide('pnpm install')).toEqual({ response: 'once' })
+    expect(decide('rm -rf build')).toEqual({
+      response: 'reject',
+      approvalId: 'opencode:tool:bash:rm -rf build',
+      title: 'rm -rf build',
+    })
+  })
+})
+
 describe('opencode sandbox.approval activity', () => {
   it('sends a pending row right after the approval-requested event', async () => {
     const chunks = await runOpencode()
@@ -230,10 +250,10 @@ describe('opencode sandbox.approval activity', () => {
     expect(requested).toBeGreaterThan(-1)
     expect(chunks[requested + 1]).toEqual({
       type: 'ACTIVITY_SNAPSHOT',
-      messageId: 'sandbox.approval:opencode:tool:bash',
+      messageId: 'sandbox.approval:opencode:tool:bash:Run rm -rf build',
       activityType: 'sandbox.approval',
       content: {
-        approvalId: 'opencode:tool:bash',
+        approvalId: 'opencode:tool:bash:Run rm -rf build',
         title: 'Run rm -rf build',
         status: 'pending',
         detail: { provider: 'opencode' },
@@ -245,12 +265,14 @@ describe('opencode sandbox.approval activity', () => {
   })
 
   it('sets the row to denied right after RUN_STARTED on the next run', async () => {
-    const chunks = await runOpencode(new Map([['opencode:tool:bash', false]]))
+    const chunks = await runOpencode(
+      new Map([['opencode:tool:bash:Run rm -rf build', false]]),
+    )
     expect(chunks.slice(0, 2)).toEqual([
       expect.objectContaining({ type: 'RUN_STARTED' }),
       {
         type: 'ACTIVITY_DELTA',
-        messageId: 'sandbox.approval:opencode:tool:bash',
+        messageId: 'sandbox.approval:opencode:tool:bash:Run rm -rf build',
         activityType: 'sandbox.approval',
         patch: [{ op: 'replace', path: '/status', value: 'denied' }],
         timestamp: expect.any(Number),

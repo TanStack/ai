@@ -261,6 +261,12 @@ export function Approvals() {
 
 When the agent tries an `ask` action, the list shows `Approve Bash: pnpm install` with Allow and Deny buttons. Click Allow. The line changes to `Approve Bash: pnpm install (granted)`, and the next run starts.
 
+An answer applies to one action. What counts as the same action depends on the adapter:
+
+- **Claude Code**: the same command. For any other tool, for example `Write`, the same tool.
+- **OpenCode**: the same permission type and title. The title of a `bash` request is its command.
+- **ACP**: the same kind, title, and files of the tool call.
+
 Things to know:
 
 - **A pending prompt comes back after a reload.** Add [chat persistence](../persistence/chat-persistence) with an `activities` store. After a reload, the user can still answer the prompt.

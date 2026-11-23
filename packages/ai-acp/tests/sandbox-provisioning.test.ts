@@ -251,14 +251,14 @@ describe('permission modes (the acpCompatible guardrail surface)', () => {
       (c) => c.type === EventType.CUSTOM && c.name === 'approval-requested',
     )
     expect(chunks[requested]).toMatchObject({
-      value: { approvalId: 'probe:tool:rm -rf /', title: 'rm -rf /' },
+      value: { approvalId: 'probe:tool:execute:rm -rf /', title: 'rm -rf /' },
     })
     expect(chunks[requested + 1]).toEqual({
       type: 'ACTIVITY_SNAPSHOT',
-      messageId: 'sandbox.approval:probe:tool:rm -rf /',
+      messageId: 'sandbox.approval:probe:tool:execute:rm -rf /',
       activityType: 'sandbox.approval',
       content: {
-        approvalId: 'probe:tool:rm -rf /',
+        approvalId: 'probe:tool:execute:rm -rf /',
         title: 'rm -rf /',
         status: 'pending',
         detail: { provider: 'probe' },
@@ -273,13 +273,13 @@ describe('permission modes (the acpCompatible guardrail surface)', () => {
     const chunks = await runPermission({
       permissions: 'interactive',
       permissionMode: 'default',
-      approvals: new Map([['probe:tool:rm -rf /', true]]),
+      approvals: new Map([['probe:tool:execute:rm -rf /', true]]),
     })
     expect(chunks.slice(0, 2)).toEqual([
       expect.objectContaining({ type: 'RUN_STARTED' }),
       {
         type: 'ACTIVITY_DELTA',
-        messageId: 'sandbox.approval:probe:tool:rm -rf /',
+        messageId: 'sandbox.approval:probe:tool:execute:rm -rf /',
         activityType: 'sandbox.approval',
         patch: [{ op: 'replace', path: '/status', value: 'granted' }],
         timestamp: expect.any(Number),
