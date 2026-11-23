@@ -15,6 +15,7 @@ import {
 import type {
   ActivitySnapshotEvent,
   AnyTextAdapter,
+  ModelMessage,
   StreamChunk,
 } from '@tanstack/ai'
 import type { SandboxHandle, SandboxProvider } from '@tanstack/ai-sandbox'
@@ -33,7 +34,9 @@ import type { SandboxHandle, SandboxProvider } from '@tanstack/ai-sandbox'
  * `withPersistence` stores the user message and the `sandbox.status` activity
  * row of each run. The response returns the rows as `storedActivities`, and
  * the thread as a reload shows it as `reloadOrder`. With `failBoot: true`,
- * the sandbox start throws, and the response still returns both.
+ * the sandbox start throws, and the response still returns both. With
+ * `toolCall: true`, the run sends a tool call like a harness adapter.
+ * `history` is the client's copy of the earlier turns.
  *
  * Provider-free: fixed AG-UI stream + fake sandbox provider (exempt from aimock).
  */
@@ -130,9 +133,46 @@ const failingSandbox = defineSandbox({
   fileEvents: false,
 })
 
-function fixedRun(threadId: string, runId: string): AsyncIterable<StreamChunk> {
+/**
+ * One run of the fixed adapter. With `toolCall`, it sends a tool call and its
+ * result first, like a harness adapter: no text, so the tool call message has
+ * no message id. The call id is `call-<runId>`.
+ */
+function fixedRun(
+  threadId: string,
+  runId: string,
+  toolCall: boolean,
+): AsyncIterable<StreamChunk> {
   return (async function* () {
     yield { type: EventType.RUN_STARTED, threadId, runId, timestamp: 1 }
+    if (toolCall) {
+      const toolCallId = `call-${runId}`
+      yield {
+        type: EventType.TOOL_CALL_START,
+        toolCallId,
+        toolCallName: 'bash',
+        timestamp: 1,
+      }
+      yield {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId,
+        delta: '{}',
+        timestamp: 1,
+      }
+      yield {
+        type: EventType.TOOL_CALL_END,
+        toolCallId,
+        toolCallName: 'bash',
+        timestamp: 1,
+      }
+      yield {
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId,
+        messageId: `result-${runId}`,
+        content: 'done',
+        timestamp: 1,
+      }
+    }
     yield {
       type: EventType.RUN_FINISHED,
       threadId,
@@ -143,15 +183,17 @@ function fixedRun(threadId: string, runId: string): AsyncIterable<StreamChunk> {
   })()
 }
 
-const adapter: AnyTextAdapter = {
-  kind: 'text',
-  name: 'fixed',
-  model: 'test-model',
-  '~types': {},
-  chatStream: ({ runId, threadId }: { runId: string; threadId: string }) =>
-    fixedRun(threadId, runId),
-  structuredOutput: () => Promise.resolve({ data: {}, rawText: '{}' }),
-} as unknown as AnyTextAdapter
+function fixedAdapter(toolCall: boolean): AnyTextAdapter {
+  return {
+    kind: 'text',
+    name: 'fixed',
+    model: 'test-model',
+    '~types': {},
+    chatStream: ({ runId, threadId }: { runId: string; threadId: string }) =>
+      fixedRun(threadId, runId, toolCall),
+    structuredOutput: () => Promise.resolve({ data: {}, rawText: '{}' }),
+  } as unknown as AnyTextAdapter
+}
 
 function stringField(body: unknown, key: string): string | undefined {
   if (typeof body !== 'object' || body === null || !(key in body)) {
@@ -173,11 +215,28 @@ export const Route = createFileRoute('/api/sandbox-durability')({
           body !== null &&
           'failBoot' in body &&
           body.failBoot === true
+        const toolCall =
+          typeof body === 'object' &&
+          body !== null &&
+          'toolCall' in body &&
+          body.toolCall === true
+        // The client's copy of the earlier turns, sent before the new message.
+        const history =
+          typeof body === 'object' &&
+          body !== null &&
+          'history' in body &&
+          Array.isArray(body.history)
+            ? (body.history as Array<ModelMessage>)
+            : []
 
         const stream = chat({
-          adapter,
-          // Like a client with history paging: only the new message.
-          messages: [{ id: `user-${runId}`, role: 'user', content: 'go' }],
+          adapter: fixedAdapter(toolCall),
+          // Like a client with history paging: only the new message, after
+          // any `history`.
+          messages: [
+            ...history,
+            { id: `user-${runId}`, role: 'user', content: 'go' },
+          ],
           runId,
           threadId,
           middleware: [

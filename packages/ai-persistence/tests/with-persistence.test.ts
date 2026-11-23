@@ -1912,6 +1912,91 @@ describe('withPersistence (state-only)', () => {
       ])
     })
 
+    // A harness adapter sends a tool call with no text. The store keeps that
+    // assistant message with no id, and the client gives it its own id. The
+    // next request has the same turn, so it is not a reload of that turn.
+    it('keeps the rows of a tool call turn that the client sends with its own ids', async () => {
+      const persistence = memoryPersistence()
+      // What run 1 stored: the tool call turn has no ids.
+      await persistence.stores.messages!.saveThread('t1', [
+        { id: 'u1', role: 'user', content: 'run it' },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'bash', arguments: '{}' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call-1', content: 'done' },
+      ])
+      await persistence.stores.activities.saveActivities('t1', [
+        {
+          id: 'sandbox-r1',
+          activityType: 'sandbox.status',
+          content: sandboxStarting,
+          index: 1,
+        },
+      ])
+
+      const { adapter } = mockAdapter([
+        [ev.runStarted('r2'), ev.text('hello'), ev.runFinished('r2')],
+      ])
+      await collect(
+        chat({
+          adapter,
+          // Like `ChatClient`: its own copy of the tool call turn.
+          messages: [
+            { id: 'u1', role: 'user', content: 'run it' },
+            {
+              id: 'client-a1',
+              role: 'assistant',
+              content: null,
+              toolCalls: [
+                {
+                  id: 'call-1',
+                  type: 'function',
+                  function: { name: 'bash', arguments: '{}' },
+                },
+              ],
+            },
+            { role: 'tool', toolCallId: 'call-1', content: 'done' },
+            { id: 'u2', role: 'user', content: 'next' },
+          ],
+          runId: 'r2',
+          threadId: 't1',
+          middleware: [
+            withPersistence(persistence),
+            {
+              name: 'sandbox',
+              setup: (ctx) => {
+                ctx.emitActivity(
+                  sandboxStatusActivity,
+                  'sandbox-r2',
+                  sandboxStarting,
+                )
+              },
+            },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const reloaded = (await (
+        await reconstructChat(
+          persistence,
+          new Request('http://example.test/api/chat?threadId=t1'),
+        )
+      ).json()) as { messages: Array<{ id: string; role: string }> }
+      expect(
+        reloaded.messages.map((message) =>
+          message.role === 'assistant' ? 'answer' : message.id,
+        ),
+      ).toEqual(['u1', 'sandbox-r1', 'answer', 'u2', 'sandbox-r2', 'answer'])
+    })
+
     it('keeps it when the run fails in setup', async () => {
       const persistence = await seeded()
       await expect(

@@ -39,7 +39,11 @@ async function postRun(
   request: APIRequestContext,
   threadId: string,
   runId: string,
-  options: { failBoot?: boolean } = {},
+  options: {
+    failBoot?: boolean
+    toolCall?: boolean
+    history?: Array<Record<string, unknown>>
+  } = {},
 ) {
   const response = await request.post('/api/sandbox-durability', {
     data: { threadId, runId, ...options },
@@ -141,6 +145,43 @@ test.describe('sandbox instance durability (server-side resume)', () => {
     expect(second.reloadOrder).toEqual([
       'user-run-1',
       'sandbox-run-1',
+      'user-run-2',
+      'sandbox-run-2',
+    ])
+  })
+
+  // A harness adapter sends a tool call with no text, so the store keeps that
+  // message with no id. The client sends the turn again under its own ids.
+  // That is not a reload of the turn, so its row must stay.
+  test('a tool call turn keeps its row when the client sends its own ids', async ({
+    request,
+  }) => {
+    const threadId = `sandbox-tool-call-${Date.now()}`
+
+    await postRun(request, threadId, 'run-1', { toolCall: true })
+    const second = await postRun(request, threadId, 'run-2', {
+      history: [
+        { id: 'user-run-1', role: 'user', content: 'go' },
+        {
+          id: 'client-a1',
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call-run-1',
+              type: 'function',
+              function: { name: 'bash', arguments: '{}' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call-run-1', content: 'done' },
+      ],
+    })
+
+    expect(second.reloadOrder).toEqual([
+      'user-run-1',
+      'sandbox-run-1',
+      'client-a1',
       'user-run-2',
       'sandbox-run-2',
     ])

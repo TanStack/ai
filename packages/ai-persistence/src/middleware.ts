@@ -477,6 +477,38 @@ function keptActivities(
 }
 
 /**
+ * How many stored messages the incoming history still has, for the activity
+ * rows. It starts at `storedCutoff`. A stored message after that still counts
+ * when the incoming history has its tool call or its tool result: the client
+ * and the store can give that message different ids, or none. Without this,
+ * a turn that ends with a tool call looks like a reload, and its rows go.
+ */
+function activityCutoff(
+  stored: ReadonlyArray<ModelMessage>,
+  incoming: ReadonlyArray<ModelMessage>,
+): number {
+  const callIds = new Set(
+    incoming.flatMap((message) => [
+      ...(message.toolCalls ?? []).map((call) => call.id),
+      ...(message.role === 'tool' && message.toolCallId !== undefined
+        ? [message.toolCallId]
+        : []),
+    ]),
+  )
+  const hasCall = (message: ModelMessage) =>
+    (message.role === 'tool' &&
+      message.toolCallId !== undefined &&
+      callIds.has(message.toolCallId)) ||
+    (message.toolCalls ?? []).some((call) => callIds.has(call.id))
+  let cutoff = storedCutoff(stored, incoming)
+  for (const message of stored.slice(cutoff)) {
+    if (!hasCall(message)) break
+    cutoff++
+  }
+  return cutoff
+}
+
+/**
  * Give the early rows of this run their place after the stored thread. A
  * client sends no activity rows, and `chat()` places a row that comes before
  * `onConfig` from the request only. So the `index` of an early row is too
@@ -2662,7 +2694,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           await messageStore.saveThread(ctx.threadId, list)
           // This save can cut a reloaded turn before onConfig sees it, so cut
           // that turn's activity rows here too.
-          const cutoff = storedCutoff(stored, ctx.messages)
+          const cutoff = activityCutoff(stored, ctx.messages)
           if (activityStore && cutoff < stored.length) {
             await activityStore.saveActivities(
               ctx.threadId,
@@ -2862,7 +2894,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
                   keptActivities(
                     storedRows,
                     stored,
-                    storedCutoff(stored, incoming),
+                    activityCutoff(stored, incoming),
                     state?.earlyActivityIds,
                   ),
                   current,
