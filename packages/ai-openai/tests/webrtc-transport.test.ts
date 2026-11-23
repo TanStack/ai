@@ -254,6 +254,31 @@ describe('createOpenAIWebRTCTransport', () => {
     expect(browser.track.stop).toHaveBeenCalled()
   })
 
+  it('keeps the microphone off when stop comes during the permission prompt', async () => {
+    const browser = stubBrowser()
+    let grantMicrophone = () => {}
+    browser.getUserMedia.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          grantMicrophone = () => resolve(browser.stream)
+        }),
+    )
+    const { pending } = connect({ autoCapture: false })
+    const transport = await openTransport(browser, pending)
+
+    const starting = transport.startAudioCapture()
+    await vi.waitFor(() => expect(browser.getUserMedia).toHaveBeenCalled())
+    transport.stopAudioCapture()
+    grantMicrophone()
+    await starting
+
+    expect(browser.sender.replaceTrack).toHaveBeenCalledWith(browser.track)
+    expect(browser.track.enabled).toBe(false)
+
+    await transport.startAudioCapture()
+    expect(browser.track.enabled).toBe(true)
+  })
+
   it('rejects startAudioCapture when the late microphone request fails', async () => {
     const browser = stubBrowser()
     browser.getUserMedia.mockRejectedValue(new Error('Permission denied'))

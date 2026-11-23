@@ -42,6 +42,9 @@ export async function createOpenAIWebRTCTransport(options: {
   let inputSource: MediaStreamAudioSourceNode | null = null
   let outputSource: MediaStreamAudioSourceNode | null = null
   let localStream: MediaStream | null = null
+  // The last capture state that start or stop asked for. A late microphone
+  // track gets this state, so a stop during the permission prompt wins.
+  let wantsCapture = true
   // With autoCapture false: the sender of the audio transceiver that has no
   // track yet, and the microphone request of startAudioCapture() in progress.
   let audioSender: RTCRtpSender | null = null
@@ -194,6 +197,7 @@ export async function createOpenAIWebRTCTransport(options: {
     if (isClosedLocally) return stopTracks(stream)
     // Set it first, so close() stops it from here on.
     localStream = stream
+    setTracksEnabled(stream, wantsCapture)
     try {
       await sender.replaceTrack(stream.getAudioTracks()[0] ?? null)
     } catch (error) {
@@ -201,6 +205,8 @@ export async function createOpenAIWebRTCTransport(options: {
       localStream = null
       throw error
     }
+    // A stop can come while replaceTrack() runs.
+    setTracksEnabled(stream, wantsCapture)
     if (!isClosedLocally) startInputMeter(stream)
   }
 
@@ -352,6 +358,7 @@ export async function createOpenAIWebRTCTransport(options: {
     // enables the microphone tracks again. Rejects when microphone access
     // fails.
     async startAudioCapture() {
+      wantsCapture = true
       const sender = audioSender
       const needsMicrophone =
         sender !== null && !localStream && !isClosedLocally
@@ -361,20 +368,14 @@ export async function createOpenAIWebRTCTransport(options: {
         })
         await microphoneRequest
       }
-      if (localStream) {
-        for (const track of localStream.getAudioTracks()) {
-          track.enabled = true
-        }
-      }
+      // A stop during the wait keeps the tracks off.
+      if (localStream) setTracksEnabled(localStream, wantsCapture)
     },
 
     // Disable tracks rather than stopping them to allow re-enabling
     stopAudioCapture() {
-      if (localStream) {
-        for (const track of localStream.getAudioTracks()) {
-          track.enabled = false
-        }
-      }
+      wantsCapture = false
+      if (localStream) setTracksEnabled(localStream, false)
     },
 
     getAudioVisualization(): AudioVisualization {
@@ -493,6 +494,10 @@ async function requestMicrophone(abortSignal?: AbortSignal) {
       `Microphone access required for realtime voice: ${error instanceof Error ? error.message : error}`,
     )
   }
+}
+
+function setTracksEnabled(stream: MediaStream, enabled: boolean) {
+  for (const track of stream.getAudioTracks()) track.enabled = enabled
 }
 
 function stopTracks(stream: MediaStream) {
