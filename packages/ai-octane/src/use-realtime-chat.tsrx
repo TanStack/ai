@@ -90,15 +90,31 @@ export function useRealtimeChat(
       // OCTANE DIVERGENCE: upstream captures the first transport callbacks.
       // Ref-backed delegates keep the client stable while reconnects and token
       // refreshes observe the latest render's authentication and adapter.
-      getToken: () => optionsRef.current.getToken(),
-      adapter: {
-        get provider() {
-          return optionsRef.current.adapter.provider
-        },
-        connect(token, tools) {
-          return optionsRef.current.adapter.connect(token, tools)
-        },
-      },
+      // A relay adapter takes `createSession`. A token adapter takes `getToken`.
+      // The first render picks the adapter kind. If a later render gives the
+      // other kind, the client keeps the first render's values.
+      ...(initial.createSession
+        ? {
+            adapter: initial.adapter,
+            createSession: (request) =>
+              (optionsRef.current.createSession ?? initial.createSession)(
+                request,
+              ),
+          }
+        : {
+            getToken: () =>
+              (optionsRef.current.getToken ?? initial.getToken)(),
+            adapter: {
+              get provider() {
+                return optionsRef.current.adapter.provider
+              },
+              connect(token, tools) {
+                const latest = optionsRef.current.adapter
+                const adapter = 'kind' in latest ? initial.adapter : latest
+                return adapter.connect(token, tools)
+              },
+            },
+          }),
       ...(initial.tools !== undefined && { tools: initial.tools }),
       ...(initial.instructions !== undefined && {
         instructions: initial.instructions,

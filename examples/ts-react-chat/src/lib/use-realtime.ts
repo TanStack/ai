@@ -1,19 +1,26 @@
 import { createServerFn } from '@tanstack/react-start'
-import { realtimeToken } from '@tanstack/ai'
+import { realtimeSession, realtimeToken } from '@tanstack/ai'
 import { useRealtimeChat } from '@tanstack/ai-react'
-import { openaiRealtime, openaiRealtimeToken } from '@tanstack/ai-openai'
+import {
+  openaiLive,
+  openaiLiveSession,
+  openaiRealtime,
+  openaiRealtimeToken,
+} from '@tanstack/ai-openai'
 import {
   elevenlabsRealtime,
   elevenlabsRealtimeToken,
 } from '@tanstack/ai-elevenlabs'
 import { geminiRealtime, geminiRealtimeToken } from '@tanstack/ai-gemini'
 import { grokRealtime, grokRealtimeToken } from '@tanstack/ai-grok'
+import type { RealtimeSessionRequest } from '@tanstack/ai'
 import { realtimeClientTools } from '@/lib/realtime-tools'
 
-type Provider = 'openai' | 'elevenlabs' | 'gemini' | 'grok'
+type TokenProvider = 'openai' | 'elevenlabs' | 'gemini' | 'grok'
+export type Provider = TokenProvider | 'openai-live'
 
 const getRealtimeTokenFn = createServerFn({ method: 'POST' })
-  .validator((data: { provider: Provider; language?: string }) => {
+  .validator((data: { provider: TokenProvider; language?: string }) => {
     if (!data.provider) throw new Error('Provider is required')
     return data
   })
@@ -49,7 +56,55 @@ const getRealtimeTokenFn = createServerFn({ method: 'POST' })
     throw new Error(`Unknown provider: ${data.provider}`)
   })
 
-function adapterForProvider(provider: Provider) {
+// GPT-Live has no token. The browser sends its SDP offer here, and the
+// server sends it to OpenAI. realtimeSession() checks the body.
+const createLiveSessionFn = createServerFn({ method: 'POST' })
+  .validator((data: RealtimeSessionRequest) => data)
+  .handler(({ data }) =>
+    realtimeSession({
+      adapter: openaiLiveSession({
+        // The tools run through delegation, so the server must set it.
+        delegation: { model: 'gpt-6.1-terra' },
+      }),
+      request: data,
+    }),
+  )
+
+function connectionForProvider(provider: Provider, language?: string) {
+  if (provider === 'openai-live') {
+    return {
+      adapter: openaiLive(),
+      createSession: (request: RealtimeSessionRequest) =>
+        createLiveSessionFn({ data: request }),
+    }
+  }
+  return {
+    adapter: adapterForProvider(provider),
+    getToken: () =>
+      getRealtimeTokenFn({
+        data: {
+          provider,
+          ...(provider === 'elevenlabs' && language ? { language } : {}),
+        },
+      }),
+  }
+}
+
+function defaultVoice(provider: Provider) {
+  switch (provider) {
+    case 'grok':
+      return 'eve'
+    case 'gemini':
+      return 'Puck'
+    case 'openai-live':
+      return 'marin'
+    case 'openai':
+    case 'elevenlabs':
+      return 'alloy'
+  }
+}
+
+function adapterForProvider(provider: TokenProvider) {
   switch (provider) {
     case 'openai':
       return openaiRealtime()
@@ -80,14 +135,7 @@ export function useRealtime({
   semanticEagerness?: 'low' | 'medium' | 'high'
 }) {
   return useRealtimeChat({
-    getToken: () =>
-      getRealtimeTokenFn({
-        data: {
-          provider,
-          ...(provider === 'elevenlabs' && language ? { language } : {}),
-        },
-      }),
-    adapter: adapterForProvider(provider),
+    ...connectionForProvider(provider, language),
     instructions: `You are a helpful, friendly voice assistant with access to several tools.
 
 You can:
@@ -100,9 +148,7 @@ Keep your responses concise and conversational since this is a voice interface.
 When using tools, briefly explain what you're doing and then share the results naturally.
 If the user sends an image, describe what you see and answer any questions about it.
 Be friendly and engaging!`,
-    voice:
-      voice ??
-      (provider === 'grok' ? 'eve' : provider === 'gemini' ? 'Puck' : 'alloy'),
+    voice: voice ?? defaultVoice(provider),
     tools: realtimeClientTools,
     outputModalities,
     temperature,

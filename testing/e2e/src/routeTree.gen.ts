@@ -139,6 +139,7 @@ import { Route as ApiJsonSchemaToolInputRouteImport } from './routes/api.json-sc
 import { Route as ApiJsonTransportRouteImport } from './routes/api.json-transport'
 import { Route as ApiKeyedAdapterRouteImport } from './routes/api.keyed-adapter'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
+import { Route as ApiLiveSessionRouteImport } from './routes/api.live-session'
 import { Route as ApiLoneSurrogatesWireRouteImport } from './routes/api.lone-surrogates-wire'
 import { Route as ApiLoopStoppedRouteImport } from './routes/api.loop-stopped'
 import { Route as ApiMaxToolCallsWireRouteImport } from './routes/api.max-tool-calls-wire'
@@ -922,6 +923,11 @@ const ApiLazyToolsWireRoute = ApiLazyToolsWireRouteImport.update({
   path: '/api/lazy-tools-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLiveSessionRoute = ApiLiveSessionRouteImport.update({
+  id: '/api/live-session',
+  path: '/api/live-session',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLoneSurrogatesWireRoute = ApiLoneSurrogatesWireRouteImport.update({
   id: '/api/lone-surrogates-wire',
   path: '/api/lone-surrogates-wire',
@@ -1601,6 +1607,7 @@ export interface FileRoutesByFullPath {
   '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
+  '/api/live-session': typeof ApiLiveSessionRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/loop-stopped': typeof ApiLoopStoppedRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
@@ -1837,6 +1844,7 @@ export interface FileRoutesByTo {
   '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
+  '/api/live-session': typeof ApiLiveSessionRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/loop-stopped': typeof ApiLoopStoppedRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
@@ -2074,6 +2082,7 @@ export interface FileRoutesById {
   '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
+  '/api/live-session': typeof ApiLiveSessionRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/loop-stopped': typeof ApiLoopStoppedRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
@@ -2312,6 +2321,7 @@ export interface FileRouteTypes {
     | '/api/json-transport'
     | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
+    | '/api/live-session'
     | '/api/lone-surrogates-wire'
     | '/api/loop-stopped'
     | '/api/max-tool-calls-wire'
@@ -2548,6 +2558,7 @@ export interface FileRouteTypes {
     | '/api/json-transport'
     | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
+    | '/api/live-session'
     | '/api/lone-surrogates-wire'
     | '/api/loop-stopped'
     | '/api/max-tool-calls-wire'
@@ -2784,6 +2795,7 @@ export interface FileRouteTypes {
     | '/api/json-transport'
     | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
+    | '/api/live-session'
     | '/api/lone-surrogates-wire'
     | '/api/loop-stopped'
     | '/api/max-tool-calls-wire'
@@ -3021,6 +3033,7 @@ export interface RootRouteChildren {
   ApiJsonTransportRoute: typeof ApiJsonTransportRoute
   ApiKeyedAdapterRoute: typeof ApiKeyedAdapterRoute
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
+  ApiLiveSessionRoute: typeof ApiLiveSessionRoute
   ApiLoneSurrogatesWireRoute: typeof ApiLoneSurrogatesWireRoute
   ApiLoopStoppedRoute: typeof ApiLoopStoppedRoute
   ApiMaxToolCallsWireRoute: typeof ApiMaxToolCallsWireRoute
@@ -4035,6 +4048,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLazyToolsWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/live-session': {
+      id: '/api/live-session'
+      path: '/api/live-session'
+      fullPath: '/api/live-session'
+      preLoaderRoute: typeof ApiLiveSessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/lone-surrogates-wire': {
       id: '/api/lone-surrogates-wire'
       path: '/api/lone-surrogates-wire'
@@ -4959,6 +4979,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiJsonTransportRoute: ApiJsonTransportRoute,
   ApiKeyedAdapterRoute: ApiKeyedAdapterRoute,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
+  ApiLiveSessionRoute: ApiLiveSessionRoute,
   ApiLoneSurrogatesWireRoute: ApiLoneSurrogatesWireRoute,
   ApiLoopStoppedRoute: ApiLoopStoppedRoute,
   ApiMaxToolCallsWireRoute: ApiMaxToolCallsWireRoute,

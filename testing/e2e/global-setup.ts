@@ -51,6 +51,8 @@ export default async function globalSetup() {
   mock.mount('/v1/speech-to-text', elevenLabsSTTMount())
   mock.mount('/tts/bytes', cartesiaTTSMount())
   mock.mount('/stt', cartesiaSTTMount())
+  // aimock has no OpenAI GPT-Live route (POST /v1/live/sessions).
+  mock.mount('/v1/live/sessions', openaiLiveMount())
 
   // Gemini TTS hits the standard Gemini generateContent endpoint
   // (POST /v1beta/models/{model}:generateContent) with
@@ -2435,6 +2437,40 @@ function evaluateHttpStatusMount(): Mountable {
       res.statusCode = status
       res.setHeader('Content-Type', 'application/json')
       res.end(JSON.stringify({ error: 'rejected' }))
+      return true
+    },
+  }
+}
+
+/**
+ * Answers `POST /v1/live/sessions` with a fixed GPT-Live SDP answer and keeps
+ * each request body. `GET /v1/live/sessions/requests` returns the bodies.
+ * The adapter cannot send an `X-Test-Id` header, so the spec finds its body
+ * by the SDP offer that it sent.
+ */
+function openaiLiveMount(): Mountable {
+  const bodies: Array<Record<string, unknown> | undefined> = []
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method === 'GET' && pathname === '/requests') {
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify(bodies))
+        return true
+      }
+      if (req.method !== 'POST' || pathname !== '/') return false
+      bodies.push(await readJsonRequestBody(req))
+      res.statusCode = 201
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          session: { id: 'sess_e2e' },
+          transport: { type: 'webrtc', sdp: 'v=0 answer-e2e' },
+        }),
+      )
       return true
     },
   }

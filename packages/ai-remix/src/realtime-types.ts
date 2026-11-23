@@ -1,31 +1,19 @@
 import type {
   AnyClientTool,
-  RealtimeAdapter,
   RealtimeMessage,
   RealtimeMode,
   RealtimeSessionConfig,
   RealtimeStatus,
-  RealtimeToken,
   UsageInfo,
 } from '@tanstack/ai'
+import type { RealtimeClientOptions } from '@tanstack/ai-client'
 
 /**
- * Options for the createRealtimeChat helper.
+ * Options for the createRealtimeChat helper that do not depend on the adapter kind.
  *
  * Called in Remix setup with Handle. Handle is not part of this type.
  */
-export interface CreateRealtimeChatOptions {
-  /**
-   * Function to fetch a realtime token from the server.
-   * Called on connect and when token needs refresh.
-   */
-  getToken: () => Promise<RealtimeToken>
-
-  /**
-   * The realtime adapter to use (e.g., openaiRealtime())
-   */
-  adapter: RealtimeAdapter
-
+interface CreateRealtimeChatBaseOptions {
   /**
    * Client-side tools with execution logic
    */
@@ -87,6 +75,28 @@ export interface CreateRealtimeChatOptions {
   onGoAway?: (timeLeft?: string) => void
   onStatusChange?: (status: RealtimeStatus) => void
 }
+
+/**
+ * The adapter and the function that starts its session, as in
+ * `RealtimeClientOptions`. A token adapter takes `getToken`. A relay adapter
+ * takes `createSession`.
+ */
+type RealtimeConnectionOptions = RealtimeClientOptions extends infer Options
+  ? Options extends RealtimeClientOptions
+    ? Pick<Options, 'adapter' | 'getToken' | 'createSession'>
+    : never
+  : never
+
+/**
+ * Options for the createRealtimeChat helper.
+ *
+ * Give a token adapter (e.g. `openaiRealtime()`) with `getToken`, or a relay
+ * adapter (e.g. `openaiLive()`) with `createSession`. `createSession` sends
+ * the SDP offer and the client config to your server. Your server gives the
+ * request to `realtimeSession()` and returns the answer.
+ */
+export type CreateRealtimeChatOptions = CreateRealtimeChatBaseOptions &
+  RealtimeConnectionOptions
 
 /**
  * Return type for the createRealtimeChat helper.

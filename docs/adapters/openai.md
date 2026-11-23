@@ -246,6 +246,8 @@ console.log(result.summary);
 
 `openaiRealtime` and `openaiRealtimeToken` run a live voice chat. See [Realtime Voice Chat](../media/realtime-chat).
 
+`openaiLive` and `openaiLiveSession` run full-duplex voice with `gpt-live-1` and `gpt-live-1.1`. See [GPT-Live Voice](../media/live-voice).
+
 ## Files
 
 `openaiFiles` uploads media to the OpenAI Files API, so a message can point to the file. See [Files API](../advanced/files-api).

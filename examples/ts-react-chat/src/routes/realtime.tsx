@@ -12,12 +12,13 @@ import {
 } from 'lucide-react'
 import { AudioSparkline } from '@/components/AudioSparkline'
 import { useRealtime } from '@/lib/use-realtime'
+import type { Provider } from '@/lib/use-realtime'
 
-type Provider = 'openai' | 'elevenlabs' | 'gemini' | 'grok'
 type OutputMode = 'audio+text' | 'text-only' | 'audio-only'
 
 const PROVIDER_OPTIONS: Array<{ value: Provider; label: string }> = [
   { value: 'openai', label: 'OpenAI Realtime' },
+  { value: 'openai-live', label: 'OpenAI GPT-Live' },
   { value: 'elevenlabs', label: 'ElevenLabs' },
   { value: 'gemini', label: 'Google Gemini' },
   { value: 'grok', label: 'Grok Voice Agent' },
@@ -59,8 +60,26 @@ function outputModeToModalities(
   }
 }
 
+// useRealtimeChat reads its adapter and connection options on the first
+// render only, so a new provider needs a new chat. The key remounts it.
 function RealtimePage() {
   const [provider, setProvider] = useState<Provider>('openai')
+  return (
+    <RealtimeChat
+      key={provider}
+      provider={provider}
+      setProvider={setProvider}
+    />
+  )
+}
+
+function RealtimeChat({
+  provider,
+  setProvider,
+}: {
+  provider: Provider
+  setProvider: (provider: Provider) => void
+}) {
   const [language, setLanguage] = useState('')
   const [grokVoice, setGrokVoice] = useState<GrokVoice>('eve')
   const [textInput, setTextInput] = useState('')
@@ -372,6 +391,7 @@ function RealtimePage() {
 
         {/* Tools indicator */}
         {(provider === 'openai' ||
+          provider === 'openai-live' ||
           provider === 'gemini' ||
           provider === 'grok') && (
           <div className="border-b border-orange-500/10 bg-gray-800/50 px-4 py-2">
@@ -508,8 +528,8 @@ function RealtimePage() {
           </div>
         )}
 
-        {/* Text input */}
-        {status === 'connected' && (
+        {/* Text input (GPT-Live takes voice only) */}
+        {status === 'connected' && provider !== 'openai-live' && (
           <div className="px-4 pt-3">
             <form
               onSubmit={(e) => {

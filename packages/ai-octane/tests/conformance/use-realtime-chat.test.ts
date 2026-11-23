@@ -87,8 +87,10 @@ function createToken(
 
 function createOptions(
   adapter: RealtimeAdapter,
-  getToken: UseRealtimeChatOptions['getToken'],
-  overrides: Partial<UseRealtimeChatOptions> = {},
+  getToken: () => Promise<RealtimeToken>,
+  overrides: Partial<
+    Omit<UseRealtimeChatOptions, 'adapter' | 'getToken' | 'createSession'>
+  > = {},
 ): UseRealtimeChatOptions {
   return { adapter, getToken, autoCapture: false, ...overrides }
 }
@@ -153,7 +155,7 @@ describe('useRealtimeChat', () => {
     const staleRefreshToken = createToken('test', 'stale-refresh')
     const currentRefreshToken = createToken('test', 'current-refresh')
     const firstGetToken = vi
-      .fn<UseRealtimeChatOptions['getToken']>()
+      .fn<() => Promise<RealtimeToken>>()
       .mockResolvedValueOnce(initialToken)
       .mockResolvedValue(staleRefreshToken)
     const secondGetToken = vi.fn(async () => currentRefreshToken)

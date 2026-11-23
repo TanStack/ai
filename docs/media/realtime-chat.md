@@ -121,6 +121,9 @@ Every provider uses the same hook. Swap the token adapter on the server and the 
 | Gemini | `geminiRealtimeToken()` | `geminiRealtime()` | `GOOGLE_API_KEY` or `GEMINI_API_KEY` | WebSocket |
 | Grok | `grokRealtimeToken()` | `grokRealtime()` | `XAI_API_KEY` | WebRTC (default) or WebSocket |
 | ElevenLabs | `elevenlabsRealtimeToken()` | `elevenlabsRealtime()` | `ELEVENLABS_API_KEY` | WebSocket or WebRTC (detected by default) |
+| OpenAI GPT-Live | `openaiLiveSession()` with `realtimeSession()` | `openaiLive()` | `OPENAI_API_KEY` | WebRTC |
+
+GPT-Live has no browser token. Your server relays the connection, and the hook takes `createSession` in place of `getToken`. See [GPT-Live Voice](./live-voice).
 
 To pick the transport, pass `connectionMode` to the browser adapter, for example `openaiRealtime({ connectionMode: 'websocket' })`.
 

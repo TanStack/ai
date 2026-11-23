@@ -160,6 +160,7 @@ export type {
   RunFinishedOutcome,
 } from '@tanstack/ai/client'
 export type {
+  RealtimeClientBaseOptions,
   RealtimeClientOptions,
   RealtimeClientState,
   RealtimeStateChangeCallback,

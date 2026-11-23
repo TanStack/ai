@@ -12,6 +12,7 @@ import type {
   RealtimeConnection,
   RealtimeMessage,
   RealtimeMode,
+  RealtimeRelayAdapter,
   RealtimeSessionConfig,
   RealtimeStatus,
   RealtimeToken,
@@ -24,6 +25,18 @@ import type {
 
 // Token refresh buffer - refresh 1 minute before expiry
 const TOKEN_REFRESH_BUFFER_MS = 60_000
+
+type RealtimeRelayClientOptions = Extract<
+  RealtimeClientOptions,
+  { adapter: RealtimeRelayAdapter }
+>
+
+/** True when the options use a relay adapter (with `createSession`, no token). */
+function isRelayOptions(
+  options: RealtimeClientOptions,
+): options is RealtimeRelayClientOptions {
+  return 'kind' in options.adapter && options.adapter.kind === 'relay'
+}
 
 /**
  * Client for managing realtime voice conversations.
@@ -95,7 +108,8 @@ export class RealtimeClient {
 
   /**
    * Connect to the realtime session.
-   * Fetches a token and establishes the connection.
+   * A token adapter fetches a token first. A relay adapter sends its offer
+   * and the session config to your server through `createSession`.
    */
   async connect(): Promise<void> {
     if (this.state.status === 'connected') {
@@ -111,25 +125,36 @@ export class RealtimeClient {
     const connectAbort = (this.connectAbort = new AbortController())
 
     try {
-      // Fetch token from server
-      const token = await this.options.getToken()
-      connectAbort.signal.throwIfAborted()
-      this.token = token
-
-      // Schedule token refresh
-      this.scheduleTokenRefresh()
-
-      // Connect via adapter (pass tools for providers like ElevenLabs that need them at connect time)
+      // Pass tools for providers like ElevenLabs that need them at connect time
       const toolsList =
         this.clientTools.size > 0
           ? Array.from(this.clientTools.values())
           : undefined
+      const options = this.options
+      const isRelay = isRelayOptions(options)
 
-      const connection = await this.options.adapter.connect(
-        this.token,
-        toolsList,
-        { abortSignal: connectAbort.signal },
-      )
+      let connection: RealtimeConnection
+      if (isRelay) {
+        // The session config goes to the server with the offer, so the
+        // relay path has no token and no updateSession() after connect.
+        connection = await options.adapter.connect(
+          (offer) =>
+            options.createSession({
+              sdp: offer.sdp,
+              config: this.buildSessionConfig() ?? {},
+            }),
+          toolsList,
+          { abortSignal: connectAbort.signal },
+        )
+      } else {
+        const token = await options.getToken()
+        connectAbort.signal.throwIfAborted()
+        this.token = token
+        this.scheduleTokenRefresh()
+        connection = await options.adapter.connect(token, toolsList, {
+          abortSignal: connectAbort.signal,
+        })
+      }
       if (connectAbort.signal.aborted) {
         // A failed close of a connection that was never used is not an
         // error of the client.
@@ -151,7 +176,7 @@ export class RealtimeClient {
       this.subscribeToConnectionEvents()
 
       // Auto-configure session with client-provided settings
-      this.applySessionConfig()
+      if (!isRelay) this.applySessionConfig()
 
       // Start audio capture if configured
       if (this.options.autoCapture) {
@@ -475,9 +500,12 @@ export class RealtimeClient {
   }
 
   private async refreshToken(): Promise<void> {
+    const options = this.options
+    // Relay sessions have no token to refresh.
+    if (isRelayOptions(options)) return
     const connectSignal = this.connectAbort?.signal
     try {
-      const token = await this.options.getToken()
+      const token = await options.getToken()
       // disconnect() ran during the refresh: do not re-arm the timer.
       if (connectSignal?.aborted) return
       this.token = token
@@ -640,7 +668,12 @@ export class RealtimeClient {
 
   private applySessionConfig(): void {
     if (!this.connection) return
+    const config = this.buildSessionConfig()
+    if (config) this.connection.updateSession(config)
+  }
 
+  /** The session config from the client options, or null when there is none. */
+  private buildSessionConfig(): RealtimeSessionConfig | null {
     const {
       instructions,
       voice,
@@ -660,7 +693,7 @@ export class RealtimeClient {
       temperature !== undefined ||
       maxOutputTokens !== undefined ||
       semanticEagerness
-    if (!hasConfig) return
+    if (!hasConfig) return null
 
     // `RealtimeToolConfig.inputSchema`/`outputSchema` are `Record<string, any>`
     // (no `undefined` under `exactOptionalPropertyTypes`). Conditionally spread
@@ -685,7 +718,7 @@ export class RealtimeClient {
     // `RealtimeSessionConfig` declares each field as `field?: T` (no
     // `undefined`). Spread each one conditionally so we don't violate
     // `exactOptionalPropertyTypes` when the source is `T | undefined`.
-    this.connection.updateSession({
+    return {
       ...(instructions !== undefined ? { instructions } : {}),
       ...(voice !== undefined ? { voice } : {}),
       ...(vadMode !== undefined ? { vadMode } : {}),
@@ -694,7 +727,7 @@ export class RealtimeClient {
       ...(temperature !== undefined ? { temperature } : {}),
       ...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
       ...(semanticEagerness !== undefined ? { semanticEagerness } : {}),
-    })
+    }
   }
 
   private generateId(): string {

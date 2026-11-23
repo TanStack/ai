@@ -1,8 +1,8 @@
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { buildSessionUpdate } from './session-update'
+import { createOpenAIWebRTCTransport } from './webrtc-transport'
 import type {
   AnyClientTool,
-  AudioVisualization,
   RealtimeAdapter,
   RealtimeConnection,
   RealtimeEvent,
@@ -70,6 +70,43 @@ export function openaiRealtime(
 }
 
 /**
+ * Sends the SDP offer to OpenAI's GA `/calls` endpoint and returns the answer.
+ */
+async function exchangeRealtimeSdp(
+  offerSdp: string,
+  token: RealtimeToken,
+  logger: InternalLogger,
+  abortSignal?: AbortSignal,
+) {
+  // The model is bound to the ephemeral token (minted via
+  // `/v1/realtime/client_secrets`), so it must NOT be passed as a query
+  // param. GA rejects `?model=` with a 400.
+  const sdpResponse = await fetch(`${OPENAI_REALTIME_URL}/calls`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token.token}`,
+      'Content-Type': 'application/sdp',
+    },
+    body: offerSdp,
+    ...(abortSignal && { signal: abortSignal }),
+  })
+
+  if (!sdpResponse.ok) {
+    const errorText = await sdpResponse.text()
+    const error = new Error(
+      `Failed to establish WebRTC connection: ${sdpResponse.status} - ${errorText}`,
+    )
+    logger.errors('openai.realtime fatal', {
+      error,
+      source: 'openai.realtime',
+    })
+    throw error
+  }
+
+  return sdpResponse.text()
+}
+
+/**
  * Creates a WebRTC connection to OpenAI's realtime API
  */
 async function createWebRTCConnection(
@@ -79,31 +116,9 @@ async function createWebRTCConnection(
 ): Promise<RealtimeConnection> {
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
 
-  // WebRTC peer connection
-  const pc = new RTCPeerConnection()
-
-  // Audio context for visualization
-  let audioContext: AudioContext | null = null
-  let inputAnalyser: AnalyserNode | null = null
-  let outputAnalyser: AnalyserNode | null = null
-  let inputSource: MediaStreamAudioSourceNode | null = null
-  let outputSource: MediaStreamAudioSourceNode | null = null
-  let localStream: MediaStream | null = null
-
-  // Audio element for playback (more reliable than AudioContext.destination)
-  let audioElement: HTMLAudioElement | null = null
-
-  // Data channel for events (assigned at construction below; nulled out by teardown)
-  let dataChannel: RTCDataChannel | null = null
-
   // Current state
   let currentMode: RealtimeMode = 'idle'
   let currentMessageId: string | null = null
-
-  // Empty arrays for when visualization isn't available
-  // frequencyBinCount = fftSize / 2 = 1024
-  const emptyFrequencyData = new Uint8Array(1024)
-  const emptyTimeDomainData = new Uint8Array(2048).fill(128) // 128 is silence
 
   // Helper to emit events (defined early so it can be used during setup)
   function emit<TEvent extends RealtimeEvent>(
@@ -118,124 +133,19 @@ async function createWebRTCConnection(
     }
   }
 
-  // Set up data channel for bidirectional communication. Captured into a const
-  // so closures see a non-nullable reference (teardown re-points the outer
-  // `dataChannel` to null, but in-flight closures still need to close their
-  // own channel).
-  const channel = pc.createDataChannel('oai-events')
-  dataChannel = channel
-
-  // Promise that resolves when the data channel is open and ready
-  const dataChannelReady = new Promise<void>((resolve) => {
-    channel.onopen = () => {
-      flushPendingEvents()
-      emit('status_change', { status: 'connected' })
-      resolve()
-    }
+  // Resolves when the data channel is open. A failed or aborted setup
+  // releases the microphone and the peer connection, then rejects.
+  const transport = await createOpenAIWebRTCTransport({
+    logger,
+    source: 'openai.realtime',
+    exchangeSdp: (offerSdp, signal) =>
+      exchangeRealtimeSdp(offerSdp, token, logger, signal),
+    onServerEvent: handleServerEvent,
+    onOpen: () => emit('status_change', { status: 'connected' }),
+    onError: (error) => emit('error', { error }),
+    abortSignal,
   })
-
-  channel.onmessage = (event) => {
-    try {
-      const message = JSON.parse(event.data)
-      logger.provider(
-        `provider=openai direction=in type=${(message as { type?: string }).type ?? '<unknown>'}`,
-        { frame: message },
-      )
-      handleServerEvent(message)
-    } catch (e) {
-      logger.errors('openai.realtime fatal', {
-        error: e,
-        source: 'openai.realtime',
-      })
-    }
-  }
-
-  channel.onerror = (error) => {
-    logger.errors('openai.realtime fatal', {
-      error,
-      source: 'openai.realtime',
-    })
-    emit('error', { error: new Error(`Data channel error: ${error}`) })
-  }
-
-  // Handle incoming audio track
-  pc.ontrack = (event) => {
-    if (event.track.kind === 'audio' && event.streams[0]) {
-      setupOutputAudioAnalysis(event.streams[0])
-    }
-  }
-
-  // A failed or aborted setup releases the microphone and the peer
-  // connection. Without this, the mic indicator stays on after disconnect().
-  try {
-    // A disconnect during the token fetch already aborted the signal. Do not
-    // ask for the microphone in that case.
-    abortSignal?.throwIfAborted()
-    // IMPORTANT: Request microphone access and add audio track BEFORE creating offer
-    // OpenAI's Realtime API requires an audio track in the SDP offer
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          sampleRate: 24000,
-        },
-      })
-
-      // Add audio track to peer connection
-      for (const track of localStream.getAudioTracks()) {
-        pc.addTrack(track, localStream)
-      }
-    } catch (error) {
-      throw new Error(
-        `Microphone access required for realtime voice: ${error instanceof Error ? error.message : error}`,
-      )
-    }
-
-    // Create and set local description (now includes audio track)
-    const offer = await pc.createOffer()
-    await pc.setLocalDescription(offer)
-
-    // Send SDP to OpenAI's GA `/calls` endpoint and get the answer. The model
-    // is bound to the ephemeral token (minted via `/v1/realtime/client_secrets`),
-    // so it must NOT be passed as a query param — GA rejects `?model=` with a
-    // 400. `offer.sdp` is `string | undefined` per the WebRTC type definitions;
-    // coerce to `null`, which `RequestInit.body` accepts.
-    const sdpResponse = await fetch(`${OPENAI_REALTIME_URL}/calls`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token.token}`,
-        'Content-Type': 'application/sdp',
-      },
-      body: offer.sdp ?? null,
-      ...(abortSignal && { signal: abortSignal }),
-    })
-
-    if (!sdpResponse.ok) {
-      const errorText = await sdpResponse.text()
-      const error = new Error(
-        `Failed to establish WebRTC connection: ${sdpResponse.status} - ${errorText}`,
-      )
-      logger.errors('openai.realtime fatal', {
-        error,
-        source: 'openai.realtime',
-      })
-      throw error
-    }
-
-    const answerSdp = await sdpResponse.text()
-    await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
-  } catch (error) {
-    for (const track of localStream?.getTracks() ?? []) track.stop()
-    localStream = null
-    channel.close()
-    dataChannel = null
-    pc.close()
-    throw error
-  }
-
-  // Set up input audio analysis now that we have the stream
-  setupInputAudioAnalysis(localStream)
+  const { sendEvent } = transport
 
   // Handle server events
   function handleServerEvent(event: Record<string, unknown>) {
@@ -419,140 +329,23 @@ async function createWebRTCConnection(
     }
   }
 
-  // Set up audio analysis for output
-  function setupOutputAudioAnalysis(stream: MediaStream) {
-    // Create audio element for playback - this is the standard way to play WebRTC audio
-    audioElement = new Audio()
-    audioElement.srcObject = stream
-    audioElement.autoplay = true
-    // Some browsers require this for autoplay
-    audioElement.play().catch((e) => {
-      logger.errors('openai.realtime audio autoplay failed', {
-        error: e,
-        source: 'openai.realtime',
-      })
-    })
-
-    // Set up AudioContext for visualization only (not playback)
-    if (!audioContext) {
-      audioContext = new AudioContext()
-    }
-
-    // Resume AudioContext if suspended (browsers require user interaction)
-    if (audioContext.state === 'suspended') {
-      audioContext.resume().catch(() => {
-        // Ignore - visualization just won't work
-      })
-    }
-
-    outputAnalyser = audioContext.createAnalyser()
-    outputAnalyser.fftSize = 2048 // Larger size for more accurate level detection
-    outputAnalyser.smoothingTimeConstant = 0.3
-
-    outputSource = audioContext.createMediaStreamSource(stream)
-    outputSource.connect(outputAnalyser)
-    // Don't connect to destination - the Audio element handles playback
-  }
-
-  // Set up audio analysis for input
-  function setupInputAudioAnalysis(stream: MediaStream) {
-    if (!audioContext) {
-      audioContext = new AudioContext()
-    }
-
-    // Resume AudioContext if suspended (browsers require user interaction)
-    if (audioContext.state === 'suspended') {
-      audioContext.resume().catch(() => {
-        // Ignore - visualization just won't work
-      })
-    }
-
-    inputAnalyser = audioContext.createAnalyser()
-    inputAnalyser.fftSize = 2048 // Larger size for more accurate level detection
-    inputAnalyser.smoothingTimeConstant = 0.3
-
-    inputSource = audioContext.createMediaStreamSource(stream)
-    inputSource.connect(inputAnalyser)
-  }
-
-  // Queue for events sent before the data channel is open
-  const pendingEvents: Array<Record<string, unknown>> = []
-
-  // Send event to server (queues if data channel not yet open)
-  function sendEvent(event: Record<string, unknown>) {
-    if (dataChannel?.readyState === 'open') {
-      logger.provider(
-        `provider=openai direction=out type=${(event.type as string | undefined) ?? '<unknown>'}`,
-        { frame: event },
-      )
-      dataChannel.send(JSON.stringify(event))
-    } else {
-      pendingEvents.push(event)
-    }
-  }
-
-  // Flush any queued events (called when data channel opens)
-  function flushPendingEvents() {
-    for (const event of pendingEvents) {
-      logger.provider(
-        `provider=openai direction=out type=${(event.type as string | undefined) ?? '<unknown>'}`,
-        { frame: event },
-      )
-      channel.send(JSON.stringify(event))
-    }
-    pendingEvents.length = 0
-  }
-
   // Connection implementation
   const connection: RealtimeConnection = {
     async disconnect() {
-      if (localStream) {
-        for (const track of localStream.getTracks()) {
-          track.stop()
-        }
-        localStream = null
-      }
-
-      if (audioElement) {
-        audioElement.pause()
-        audioElement.srcObject = null
-        audioElement = null
-      }
-
-      if (dataChannel) {
-        dataChannel.close()
-        dataChannel = null
-      }
-
-      pc.close()
-
-      if (audioContext) {
-        await audioContext.close()
-        audioContext = null
-      }
-
+      await transport.close()
       emit('status_change', { status: 'idle' })
     },
 
     async startAudioCapture() {
       // Audio capture is established during connection setup
       // This method enables the tracks and signals listening mode
-      if (localStream) {
-        for (const track of localStream.getAudioTracks()) {
-          track.enabled = true
-        }
-      }
+      transport.startAudioCapture()
       currentMode = 'listening'
       emit('mode_change', { mode: 'listening' })
     },
 
     stopAudioCapture() {
-      // Disable tracks rather than stopping them to allow re-enabling
-      if (localStream) {
-        for (const track of localStream.getAudioTracks()) {
-          track.enabled = false
-        }
-      }
+      transport.stopAudioCapture()
       currentMode = 'idle'
       emit('mode_change', { mode: 'idle' })
     },
@@ -649,107 +442,8 @@ async function createWebRTCConnection(
       }
     },
 
-    getAudioVisualization(): AudioVisualization {
-      // Helper to calculate audio level from time domain data
-      // Uses peak amplitude which is more responsive for voice audio meters
-      function calculateLevel(analyser: AnalyserNode): number {
-        const data = new Uint8Array(analyser.fftSize)
-        analyser.getByteTimeDomainData(data)
-
-        // Find peak deviation from center (128 is silence)
-        // This is more responsive than RMS for voice level meters
-        let maxDeviation = 0
-        for (const sample of data) {
-          const deviation = Math.abs(sample - 128)
-          if (deviation > maxDeviation) {
-            maxDeviation = deviation
-          }
-        }
-
-        // Normalize to 0-1 range (max deviation is 128)
-        // Scale by 1.5x so that ~66% amplitude reads as full scale
-        // This provides good visual feedback without pegging too early
-        const normalized = maxDeviation / 128
-        return Math.min(1, normalized * 1.5)
-      }
-
-      return {
-        get inputLevel() {
-          if (!inputAnalyser) return 0
-          return calculateLevel(inputAnalyser)
-        },
-
-        get outputLevel() {
-          if (!outputAnalyser) return 0
-          return calculateLevel(outputAnalyser)
-        },
-
-        getInputFrequencyData() {
-          if (!inputAnalyser) return emptyFrequencyData
-          const data = new Uint8Array(inputAnalyser.frequencyBinCount)
-          inputAnalyser.getByteFrequencyData(data)
-          return data
-        },
-
-        getOutputFrequencyData() {
-          if (!outputAnalyser) return emptyFrequencyData
-          const data = new Uint8Array(outputAnalyser.frequencyBinCount)
-          outputAnalyser.getByteFrequencyData(data)
-          return data
-        },
-
-        getInputTimeDomainData() {
-          if (!inputAnalyser) return emptyTimeDomainData
-          const data = new Uint8Array(inputAnalyser.fftSize)
-          inputAnalyser.getByteTimeDomainData(data)
-          return data
-        },
-
-        getOutputTimeDomainData() {
-          if (!outputAnalyser) return emptyTimeDomainData
-          const data = new Uint8Array(outputAnalyser.fftSize)
-          outputAnalyser.getByteTimeDomainData(data)
-          return data
-        },
-
-        get inputSampleRate() {
-          return 24000
-        },
-
-        get outputSampleRate() {
-          return 24000
-        },
-      }
-    },
-  }
-
-  // Wait for the data channel to be open before returning the connection.
-  // This ensures session.update (tools, instructions, etc.) can be sent immediately.
-  // An abort during this wait releases the mic, the peer connection, and the
-  // audio context, and rejects, so connect() does not stay pending.
-  try {
-    await waitUnlessAborted(dataChannelReady, abortSignal)
-  } catch (error) {
-    await connection.disconnect()
-    throw error
+    getAudioVisualization: transport.getAudioVisualization,
   }
 
   return connection
-}
-
-/** Resolve with `promise`, or reject with the abort reason when `signal` aborts first. */
-function waitUnlessAborted(
-  promise: Promise<void>,
-  signal: AbortSignal | undefined,
-): Promise<void> {
-  if (!signal) return promise
-  return new Promise((resolve, reject) => {
-    const onAbort = () => reject(signal.reason)
-    if (signal.aborted) return onAbort()
-    signal.addEventListener('abort', onAbort, { once: true })
-    void promise.then(() => {
-      signal.removeEventListener('abort', onAbort)
-      resolve()
-    })
-  })
 }
