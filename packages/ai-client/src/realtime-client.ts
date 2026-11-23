@@ -392,7 +392,12 @@ export class RealtimeClient {
       o.providerOptions = config.providerOptions
     }
 
-    if (this.connection) {
+    if (!this.connection) return
+    // A relay session fixes most of its config at start, so it gets only the
+    // fields that the caller changed.
+    if (isRelayOptions(this.options)) {
+      this.connection.updateSession(config)
+    } else {
       this.applySessionConfig()
     }
   }
@@ -683,6 +688,7 @@ export class RealtimeClient {
       temperature,
       maxOutputTokens,
       semanticEagerness,
+      providerOptions,
     } = this.options
     const hasConfig =
       instructions ||
@@ -692,7 +698,8 @@ export class RealtimeClient {
       outputModalities ||
       temperature !== undefined ||
       maxOutputTokens !== undefined ||
-      semanticEagerness
+      semanticEagerness ||
+      providerOptions
     if (!hasConfig) return null
 
     // `RealtimeToolConfig.inputSchema`/`outputSchema` are `Record<string, any>`
@@ -727,6 +734,7 @@ export class RealtimeClient {
       ...(temperature !== undefined ? { temperature } : {}),
       ...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
       ...(semanticEagerness !== undefined ? { semanticEagerness } : {}),
+      ...(providerOptions !== undefined ? { providerOptions } : {}),
     }
   }
 

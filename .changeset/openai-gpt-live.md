@@ -16,3 +16,5 @@ GPT-Live has no browser token, so this release adds a relay path:
 - `RealtimeClient`, `useRealtimeChat`, and `createRealtimeChat` take `createSession` in place of `getToken` for a relay adapter.
 
 The options type is now a union of the token form and the relay form. If you read the type of `getToken` from it (for example `UseRealtimeChatOptions['getToken']`), the type now includes `undefined`.
+
+`RealtimeClient.updateSession()` now sends `providerOptions` to the connection. Before, the client kept `providerOptions` but did not send them.

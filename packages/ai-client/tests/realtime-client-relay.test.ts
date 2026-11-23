@@ -125,6 +125,20 @@ describe('RealtimeClient relay connect', () => {
     client.destroy()
   })
 
+  it('relay updateSession forwards only the changed fields, with providerOptions', async () => {
+    const { client, updateSession } = relayClient()
+    await client.connect()
+
+    const delegation = { model: 'gpt-6.1-terra', toolChoice: 'auto' }
+    client.updateSession({ providerOptions: { delegation } })
+
+    expect(updateSession).toHaveBeenCalledTimes(1)
+    expect(updateSession.mock.calls[0]?.[0]).toEqual({
+      providerOptions: { delegation },
+    })
+    client.destroy()
+  })
+
   it('relay connect does not call updateSession after connect', async () => {
     const { client, updateSession } = relayClient()
 
@@ -173,6 +187,25 @@ describe('RealtimeClient token connect', () => {
     })
     // One timer: the token refresh.
     expect(vi.getTimerCount()).toBe(1)
+    client.destroy()
+  })
+
+  it('token updateSession sends providerOptions with the full config', async () => {
+    const { connection, updateSession } = fakeConnection()
+    const client = new RealtimeClient({
+      ...clientConfig,
+      adapter: { provider: 'test', connect: async () => connection },
+      getToken: async () => token,
+    })
+    await client.connect()
+    updateSession.mockClear()
+
+    client.updateSession({ providerOptions: { inputAudioTranscription: null } })
+
+    expect(updateSession.mock.calls[0]?.[0]).toMatchObject({
+      instructions: 'Answer in one sentence.',
+      providerOptions: { inputAudioTranscription: null },
+    })
     client.destroy()
   })
 })

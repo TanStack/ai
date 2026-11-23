@@ -253,6 +253,15 @@ describe('openaiLive', () => {
     expect(statuses).toEqual([{ status: 'idle' }])
   })
 
+  it('stops the mic and the peer when the server closes the session', async () => {
+    const { serverSends, track, pc } = await connectLive()
+
+    serverSends({ type: 'session.closed', reason: 'remote_hangup' })
+
+    expect(track.stop).toHaveBeenCalled()
+    expect(pc.close).toHaveBeenCalled()
+  })
+
   it('maps usage seconds to billed seconds', async () => {
     const { connection, serverSends } = await connectLive()
     const usage = record(connection, 'usage')

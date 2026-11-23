@@ -242,6 +242,10 @@ async function createLiveConnection(
 
       case 'session.closed':
         finishTurn()
+        // The server ended the session: release the mic and the peer.
+        transport.close().catch((error: unknown) => {
+          logger.errors(`${SOURCE} close failed`, { error, source: SOURCE })
+        })
         if (event.reason !== 'close_requested') {
           emit('error', {
             error: new Error(
