@@ -341,7 +341,8 @@ async function createWebRTCConnection(
     async startAudioCapture() {
       // Opens the microphone when connect did not (autoCapture false), then
       // enables the tracks and signals listening mode
-      await transport.startAudioCapture()
+      // A stop during the microphone prompt wins: stay idle.
+      if (!(await transport.startAudioCapture())) return
       currentMode = 'listening'
       emit('mode_change', { mode: 'listening' })
     },
