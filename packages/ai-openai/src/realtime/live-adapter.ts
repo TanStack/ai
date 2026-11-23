@@ -105,6 +105,9 @@ async function createLiveConnection(
   const delegations = new Map<string, DelegationCalls>()
   // The transport closes only once. A second `audioContext.close()` rejects.
   let closing: Promise<void> | null = null
+  // Set before the transport starts, because its onClose can run early.
+  let hasEnded = false
+  let isDisconnecting = false
 
   // connect() returns the connection only after `session.started`. Before
   // that, the server must not get `session.input_audio.unmute`.
@@ -156,7 +159,10 @@ async function createLiveConnection(
     onOpen: () => {},
     onError: (error) => emit('error', { error }),
     // The data channel closed without `session.closed`.
-    onClose: () => endSession('connection_lost'),
+    // During disconnect(), a closed channel only ends the wait for
+    // `session.closed`. It is not a lost connection.
+    onClose: () =>
+      isDisconnecting ? markClosed() : endSession('connection_lost'),
     abortSignal,
     autoCapture: connectOptions?.autoCapture,
   })
@@ -171,7 +177,6 @@ async function createLiveConnection(
 
   // The session ended on the server or the connection was lost: release the
   // mic and the peer, and report idle once.
-  let hasEnded = false
   function endSession(reason: string | undefined) {
     if (hasEnded) return
     hasEnded = true
@@ -330,6 +335,7 @@ async function createLiveConnection(
 
   const connection: RealtimeConnection = {
     async disconnect() {
+      isDisconnecting = true
       const closeTimeout = startTimer(CLOSE_TIMEOUT_MS)
       sendEvent({ type: 'session.close' })
       await Promise.race([sessionClosed, closeTimeout.promise])

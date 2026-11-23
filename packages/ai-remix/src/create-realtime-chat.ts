@@ -106,8 +106,8 @@ export function createRealtimeChat(
             get provider() {
               return options.adapter.provider
             },
-            connect(token, tools) {
-              return options.adapter.connect(token, tools)
+            connect(token, tools, connectOptions) {
+              return options.adapter.connect(token, tools, connectOptions)
             },
           },
         }),

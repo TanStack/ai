@@ -137,7 +137,11 @@ describe('useRealtimeChat', () => {
     expect(firstGetToken).toHaveBeenCalledTimes(1)
     expect(firstAdapter.connect).toHaveBeenCalledTimes(1)
     expect(secondGetToken).toHaveBeenCalledTimes(1)
-    expect(secondAdapter.connect).toHaveBeenCalledWith(secondToken, undefined)
+    expect(secondAdapter.connect).toHaveBeenCalledWith(
+      secondToken,
+      undefined,
+      expect.objectContaining({ autoCapture: false }),
+    )
 
     await act(async () => {
       await result.current.disconnect()
@@ -172,7 +176,11 @@ describe('useRealtimeChat', () => {
     })
 
     expect(firstAdapter.connect).toHaveBeenCalledTimes(1)
-    expect(secondAdapter.connect).toHaveBeenCalledWith(secondToken, undefined)
+    expect(secondAdapter.connect).toHaveBeenCalledWith(
+      secondToken,
+      undefined,
+      expect.objectContaining({ autoCapture: false }),
+    )
     expect(result.current.status).toBe('connected')
 
     await act(async () => {

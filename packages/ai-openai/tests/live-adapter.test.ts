@@ -419,6 +419,17 @@ describe('openaiLive', () => {
     expect(pc.close).toHaveBeenCalled()
   })
 
+  it('does not report a lost connection when the channel closes during disconnect', async () => {
+    const { connection, channel } = await connectLive()
+    const errors = record(connection, 'error')
+
+    const closing = connection.disconnect()
+    channel.onclose?.()
+    await closing
+
+    expect(errors).toEqual([])
+  })
+
   it('maps usage seconds to billed seconds', async () => {
     const { connection, serverSends } = await connectLive()
     const usage = record(connection, 'usage')

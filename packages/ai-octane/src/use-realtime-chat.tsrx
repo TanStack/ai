@@ -117,10 +117,10 @@ export function useRealtimeChat(
               get provider() {
                 return optionsRef.current.adapter.provider
               },
-              connect(token, tools) {
+              connect(token, tools, connectOptions) {
                 const latest = optionsRef.current.adapter
                 const adapter = isRelayAdapter(latest) ? initial.adapter : latest
-                return adapter.connect(token, tools)
+                return adapter.connect(token, tools, connectOptions)
               },
             },
           }),

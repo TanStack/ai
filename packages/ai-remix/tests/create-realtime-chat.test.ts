@@ -141,6 +141,25 @@ describe('createRealtimeChat', () => {
     expect(chat.status).toBe('connected')
   })
 
+  it('passes the connect options, with autoCapture, to a token adapter', async () => {
+    const { handle, abort } = createHandle()
+    abortHandle = abort
+    const testAdapter = createAdapter('test', [createConnection()])
+    const getToken = vi.fn(async () => createToken('test', 'token'))
+    const chat = createRealtimeChat(
+      handle,
+      createOptions(testAdapter.adapter, getToken),
+    )
+
+    await chat.connect()
+
+    expect(testAdapter.connect).toHaveBeenCalledWith(
+      expect.objectContaining({ token: 'token' }),
+      undefined,
+      expect.objectContaining({ autoCapture: false }),
+    )
+  })
+
   it('passes createSession to RealtimeClient for a relay adapter', async () => {
     const { handle, abort } = createHandle()
     abortHandle = abort
