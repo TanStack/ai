@@ -517,6 +517,20 @@ const ToolCallStep: Component<{
                 copyable
               />
             </div>
+            <Show when={tc().resultMetadata}>
+              {(metadata) => (
+                <div class={s().stepJsonItem}>
+                  <div class={s().stepJsonItemLabel}>Result metadata</div>
+                  <div class={s().stepJsonPanel}>
+                    <JsonTree
+                      value={metadata()}
+                      defaultExpansionDepth={0}
+                      copyable
+                    />
+                  </div>
+                </div>
+              )}
+            </Show>
           </div>
         </div>
       </Show>

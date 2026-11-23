@@ -1,0 +1,39 @@
+<!doctype html>
+<!-- The live view: only the screen, scaled to the frame, with no noVNC controls.
+     Query: password (required), view_only=1 (no mouse and keyboard). -->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Desktop</title>
+    <style>
+      html,
+      body,
+      #screen {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #111827;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="screen"></div>
+    <script type="module">
+      import RFB from './core/rfb.js'
+
+      const params = new URLSearchParams(location.search)
+      const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/websockify`
+
+      function connect() {
+        const rfb = new RFB(document.getElementById('screen'), url, {
+          credentials: { password: params.get('password') },
+        })
+        rfb.scaleViewport = true
+        rfb.viewOnly = params.get('view_only') === '1'
+        // The container restarts Chromium and can restart. Connect again.
+        rfb.addEventListener('disconnect', () => setTimeout(connect, 1000))
+      }
+      connect()
+    </script>
+  </body>
+</html>

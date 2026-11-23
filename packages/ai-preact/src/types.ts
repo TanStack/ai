@@ -77,6 +77,7 @@ export type UseChatOptions<
   | 'onRunIdChange'
   | 'context'
   | 'devtools'
+  | 'outputSchema'
 > & {
   live?: boolean
   /** Display options for TanStack AI Devtools. */

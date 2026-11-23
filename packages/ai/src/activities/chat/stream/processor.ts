@@ -22,6 +22,7 @@ import {
   aguiSnapshotMessageToUIMessage,
   coerceCreatedAt,
   generateMessageId,
+  isWhitespaceOnlyMessage,
   uiMessageToModelMessages,
 } from '../messages.js'
 import { runErrorEventToError } from '../../../utilities/errors'
@@ -30,6 +31,7 @@ import {
   isProviderExecutedToolCall,
 } from '../../../utilities/provider-executed'
 import {
+  appMetadata,
   mergeMetadata,
   tanstackMetadata,
   withTanstackMetadata,
@@ -44,6 +46,8 @@ import {
   isContentPartArray,
   isToolResultOutcome,
   normalizeToolResult,
+  parseToolOutput,
+  textToolResultMark,
   toolResultErrorText,
 } from '../../../utilities/tool-result'
 import { defaultJSONParser } from './json-parser'
@@ -58,6 +62,7 @@ import {
   updateToolCallPart,
   updateToolCallWithOutput,
   updateToolResultPart,
+  withoutStaleToolResultOutcome,
 } from './message-updaters'
 import { ImmediateStrategy } from './strategies'
 import { INTERRUPT_BINDING_METADATA_KEY } from '../../../interrupt-resume'
@@ -479,6 +484,7 @@ export class StreamProcessor {
     const content = normalizeToolResult(output)
     const toolResultState: ToolResultState = error ? 'error' : 'complete'
 
+    const textMark = textToolResultMark(output)
     updatedMessages = updateToolResultPart(
       updatedMessages,
       messageWithToolCall.id,
@@ -486,6 +492,8 @@ export class StreamProcessor {
       content,
       toolResultState,
       error,
+      undefined,
+      textMark && { tanstack: textMark },
     )
 
     this.messages = updatedMessages
@@ -2095,11 +2103,16 @@ export class StreamProcessor {
     // restore metadata the snapshot cannot re-emit. Duplicate ids resolve
     // last-write-wins: the same tool call can appear in multiple messages
     // across reconnects, and the most recent part carries the freshest state.
+    // Snapshot rows may omit metadata from previously streamed tool results.
+    // Index both part types by id so we can restore only the missing metadata.
     const prevToolCalls = new Map<string, ToolCallPart>()
+    const prevToolResults = new Map<string, ToolResultPart>()
     for (const msg of prevMessages) {
       for (const part of msg.parts) {
         if (part.type === 'tool-call') {
           prevToolCalls.set(part.id, part)
+        } else if (part.type === 'tool-result') {
+          prevToolResults.set(part.toolCallId, part)
         }
       }
     }
@@ -2116,20 +2129,36 @@ export class StreamProcessor {
 
     const reconciled: Array<UIMessage> = []
     for (const msg of snapshot) {
-      const toolResultParts = msg.parts.filter(
+      let restoredToolResultMetadata = false
+      const snapshotParts = msg.parts.map((part) => {
+        if (part.type !== 'tool-result' || part.metadata != null) return part
+        const previous = prevToolResults.get(part.toolCallId)
+        if (previous?.metadata == null) return part
+        const metadata =
+          part.state === 'complete' && part.outcome === undefined
+            ? withoutStaleToolResultOutcome(previous.metadata)
+            : previous.metadata
+        if (metadata == null) return part
+        restoredToolResultMetadata = true
+        return { ...part, metadata }
+      })
+      const snapshotMessage = restoredToolResultMetadata
+        ? { ...msg, parts: snapshotParts }
+        : msg
+      const toolResultParts = snapshotParts.filter(
         (part): part is ToolResultPart => part.type === 'tool-result',
       )
       const toolResultPart =
         msg.role === 'assistant' &&
         toolResultParts.length === 1 &&
-        msg.parts.every(
+        snapshotParts.every(
           (part) => part.type === 'tool-result' || part.type === 'ui-resource',
         )
           ? toolResultParts[0]
           : undefined
 
       if (!toolResultPart) {
-        reconciled.push(msg)
+        reconciled.push(snapshotMessage)
         continue
       }
 
@@ -2157,7 +2186,7 @@ export class StreamProcessor {
             `[StreamProcessor] MESSAGES_SNAPSHOT contains a tool-result for "${toolResultPart.toolCallId}" but no matching tool-call exists in the snapshot, and there is no assistant message to anchor into; addToolResult("${toolResultPart.toolCallId}") will not be able to locate this call`,
           )
         }
-        reconciled.push(msg)
+        reconciled.push(snapshotMessage)
         continue
       }
 
@@ -2183,7 +2212,7 @@ export class StreamProcessor {
           )
         }
       }
-      parts.push(...msg.parts)
+      parts.push(...snapshotParts)
       // Replace rather than push into `target.parts`: a snapshot message that
       // arrived already carrying `parts` (TanStack server echoing UIMessages)
       // shares its array with the incoming chunk, and mutating it in place
@@ -2238,21 +2267,24 @@ export class StreamProcessor {
             state: prev.state,
             ...(prev.approval !== undefined ? { approval: prev.approval } : {}),
             ...(prev.metadata !== undefined ? { metadata: prev.metadata } : {}),
+            ...(prev.resultMetadata !== undefined
+              ? { resultMetadata: prev.resultMetadata }
+              : {}),
           }
+        }
+
+        // The tool-result part holds the result metadata. Copy its app keys
+        // to the call, the same way the stream does.
+        if (result && next.resultMetadata === undefined) {
+          const resultMetadata = appMetadata(result.metadata)
+          if (resultMetadata !== undefined) next = { ...next, resultMetadata }
         }
 
         // Apply sibling tool-result when the call still has no output.
         if (result && next.output === undefined) {
-          let output: unknown
-          if (Array.isArray(result.content)) {
-            output = result.content
-          } else {
-            try {
-              output = JSON.parse(result.content)
-            } catch {
-              output = result.content
-            }
-          }
+          const output: unknown = Array.isArray(result.content)
+            ? result.content
+            : parseToolOutput(result.content, result.metadata)
           const errorText =
             result.state === 'error' ? toolResultErrorText(output) : undefined
           next = {
@@ -2617,20 +2649,19 @@ export class StreamProcessor {
       toolResultOutcome !== undefined
 
     // Step 1: Update the tool-call part's output field
-    let output: unknown
-    try {
-      output =
-        typeof chunk.content === 'string'
-          ? JSON.parse(chunk.content)
-          : chunk.content
-    } catch {
-      output = chunk.content
-    }
+    const output: unknown =
+      typeof chunk.content === 'string'
+        ? parseToolOutput(chunk.content, chunk.metadata)
+        : chunk.content
+    // The tool-call part gets only the app keys. The tool-result part below
+    // keeps the full metadata, with the reserved `tanstack` key.
     this.messages = updateToolCallWithOutput(
       this.messages,
       chunk.toolCallId,
       output,
       isOutputError ? 'error' : undefined,
+      undefined,
+      appMetadata(chunk.metadata),
     )
 
     // Step 2: Create/update the tool-result part
@@ -2647,6 +2678,7 @@ export class StreamProcessor {
       resultState,
       resultState === 'error' ? toolResultErrorText(output) : undefined,
       toolResultOutcome,
+      chunk.metadata ?? {},
     )
     this.emitMessagesChange()
   }
@@ -2723,7 +2755,8 @@ export class StreamProcessor {
       this.completeAllToolCalls()
       const isIntermediateToolTurn =
         this.finishReason === 'tool_calls' &&
-        chunk.outcome?.type !== 'interrupt'
+        chunk.outcome?.type !== 'interrupt' &&
+        tanstackMetadata(chunk)?.loopStopped !== true
       if (isIntermediateToolTurn) {
         // The next model call is a new assistant message. Leave this
         // call's messages closed so its reasoning cannot land here.
@@ -3512,7 +3545,7 @@ export class StreamProcessor {
     // that sometimes return just "\n" during auto-continuation).
     // Preserve the message on errors so the UI can show error state.
     if (lastAssistantMessage && !this.hasError) {
-      if (this.isWhitespaceOnlyMessage(lastAssistantMessage)) {
+      if (isWhitespaceOnlyMessage(lastAssistantMessage)) {
         this.messages = this.messages.filter(
           (m) => m.id !== lastAssistantMessage.id,
         )
@@ -3659,17 +3692,6 @@ export class StreamProcessor {
     this.messages = []
     this.childProcessors.clear()
     this.childToolCalls.clear()
-  }
-
-  /**
-   * Check if a message contains only whitespace text and no other meaningful parts
-   * (no tool calls, tool results, thinking, etc.)
-   */
-  private isWhitespaceOnlyMessage(message: UIMessage): boolean {
-    if (message.parts.length === 0) return false
-    return message.parts.every(
-      (part) => part.type === 'text' && part.content.trim() === '',
-    )
   }
 
   /**

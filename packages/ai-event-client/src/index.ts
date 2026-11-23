@@ -425,6 +425,8 @@ export interface TextChunkToolResultEvent extends BaseEventContext {
   messageId?: string
   toolCallId: string
   result: string
+  /** App metadata of the tool result. It has no reserved `tanstack` key. */
+  metadata?: Record<string, unknown>
 }
 
 /** Emitted for streaming thinking chunks. */
@@ -1112,6 +1114,64 @@ export interface WorldUsageEvent extends BaseEventContext {
 }
 
 // ===========================
+// Motion Events
+// ===========================
+
+/**
+ * Emitted when a motion request starts. `requestType` is `create` for a
+ * submit (or a whole stream) and `status` for a poll.
+ */
+export interface Motion3dRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  requestType: 'create' | 'status'
+  prompt?: string
+  jobId?: string
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when a motion request completes. */
+export interface Motion3dRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  requestType: 'create' | 'status'
+  jobId: string
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  /** Number of asset files, when the motion finished */
+  assetCount?: number
+  error?: string
+  duration: number
+}
+
+/** Emitted when a motion request fails. */
+export interface Motion3dRequestErrorEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  requestType: 'create' | 'status'
+  jobId?: string
+  error: { message: string; name?: string }
+  duration: number
+}
+
+/** Emitted when motion usage metrics are available. */
+export interface Motion3dUsageEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  model: string
+  usage: TokenUsage
+}
+
+// ===========================
 // Live Events
 // ===========================
 
@@ -1567,6 +1627,12 @@ export interface AIDevtoolsEventMap {
   'world:request:completed': WorldRequestCompletedEvent
   'world:request:error': WorldRequestErrorEvent
   'world:usage': WorldUsageEvent
+
+  // Motion events
+  'motion3d:request:started': Motion3dRequestStartedEvent
+  'motion3d:request:completed': Motion3dRequestCompletedEvent
+  'motion3d:request:error': Motion3dRequestErrorEvent
+  'motion3d:usage': Motion3dUsageEvent
 
   // Live events
   'liveVideo:request:started': LiveVideoRequestStartedEvent

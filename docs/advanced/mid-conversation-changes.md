@@ -27,7 +27,7 @@ The channel exists on these models:
 | Adapter | Models |
 |---|---|
 | `openaiText` | `gpt-5.4-mini`, `gpt-5.5`, `gpt-5.6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-6-astra`, `gpt-6-luna`, `gpt-6-sol` |
-| `anthropicText` | `claude-opus-4-8`, `claude-opus-5`, `claude-opus-5-5`, `claude-fable-5`, `claude-fable-5-1` |
+| `anthropicText` | `claude-opus-4-8`, `claude-opus-5`, `claude-opus-5-5`, `claude-fable-5`, `claude-fable-5-1`, `claude-sonnet-5-5`, `claude-haiku-5-5` |
 
 Every other model and adapter sends the full lists on each call.
 

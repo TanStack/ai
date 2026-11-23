@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox-cloudflare",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Cloudflare sandbox provider for TanStack AI — run harness adapters inside Cloudflare Containers (edge) through the uniform SandboxHandle.",
   "author": "",
   "license": "MIT",
@@ -31,6 +31,10 @@
       "types": "./dist/esm/agent.d.ts",
       "import": "./dist/esm/agent.js"
     },
+    "./container": {
+      "types": "./dist/esm/container.d.ts",
+      "import": "./dist/esm/container.js"
+    },
     "./runner": {
       "types": "./dist/esm/runner.d.ts",
       "import": "./dist/esm/runner.js"
@@ -60,13 +64,18 @@
     "@tanstack/ai-sandbox-local-process": "workspace:^",
     "zod": "^4.0.0"
   },
+  "peerDependenciesMeta": {
+    "@tanstack/ai-sandbox-local-process": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260317.1",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",
     "@tanstack/ai-sandbox-local-process": "workspace:*",
     "@types/node": "^24.10.1",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "4.1.12",
     "zod": "^4.2.0"
   }
 }

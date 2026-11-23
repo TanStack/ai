@@ -226,7 +226,7 @@ export default defineConfig({
 
             switch (provider) {
               case 'anthropic':
-                selectedModel = model || 'claude-sonnet-4-5-20250929'
+                selectedModel = model || 'claude-sonnet-4-6'
                 adapter = anthropicText(selectedModel)
                 break
               case 'gemini':

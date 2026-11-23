@@ -29,6 +29,10 @@ function rethrowEvents(err: unknown): never {
   throw toMCPEventRequestError(err)
 }
 
+function isHeaderMismatch(err: unknown): boolean {
+  return err instanceof MCPEventRequestError && err.kind === 'header-mismatch'
+}
+
 function assertWebhookMode(mode: string) {
   if (mode !== 'webhook') {
     throw new MCPEventConfigError('delivery.mode must be webhook')
@@ -101,7 +105,10 @@ export function createDirectMCPEvents(
     if (!ctx.supportsEvents) throw new MCPEventsUnsupportedError()
   }
 
-  async function send(record: MCPEventSubscription, signal?: AbortSignal) {
+  async function subscribeOnce(
+    record: MCPEventSubscription,
+    signal?: AbortSignal,
+  ): Promise<SubscribeEventsResult> {
     try {
       return await ctx.request(
         'events/subscribe',
@@ -111,6 +118,44 @@ export function createDirectMCPEvents(
       )
     } catch (err) {
       rethrowEvents(err)
+    }
+  }
+
+  async function send(record: MCPEventSubscription, signal?: AbortSignal) {
+    try {
+      return await subscribeOnce(record, signal)
+    } catch (err) {
+      if (!isHeaderMismatch(err)) throw err
+    }
+    // The remembered inputSchema was stale. List once, then retry once.
+    await listEventDefinitions(ctx, signal)
+    return await subscribeOnce(record, signal)
+  }
+
+  async function unsubscribeOnce(
+    record: MCPEventSubscription,
+    signal?: AbortSignal,
+  ) {
+    try {
+      await ctx.request(
+        'events/unsubscribe',
+        {
+          name: record.name,
+          arguments: record.arguments,
+          delivery: { mode: 'webhook', url: record.delivery.url },
+        },
+        emptyResult,
+        signal,
+      )
+    } catch (err) {
+      const mapped = toMCPEventRequestError(err)
+      if (
+        mapped instanceof MCPEventRequestError &&
+        mapped.kind === 'not-found'
+      ) {
+        return
+      }
+      throw mapped
     }
   }
 
@@ -189,24 +234,11 @@ export function createDirectMCPEvents(
       assertReady()
       const record = await resolveRecord(store, ref)
       try {
-        await ctx.request(
-          'events/unsubscribe',
-          {
-            name: record.name,
-            arguments: record.arguments,
-            delivery: { mode: 'webhook', url: record.delivery.url },
-          },
-          emptyResult,
-          ref.signal,
-        )
+        await unsubscribeOnce(record, ref.signal)
       } catch (err) {
-        const mapped = toMCPEventRequestError(err)
-        if (
-          !(mapped instanceof MCPEventRequestError) ||
-          mapped.kind !== 'not-found'
-        ) {
-          throw mapped
-        }
+        if (!isHeaderMismatch(err)) throw err
+        await listEventDefinitions(ctx, ref.signal)
+        await unsubscribeOnce(record, ref.signal)
       }
       await store.delete(record.key)
     },

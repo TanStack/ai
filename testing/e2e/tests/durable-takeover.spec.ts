@@ -491,6 +491,16 @@ const TWO_LINE_SEQUENCE = [
   'RUN_FINISHED',
 ]
 
+/**
+ * The head of a FRESH run: the run-accepted marker, `RUN_STARTED`, then
+ * `withSandbox`'s `sandbox.starting` and `sandbox.created`. An attach does not
+ * send the sandbox events again, so a seeded log has none of them.
+ */
+const FRESH_HEAD = ['CUSTOM', 'RUN_STARTED', 'CUSTOM', 'CUSTOM']
+
+/** A fresh six-line run, as the log stores it. */
+const FRESH_FULL_SEQUENCE = [...FRESH_HEAD, ...FULL_SEQUENCE.slice(1)]
+
 /** What a previous host had already delivered when it went away: two lines. */
 const DELIVERED_PREFIX = [
   'RUN_STARTED',
@@ -678,9 +688,8 @@ test.describe('durable runs — takeover', () => {
     const runId = uniqueRunId('disconnect-takeover')
     const run = await SseStream.open(routeUrl({ runId, total: '6' }))
     await tick(runId, 2)
-    // Five events now lead with the run-accepted marker: CUSTOM, RUN_STARTED,
-    // TEXT_MESSAGE_START, '1', '2'.
-    const before = await run.take(5)
+    // FRESH_HEAD, then TEXT_MESSAGE_START, '1', '2'.
+    const before = await run.take(7)
     expect(contentDeltas(before)).toEqual(['1', '2'])
     await drop(runId, run)
 
@@ -701,9 +710,9 @@ test.describe('durable runs — takeover', () => {
     await tick(runId, 4)
     const delivered = await attach.drain()
 
-    // The from-start attach replays the run-accepted marker the producer
-    // appended, then the full run.
-    expect(delivered.map(eventType)).toEqual(['CUSTOM', ...FULL_SEQUENCE])
+    // The from-start attach replays the fresh run's head from the log, then
+    // the full run.
+    expect(delivered.map(eventType)).toEqual(FRESH_FULL_SEQUENCE)
     expect(contentDeltas(delivered)).toEqual(['1', '2', '3', '4', '5', '6'])
 
     // The run completed for real — NOT recorded as failed by a diverged replay.
@@ -717,10 +726,47 @@ test.describe('durable runs — takeover', () => {
     expect(after.record?.detachedSince).toBeUndefined()
     // And the log holds each chunk exactly once (marker included), with no
     // stored RUN_ERROR.
-    expect(after.log.map((entry) => entry.type)).toEqual([
-      'CUSTOM',
-      ...FULL_SEQUENCE,
-    ])
+    expect(after.log.map((entry) => entry.type)).toEqual(FRESH_FULL_SEQUENCE)
+  })
+
+  test('a reconnect during a quiet wait does not start a second driver', async () => {
+    const runId = uniqueRunId('quiet-reconnect')
+    const run = await SseStream.open(routeUrl({ runId, total: '6' }))
+    await tick(runId, 2)
+    expect(contentDeltas(await run.take(7))).toEqual(['1', '2'])
+    // Close the client only. `drop()` aborts the producer, which hides the
+    // bug: the producer must keep the claim while the journal is quiet.
+    run.close()
+
+    const attach = await SseStream.open(
+      routeUrl({ runId, offset: '-1', fenceQuietMs: '50' }),
+      { method: 'GET' },
+    )
+    // The replay proves the GET handler is up. The driver starts beside it.
+    // One quiet window is 50ms, so 300ms is long enough for a second driver
+    // to claim the run when the first host does not hold the lock.
+    expect(contentDeltas(await attach.take(7))).toEqual(['1', '2'])
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    const mid = await state(runId)
+    expect(mid.record?.status).toBe('running')
+    expect(mid.record?.driverEpoch).toBe(1)
+    expect(mid.attachDrives).toBe(0)
+
+    await tick(runId, 4)
+    await attach.drain()
+    const after = await stateUntil(
+      runId,
+      'the original producer to finish the quiet run',
+      (body) => body.record?.status === 'completed',
+    )
+    expect(after.attachDrives).toBe(0)
+    expect(after.record?.driverEpoch).toBe(1)
+    expect(after.log.map((entry) => entry.type)).toEqual(FRESH_FULL_SEQUENCE)
+    expect(
+      after.log
+        .filter((entry) => entry.type === 'TEXT_MESSAGE_CONTENT')
+        .map((entry) => entry.delta),
+    ).toEqual(['1', '2', '3', '4', '5', '6'])
   })
 })
 
@@ -733,7 +779,7 @@ test.describe('durable runs — disconnect', () => {
     const runId = uniqueRunId('detach')
     const run = await SseStream.open(routeUrl({ runId, total: '6' }))
     await tick(runId, 2)
-    expect(contentDeltas(await run.take(5))).toEqual(['1', '2'])
+    expect(contentDeltas(await run.take(7))).toEqual(['1', '2'])
 
     await drop(runId, run)
 
@@ -771,7 +817,7 @@ test.describe('durable runs — cancel', () => {
       const runId = uniqueRunId(`cancel-${band}`)
       const run = await SseStream.open(routeUrl({ runId, total: '6' }))
       await tick(runId, 2)
-      expect(contentDeltas(await run.take(5))).toEqual(['1', '2'])
+      expect(contentDeltas(await run.take(7))).toEqual(['1', '2'])
 
       await cancel(runId, band)
       if (band === 'durable') {
@@ -817,8 +863,9 @@ test.describe('durable runs — cancel', () => {
     const cancelledRun = await SseStream.open(routeUrl({ runId: cancelled }))
     await tick(dropped, 2)
     await tick(cancelled, 2)
-    await droppedRun.take(4)
-    await cancelledRun.take(4)
+    // FRESH_HEAD, TEXT_MESSAGE_START, '1'.
+    await droppedRun.take(6)
+    await cancelledRun.take(6)
 
     // Out of band, and only for one of them.
     await cancel(cancelled, 'durable')
@@ -1050,11 +1097,9 @@ test.describe('durable runs — the reaper', () => {
     // conversation never lands at all. This is that transcript, and the
     // still-producing run's empty one (asserted below) is the control.
     //
-    // It holds the REMAINDER, not the whole message: alignment suppresses the
-    // delivered prefix inside the adapter, so `withPersistence`'s accumulator
-    // never sees '1','2' — the delivery log is the complete record, the saved
-    // message is not. That is a property of every takeover, not of the reaper,
-    // and it is pinned here because it is invisible in the log assertion above.
+    // The saved message is the whole answer, including deltas the first host
+    // already put in the log. The log assertion above is the other half: those
+    // chunks are not appended again.
     expect(
       after.messages.map((message) => `${message.role}:${message.text}`),
     ).toEqual(['user:go', 'assistant:123456'])

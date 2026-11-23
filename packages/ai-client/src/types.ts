@@ -13,6 +13,7 @@ import type {
   InterruptDefinition,
   InferToolInput,
   InferToolOutput,
+  InferToolResultMetadata,
   InputSchemaOf,
   Interrupt,
   InterruptBinding,
@@ -552,6 +553,7 @@ type ToolCallPartForNamedTool<T extends { name: string }> = {
   input?: InferToolInput<T>
   state: ToolCallState
   output?: InferToolOutput<T>
+  resultMetadata?: InferToolResultMetadata<T>
 }
 
 /**
@@ -570,6 +572,8 @@ type ToolCallPartForTool<T> = T extends AnyClientTool
       state: ToolCallState
       /** Tool execution output (for client tools or after approval) */
       output?: InferToolOutput<T>
+      /** App data the server tool set with `setResultMetadata` (typed from resultMetadataSchema) */
+      resultMetadata?: InferToolResultMetadata<T>
     } & (NonNullable<T['needsApproval']> extends true
       ? {
           /**
@@ -609,6 +613,7 @@ type UntypedToolCallPart = {
     approved?: boolean
   }
   output?: any
+  resultMetadata?: unknown
 }
 
 /**
@@ -1179,6 +1184,13 @@ export interface ChatClientBaseOptions<
    * When provided, tools with execute functions will be called automatically
    */
   tools?: TTools
+
+  /**
+   * The schema of the structured answer, as passed to
+   * `useChat({ outputSchema })`. The client gives it to the connection in
+   * `runContext.config`. It does not validate the answer.
+   */
+  outputSchema?: SchemaInput
 
   /** First-party generic interrupts this client can type and resolve. */
   interrupts?: TInterrupts

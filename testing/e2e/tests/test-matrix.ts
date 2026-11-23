@@ -36,11 +36,13 @@ export const providers: Provider[] = [
   'mistral',
   'byteplus',
   'elevenlabs',
+  'cartesia',
   'llmgateway',
   'cloudflare',
   'neon',
   'neon-anthropic',
   'neon-responses',
+  'muse',
 ]
 
 export { isSupported }

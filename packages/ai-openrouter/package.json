@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-openrouter",
-  "version": "1.1.0",
+  "version": "1.1.2",
   "description": "TanStack AI adapter for OpenRouter chat, provider tools, structured outputs, and access to hundreds of LLMs.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -79,8 +79,8 @@
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10",
-    "vite": "^8.2.1",
+    "@vitest/coverage-v8": "4.1.12",
+    "vite": "^8.3.8",
     "zod": "^4.2.0"
   },
   "peerDependencies": {

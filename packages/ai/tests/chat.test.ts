@@ -656,6 +656,124 @@ describe('chat()', () => {
         }),
       )
     })
+
+    it('matches live StreamProcessor error text after reload for an adapter JSON tool error', async () => {
+      let saved: ReadonlyArray<ModelMessage> = []
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'checkStatus'),
+            ev.toolArgs('call_1', '{}'),
+            chunk(EventType.TOOL_CALL_END, {
+              toolCallId: 'call_1',
+              state: 'output-error',
+              result: '{"error":"Rate limited"}',
+            }),
+            ev.runFinished('tool_calls'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Done.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+      const chunks = await collectChunks(
+        chat({
+          threadId: 'thread-1',
+          adapter,
+          messages: [{ role: 'user', content: 'Check it' }],
+          tools: [serverTool('checkStatus', () => ({ ok: true }))],
+          middleware: [
+            defineChatMiddleware({
+              name: 'capture-message-history',
+              onFinish(ctx) {
+                saved = ctx.messages
+              },
+            }),
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      const processor = new StreamProcessor()
+      for (const item of chunks) processor.processChunk(item)
+      const liveError = processor
+        .getMessages()
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === 'tool-result')
+        .find((part) => part.toolCallId === 'call_1')?.error
+      const reloadedError = modelMessagesToUIMessages([...saved])
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === 'tool-result')
+        .find((part) => part.toolCallId === 'call_1')?.error
+      expect(liveError).toBe('Rate limited')
+      expect(reloadedError).toBe(liveError)
+    })
+
+    it('matches live StreamProcessor error text after reload for a replaced JSON-text string error', async () => {
+      let saved: ReadonlyArray<ModelMessage> = []
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'checkStatus'),
+            ev.toolArgs('call_1', '{}'),
+            ev.toolEnd('call_1'),
+            ev.runFinished('tool_calls'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Done.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+      const chunks = await collectChunks(
+        chat({
+          threadId: 'thread-1',
+          adapter,
+          messages: [{ role: 'user', content: 'Check it' }],
+          tools: [
+            serverTool('checkStatus', () => {
+              throw new Error('disk full while writing /var/log/huge.log')
+            }),
+          ],
+          middleware: [
+            defineChatMiddleware({
+              name: 'short-errors',
+              onAfterToolCall(_ctx, info) {
+                return info.ok
+                  ? undefined
+                  : { type: 'replaceResult', result: '{"error":"disk full"}' }
+              },
+            }),
+            defineChatMiddleware({
+              name: 'capture-message-history',
+              onFinish(ctx) {
+                saved = ctx.messages
+              },
+            }),
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      const processor = new StreamProcessor()
+      for (const item of chunks) processor.processChunk(item)
+      const liveError = processor
+        .getMessages()
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === 'tool-result')
+        .find((part) => part.toolCallId === 'call_1')?.error
+      const reloadedError = modelMessagesToUIMessages([...saved])
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === 'tool-result')
+        .find((part) => part.toolCallId === 'call_1')?.error
+      expect(liveError).toBe('{"error":"disk full"}')
+      expect(reloadedError).toBe(liveError)
+    })
   })
 
   // ==========================================================================
@@ -869,6 +987,60 @@ describe('chat()', () => {
         id: 'snapshot_interrupt-run_0',
         role: 'user',
       })
+    })
+
+    it('stores the ids that the interrupt MESSAGES_SNAPSHOT gives', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_server', 'lookup'),
+            ev.toolArgs('call_server', '{}'),
+            ev.toolStart('call_1', 'clientSearch'),
+            ev.toolArgs('call_1', '{"query":"test"}'),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+      let storedOnInterrupt: ReadonlyArray<ModelMessage> = []
+
+      const chunks = await collectChunks(
+        chat({
+          threadId: 'thread-1',
+          adapter,
+          runId: 'interrupt-run',
+          messages: [{ role: 'user', content: 'Search' }],
+          tools: [
+            serverTool('lookup', () => ({ ok: true })),
+            clientTool('clientSearch'),
+          ],
+          middleware: [
+            defineChatMiddleware({
+              name: 'test-stored-messages',
+              onChunk(ctx, chunk) {
+                if (
+                  chunk.type === EventType.RUN_FINISHED &&
+                  chunk.outcome?.type === 'interrupt'
+                ) {
+                  storedOnInterrupt = ctx.messages
+                }
+              },
+            }),
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const snapshot = chunks.find(
+        (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT,
+      )
+      expect(storedOnInterrupt.map((message) => message.id)).toEqual(
+        snapshot?.messages.map((message) => message.id),
+      )
+      expect(
+        storedOnInterrupt.some(
+          (message) => message.role === 'tool' && message.id != null,
+        ),
+      ).toBe(true)
     })
 
     it('preserves structured-output leftover on the interrupt MESSAGES_SNAPSHOT', async () => {
@@ -2891,6 +3063,53 @@ describe('chat()', () => {
       expect(calls).toHaveLength(1)
     })
 
+    it('does not treat a marked JSON-text string as pendingExecution', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ ok: true })
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Already answered.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      await collectChunks(
+        chat({
+          threadId: 'thread-1',
+          adapter,
+          messages: [
+            { role: 'user', content: 'Look it up' },
+            {
+              role: 'assistant',
+              content: 'Let me check.',
+              toolCalls: [
+                {
+                  id: 'call_1',
+                  type: 'function' as const,
+                  function: { name: 'lookup', arguments: '{}' },
+                },
+              ],
+            },
+            {
+              role: 'tool',
+              content: '{"pendingExecution":true}',
+              toolCallId: 'call_1',
+              metadata: { tanstack: { toolResultKind: 'text' } },
+            },
+          ],
+          tools: [serverTool('lookup', executeSpy)],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(executeSpy).not.toHaveBeenCalled()
+      expect(calls).toHaveLength(1)
+    })
+
     it('should emit only TOOL_CALL_RESULT for pending tool calls', async () => {
       const executeSpy = vi.fn().mockReturnValue({ temp: 72 })
 
@@ -3187,6 +3406,7 @@ describe('chat()', () => {
           toolCallId: 'call_1',
           content: DEFAULT_TEXT,
           error: DEFAULT_TEXT,
+          metadata: { tanstack: { toolResultKind: 'text' } },
         },
       ])
       expect(chunks).toContainEqual(
@@ -3257,6 +3477,7 @@ describe('chat()', () => {
         toolCallId: 'call_1',
         content: text,
         error: text,
+        metadata: { tanstack: { toolResultKind: 'text' } },
       })
       expect(chunks).toContainEqual(
         expect.objectContaining({
@@ -3315,6 +3536,7 @@ describe('chat()', () => {
           toolCallId,
           content: DEFAULT_TEXT,
           error: DEFAULT_TEXT,
+          metadata: { tanstack: { toolResultKind: 'text' } },
         })),
       )
       expect(
@@ -3397,9 +3619,11 @@ describe('chat()', () => {
       expect(lookup).not.toHaveBeenCalled()
       expect(afterToolCall).toHaveBeenCalledTimes(1)
       expect(calls).toHaveLength(1)
-      expect(
-        tanstackMetadata(expectSingleRunFinished(chunks))?.finishReason,
-      ).toBe('length')
+      expect(tanstackMetadata(expectSingleRunFinished(chunks))).toMatchObject({
+        finishReason: 'length',
+        // The default strategy stops on `length`.
+        loopStopped: true,
+      })
       // The result comes before the RUN_FINISHED that ends the run.
       expect(
         chunks
@@ -3416,7 +3640,10 @@ describe('chat()', () => {
           content: 'Let me look.',
           toolCalls: [expect.objectContaining({ id: 'call_1' })],
           metadata: {
-            tanstack: expect.objectContaining({ finishReason: 'length' }),
+            tanstack: expect.objectContaining({
+              finishReason: 'length',
+              loopStopped: true,
+            }),
           },
         }),
         {
@@ -3424,6 +3651,7 @@ describe('chat()', () => {
           toolCallId: 'call_1',
           content: DEFAULT_TEXT,
           error: DEFAULT_TEXT,
+          metadata: { tanstack: { toolResultKind: 'text' } },
         },
       ])
     })
@@ -3718,6 +3946,126 @@ describe('chat()', () => {
       // Should have called the adapter 2 times (iterations 0 and 1)
       // Each iteration has processText + executeToolCalls phases
       expect(calls.length).toBe(2)
+    })
+
+    describe('loopStopped', () => {
+      const toolTurn = (id: string) => [
+        ev.runStarted(),
+        ev.toolStart(id, 'repeater'),
+        ev.toolArgs(id, '{}'),
+        ev.runFinished('tool_calls'),
+      ]
+      const textTurn = [
+        ev.runStarted(),
+        ev.textStart('msg-2'),
+        ev.textContent('Done.', 'msg-2'),
+        ev.textEnd('msg-2'),
+        ev.runFinished('stop'),
+      ]
+      const runFinished = (chunks: Array<StreamChunk>) =>
+        chunks.filter((item) => item.type === EventType.RUN_FINISHED)
+
+      async function run(iterations: Array<Array<StreamChunk>>) {
+        const { adapter, calls } = createMockAdapter({ iterations })
+        let transcript: Array<ModelMessage> = []
+        const chunks = await collectChunks(
+          chat({
+            threadId: 'thread-1',
+            adapter,
+            messages: [{ role: 'user', content: 'Repeat' }],
+            tools: [serverTool('repeater', () => ({ ok: true }))],
+            agentLoopStrategy: maxIterations(2),
+            middleware: [
+              defineChatMiddleware({
+                onFinish(ctx) {
+                  transcript = [...ctx.messages]
+                },
+              }),
+            ],
+          }) as AsyncIterable<StreamChunk>,
+        )
+        const assistants = transcript.filter((m) => m.role === 'assistant')
+        return { calls, chunks, assistants }
+      }
+
+      it('ends a run that maxIterations stops with a loopStopped RUN_FINISHED', async () => {
+        const { calls, chunks, assistants } = await run([
+          toolTurn('call_1'),
+          toolTurn('call_2'),
+          textTurn,
+        ])
+
+        expect(calls).toHaveLength(2)
+        const finished = runFinished(chunks)
+        expect(
+          finished.map((item) => tanstackMetadata(item)?.loopStopped),
+        ).toEqual([undefined, undefined, true])
+        // It comes last, after the tool results, and keeps the finish reason
+        // of the last model call.
+        expect(chunks.at(-1)).toBe(finished.at(-1))
+        expect(tanstackMetadata(finished.at(-1))?.finishReason).toBe(
+          'tool_calls',
+        )
+        expect(assistants.map((m) => tanstackMetadata(m)?.loopStopped)).toEqual(
+          [undefined, true],
+        )
+      })
+
+      it('does not mark a run that the model ends, also at the iteration limit', async () => {
+        const { calls, chunks, assistants } = await run([
+          toolTurn('call_1'),
+          textTurn,
+        ])
+
+        expect(calls).toHaveLength(2)
+        const finished = runFinished(chunks)
+        expect(tanstackMetadata(finished.at(-1))?.finishReason).toBe('stop')
+        expect(
+          finished.some((item) => tanstackMetadata(item)?.loopStopped),
+        ).toBe(false)
+        expect(assistants.some((m) => tanstackMetadata(m)?.loopStopped)).toBe(
+          false,
+        )
+      })
+
+      it('puts loopStopped on the RUN_FINISHED of a streamed structured-output finalization', async () => {
+        const { adapter } = createMockAdapter({
+          iterations: [toolTurn('call_1'), toolTurn('call_2')],
+          structuredOutput: async () => ({
+            data: { status: 'ok' },
+            rawText: '{"status":"ok"}',
+          }),
+        })
+        let transcript: Array<ModelMessage> = []
+        const chunks = await collectChunks(
+          chat({
+            threadId: 'thread-1',
+            adapter,
+            messages: [{ role: 'user', content: 'Repeat' }],
+            tools: [serverTool('repeater', () => ({ ok: true }))],
+            agentLoopStrategy: maxIterations(2),
+            outputSchema: {
+              type: 'object',
+              properties: { status: { type: 'string' } },
+              required: ['status'],
+            },
+            stream: true,
+            middleware: [
+              defineChatMiddleware({
+                onFinish(ctx) {
+                  transcript = [...ctx.messages]
+                },
+              }),
+            ],
+          }) as AsyncIterable<StreamChunk>,
+        )
+
+        const finished = expectSingleRunFinished(chunks)
+        expect(chunks.at(-1)).toBe(finished)
+        expect(tanstackMetadata(finished)?.loopStopped).toBe(true)
+        const lastAssistant = transcript.findLast((m) => m.role === 'assistant')
+        expect(tanstackMetadata(lastAssistant)?.loopStopped).toBe(true)
+      })
     })
 
     it('should respect toolCallCount on strategy state (counts tools, not turns)', async () => {

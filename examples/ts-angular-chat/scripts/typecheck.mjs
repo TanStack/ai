@@ -2,9 +2,7 @@
 //
 // Angular template type-checking (`strictTemplates`) requires the Angular
 // compiler (`ngc`), not plain `tsc`. `ngc` ships in `@angular/compiler-cli`,
-// which is a *peer* dependency of `@angular/build` (a direct devDependency of
-// this example). We resolve it from there instead of declaring it directly so
-// CI's frozen lockfile install stays unchanged.
+// a direct devDependency. `@angular/build` only peers it.
 import { createRequire } from 'node:module'
 import { spawnSync } from 'node:child_process'
 import { dirname, join } from 'node:path'

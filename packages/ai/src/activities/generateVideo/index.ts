@@ -25,7 +25,7 @@ import {
   createActivityAbortControls,
   isActivityAbortError,
   raceWithAbort,
-  toAbortError,
+  sleep,
 } from '../../utilities/activity-abort'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
@@ -560,27 +560,6 @@ async function runCreateVideoJob<
   const mwCtx = contextFor(videoRunIdForJob(adapter.name, jobResult.jobId))
   await runGenerationStart(middleware, mwCtx)
   return await applyGenerationResultTransforms(mwCtx, jobResult)
-}
-
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  if (!signal) {
-    return new Promise((resolve) => setTimeout(resolve, ms))
-  }
-  if (signal.aborted) {
-    return Promise.reject(toAbortError(signal.reason))
-  }
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort)
-      resolve()
-    }, ms)
-    const onAbort = () => {
-      clearTimeout(timer)
-      signal.removeEventListener('abort', onAbort)
-      reject(toAbortError(signal.reason))
-    }
-    signal.addEventListener('abort', onAbort, { once: true })
-  })
 }
 
 /**

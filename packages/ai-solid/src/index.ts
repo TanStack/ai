@@ -33,6 +33,12 @@ export type {
   UseGenerateImageReturn,
 } from './use-generate-image'
 
+export { useGenerate3dModel } from './use-generate-3d-model'
+export type {
+  UseGenerate3dModelOptions,
+  UseGenerate3dModelReturn,
+} from './use-generate-3d-model'
+
 export { useGenerateAudio } from './use-generate-audio'
 export type {
   UseGenerateAudioOptions,

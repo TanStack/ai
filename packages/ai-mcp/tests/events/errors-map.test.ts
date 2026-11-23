@@ -25,6 +25,7 @@ describe('toMCPEventRequestError', () => {
 
   it.each([
     [-32602, 'invalid-params'],
+    [-32020, 'header-mismatch'],
     [-32023, 'not-found'],
     [-32024, 'forbidden'],
     [-32025, 'resource-exhausted'],

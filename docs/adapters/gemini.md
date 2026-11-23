@@ -268,6 +268,55 @@ Tools that act:
 
 Each tool, with a full sample, is on [Gemini: Advanced](./gemini-advanced#provider-tools). For which models take which tool, see [Provider Tools](../tools/provider-tools.md).
 
+## Evaluate
+
+Sometimes you need an answer your code can branch on, not chat text: a queue name, an urgency level, or a yes or no. Use `geminiDecider` with `decide()` to ask typed questions about one shared `state`. The adapter calls the Gemini Decisions API (`/v1beta/decisions`):
+
+```typescript
+import { decide, choice, score, boolean } from "@tanstack/ai";
+import { geminiDecider } from "@tanstack/ai-gemini";
+
+const ticket = {
+  subject: "Charged twice for the same invoice",
+  body: "Please refund the extra payment.",
+};
+
+const result = await decide({
+  adapter: geminiDecider("gemini-decision-1"),
+  state: ticket,
+  questions: {
+    queue: choice({
+      instructions: "Which team should handle this ticket?",
+      options: {
+        billing: "Payments, invoices, refunds",
+        tech: "Bugs, outages, integrations",
+        sales: "Pricing, upgrades, new accounts",
+      },
+    }),
+    urgency: score({
+      instructions: "How urgent is this ticket?",
+      levels: ["low", "medium", "high"],
+    }),
+    refund: boolean({
+      instructions: "Is the customer asking for a refund?",
+    }),
+  },
+});
+
+console.log(result.queue.value); // "billing"
+console.log(result.urgency.value); // "medium"
+console.log(result.refund.value); // true
+console.log(result.meta.usage);
+```
+
+`geminiDecider` reads `GOOGLE_API_KEY` or `GEMINI_API_KEY`. To pass a key yourself, use `createGeminiDecider("gemini-decision-1", "AIza...")`.
+
+- `gemini-decision-1` is the Decisions model.
+- An object `state` goes to Gemini as the request `input`.
+- `boolean()` questions work. The adapter maps the `true` and `false` criteria to Gemini's `true_description` and `false_description` fields.
+
+See the [Evaluate guide](../evaluate/evaluate) for the question helpers, the result shape, abort, and middleware.
+
 ## Models and options
 
 ### Model options
@@ -343,6 +392,34 @@ const stream = chat({
 
 Image models keep their own `thinkingConfig` in `modelOptions`. See [Image model options](./gemini-advanced#image-model-options).
 
+### Filtered responses
+
+When a Gemini content filter stops a reply, the stream still ends with `RUN_FINISHED`. `metadata.tanstack.finishReason` is `"content_filter"`. The text before the stop is already in the message, so decide whether to show it:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+
+const stream = chat({
+  adapter: geminiText("gemini-3.8-flash"),
+  messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "RUN_FINISHED" && chunk.metadata?.tanstack?.finishReason === "content_filter") {
+    console.warn("Gemini filtered the reply.");
+  }
+}
+```
+
+The Gemini finish reasons that set `"content_filter"`:
+
+- Text: `SAFETY`, `RECITATION`, `BLOCKLIST`, `PROHIBITED_CONTENT`, and `SPII`.
+- Image: `IMAGE_SAFETY`, `IMAGE_PROHIBITED_CONTENT`, and `IMAGE_RECITATION`.
+
+A filtered structured output ends with `RUN_ERROR` and code `content_filter` instead. A reply cut at `maxOutputTokens` ends with `RUN_ERROR` and code `max_tokens`.
+
 ### Models
 
 Newest first. The package exports the full lists, for example `GeminiTextModels`.
@@ -353,8 +430,9 @@ Newest first. The package exports the full lists, for example `GeminiTextModels`
 | Images | `geminiImage` | `gemini-nano-banana-2.1`, `gemini-3.1-flash-image`, `gemini-3.1-flash-lite-image`, `gemini-3-pro-image` |
 | Speech | `geminiSpeech` | `gemini-3.1-flash-tts-preview`, `gemini-2.5-flash-preview-tts`, `gemini-2.5-pro-preview-tts` |
 | Music | `geminiAudio` | `lyria-3-pro-preview`, `lyria-3-clip-preview` |
-| Video | `geminiVideo` | `veo-3.1-generate-preview`, `veo-3.1-fast-generate-preview`, `veo-3.1-lite-generate-preview`, `gemini-omni-1.1-flash` |
+| Video | `geminiVideo` | `veo-3.1-generate-preview`, `veo-3.1-fast-generate-preview`, `veo-3.1-lite-generate-preview`, `gemini-omni-1.2-flash`, `gemini-omni-1.1-flash` |
 | Embeddings | `geminiEmbedding` | `gemini-embedding-001` |
+| Evaluate | `geminiDecider` | `gemini-decision-1` |
 
 `adapter.inputModalities` lists the input kinds of the selected model. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 

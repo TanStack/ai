@@ -55,6 +55,7 @@ async function openRouting(options: {
   humans?: boolean
   log?: LogStore
   ownership?: OwnershipOptions
+  handoffTool?: HarnessRouting['handoffTool']
 }) {
   const { metadata } = memoryPersistence().stores
   const log = options.log ?? memoryLogStore()
@@ -79,6 +80,7 @@ async function openRouting(options: {
           ? { giveModelsHandoffTool: options.handoffs }
           : {}),
         ...(options.humans ? { allowHandoffToHuman: true } : {}),
+        ...(options.handoffTool ? { handoffTool: options.handoffTool } : {}),
       },
     }),
     { threadId: THREAD, user: USER },
@@ -381,17 +383,67 @@ describe('handoffs', () => {
     await host.close()
   })
 
-  it('fails the turn when an app tool is named handoff', async () => {
+  it('an app tool named handoff replaces the harness tool for main', async () => {
     const billing = modelAgent('billing', [])
-    const { host, session } = await openRouting({
+    const { host, session, main } = await openRouting({
       agents: [billing.agent],
       tools: [plainTool('handoff')],
-      replies: [() => text('never')],
+      replies: [() => text('Main')],
     })
 
-    await expect(session.send('hi')).rejects.toThrow(
-      'Duplicate tool "handoff": first owner routing (the handoff tool), second owner the harness.',
+    expect((await session.send('hi')).text).toBe('Main')
+    // Only the app tool, once.
+    const tools = main.calls[0].tools
+    expect(toolNames(main.calls[0])).toEqual(['handoff'])
+    expect(tools[0].description).toBe('The handoff tool')
+    await host.close()
+  })
+
+  it('routing.handoffTool gives each speaker its own tool', async () => {
+    const billing = modelAgent('billing', [() => text('Refunded')])
+    const { host, session, main, log } = await openRouting({
+      agents: [billing.agent],
+      handoffTool: ({ from, handoff }) =>
+        toolDefinition({
+          name: 'transfer',
+          description: `Transfer from ${from ?? 'main'}`,
+          inputSchema: z.object({ to: z.string(), note: z.string() }),
+        }).server(async ({ to, note }) => {
+          await handoff({ to, note: `${from ?? 'main'}: ${note}` })
+          return `Moved to ${to}.`
+        }),
+      replies: [
+        () =>
+          toolCall('transfer', { to: 'billing', note: 'order 42' }, 'call_t'),
+      ],
+    })
+
+    expect((await session.send('refund please')).text).toBe(
+      'billing:\nRefunded',
     )
+    const description = (call: { tools: Array<AnyTool> }) =>
+      call.tools.map((tool) => tool.description)
+    expect(toolNames(main.calls[0])).toEqual(['transfer'])
+    expect(description(main.calls[0])).toEqual(['Transfer from main'])
+    expect(toolNames(billing.model.calls[0])).toEqual(['transfer'])
+    expect(description(billing.model.calls[0])).toEqual([
+      'Transfer from billing',
+    ])
+    expect(
+      (await handoffRecords(log)).map(({ from, to, note, by }) => ({
+        from,
+        to,
+        note,
+        by,
+      })),
+    ).toEqual([
+      { from: null, to: 'billing', note: 'main: order 42', by: 'tool' },
+    ])
+    // billing gets the rewritten note from the tool call, once.
+    expect(billing.model.calls[0].messages.at(-1)).toMatchObject({
+      role: 'user',
+      content: 'main handed off to billing. Note: main: order 42',
+    })
     await host.close()
   })
 
@@ -559,11 +611,14 @@ describe('handoffs', () => {
       ...call(1, undefined, { to: 'triage' }),
       ...call(2, 'triage', { to: 'billing', note: 'A refund' }),
     ])
-    // The target gets the note of its handoff last.
-    expect(billing.model.calls[0].messages.slice(-2)).toMatchObject([
-      { role: 'assistant', toolCalls: [{ id: `handoff_${inputId}_2` }] },
-      { role: 'tool', toolCallId: `handoff_${inputId}_2` },
-    ])
+    // The target gets the note of its handoff last, as a text line in a user
+    // message: with `routing.history: 'own'`, a call of another speaker is
+    // text, and the context ends on a user turn.
+    expect(billing.model.calls[0].messages.at(-1)).toMatchObject({
+      id: `handoff_${inputId}_2`,
+      role: 'user',
+      content: 'triage handed off to billing. Note: A refund',
+    })
     await host.close()
   })
 
@@ -605,7 +660,11 @@ describe('handoffs', () => {
       role: 'assistant',
       content: 'Handed off to billing. billing answers next.',
     }
-    expect(billing.model.calls[0].messages.at(-1)).toMatchObject(note)
+    // The target gets the plain note as text of another speaker.
+    expect(billing.model.calls[0].messages.at(-1)).toMatchObject({
+      ...note,
+      role: 'user',
+    })
     expect(
       (await session.transcript()).filter((message) =>
         message.id?.startsWith('handoff_'),

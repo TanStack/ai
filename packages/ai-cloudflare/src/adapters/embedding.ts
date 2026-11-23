@@ -8,6 +8,13 @@ import type { EmbeddingOptions, EmbeddingResult } from '@tanstack/ai'
 import type { CloudflareConfig, CloudflareConfigInput } from '../utils/config'
 import type { CloudflareEmbeddingModel } from '../utils/models'
 
+/**
+ * Texts per Workers AI request. 100 is the cap of the BGE and EmbeddingGemma
+ * models. Models with a lower cap (such as `@cf/qwen/qwen3-embedding-0.6b`)
+ * can still reject a full batch.
+ */
+const CLOUDFLARE_MAX_BATCH_SIZE = 100
+
 /** Extra inputs forwarded to the embedding model (model specific). */
 export type CloudflareEmbeddingProviderOptions = Record<string, unknown>
 
@@ -43,21 +50,35 @@ export class CloudflareEmbeddingAdapter<
         `activity=embed provider=${this.name} model=${model} inputs=${texts.length}`,
         { provider: this.name, model },
       )
-      const output = (await runModel(
-        this.cfConfig,
-        model,
-        { ...options.modelOptions, text: texts },
-        { signal: options.abortSignal },
-      )) as { data?: Array<Array<number>> }
-      if (!Array.isArray(output.data) || output.data.length !== texts.length) {
-        throw new Error(
-          `Workers AI ${model} returned ${output.data?.length ?? 0} embeddings for ${texts.length} inputs`,
-        )
+      const vectors: Array<Array<number>> = []
+      for (
+        let start = 0;
+        start < texts.length;
+        start += CLOUDFLARE_MAX_BATCH_SIZE
+      ) {
+        // The binding path ignores the signal, so check it between batches.
+        options.abortSignal?.throwIfAborted()
+        const batch = texts.slice(start, start + CLOUDFLARE_MAX_BATCH_SIZE)
+        const output = (await runModel(
+          this.cfConfig,
+          model,
+          { ...options.modelOptions, text: batch },
+          { signal: options.abortSignal },
+        )) as { data?: Array<Array<number>> }
+        if (
+          !Array.isArray(output.data) ||
+          output.data.length !== batch.length
+        ) {
+          throw new Error(
+            `Workers AI ${model} returned ${output.data?.length ?? 0} embeddings for ${batch.length} inputs`,
+          )
+        }
+        vectors.push(...output.data)
       }
       return {
         id: generateId(this.name),
         model,
-        embeddings: output.data.map((vector, index) => ({
+        embeddings: vectors.map((vector, index) => ({
           vector,
           index,
         })),

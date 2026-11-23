@@ -803,6 +803,23 @@ export interface VideoGenerateInput {
   modelOptions?: Record<string, any>
 }
 
+/**
+ * Input for 3D model generation.
+ *
+ * @experimental 3D model generation is experimental. The shape can change in
+ * a minor release.
+ */
+export interface Model3dGenerateInput {
+  /**
+   * Description of the desired 3D model: plain text, or an ordered array of
+   * content parts (text + image + model3d) for image-to-3D and 3D-to-3D
+   * generation.
+   */
+  prompt: MediaPrompt
+  /** Model-specific options */
+  modelOptions?: Record<string, any>
+}
+
 function createGenerationEventSnapshot(
   chunk: StreamChunk,
 ): GenerationEventSnapshot {

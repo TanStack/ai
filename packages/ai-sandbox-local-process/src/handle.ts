@@ -886,8 +886,10 @@ export class LocalProcessHandle implements SandboxHandle {
       this.track(child)
       let stdout = ''
       let stderr = ''
-      child.stdout.on('data', (d: Buffer) => (stdout += d.toString('utf8')))
-      child.stderr.on('data', (d: Buffer) => (stderr += d.toString('utf8')))
+      // setEncoding decodes across chunks, so a multi-byte character split
+      // between two `data` events is not turned into U+FFFD (see decodeStream).
+      child.stdout.setEncoding('utf8').on('data', (d: string) => (stdout += d))
+      child.stderr.setEncoding('utf8').on('data', (d: string) => (stderr += d))
       const onAbort = (): void => {
         killTree(child, undefined, this.options.logger)
       }

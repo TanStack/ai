@@ -1,5 +1,36 @@
 # @tanstack/ai-anthropic
 
+## 1.2.1
+
+### Patch Changes
+
+- [#2200](https://github.com/TanStack/ai/pull/2200) [`d0dfd86`](https://github.com/TanStack/ai/commit/d0dfd866288955f5f2208507419775edb3b88ac1) - Give `claude-sonnet-5-5` and `claude-haiku-5-5` their mid-conversation channels. Anthropic supports mid-conversation system messages and tool changes on both models, but they were missing from `ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS`, so a tool or system prompt added during a conversation rewrote the start of the request and missed the prompt cache, even with `midConversationChannels: true`.
+
+## 1.2.0
+
+### Minor Changes
+
+- [#2107](https://github.com/TanStack/ai/pull/2107) [`fde4e09`](https://github.com/TanStack/ai/commit/fde4e09b0170017394ff2874847d416777920b2e) - `withCompaction({ native })` now passes the tools, the model options, and the reasoning of the chat call into `compact`. The Anthropic text adapter implements `compact` as an on-demand Messages request (`compaction: { type: "summarize" }`, beta `compact-2026-09-04`). The signed compaction block stays on the assistant message and goes back on later requests to the same model. A result with no signed block uses the configured strategy.
+
+### Patch Changes
+
+- Updated dependencies [[`fde4e09`](https://github.com/TanStack/ai/commit/fde4e09b0170017394ff2874847d416777920b2e)]:
+  - @tanstack/ai@1.5.0
+
+## 1.1.1
+
+### Patch Changes
+
+- [#2042](https://github.com/TanStack/ai/pull/2042) [`1f777da`](https://github.com/TanStack/ai/commit/1f777da51534bde12c9af3efd6c73855836ee7d7) - Report `incomplete-stream` when an Anthropic stream ends before a stop reason (no `message_delta` with `stop_reason` and no `message_stop`). Before, the run had no terminal event and `onFinish` got the partial text as a success. An abort is not reported.
+
+- [#1973](https://github.com/TanStack/ai/pull/1973) [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce) - The adapters now call the provider HTTP API with `fetch` and do not create the `@anthropic-ai/sdk` client. At runtime they load only small SDK modules, for example the error classes from `@anthropic-ai/sdk/core/error`. With a bundler that splits chunks, the startup bundle is smaller. Errors keep the same classes and fields.
+
+  These options still load `@anthropic-ai/sdk` on first use: `middleware`, OpenTelemetry tracing, `logLevel: 'info'` or `'debug'` (or `ANTHROPIC_LOG`), and no `apiKey` and no `authToken`.
+
+- Updated dependencies [[`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai@1.2.0
+  - @tanstack/ai-utils@1.1.0
+
 ## 1.1.0
 
 ### Minor Changes

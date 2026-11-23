@@ -151,6 +151,59 @@ describe('createMCPClients', () => {
     expect(err.cause).toBeUndefined()
   })
 
+  it('readResource routes the read to the server whose prefix matches serverId', async () => {
+    const alpha = await makeNamedResourceServer('alpha')
+    const beta = await makeNamedResourceServer('beta')
+    await using pool = await createMCPClients({
+      alpha: { transport: alpha.clientTransport },
+      beta: { transport: beta.clientTransport },
+    })
+    const read = await pool.readResource('ui://w', { serverId: 'beta' })
+    expect(read.contents[0]).toMatchObject({ uri: 'ui://w', text: 'beta' })
+    expect(alpha.reads).toEqual([])
+  })
+
+  it('readResource passes meta to the owner only', async () => {
+    const alpha = await makeNamedResourceServer('alpha')
+    const beta = await makeNamedResourceServer('beta')
+    await using pool = await createMCPClients({
+      alpha: { transport: alpha.clientTransport },
+      beta: { transport: beta.clientTransport },
+    })
+    await pool.readResource('ui://w', { serverId: 'beta', meta: readMeta })
+    expect(beta.reads).toHaveLength(1)
+    expect(beta.reads[0]).toMatchObject(readMeta)
+    expect(alpha.reads).toEqual([])
+  })
+
+  it('readResource tries each server, with meta, when serverId matches no client', async () => {
+    const alpha = await makeNamedResourceServer('alpha')
+    const beta = await makeNamedResourceServer('beta')
+    await using pool = await createMCPClients({
+      alpha: { transport: alpha.clientTransport },
+      beta: { transport: beta.clientTransport },
+    })
+    const read = await pool.readResource('ui://w', {
+      serverId: 'nope',
+      meta: readMeta,
+    })
+    expect(read.contents[0]).toMatchObject({ uri: 'ui://w', text: 'alpha' })
+    expect(alpha.reads[0]).toMatchObject(readMeta)
+  })
+
+  it('readResource rejects with the owner error and does not try other servers', async () => {
+    const alpha = await makeNamedResourceServer('alpha')
+    const beta = await makeNamedResourceServer('beta', { fail: true })
+    await using pool = await createMCPClients({
+      alpha: { transport: alpha.clientTransport },
+      beta: { transport: beta.clientTransport },
+    })
+    await expect(
+      pool.readResource('ui://w', { serverId: 'beta' }),
+    ).rejects.toThrow(/beta failed/)
+    expect(alpha.reads).toEqual([])
+  })
+
   it('getServers() returns each server descriptor keyed by config key', async () => {
     const a = await makeServerWithWeatherTool()
     const b = await makeServerWithWeatherTool()
@@ -251,6 +304,30 @@ describe('createMCPClients', () => {
     })
   })
 })
+
+const readMeta = { 'acme.com/tenant': 't1' }
+
+// A raw server that serves every uri and puts its own name in the text.
+// It keeps the `_meta` of each resources/read that it gets.
+async function makeNamedResourceServer(
+  name: string,
+  options?: { fail?: boolean },
+) {
+  const reads: Array<unknown> = []
+  const server = new Server(
+    { name, version: '1.0.0' },
+    { capabilities: { resources: {} } },
+  )
+  server.setRequestHandler('resources/read', (request) => {
+    reads.push(request.params._meta)
+    if (options?.fail) throw new Error(`${name} failed`)
+    return { contents: [{ uri: request.params.uri, text: name }] }
+  })
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { clientTransport, reads }
+}
 
 // The server has no public setter for the negotiated era, so the test sets it.
 async function makeModernWeatherTransport() {
