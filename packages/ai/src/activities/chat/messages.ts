@@ -10,6 +10,7 @@ import {
   textToolResultMark,
 } from '../../utilities/tool-result'
 import {
+  appMetadata,
   mergeMetadata,
   tanstackMetadata,
   withTanstackMetadata,
@@ -1510,6 +1511,13 @@ export function modelMessagesToUIMessages(
               ? parseToolOutput(content, msg.metadata)
               : content
           toolCallPart.state = resultState
+          // Only the app keys. The tool-result part keeps the full metadata.
+          const resultMetadata = appMetadata(msg.metadata)
+          if (resultMetadata !== undefined) {
+            toolCallPart.resultMetadata = resultMetadata
+          } else {
+            delete toolCallPart.resultMetadata
+          }
         }
 
         currentAssistantMessage.parts.push({

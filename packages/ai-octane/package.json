@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-octane",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "description": "Octane bindings for TanStack AI streaming chat, structured outputs, and media generation.",
   "author": "Dominic Gannaway",
   "license": "MIT",

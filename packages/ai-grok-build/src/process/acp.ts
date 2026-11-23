@@ -6,8 +6,12 @@ import {
 } from '@tanstack/ai-acp'
 import type { AcpSandboxServer, AcpSessionTransport } from '@tanstack/ai-acp'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
+import type { GrokBuildAuthMode } from '../auth'
 
 export const DEFAULT_GROK_ACP_PORT = 2419
+
+/** API key variables that `grok` reads. `authMode: 'host'` removes them. */
+const GROK_API_KEY_VARS = ['XAI_API_KEY', 'GROK_API_KEY']
 
 export interface GrokAcpConnection {
   transport: AcpSessionTransport
@@ -24,6 +28,11 @@ export interface OpenGrokAcpConnectionOptions {
   /** Literal cwd for ACP `newSession` / `loadSession` (see resolveHarnessCwd). */
   harnessCwd: string
   env?: Record<string, string>
+  /**
+   * `'host'` runs `grok` without `XAI_API_KEY` and `GROK_API_KEY`, so the CLI
+   * uses its own login. Defaults to `'api-key'`.
+   */
+  authMode?: GrokBuildAuthMode
   extraArgs?: Array<string>
   port?: number
   transportPreference?: 'auto' | 'stdio' | 'websocket'
@@ -69,6 +78,31 @@ export function buildGrokAcpServeCommand(options: {
 }
 
 /**
+ * The executable and spawn env for `grok`. With `authMode: 'host'`, `grok`
+ * runs without `XAI_API_KEY` and `GROK_API_KEY`, so it uses its own login.
+ * The sandbox can have the keys in its own environment, so `env -u` removes
+ * them in the shell too.
+ */
+export function grokAuthLaunch(
+  exe: string,
+  env: Record<string, string> | undefined,
+  authMode: GrokBuildAuthMode | undefined,
+): { exe: string; env: Record<string, string> | undefined } {
+  if (authMode !== 'host') return { exe, env }
+  return {
+    exe: `env ${GROK_API_KEY_VARS.map((name) => `-u ${name}`).join(' ')} ${exe}`,
+    env:
+      env === undefined
+        ? undefined
+        : Object.fromEntries(
+            Object.entries(env).filter(
+              ([name]) => !GROK_API_KEY_VARS.includes(name),
+            ),
+          ),
+  }
+}
+
+/**
  * Open an ACP connection to `grok agent` over stdio or in-sandbox WebSocket.
  */
 export async function openGrokAcpConnection(
@@ -78,12 +112,16 @@ export async function openGrokAcpConnection(
     options.sandbox,
     options.transportPreference ?? 'auto',
   )
-  const spawnEnv = options.env
+  const { exe, env: spawnEnv } = grokAuthLaunch(
+    options.exe,
+    options.env,
+    options.authMode,
+  )
   const signal = options.signal
 
   if (mode === 'stdio') {
     const command = buildGrokAcpStdioCommand({
-      exe: options.exe,
+      exe,
       cliModel: options.cliModel,
       extraArgs: options.extraArgs,
     })
@@ -104,7 +142,7 @@ export async function openGrokAcpConnection(
     port,
     cwd: options.cwd,
     command: buildGrokAcpServeCommand({
-      exe: options.exe,
+      exe,
       cliModel: options.cliModel,
       port,
       secret,

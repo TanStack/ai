@@ -11,7 +11,7 @@ type StructuredOutputPart<TData> =
   | StructuredOutputPartBase<TData> & object;
 ```
 
-Defined in: [packages/ai/src/types.ts:605](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L605)
+Defined in: [packages/ai/src/types.ts:626](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L626)
 
 StructuredOutputPart — a typed structured response attached to the assistant
 message that produced it. Generic over the schema-inferred data type so

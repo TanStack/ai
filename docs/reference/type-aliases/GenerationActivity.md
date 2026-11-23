@@ -10,6 +10,7 @@ type GenerationActivity =
   | "chat"
   | "image"
   | "video"
+  | "3dModel"
   | "audio"
   | "tts"
   | "voice"
@@ -19,6 +20,7 @@ type GenerationActivity =
   | "evaluate"
   | "summarize"
   | "world"
+  | "motion3d"
   | "liveVideo";
 ```
 

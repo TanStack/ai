@@ -11,7 +11,7 @@ type MergedAgentTools<TServerTools> = ReadonlyArray<
 | ClientToolDeclaration>;
 ```
 
-Defined in: [packages/ai/src/utilities/chat-params.ts:319](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L319)
+Defined in: [packages/ai/src/utilities/chat-params.ts:331](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L331)
 
 ## Type Parameters
 

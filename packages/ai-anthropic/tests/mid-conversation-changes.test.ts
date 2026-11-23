@@ -146,13 +146,15 @@ const endChange: MidConversationChanges = {
 }
 
 describe('Anthropic mid-conversation channels', () => {
-  it('gives the five models from pi both channels', () => {
+  it('gives the seven models with a channel both channels', () => {
     const models = [
       'claude-opus-4-8',
       'claude-opus-5',
       'claude-opus-5-5',
       'claude-fable-5',
       'claude-fable-5-1',
+      'claude-sonnet-5-5',
+      'claude-haiku-5-5',
     ] as const
     expect(
       Object.keys(ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS).sort(),
@@ -220,13 +222,13 @@ describe('Anthropic mid-conversation channels', () => {
       }).midConversationChannels,
     ).toBeUndefined()
     expect(
-      new AnthropicTextAdapter({ apiKey: 'test-key' }, 'claude-sonnet-5-5')
+      new AnthropicTextAdapter({ apiKey: 'test-key' }, 'claude-sonnet-5')
         .midConversationChannels,
     ).toBeUndefined()
     expect(
       new AnthropicTextAdapter(
         { apiKey: 'test-key', midConversationChannels: true },
-        'claude-sonnet-5-5',
+        'claude-sonnet-5',
       ).midConversationChannels,
     ).toBeUndefined()
   })
@@ -387,7 +389,7 @@ describe('Anthropic mid-conversation request', () => {
     const cases = [
       ['claude-opus-5-5', { midConversationChannels: false }],
       ['claude-opus-5-5', { baseURL: 'https://gateway.example.com' }],
-      ['claude-sonnet-5-5', {}],
+      ['claude-sonnet-5', {}],
     ] as const
     for (const [model, config] of cases) {
       const today = await send(model, options, config)

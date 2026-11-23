@@ -227,7 +227,7 @@ const stream = chat({
 
 ### Tools and prompts added during a conversation
 
-On `claude-opus-4-8`, `claude-opus-5`, `claude-opus-5-5`, `claude-fable-5`, and `claude-fable-5-1`, a tool or a system prompt that you add between model calls goes into the conversation. The cached start of the request stays the same.
+On `claude-opus-4-8`, `claude-opus-5`, `claude-opus-5-5`, `claude-fable-5`, `claude-fable-5-1`, `claude-sonnet-5-5`, and `claude-haiku-5-5`, a tool or a system prompt that you add between model calls goes into the conversation. The cached start of the request stays the same.
 
 What the adapter sends on these models:
 

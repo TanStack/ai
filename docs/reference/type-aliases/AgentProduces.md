@@ -10,12 +10,14 @@ type AgentProduces =
   | "text"
   | "image"
   | "video"
+  | "3dModel"
   | "audio"
   | "speech"
   | "voice"
   | "transcription"
   | "embedding"
   | "world"
+  | "motion3d"
   | "liveVideo"
   | string & object;
 ```

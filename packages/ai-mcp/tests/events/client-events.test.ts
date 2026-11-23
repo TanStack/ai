@@ -301,4 +301,139 @@ describe('createMCPClient HTTP capability detection', () => {
       await http.close()
     }
   })
+
+  it('sends Mcp-Name and Mcp-Param on events/subscribe', async () => {
+    const seen: Array<{
+      method: string
+      name: string | null
+      region: string | null
+    }> = []
+    const events = createTestEventsServer({
+      verify: 'skip',
+      events: [
+        {
+          name: 'incident.created',
+          delivery: ['webhook'],
+          inputSchema: {
+            type: 'object',
+            properties: {
+              region: { type: 'string', 'x-mcp-header': 'Region' },
+            },
+          },
+          payloadSchema: true,
+        },
+      ],
+    })
+    const inner = eventsHttpFetch(events)
+    const http = await listenHttp(async (request) => {
+      const json: unknown = await request
+        .clone()
+        .json()
+        .catch(() => undefined)
+      const method =
+        typeof json === 'object' &&
+        json !== null &&
+        'method' in json &&
+        typeof json.method === 'string'
+          ? json.method
+          : ''
+      if (method === 'events/list' || method === 'events/subscribe') {
+        seen.push({
+          method,
+          name: request.headers.get('mcp-name'),
+          region: request.headers.get('mcp-param-region'),
+        })
+      }
+      return inner(request)
+    })
+    const client = await createMCPClient({
+      transport: { type: 'http', url: http.url },
+      experimental_events: { store: inMemoryMCPEventStore() },
+    })
+    try {
+      await client.experimental_events.subscribe({
+        name: 'incident.created',
+        arguments: { region: 'eu' },
+        delivery: {
+          mode: 'webhook',
+          url: 'https://hooks.example.test/mcp',
+        },
+      })
+      expect(seen.filter((item) => item.method === 'events/list')).toHaveLength(
+        1,
+      )
+      expect(seen.filter((item) => item.method === 'events/subscribe')).toEqual(
+        [
+          {
+            method: 'events/subscribe',
+            name: 'incident.created',
+            region: 'eu',
+          },
+        ],
+      )
+    } finally {
+      await client.close()
+      await http.close()
+    }
+  })
+
+  it('lists again and retries subscribe once after HeaderMismatch', async () => {
+    let subscribeAttempts = 0
+    const events = createTestEventsServer({ verify: 'skip' })
+    const inner = eventsHttpFetch(events)
+    const http = await listenHttp(async (request) => {
+      const json: unknown = await request
+        .clone()
+        .json()
+        .catch(() => undefined)
+      const method =
+        typeof json === 'object' &&
+        json !== null &&
+        'method' in json &&
+        typeof json.method === 'string'
+          ? json.method
+          : ''
+      const id =
+        typeof json === 'object' &&
+        json !== null &&
+        'id' in json &&
+        (typeof json.id === 'string' || typeof json.id === 'number')
+          ? json.id
+          : null
+      if (method === 'events/subscribe') {
+        subscribeAttempts += 1
+        if (subscribeAttempts === 1) {
+          return Response.json(
+            {
+              jsonrpc: '2.0',
+              id,
+              error: { code: -32020, message: 'HeaderMismatch' },
+            },
+            { status: 400 },
+          )
+        }
+      }
+      return inner(request)
+    })
+    const client = await createMCPClient({
+      transport: { type: 'http', url: http.url },
+      experimental_events: { store: inMemoryMCPEventStore() },
+    })
+    try {
+      await client.experimental_events.subscribe({
+        name: 'incident.created',
+        delivery: {
+          mode: 'webhook',
+          url: 'https://hooks.example.test/mcp',
+        },
+      })
+      expect(subscribeAttempts).toBe(2)
+      expect(
+        events.requests.filter((item) => item.method === 'events/list'),
+      ).toHaveLength(2)
+    } finally {
+      await client.close()
+      await http.close()
+    }
+  })
 })

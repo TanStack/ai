@@ -1,5 +1,11 @@
 # @tanstack/ai-anthropic
 
+## 1.2.1
+
+### Patch Changes
+
+- [#2200](https://github.com/TanStack/ai/pull/2200) [`d0dfd86`](https://github.com/TanStack/ai/commit/d0dfd866288955f5f2208507419775edb3b88ac1) - Give `claude-sonnet-5-5` and `claude-haiku-5-5` their mid-conversation channels. Anthropic supports mid-conversation system messages and tool changes on both models, but they were missing from `ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS`, so a tool or system prompt added during a conversation rewrote the start of the request and missed the prompt cache, even with `midConversationChannels: true`.
+
 ## 1.2.0
 
 ### Minor Changes

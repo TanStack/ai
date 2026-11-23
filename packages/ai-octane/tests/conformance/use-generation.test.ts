@@ -7,12 +7,27 @@ import { useGenerateSpeech } from '../../src/use-generate-speech.tsrx'
 import { useTranscription } from '../../src/use-transcription.tsrx'
 import { useSummarize } from '../../src/use-summarize.tsrx'
 import { useGenerateVideo } from '../../src/use-generate-video.tsrx'
+import { useGenerate3dModel } from '../../src/use-generate-3d-model.tsrx'
 import { createMockConnectionAdapter } from './test-utils'
-import type { StreamChunk, TTSResult, TranscriptionResult } from '@tanstack/ai'
+import type {
+  Model3dResult,
+  StreamChunk,
+  TTSResult,
+  TranscriptionResult,
+} from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
 
-// Helper to create generation stream chunks
-function createGenerationChunks(result: unknown): Array<StreamChunk> {
+interface ProgressUpdate {
+  progress: number
+  message: string
+}
+
+// Helper to create generation stream chunks. Optional progress updates are
+// emitted as `generation:progress` events before the result.
+function createGenerationChunks(
+  result: unknown,
+  progressUpdates: Array<ProgressUpdate> = [],
+): Array<StreamChunk> {
   return [
     {
       type: EventType.RUN_STARTED,
@@ -20,6 +35,14 @@ function createGenerationChunks(result: unknown): Array<StreamChunk> {
       threadId: 'thread-1',
       timestamp: Date.now(),
     },
+    ...progressUpdates.map(
+      (update): StreamChunk => ({
+        type: EventType.CUSTOM,
+        name: 'generation:progress',
+        value: update,
+        timestamp: Date.now(),
+      }),
+    ),
     {
       type: EventType.CUSTOM,
       name: 'generation:result',
@@ -197,13 +220,13 @@ describe('useGeneration', () => {
 
   describe('stop and reset', () => {
     it('should stop generation and return to idle', async () => {
-      let resolvePromise: (value: any) => void
+      let resolvePromise: (value: { id: string }) => void
 
       const { result } = renderHook(() =>
         useGeneration({
           threadId: 'thread-1',
           fetcher: async () =>
-            new Promise((resolve) => {
+            new Promise<{ id: string }>((resolve) => {
               resolvePromise = resolve
             }),
         }),
@@ -253,13 +276,13 @@ describe('useGeneration', () => {
 
   describe('cleanup', () => {
     it('should call stop on unmount during active generation', async () => {
-      let resolvePromise: (value: any) => void
+      let resolvePromise: (value: { id: string }) => void
 
       const { result, unmount } = renderHook(() =>
         useGeneration({
           threadId: 'thread-1',
           fetcher: async () => {
-            return new Promise((resolve) => {
+            return new Promise<{ id: string }>((resolve) => {
               resolvePromise = resolve
             })
           },
@@ -368,6 +391,74 @@ describe('useGenerateImage', () => {
 
     expect(typeof result.current.stop).toBe('function')
     expect(typeof result.current.reset).toBe('function')
+  })
+})
+
+describe('useGenerate3dModel', () => {
+  const mockModel: Model3dResult = {
+    jobId: 'job-3d',
+    url: 'https://example.com/fox.glb',
+    format: 'glb',
+    previewImageUrl: 'https://example.com/fox.png',
+  }
+
+  it('reports each progress poll, then stores the finished model', async () => {
+    const chunks = createGenerationChunks(mockModel, [
+      { progress: 10, message: 'pending' },
+      { progress: 60, message: 'processing' },
+      { progress: 100, message: 'completed' },
+    ])
+    const adapter = createMockConnectionAdapter({ chunks })
+    const onProgress = vi.fn()
+
+    const { result } = renderHook(() =>
+      useGenerate3dModel({
+        threadId: 'thread-1',
+        connection: adapter,
+        onProgress,
+      }),
+    )
+
+    await act(async () => {
+      await result.current.generate({ prompt: 'A low-poly fox' })
+    })
+
+    expect(onProgress.mock.calls).toEqual([
+      [10, 'pending'],
+      [60, 'processing'],
+      [100, 'completed'],
+    ])
+    expect(result.current.result).toEqual({
+      jobId: 'job-3d',
+      url: 'https://example.com/fox.glb',
+      format: 'glb',
+      previewImageUrl: 'https://example.com/fox.png',
+    })
+    expect(result.current.status).toBe('success')
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('surfaces a stream error and stores no model', async () => {
+    const chunks = createErrorChunks('3D generation failed')
+    const adapter = createMockConnectionAdapter({ chunks })
+    const onError = vi.fn()
+
+    const { result } = renderHook(() =>
+      useGenerate3dModel({
+        threadId: 'thread-1',
+        connection: adapter,
+        onError,
+      }),
+    )
+
+    await act(async () => {
+      await result.current.generate({ prompt: 'A low-poly fox' })
+    })
+
+    expect(result.current.status).toBe('error')
+    expect(result.current.error?.message).toBe('3D generation failed')
+    expect(result.current.result).toBeNull()
+    expect(onError).toHaveBeenCalledWith(expect.any(Error))
   })
 })
 

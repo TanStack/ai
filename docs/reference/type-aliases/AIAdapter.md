@@ -12,6 +12,7 @@ type AIAdapter =
   | AnyImageAdapter
   | AnyAudioAdapter
   | AnyVideoAdapter
+  | AnyModel3dAdapter
   | AnyTTSAdapter
   | AnyVoiceAdapter
   | AnyTranscriptionAdapter
@@ -19,10 +20,11 @@ type AIAdapter =
   | AnyRerankAdapter
   | AnyEvaluateAdapter
   | AnyWorldAdapter
+  | AnyMotion3dAdapter
   | AnyLiveVideoAdapter
   | AnyFilesAdapter;
 ```
 
-Defined in: [packages/ai/src/activities/index.ts:374](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/index.ts#L374)
+Defined in: [packages/ai/src/activities/index.ts:424](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/index.ts#L424)
 
 Union of all adapter types across every activity kind

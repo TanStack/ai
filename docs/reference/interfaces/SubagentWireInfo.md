@@ -29,7 +29,7 @@ Card data that travels on each child wire message, in
 optional error?: Pick<SubagentErrorEvent, "message" | "code">;
 ```
 
-Defined in: [packages/ai/src/types.ts:652](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L652)
+Defined in: [packages/ai/src/types.ts:673](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L673)
 
 #### Inherited from
 
@@ -45,7 +45,7 @@ Pick.error
 optional interruptIds?: string[];
 ```
 
-Defined in: [packages/ai/src/types.ts:650](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L650)
+Defined in: [packages/ai/src/types.ts:671](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L671)
 
 Interrupts this child raised, while `status` is `'suspended'`.
 
@@ -75,7 +75,7 @@ The child has no messages yet. This wire message only holds the card.
 status: SubagentStatus;
 ```
 
-Defined in: [packages/ai/src/types.ts:646](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L646)
+Defined in: [packages/ai/src/types.ts:667](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L667)
 
 #### Inherited from
 

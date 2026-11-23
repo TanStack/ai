@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import {
+  Box,
   Clapperboard,
   Film,
   Globe,
@@ -11,6 +12,7 @@ import {
 } from 'lucide-react'
 import ImageGenerator from '@/components/ImageGenerator'
 import LiveVideoStudio from '@/components/LiveVideoStudio'
+import Model3dGenerator from '@/components/Model3dGenerator'
 import OmniStudio from '@/components/OmniStudio'
 import SeedanceStudio from '@/components/SeedanceStudio'
 import VideoGenerator from '@/components/VideoGenerator'
@@ -18,7 +20,7 @@ import WorldStudio from '@/components/WorldStudio'
 import { getSeedanceCapabilitiesFn } from '@/lib/server-functions'
 import type { SeedanceCapability } from '@/lib/seedance'
 
-type Tab = 'image' | 'video' | 'live' | 'world' | 'omni' | 'seedance'
+type Tab = 'image' | 'video' | 'live' | 'world' | 'omni' | 'seedance' | '3d'
 
 function VisualPage() {
   const [activeTab, setActiveTab] = useState<Tab>('image')
@@ -46,12 +48,15 @@ function VisualPage() {
             Visual Content Generator
           </h1>
           <p className="text-gray-400">
-            Generate images, videos, live streams, and worlds using AI models
+            Generate images, videos, live streams, worlds, and 3D models using
+            AI models
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2 mb-6">
           <button
+            type="button"
+            aria-pressed={activeTab === 'image'}
             onClick={() => setActiveTab('image')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'image'
@@ -63,6 +68,8 @@ function VisualPage() {
             Image
           </button>
           <button
+            type="button"
+            aria-pressed={activeTab === 'video'}
             onClick={() => setActiveTab('video')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'video'
@@ -74,6 +81,8 @@ function VisualPage() {
             Video
           </button>
           <button
+            type="button"
+            aria-pressed={activeTab === 'live'}
             onClick={() => setActiveTab('live')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'live'
@@ -85,6 +94,8 @@ function VisualPage() {
             Live
           </button>
           <button
+            type="button"
+            aria-pressed={activeTab === 'world'}
             onClick={() => setActiveTab('world')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'world'
@@ -96,6 +107,8 @@ function VisualPage() {
             World
           </button>
           <button
+            type="button"
+            aria-pressed={activeTab === 'omni'}
             onClick={() => setActiveTab('omni')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'omni'
@@ -107,6 +120,8 @@ function VisualPage() {
             Omni
           </button>
           <button
+            type="button"
+            aria-pressed={activeTab === 'seedance'}
             onClick={() => setActiveTab('seedance')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'seedance'
@@ -116,6 +131,19 @@ function VisualPage() {
           >
             <Clapperboard className="w-5 h-5" />
             Seedance
+          </button>
+          <button
+            type="button"
+            aria-pressed={activeTab === '3d'}
+            onClick={() => setActiveTab('3d')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === '3d'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+            }`}
+          >
+            <Box className="w-5 h-5" aria-hidden="true" />
+            3D
           </button>
         </div>
 
@@ -130,6 +158,8 @@ function VisualPage() {
             <WorldStudio />
           ) : activeTab === 'omni' ? (
             <OmniStudio />
+          ) : activeTab === '3d' ? (
+            <Model3dGenerator />
           ) : seedanceError !== null ? (
             <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
               <p className="text-red-400 text-sm">

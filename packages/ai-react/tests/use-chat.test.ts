@@ -484,7 +484,11 @@ describe('useChat', () => {
         expect(view.getByTestId('interrupt-count').textContent).toBe('0')
         expect(joinRun).toHaveBeenCalledOnce()
       })
-      expect(joinRun).toHaveBeenCalledWith('stored-run', expect.anything())
+      expect(joinRun).toHaveBeenCalledWith(
+        'stored-run',
+        expect.anything(),
+        expect.objectContaining({ tools: expect.any(Array) }),
+      )
       expect(persistence.getItem).toHaveBeenCalledOnce()
       expect(onRecoverableError).not.toHaveBeenCalled()
     })
@@ -1113,7 +1117,11 @@ describe('useChat', () => {
       // Strict Mode may construct more than one client in dev; what matters is
       // rejoin completed (content above) and was not aborted before attach.
       expect(joinRun).toHaveBeenCalled()
-      expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
+      expect(joinRun).toHaveBeenCalledWith(
+        'r1',
+        expect.anything(),
+        expect.objectContaining({ tools: expect.any(Array) }),
+      )
     })
   })
 
@@ -3316,7 +3324,10 @@ describe('useChat', () => {
       await waitFor(() =>
         expect(assistantText(result.current.messages)).toBe('Hello'),
       )
-      expect(server.joinRun).toHaveBeenCalledWith('r1', expect.anything())
+      expect(server.joinRun).toHaveBeenCalledWith('r1', expect.anything(), {
+        threadId: 't1',
+        tools: [],
+      })
       expect(result.current.status).toBe('ready')
     })
 

@@ -3,6 +3,7 @@ import type {
   StandardSchemaV1,
 } from '@standard-schema/spec'
 import type { InternalLogger } from './logger/internal-logger'
+import type { ToolContextPolicy } from './activities/chat/tools/tool-definition'
 import type { SystemPrompt } from './system-prompts'
 import type {
   Capability,
@@ -192,6 +193,17 @@ export type InferSchemaType<T> =
     : T extends StandardSchemaV1<infer TInput, unknown>
       ? TInput
       : unknown
+
+/**
+ * The result metadata type that a `resultMetadataSchema` gives.
+ * A Standard Schema gives its own type. No schema, or a plain JSON Schema,
+ * gives `Record<string, unknown>`.
+ */
+export type ResultMetadataFromSchema<TSchema> = [TSchema] extends [
+  StandardJSONSchemaV1<any, any> | StandardSchemaV1<any, any>,
+]
+  ? InferSchemaType<TSchema>
+  : Record<string, unknown>
 
 /** AG-UI `ToolCall` with typed metadata. `function.arguments` is a JSON string. */
 export interface ToolCall<TMetadata = unknown> extends Omit<
@@ -517,6 +529,12 @@ export interface ToolCallPart<TMetadata = unknown> {
   }
   /** Tool execution output (for client tools or after approval) */
   output?: any
+  /**
+   * App-only metadata that the tool set with `setResultMetadata`. The model
+   * never sees it. Typed per tool on the client `ToolCallPart` (see
+   * `@tanstack/ai-client`); `unknown` on this base type.
+   */
+  resultMetadata?: unknown
   /** Provider-specific metadata that round-trips with the tool call.
    * Typed per-adapter via `TToolCallMetadata`. May follow the
    * {@link ProviderExecutedToolMetadata} convention to mark provider-executed
@@ -912,106 +930,130 @@ export type ToolInputResponse =
  * Context passed to tool execute functions, providing capabilities like
  * emitting custom events during execution.
  */
-export type ToolExecutionContext<TContext = unknown> =
-  RuntimeContextField<TContext> & {
-    /** The ID of the tool call being executed */
-    toolCallId?: string
-    /**
-     * The thread id of the chat run. `chat()` sets it to the same value as
-     * `ctx.threadId` in middleware. A tool can use it to keep its own state
-     * for each conversation. It is missing when a tool runs outside a chat,
-     * for example from an MCP server, WebMCP, or a direct `execute()` call.
-     */
-    threadId?: string
-    /**
-     * Abort signal for the current chat run. Aborts when the run's
-     * `abortController` fires (or middleware aborts). Long-running tools —
-     * e.g. MCP `callTool` — should forward this to cancel in-flight work.
-     */
-    abortSignal?: AbortSignal
-    /**
-     * The answer to the input request that this tool call raised in the
-     * previous run. It is set only when the run resumes an `mcp_input`
-     * interrupt for this tool call.
-     */
-    inputResponse?: ToolInputResponse
-    /**
-     * Set when the host can move this call to the background. Pass it the
-     * work of the call, and race the two promises. It resolves to a short
-     * note for the model when the user moves the call. The work keeps
-     * running, and the host tells the model its result when it ends.
-     * `chat()` does not set it: a host wraps the tool's `execute` to add it.
-     * The note is a string. An object `outputSchema` rejects it. A string
-     * schema, or no schema, accepts it.
-     *
-     * @example
-     * ```ts
-     * const work = runJob(args)
-     * return context?.detach ? Promise.race([work, context.detach(work)]) : work
-     * ```
-     */
-    detach?: (work: Promise<unknown>) => Promise<string>
-    /**
-     * The run of the call, when a host knows it. `chat()` does not set it:
-     * a host such as the harness wraps the tool's `execute` to add it.
-     */
-    runId?: string
-    /**
-     * Read a capability that a middleware of the run provided, by its
-     * handle. It works like `ctx.get` in middleware and throws if the
-     * capability was never provided. `chat()` sets it. It is missing when a
-     * tool runs outside a chat.
-     *
-     * @example
-     * ```ts
-     * const sandbox = context?.get?.(SandboxCapability)
-     * ```
-     */
-    get?: <TValue>(capability: Capability<TValue>) => TValue
-    /**
-     * Read a capability by its handle. Returns `undefined` if no middleware
-     * provided it. It works like `ctx.getOptional` in middleware.
-     */
-    getOptional?: <TValue>(capability: Capability<TValue>) => TValue | undefined
-    /**
-     * Emit a custom event during tool execution.
-     * Events are streamed to the client in real-time as AG-UI CUSTOM events.
-     *
-     * @param eventName - Name of the custom event
-     * @param value - Event payload value
-     * @param options - Pass `{ batch: true }` to keep this event in the
-     *   durability batch instead of flushing it immediately
-     *
-     * @example
-     * ```ts
-     * const tool = toolDefinition({ ... }).server(async (args, context) => {
-     *   context?.emitCustomEvent('progress', { step: 1, total: 3 })
-     *   // ... do work ...
-     *   context?.emitCustomEvent('progress', { step: 2, total: 3 })
-     *   // ... do more work ...
-     *   return result
-     * })
-     * ```
-     */
-    emitCustomEvent: (
-      eventName: string,
-      value: Record<string, any>,
-      options?: EmitCustomEventOptions,
-    ) => void
-  }
+export type ToolExecutionContext<
+  TContext = unknown,
+  TResultMetadata = Record<string, unknown>,
+> = RuntimeContextField<TContext> & {
+  /** The ID of the tool call being executed */
+  toolCallId?: string
+  /**
+   * The thread id of the chat run. `chat()` sets it to the same value as
+   * `ctx.threadId` in middleware. A tool can use it to keep its own state
+   * for each conversation. It is missing when a tool runs outside a chat,
+   * for example from an MCP server, WebMCP, or a direct `execute()` call.
+   */
+  threadId?: string
+  /**
+   * Abort signal for the current chat run. Aborts when the run's
+   * `abortController` fires (or middleware aborts). Long-running tools —
+   * e.g. MCP `callTool` — should forward this to cancel in-flight work.
+   */
+  abortSignal?: AbortSignal
+  /**
+   * The answer to the input request that this tool call raised in the
+   * previous run. It is set only when the run resumes an `mcp_input`
+   * interrupt for this tool call.
+   */
+  inputResponse?: ToolInputResponse
+  /**
+   * Set when the host can move this call to the background. Pass it the
+   * work of the call, and race the two promises. It resolves to a short
+   * note for the model when the user moves the call. The work keeps
+   * running, and the host tells the model its result when it ends.
+   * `chat()` does not set it: a host wraps the tool's `execute` to add it.
+   * The note is a string. An object `outputSchema` rejects it. A string
+   * schema, or no schema, accepts it.
+   *
+   * @example
+   * ```ts
+   * const work = runJob(args)
+   * return context?.detach ? Promise.race([work, context.detach(work)]) : work
+   * ```
+   */
+  detach?: (work: Promise<unknown>) => Promise<string>
+  /**
+   * The run of the call, when a host knows it. `chat()` does not set it:
+   * a host such as the harness wraps the tool's `execute` to add it.
+   */
+  runId?: string
+  /**
+   * Read a capability that a middleware of the run provided, by its
+   * handle. It works like `ctx.get` in middleware and throws if the
+   * capability was never provided. `chat()` sets it. It is missing when a
+   * tool runs outside a chat.
+   *
+   * @example
+   * ```ts
+   * const sandbox = context?.get?.(SandboxCapability)
+   * ```
+   */
+  get?: <TValue>(capability: Capability<TValue>) => TValue
+  /**
+   * Read a capability by its handle. Returns `undefined` if no middleware
+   * provided it. It works like `ctx.getOptional` in middleware.
+   */
+  getOptional?: <TValue>(capability: Capability<TValue>) => TValue | undefined
+  /**
+   * Emit a custom event during tool execution.
+   * Events are streamed to the client in real-time as AG-UI CUSTOM events.
+   *
+   * @param eventName - Name of the custom event
+   * @param value - Event payload value
+   * @param options - Pass `{ batch: true }` to keep this event in the
+   *   durability batch instead of flushing it immediately
+   *
+   * @example
+   * ```ts
+   * const tool = toolDefinition({ ... }).server(async (args, context) => {
+   *   context?.emitCustomEvent('progress', { step: 1, total: 3 })
+   *   // ... do work ...
+   *   context?.emitCustomEvent('progress', { step: 2, total: 3 })
+   *   // ... do more work ...
+   *   return result
+   * })
+   * ```
+   */
+  emitCustomEvent: (
+    eventName: string,
+    value: Record<string, any>,
+    options?: EmitCustomEventOptions,
+  ) => void
+  /**
+   * Attach app-only metadata to the result of this tool call. It works only
+   * in server tools. The model never sees it. The app reads it as
+   * `part.resultMetadata`. Each call
+   * merges the top-level keys into the value from earlier calls. Nested
+   * values are replaced, not merged. The value must be plain JSON.
+   * `resultMetadataSchema` on the tool sets the type. Without a schema,
+   * the type is `Record<string, unknown>`.
+   *
+   * @example
+   * ```ts
+   * context?.setResultMetadata?.({ source: 'cache' })
+   * ```
+   */
+  setResultMetadata?: (value: Partial<TResultMetadata>) => void
+}
 
 export type ToolExecuteFunction<
   TInput extends SchemaInput | undefined = SchemaInput,
   TOutput extends SchemaInput | undefined = SchemaInput,
   TContext = unknown,
+  TResultMetadataSchema extends SchemaInput | undefined = undefined,
 > = undefined extends TContext
   ? (
       args: InferSchemaType<TInput>,
-      context?: ToolExecutionContext<TContext>,
+      context?: ToolExecutionContext<
+        TContext,
+        ResultMetadataFromSchema<TResultMetadataSchema>
+      >,
     ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>
   : (
       args: InferSchemaType<TInput>,
-      context: ToolExecutionContext<TContext>,
+      context: ToolExecutionContext<
+        TContext,
+        ResultMetadataFromSchema<TResultMetadataSchema>
+      >,
     ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>
 
 /**
@@ -1032,6 +1074,9 @@ export interface Tool<
   TOutput extends SchemaInput | undefined = SchemaInput,
   TName extends string = string,
   TContext = unknown,
+  TResultMetadataSchema extends SchemaInput | undefined =
+    | SchemaInput
+    | undefined,
 > {
   /**
    * Unique name of the tool (used by the model to call it).
@@ -1115,6 +1160,14 @@ export interface Tool<
   outputSchema?: TOutput
 
   /**
+   * Optional schema for the app-only result metadata that the tool sets
+   * with `context.setResultMetadata`. It accepts the same schemas as
+   * `outputSchema`. It types the setter and the client
+   * `part.resultMetadata`. The model never sees the metadata.
+   */
+  resultMetadataSchema?: TResultMetadataSchema
+
+  /**
    * Optional function to execute when the model calls this tool.
    *
    * If provided, the SDK will automatically execute the function with the model's arguments
@@ -1131,7 +1184,9 @@ export interface Tool<
    *   return weather; // Can return object or string
    * }
    */
-  execute?: ToolExecuteFunction<TInput, TOutput, TContext> | undefined
+  execute?:
+    | ToolExecuteFunction<TInput, TOutput, TContext, TResultMetadataSchema>
+    | undefined
 
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean
@@ -1149,6 +1204,14 @@ export interface Tool<
 
   /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any> | undefined
+
+  /**
+   * Author-declared, field-level projection policy for this tool's message
+   * projection. `chat()` in core does not read it (same posture as `replay`);
+   * `@tanstack/ai-optimize` reads it to truncate adorned fields in the model
+   * projection only. See {@link ToolContextPolicy}.
+   */
+  context?: ToolContextPolicy
 }
 
 /**
@@ -2395,12 +2458,14 @@ export interface MediaInputMetadata {
  * content-part shapes: text parts carry the instruction, image / video /
  * audio parts carry conditioning inputs (with an optional
  * `metadata.role` hint — see {@link MediaInputRole}).
+ * A {@link Model3dPart} carries an existing mesh for 3D model generation.
  */
 export type MediaPromptPart =
   | TextPart
   | ImagePart<MediaInputMetadata>
   | VideoPart<MediaInputMetadata>
   | AudioPart<MediaInputMetadata>
+  | Model3dPart
 
 /**
  * Prompt accepted by `generateImage()` / `generateVideo()`: a plain string,
@@ -2419,13 +2484,14 @@ export type MediaPrompt = string | Array<MediaPromptPart>
 /**
  * Non-text modalities a media-generation model can accept in its prompt.
  */
-export type MediaPromptModality = 'image' | 'video' | 'audio'
+export type MediaPromptModality = 'image' | 'video' | 'audio' | 'model3d'
 
 /** Maps a prompt modality to its content-part type. @internal */
 interface MediaPartByModality {
   image: ImagePart<MediaInputMetadata>
   video: VideoPart<MediaInputMetadata>
   audio: AudioPart<MediaInputMetadata>
+  model3d: Model3dPart
 }
 
 /**
@@ -2749,6 +2815,182 @@ export interface VideoStreamResult {
 }
 
 // ============================================================================
+// 3D Model Generation Types (Experimental)
+// ============================================================================
+
+/**
+ * File format of a 3D model.
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export type Model3dFormat =
+  | 'glb'
+  | 'gltf'
+  | 'fbx'
+  | 'obj'
+  | 'usdz'
+  | 'stl'
+  | '3mf'
+
+/**
+ * What one file of a 3D model result holds.
+ *
+ * - `'base'`: the mesh as the provider made it.
+ * - `'pbr'`: the mesh with PBR materials.
+ * - `'rigged'`: the mesh with a skeleton.
+ * - `'animation'`: an animated version of the mesh.
+ * - `'texture'`: a texture image for the mesh.
+ * - `'part'`: one part of a mesh that the provider split into parts.
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export type Model3dFileRole =
+  | 'base'
+  | 'pbr'
+  | 'rigged'
+  | 'animation'
+  | 'texture'
+  | 'part'
+
+/**
+ * Metadata for a {@link Model3dPart} in a media prompt.
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export interface Model3dInputMetadata {
+  /** File format of the mesh. Set it when the source URL has no file extension. */
+  format?: Model3dFormat
+}
+
+/**
+ * A prompt part that carries an existing 3D mesh, for example the input of a
+ * retopology or retexture step. It is valid only in a media prompt
+ * ({@link MediaPromptPart}), not in a chat message.
+ *
+ * @example
+ * ```ts
+ * const mesh: Model3dPart = {
+ *   type: 'model3d',
+ *   source: { type: 'url', value: 'https://example.com/chair.glb' },
+ * }
+ * ```
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export interface Model3dPart<TMetadata = Model3dInputMetadata> {
+  type: 'model3d'
+  /** Where the mesh bytes come from: a URL, inline data, or a provider file. */
+  source: ContentPartSource
+  /** Optional metadata, such as the mesh file format. */
+  metadata?: TMetadata
+}
+
+/**
+ * Options that the 3D model activity gives to an adapter when it creates a job.
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export interface Model3dGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for 3D model generation */
+  model: string
+  /**
+   * What to make: a plain string for text-to-3D, or an ordered array of text,
+   * image, and `model3d` parts. Adapters route the image and mesh parts to the
+   * provider request fields, and throw at runtime when the model cannot use
+   * a part.
+   */
+  prompt: MediaPrompt
+  /** Model-specific options for 3D model generation */
+  modelOptions?: TProviderOptions
+  /**
+   * Internal logger from the generate3dModel() entry point. Adapters must
+   * call logger.request() before the SDK call and logger.errors() in catch blocks.
+   */
+  logger: InternalLogger
+  /**
+   * Abort signal made by the activity from the caller `abortSignal` and/or
+   * `timeout`. Adapters should give it to the provider SDK when the SDK
+   * supports it. It is for this request only. Never store it on a client config.
+   */
+  abortSignal?: AbortSignal
+}
+
+/**
+ * Result of creating a 3D model generation job.
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export interface Model3dJobResult {
+  /** Unique job identifier for polling status */
+  jobId: string
+  /** Model used for generation */
+  model: string
+}
+
+/**
+ * Status of a 3D model generation job.
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export interface Model3dStatusResult {
+  /** Job identifier */
+  jobId: string
+  /** Current status of the job */
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  /** Progress percentage (0-100), if available */
+  progress?: number
+  /** Error message if status is 'failed' */
+  error?: string
+}
+
+/**
+ * One file of a finished 3D model, for example a rigged GLB or a texture.
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export interface Model3dFile {
+  /** URL of the file */
+  url: string
+  /**
+   * Set for mesh files. Not set for textures and other non-mesh files; use
+   * `contentType`.
+   */
+  format?: Model3dFormat
+  /** What the file holds, when the provider tells us */
+  role?: Model3dFileRole
+  /** MIME type of the file, when known (e.g. `model/gltf-binary`) */
+  contentType?: string
+}
+
+/**
+ * The finished 3D model.
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export interface Model3dResult {
+  /** Job identifier */
+  jobId: string
+  /** URL of the main model file. The adapter picks a GLB when there is one. */
+  url: string
+  /** File format of `url` */
+  format: Model3dFormat
+  /**
+   * The files the provider returned: every mesh with its format, and the
+   * texture files. Each file has a role when the provider tells us.
+   */
+  files?: Array<Model3dFile>
+  /** URL of a preview image of the model, when the provider makes one */
+  previewImageUrl?: string
+  /**
+   * Usage information for the finished generation, when the adapter can
+   * report it. For usage-based providers (e.g. fal) this carries `billed`.
+   */
+  usage?: TokenUsage
+}
+
+// ============================================================================
 // World Generation Types (Experimental)
 // ============================================================================
 
@@ -2853,6 +3095,122 @@ export interface WorldGenerationResult {
   /** Assets when a world job has finished and the provider returned them */
   assets?: WorldGenerationAssets
   /** Token usage / billing, when the adapter can report it */
+  usage?: TokenUsage
+}
+
+// ============================================================================
+// Motion Generation Types (Experimental)
+// ============================================================================
+
+/**
+ * Options an adapter receives to submit a motion (skeletal animation) job.
+ *
+ * @experimental Motion generation is an experimental feature and may change.
+ */
+export interface Motion3dGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for motion generation */
+  model: string
+  /** Natural-language description of the motion */
+  prompt: string
+  /**
+   * Requested clip length in seconds. Each provider accepts its own range
+   * and rejects values outside it.
+   */
+  duration?: number
+  /** Provider-specific options (seed, guidance, output format, ...) */
+  modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generate3dMotion() entry point. Adapters
+   * must call logger.request() before the SDK call and logger.errors() in
+   * catch blocks.
+   */
+  logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. It aborts the HTTP request only. It never cancels the
+   * provider job.
+   */
+  abortSignal?: AbortSignal
+}
+
+/**
+ * A submitted motion job.
+ *
+ * @experimental Motion generation is an experimental feature and may change.
+ */
+export interface Motion3dJobResult {
+  /** Provider job id. Use it to poll, cancel, or resume from another request. */
+  jobId: string
+  /** Model the job runs on */
+  model: string
+}
+
+/** Lifecycle state of a motion job. */
+export type Motion3dJobState = 'pending' | 'processing' | 'completed' | 'failed'
+
+/**
+ * Status of a motion job, as the provider reports it. Fields the provider
+ * does not report stay undefined.
+ *
+ * @experimental Motion generation is an experimental feature and may change.
+ */
+export interface Motion3dStatusResult {
+  jobId: string
+  status: Motion3dJobState
+  /** Progress 0-100, only when the provider reports real progress */
+  progress?: number
+  /** Position in the provider queue, when the provider reports it */
+  queuePosition?: number
+  /** Provider error message when `status` is `failed` */
+  error?: string
+}
+
+/**
+ * File format of a motion asset. Known values: `fbx`, `bvh`, `glb`, `gltf`,
+ * and `json` (raw provider motion data). Other strings pass through as the
+ * provider names them.
+ */
+export type Motion3dAssetFormat =
+  | 'fbx'
+  | 'bvh'
+  | 'glb'
+  | 'gltf'
+  | 'json'
+  | (string & {})
+
+/**
+ * One downloadable file of a finished motion.
+ *
+ * @experimental Motion generation is an experimental feature and may change.
+ */
+export interface Motion3dAsset {
+  /** Download URL. Provider URLs are often temporary: copy the file to keep it. */
+  url: string
+  format: Motion3dAssetFormat
+  contentType?: string
+  fileName?: string
+  /** Size in bytes, when the provider reports it */
+  fileSize?: number
+  /** When `url` stops working, when the provider reports it */
+  expiresAt?: Date
+}
+
+/**
+ * A finished motion. Only metadata the provider actually returned is set.
+ * Clip length, frame rate, and skeleton are inside the asset file itself.
+ *
+ * @experimental Motion generation is an experimental feature and may change.
+ */
+export interface Motion3dGenerationResult {
+  jobId: string
+  model: string
+  /** Every file the provider returned for this motion */
+  assets: Array<Motion3dAsset>
+  /** Seed the provider used, when it reports one. Reuse it to repeat a take. */
+  seed?: number
+  /** Billing usage, when the adapter can report it */
   usage?: TokenUsage
 }
 

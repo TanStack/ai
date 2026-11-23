@@ -2,6 +2,7 @@ import { chat } from '../index'
 import { summarize } from '../../summarize/index'
 import { generateImage } from '../../generateImage/index'
 import { generateVideo } from '../../generateVideo/index'
+import { generate3dModel } from '../../generate3dModel/index'
 import { generateAudio } from '../../generateAudio/index'
 import { generateSpeech } from '../../generateSpeech/index'
 import { generateVoice } from '../../generateVoice/index'
@@ -49,6 +50,11 @@ import type {
   VideoCreateOptions,
 } from '../../generateVideo/index'
 import type { VideoAdapter } from '../../generateVideo/adapter'
+import type {
+  Model3dActivityOptions,
+  Model3dActivityResult,
+} from '../../generate3dModel/index'
+import type { Model3dAdapter } from '../../generate3dModel/adapter'
 import type {
   AudioActivityOptions,
   AudioActivityResult,
@@ -242,6 +248,15 @@ export interface BoundActivities {
   >(
     options: WithOptionalThreadId<VideoCreateOptions<TAdapter, TStream>>,
   ) => VideoActivityResult<'create', TStream>
+  generate3dModel: <
+    TAdapter extends Model3dAdapter<string, any, any, any>,
+    TStream extends boolean = false,
+    TWait extends boolean = false,
+  >(
+    options: WithOptionalThreadId<
+      Model3dActivityOptions<TAdapter, TStream, TWait>
+    >,
+  ) => Model3dActivityResult<TStream, TWait>
   generateAudio: <
     TAdapter extends AudioAdapter<string, AudioProviderOptions<TAdapter>>,
     TStream extends boolean = false,
@@ -431,6 +446,10 @@ export function createBoundActivities(
       generateVideo(
         full('video', options) as never,
       )) as BoundActivities['generateVideo'],
+    generate3dModel: ((options: LooseOptions) =>
+      generate3dModel(
+        full('3dModel', options) as never,
+      )) as BoundActivities['generate3dModel'],
     generateAudio: ((options: LooseOptions) =>
       generateAudio(
         full('audio', options) as never,

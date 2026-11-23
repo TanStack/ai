@@ -9,6 +9,7 @@ import { isRedactedThinkingId } from '../../../utilities/reasoning-encrypted-val
 import {
   mergeMetadata,
   tanstackMetadata,
+  tanstackOnlyMetadata,
 } from '../../../utilities/merge-metadata'
 import { parsePartialJSON } from './json-parser'
 import type {
@@ -175,9 +176,21 @@ export function updateToolResultPart(
       resultPartIndex >= 0
         ? (parts[resultPartIndex] as ToolResultPart)
         : undefined
-    // Preserve existing metadata when a later result update does not include
-    // metadata, and merge partial metadata (including metadata.tanstack).
-    let mergedMetadata = mergeMetadata(existingResultPart?.metadata, metadata)
+    // A new result replaces app keys. The reserved tanstack key still merges.
+    // An update that omits metadata keeps the existing bag (streaming).
+    let mergedMetadata =
+      metadata === undefined
+        ? existingResultPart?.metadata
+        : mergeMetadata(
+            tanstackOnlyMetadata(existingResultPart?.metadata),
+            metadata,
+          )
+    if (
+      mergedMetadata !== undefined &&
+      Object.keys(mergedMetadata).length === 0
+    ) {
+      mergedMetadata = undefined
+    }
     const hasIncomingToolResultOutcome =
       tanstackMetadata({ metadata })?.toolResultOutcome !== undefined
 
@@ -285,6 +298,7 @@ export function updateToolCallState(
 /**
  * Update a tool call part with output.
  * Searches all messages to find the tool call by ID.
+ * `resultMetadata` holds only the app keys of the result metadata.
  */
 export function updateToolCallWithOutput(
   messages: Array<UIMessage>,
@@ -292,6 +306,7 @@ export function updateToolCallWithOutput(
   output: any,
   state?: ToolCallState,
   errorText?: string,
+  resultMetadata?: Record<string, unknown>,
 ): Array<UIMessage> {
   return messages.map((msg) => {
     const parts = [...msg.parts]
@@ -301,10 +316,13 @@ export function updateToolCallWithOutput(
 
     if (toolCallPart) {
       const index = parts.indexOf(toolCallPart)
+      // A new result replaces the old result metadata, also when it has none.
+      const { resultMetadata: _previous, ...rest } = toolCallPart
       parts[index] = {
-        ...toolCallPart,
+        ...rest,
         output: errorText ? { error: errorText } : output,
         state: state ?? (errorText ? 'error' : 'complete'),
+        ...(resultMetadata !== undefined && { resultMetadata }),
       }
     }
 

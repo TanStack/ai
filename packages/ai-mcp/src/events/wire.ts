@@ -29,6 +29,7 @@ function parseEventDefinition(value: unknown): MCPEventDefinition | undefined {
     if (!isDeliveryMode(mode)) return undefined
     delivery.push(mode)
   }
+  // A conforming descriptor has both schemas. One bad item fails the page.
   if (!('inputSchema' in value) || !('payloadSchema' in value)) return undefined
   const description =
     typeof value.description === 'string' ? value.description : undefined
@@ -125,6 +126,7 @@ export const subscribeResult: StandardSchemaV1Sync<
       if (!isRecord(value) || !isNonEmptyString(value.id)) {
         return issues('events/subscribe result must include id')
       }
+      // Every subscribe result in the final SEP includes truncated.
       if (typeof value.truncated !== 'boolean') {
         return issues('events/subscribe result must include truncated')
       }
@@ -175,11 +177,13 @@ function parseEventOccurrence(value: unknown): MCPEventOccurrence | undefined {
   }
   const data = value.data
   if (!isJsonObject(data)) return undefined
+  const meta = isJsonObject(value._meta) ? value._meta : undefined
   const event: MCPEventOccurrence = {
     eventId: value.eventId,
     name: value.name,
     timestamp: value.timestamp,
     data,
+    ...(meta === undefined ? {} : { _meta: meta }),
   }
   if (value.cursor === undefined) return event
   if (value.cursor !== null && typeof value.cursor !== 'string')
@@ -191,7 +195,7 @@ function parseEventOccurrence(value: unknown): MCPEventOccurrence | undefined {
 export type ClassifiedWebhookBody =
   | { kind: 'event'; event: MCPEventOccurrence }
   | { kind: 'verification'; challenge: string }
-  | { kind: 'gap'; cursor: string }
+  | { kind: 'gap'; cursor: string | null }
   | {
       kind: 'terminated'
       error: { code: number; message: string; data?: unknown }
@@ -214,8 +218,12 @@ export function classifyWebhookBody(json: unknown): ClassifiedWebhookBody {
       return { kind: 'verification', challenge: json.challenge }
     }
     if (json.type === 'gap') {
-      if (!isNonEmptyString(json.cursor)) {
-        return { kind: 'invalid', issue: 'gap requires cursor' }
+      // An absent cursor is the same as null. Do not reject the envelope.
+      if (json.cursor === undefined || json.cursor === null) {
+        return { kind: 'gap', cursor: null }
+      }
+      if (typeof json.cursor !== 'string') {
+        return { kind: 'invalid', issue: 'gap cursor must be a string or null' }
       }
       return { kind: 'gap', cursor: json.cursor }
     }

@@ -9,7 +9,7 @@ Pass credentials into `localProcessSandbox()` yourself. The sandbox type does no
 You tell it with `authMode` on the harness adapter:
 
 - `'api-key'` (default): inject the key and use it. Use this in Docker, in a cloud sandbox, on a CI runner, or on any machine with no CLI login.
-- `'host'`: use the CLI login on the machine. Do not inject an API key into that process.
+- `'host'`: use the CLI login on the machine. Do not inject an API key into that process. Codex and Grok Build can also use this login in Docker and in a cloud sandbox.
 
 You can set `authMode` in two places:
 
@@ -82,6 +82,11 @@ const stream = chat({
 
 `scrubEnv` removes keys from the env of each command, for example a key that a workspace secret sets. If the CLI sees `XAI_API_KEY`, it can use that key and not your login. The keys of the host process do not reach the command.
 
+With `authMode: 'host'`, the Codex and Grok Build adapters also remove the key variables from the CLI process:
+
+- Codex: `CODEX_API_KEY` and `OPENAI_API_KEY`.
+- Grok Build: `XAI_API_KEY` and `GROK_API_KEY`.
+
 The command gets only a few variables of the host process. If your login or your network needs more, for example `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `HTTPS_PROXY`, or `SSH_AUTH_SOCK`, name them in `passEnv`:
 
 ```ts
@@ -91,6 +96,62 @@ const provider = localProcessSandbox({
   passEnv: ['CODEX_HOME', 'HTTPS_PROXY'],
 })
 ```
+
+## Use the host login in Docker or a cloud sandbox
+
+Your machine already has a Codex or Grok Build login, from `codex login`, `grok login`, or [`/connect` in a harness](../harness/plan-sign-in). Set `authMode: 'host'`, and the adapter lends that login to the sandbox for each run:
+
+```ts
+import { chat } from '@tanstack/ai'
+import { codexText } from '@tanstack/ai-codex'
+import { defineSandbox, defineWorkspace, githubRepo, withSandbox } from '@tanstack/ai-sandbox'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+
+const sandbox = defineSandbox({
+  id: 'repo-agent',
+  provider: dockerSandbox({ image: 'node:22' }),
+  workspace: defineWorkspace({
+    source: githubRepo({ repo: 'owner/app' }),
+    setup: ['npm install -g @openai/codex --include=optional && codex --version'],
+  }),
+})
+
+const stream = chat({
+  threadId: 'thread-1',
+  adapter: codexText('gpt-6.1-sol', { authMode: 'host' }),
+  messages: [{ role: 'user', content: 'Summarize this repo.' }],
+  middleware: [withSandbox(sandbox)],
+})
+```
+
+For each run, the adapter does this:
+
+1. Before the run, it copies the login file of the machine into the home folder of the sandbox.
+2. After the run, it reads the file back. If the CLI refreshed the token, it writes the new file to the machine. If you signed in again on the machine during the run, it keeps your new login.
+3. Then it deletes the file from the sandbox. It does this also when the run fails or you abort it.
+
+So a sandbox that stays alive, or a snapshot of it, does not keep the login. On a local-process sandbox, nothing is copied: the CLI reads the file of the machine.
+
+Runs on the same sandbox share one copy. The last run to end deletes it. The count is kept in one server process, so run all the runs of one sandbox from one server.
+
+A [durable run](./durable-runs) is different, because its agent can run on after the host stops:
+
+- When the host stops reading before the agent ends, the login stays in the sandbox, so the agent can keep working.
+- The host that attaches to the run uses that login, and deletes it when the run ends.
+- If the agent refreshed the token, the attaching host writes it to the machine. If you signed in again on the machine before the attach, it keeps your new login.
+- A new run on that sandbox shares the kept login, and does not delete it.
+- If no host attaches, the login stays in the sandbox until you destroy the sandbox.
+
+The login files:
+
+| Adapter | Login file on the machine |
+| --- | --- |
+| Codex | `$CODEX_HOME/auth.json`, or `~/.codex/auth.json`. The adapter reads `CODEX_HOME` of the server process. |
+| Grok Build | `~/.grok/auth.json` |
+
+If the file is missing, the run fails with `No Codex login on this machine. Run /connect:codex.` A Codex login in the OS keyring has no file, so it also fails. See [Codex logins in the OS keyring](../harness/plan-sign-in#codex-logins-in-the-os-keyring).
+
+Run one sandbox at a time for each login. If two runs refresh the token at the same time, the last write wins, and the other copy can stop working.
 
 ## What each harness reads
 

@@ -4,6 +4,7 @@ import type {
   MediaInputMetadata,
   MediaPrompt,
   MediaPromptPart,
+  Model3dPart,
   TextPart,
   VideoPart,
 } from '../types'
@@ -34,6 +35,12 @@ export interface ResolvedMediaPrompt {
   videos: Array<VideoPart<MediaInputMetadata>>
   /** Audio parts in prompt order. */
   audios: Array<AudioPart<MediaInputMetadata>>
+  /**
+   * 3D mesh parts in prompt order.
+   *
+   * @experimental 3D model generation is experimental and may change.
+   */
+  models3d: Array<Model3dPart>
 }
 
 /**
@@ -51,12 +58,14 @@ export function resolveMediaPrompt(prompt: MediaPrompt): ResolvedMediaPrompt {
       images: [],
       videos: [],
       audios: [],
+      models3d: [],
     }
   }
 
   const images: Array<ImagePart<MediaInputMetadata>> = []
   const videos: Array<VideoPart<MediaInputMetadata>> = []
   const audios: Array<AudioPart<MediaInputMetadata>> = []
+  const models3d: Array<Model3dPart> = []
   const textSegments: Array<string> = []
 
   for (const part of prompt) {
@@ -73,6 +82,9 @@ export function resolveMediaPrompt(prompt: MediaPrompt): ResolvedMediaPrompt {
       case 'audio':
         audios.push(part)
         break
+      case 'model3d':
+        models3d.push(part)
+        break
     }
   }
 
@@ -82,5 +94,6 @@ export function resolveMediaPrompt(prompt: MediaPrompt): ResolvedMediaPrompt {
     images,
     videos,
     audios,
+    models3d,
   }
 }

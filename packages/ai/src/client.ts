@@ -5,7 +5,9 @@ import type {
   TranscriptionOptions,
   VoiceGenerationOptions,
   VideoGenerationOptions,
+  Model3dGenerationOptions,
   WorldGenerationOptions,
+  Motion3dGenerationOptions,
   LiveVideoGenerationOptions,
 } from './types'
 
@@ -15,8 +17,10 @@ export type GenerationKind =
   | 'tts'
   | 'voice'
   | 'video'
+  | '3dModel'
   | 'transcription'
   | 'world'
+  | 'motion3d'
   | 'liveVideo'
 
 type GenerationInputByKind = {
@@ -25,8 +29,10 @@ type GenerationInputByKind = {
   tts: Omit<TTSOptions, 'logger' | 'model'>
   voice: Omit<VoiceGenerationOptions, 'logger' | 'model'>
   video: Omit<VideoGenerationOptions, 'logger' | 'model'>
+  '3dModel': Omit<Model3dGenerationOptions, 'logger' | 'model'>
   transcription: Omit<TranscriptionOptions, 'logger' | 'model'>
   world: Omit<WorldGenerationOptions, 'logger' | 'model'>
+  motion3d: Omit<Motion3dGenerationOptions, 'logger' | 'model'>
   liveVideo: Omit<LiveVideoGenerationOptions, 'logger' | 'model'>
 }
 
@@ -43,8 +49,10 @@ const generationKinds = [
   'tts',
   'voice',
   'video',
+  '3dModel',
   'transcription',
   'world',
+  'motion3d',
   'liveVideo',
 ] as const satisfies ReadonlyArray<GenerationKind>
 
@@ -85,7 +93,9 @@ function requiredKeysForKind(kind: GenerationKind): Array<string> {
     case 'image':
     case 'audio':
     case 'video':
+    case '3dModel':
     case 'world':
+    case 'motion3d':
     case 'liveVideo':
       return ['prompt']
   }
@@ -193,6 +203,7 @@ export {
   type InferToolInput,
   type InferToolName,
   type InferToolOutput,
+  type InferToolResultMetadata,
   type ApprovalCapabilityOf,
   type ApprovalSchemaConfig,
   type ApprovalSchemaOf,

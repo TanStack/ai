@@ -572,7 +572,7 @@ describe('message-updaters', () => {
       })
     })
 
-    it('should merge incoming metadata with existing metadata', () => {
+    it('replaces app keys and merges tanstack on a new result', () => {
       const messages = [
         createMessage('msg-1', 'assistant', [
           {
@@ -604,11 +604,11 @@ describe('message-updaters', () => {
 
       expect(result[0]?.parts[0]).toMatchObject({
         metadata: {
-          displayType: 'account-assets',
           accountId: 'A001',
           tanstack: { existing: true, state: 'complete' },
         },
       })
+      expect(result[0]?.parts[0]).not.toHaveProperty('metadata.displayType')
     })
 
     it('should include error when provided', () => {

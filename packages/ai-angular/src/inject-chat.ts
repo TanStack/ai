@@ -76,6 +76,9 @@ export function injectChat<
       initialMessages: options.initialMessages,
     }),
     threadId: options.threadId,
+    ...(options.outputSchema !== undefined && {
+      outputSchema: options.outputSchema,
+    }),
     ...(options.persistence === true
       ? {
           persistence: true,

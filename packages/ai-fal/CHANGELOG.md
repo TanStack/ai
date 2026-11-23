@@ -1,5 +1,25 @@
 # @tanstack/ai-fal
 
+## 1.2.0
+
+### Minor Changes
+
+- [#2186](https://github.com/TanStack/ai/pull/2186) [`1aa7227`](https://github.com/TanStack/ai/commit/1aa722707deca4d567efafe0830471222d558b62) - Update `@fal-ai/client` to 1.11.0.
+  - `fal3DModel()` now knows Meshy 7.1 (`meshy/v7.1/image-to-3d`, `multi-image-to-3d`, `text-to-3d`), Meshy 7 Retexture (`meshy/v7/retexture`), and Tripo Remesh (`tripo3d/tripo/remesh`). On Meshy 7 Retexture, an image part goes to `image_style_url`, and text goes to `text_style_prompt`.
+  - LTX 2.3 durations are now numbers (`6`, `8`, `10`), and the `/fast` models take `6` to `20`. Wan 2.5 Preview takes `"5"` or `"10"`.
+  - fal no longer serves Luma Ray 2 and Pika 2.2 text-to-video, so they are removed from the video duration table.
+  - `@fal-ai/client` 1.11.0 has no types for Veo, Kling 1.6, and Whisper. These models still work, with no typed options.
+  - `@fal-ai/client` 1.11.0 also has no types for 41 live image and video endpoints, such as Veo 3.1 first-last-frame and Kling 1.x image-to-video. A hand-kept table keeps their image input fields, so image parts still go to the correct field.
+
+- [#2186](https://github.com/TanStack/ai/pull/2186) [`1aa7227`](https://github.com/TanStack/ai/commit/1aa722707deca4d567efafe0830471222d558b62) - Add the experimental `generate3DModel()` activity. It turns text, images, or an existing mesh into a 3D model file, and returns the main model URL plus every mesh and texture file. A media prompt can now carry a `model3d` part, so a step such as retexture can take the mesh of an earlier step. `fal3DModel()` in `@tanstack/ai-fal` runs the fal 3D endpoints, and `useGenerate3DModel` (`injectGenerate3DModel` in Angular, `createGenerate3DModel` in Svelte and Remix) streams the job to the UI.
+
+- [#2194](https://github.com/TanStack/ai/pull/2194) [`0a84ac2`](https://github.com/TanStack/ai/commit/0a84ac22cbd29ac49997091713ca9da81bb3e553) - Add experimental motion generation. `generateMotion()` makes skeletal animation files (FBX first) from a text prompt. `getMotionJobStatus()` polls a job from any request, and `cancelMotionJob()` asks the provider to stop it. Aborting a stream stops local observation only. `falMotion()` runs fal Hunyuan Motion (`fal-ai/hunyuan-motion`, `fal-ai/hunyuan-motion/fast`).
+
+### Patch Changes
+
+- Updated dependencies [[`1aa7227`](https://github.com/TanStack/ai/commit/1aa722707deca4d567efafe0830471222d558b62), [`0a84ac2`](https://github.com/TanStack/ai/commit/0a84ac22cbd29ac49997091713ca9da81bb3e553), [`4288b7a`](https://github.com/TanStack/ai/commit/4288b7aaa80e085df899e2bebb597a9f85d6fb71)]:
+  - @tanstack/ai@1.7.0
+
 ## 1.1.1
 
 ### Patch Changes
