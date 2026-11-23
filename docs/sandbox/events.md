@@ -272,7 +272,7 @@ Things to know:
 - **A pending prompt comes back after a reload.** Add [chat persistence](../persistence/chat-persistence) with an `activities` store. After a reload, the user can still answer the prompt.
 - **The decision stays for the rest of the thread in two cases.** In both cases, the same action gets the same answer, with no new prompt:
   - On the server, `withPersistence` has an `activities` store. The server reads the saved row on each run.
-  - The client sends its full history (no `history: { pageSize }`). Each request carries the decided row.
+  - The client still has the decided row. Each request carries it, also with `history: { pageSize }`.
 - **A run in progress ends first.** If the user answers while a run streams, the next run starts after that run ends.
 - **A pending interrupt holds the run.** If an [interrupt](../interrupts/overview) waits for an answer, `respondToSandboxApproval` only sets the row. It starts no run, and the next run carries the decision.
 - **Each row takes one answer.** A second call for the same `approvalId` does nothing. A call with an unknown `approvalId` also does nothing.
