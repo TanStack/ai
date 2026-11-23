@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { toolDefinition } from '@tanstack/ai'
+import { createRealtimeEventEmitter, toolDefinition } from '@tanstack/ai'
 import { RealtimeClient } from '../src'
 import type {
   RealtimeAdapter,
+  RealtimeConnectOptions,
   RealtimeConnection,
   RealtimeRelayAdapter,
   RealtimeSessionAnswer,
@@ -10,7 +11,7 @@ import type {
   RealtimeToken,
 } from '@tanstack/ai/client'
 
-const weatherTool = toolDefinition({
+const weatherDefinition = toolDefinition({
   name: 'getWeather',
   description: 'Get the weather for a city',
   inputSchema: {
@@ -18,7 +19,8 @@ const weatherTool = toolDefinition({
     properties: { city: { type: 'string' } },
     required: ['city'],
   },
-}).client(async () => 'sunny')
+})
+const weatherTool = weatherDefinition.client(async () => 'sunny')
 
 const clientConfig = {
   instructions: 'Answer in one sentence.',
@@ -43,16 +45,18 @@ const token: RealtimeToken = {
 
 function fakeConnection() {
   const updateSession = vi.fn<RealtimeConnection['updateSession']>()
+  const sendToolResult = vi.fn<RealtimeConnection['sendToolResult']>()
+  const { emit, on } = createRealtimeEventEmitter()
   const connection: RealtimeConnection = {
     disconnect: async () => {},
     startAudioCapture: async () => {},
     stopAudioCapture: () => {},
     sendText: () => {},
     sendImage: () => {},
-    sendToolResult: () => {},
+    sendToolResult,
     updateSession,
     interrupt: () => {},
-    on: () => () => {},
+    on,
     getAudioVisualization: () => ({
       inputLevel: 0,
       outputLevel: 0,
@@ -64,17 +68,19 @@ function fakeConnection() {
       outputSampleRate: 0,
     }),
   }
-  return { connection, updateSession }
+  return { connection, updateSession, sendToolResult, emit }
 }
 
 /** A relay adapter that makes the offer `offer-sdp` and needs an answer. */
 function relayClient() {
   const { connection, updateSession } = fakeConnection()
   const answers: Array<RealtimeSessionAnswer> = []
+  const connectOptions: Array<RealtimeConnectOptions | undefined> = []
   const adapter: RealtimeRelayAdapter = {
     provider: 'test',
     kind: 'relay',
-    connect: async (createSession) => {
+    connect: async (createSession, _tools, options) => {
+      connectOptions.push(options)
       answers.push(await createSession({ sdp: 'offer-sdp' }))
       return connection
     },
@@ -87,7 +93,51 @@ function relayClient() {
     adapter,
     createSession,
   })
-  return { client, createSession, updateSession, answers }
+  return { client, createSession, updateSession, answers, connectOptions }
+}
+
+/**
+ * A token client with a slow `getWeather` tool. The adapter gives `first` on
+ * the first connect and `second` after that. `settleTool` ends the tool call.
+ */
+type ToolOutcome = { output: string } | { error: Error }
+
+function slowToolClient() {
+  const first = fakeConnection()
+  const second = fakeConnection()
+  let settleTool: (outcome: ToolOutcome) => void = () => {}
+  const slowWeatherTool = weatherDefinition.client(
+    () =>
+      new Promise<string>((resolve, reject) => {
+        settleTool = (outcome) =>
+          'output' in outcome ? resolve(outcome.output) : reject(outcome.error)
+      }),
+  )
+  let connects = 0
+  const client = new RealtimeClient({
+    ...clientConfig,
+    tools: [slowWeatherTool],
+    adapter: {
+      provider: 'test',
+      connect: async () => (++connects === 1 ? first : second).connection,
+    },
+    getToken: async () => token,
+  })
+  return {
+    client,
+    first,
+    second,
+    settle: (outcome: ToolOutcome) => settleTool(outcome),
+  }
+}
+
+/** Lets the tool callback of the client run to its end. */
+const flushToolCallback = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+const toolCall = {
+  toolCallId: 'call-1',
+  toolName: 'getWeather',
+  input: { city: 'Paris' },
 }
 
 afterEach(() => {
@@ -269,6 +319,17 @@ describe('RealtimeClient relay connect', () => {
     client.destroy()
   })
 
+  it('relay connect passes autoCapture: false to the adapter', async () => {
+    const { client, connectOptions } = relayClient()
+
+    await client.connect()
+
+    expect(connectOptions).toEqual([
+      { abortSignal: expect.any(AbortSignal), autoCapture: false },
+    ])
+    client.destroy()
+  })
+
   it('relay connect schedules no token refresh', async () => {
     vi.useFakeTimers()
     const { client } = relayClient()
@@ -310,6 +371,29 @@ describe('RealtimeClient token connect', () => {
     client.destroy()
   })
 
+  it('token connect passes autoCapture: false to the adapter', async () => {
+    const { connection } = fakeConnection()
+    const connectOptions: Array<RealtimeConnectOptions | undefined> = []
+    const client = new RealtimeClient({
+      ...clientConfig,
+      adapter: {
+        provider: 'test',
+        connect: async (_token, _tools, options) => {
+          connectOptions.push(options)
+          return connection
+        },
+      },
+      getToken: async () => token,
+    })
+
+    await client.connect()
+
+    expect(connectOptions).toEqual([
+      { abortSignal: expect.any(AbortSignal), autoCapture: false },
+    ])
+    client.destroy()
+  })
+
   it('token updateSession sends providerOptions with the full config', async () => {
     const { connection, updateSession } = fakeConnection()
     const client = new RealtimeClient({
@@ -328,4 +412,49 @@ describe('RealtimeClient token connect', () => {
     })
     client.destroy()
   })
+})
+
+describe('RealtimeClient tool results', () => {
+  const outcomes: Array<{ name: string; outcome: ToolOutcome; sent: string }> =
+    [
+      { name: 'result', outcome: { output: 'sunny' }, sent: 'sunny' },
+      {
+        name: 'error result',
+        outcome: { error: new Error('no weather') },
+        sent: JSON.stringify({ error: 'no weather' }),
+      },
+    ]
+
+  it.each(outcomes)(
+    'sends the $name to the connection that asked for it',
+    async ({ outcome, sent }) => {
+      const { client, first, settle } = slowToolClient()
+      await client.connect()
+
+      first.emit('tool_call', toolCall)
+      settle(outcome)
+      await flushToolCallback()
+
+      expect(first.sendToolResult.mock.calls).toEqual([['call-1', sent]])
+      client.destroy()
+    },
+  )
+
+  it.each(outcomes)(
+    'drops the $name of a call from a session replaced by a reconnect',
+    async ({ outcome }) => {
+      const { client, first, second, settle } = slowToolClient()
+      await client.connect()
+      first.emit('tool_call', toolCall)
+
+      await client.disconnect()
+      await client.connect()
+      settle(outcome)
+      await flushToolCallback()
+
+      expect(first.sendToolResult).not.toHaveBeenCalled()
+      expect(second.sendToolResult).not.toHaveBeenCalled()
+      client.destroy()
+    },
+  )
 })

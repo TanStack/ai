@@ -387,6 +387,20 @@ export interface RealtimeError extends Error {
 // ============================================================================
 
 /**
+ * Options for `connect()` of a realtime adapter.
+ */
+export interface RealtimeConnectOptions {
+  /** Cancels the connection setup requests, when the provider supports it */
+  abortSignal?: AbortSignal
+  /**
+   * When false, the adapter does not open the microphone on connect. It opens
+   * it on the first `startAudioCapture()`. An adapter that cannot wait ignores
+   * it. `RealtimeClient` passes its own `autoCapture` option here.
+   */
+  autoCapture?: boolean
+}
+
+/**
  * Adapter interface for connecting to realtime providers.
  * Each provider (OpenAI, ElevenLabs, etc.) implements this interface.
  *
@@ -404,14 +418,13 @@ export interface RealtimeAdapter {
    * Create a connection using the provided token
    * @param token - The ephemeral token from the server
    * @param clientTools - Optional client-side tools to register with the provider
-   * @param options - Optional `abortSignal` that cancels the connection setup
-   *   requests, when the provider supports it
+   * @param options - Optional `abortSignal` and `autoCapture`
    * @returns A connection instance
    */
   connect: (
     token: RealtimeToken,
     clientTools?: ReadonlyArray<AnyClientTool>,
-    options?: { abortSignal?: AbortSignal },
+    options?: RealtimeConnectOptions,
   ) => Promise<RealtimeConnection>
 }
 
@@ -430,13 +443,13 @@ export interface RealtimeRelayAdapter {
    * Create a connection through your server
    * @param createSession - Sends the SDP offer to your server and returns the answer
    * @param clientTools - Optional client-side tools to register with the provider
-   * @param options - Optional `abortSignal` that cancels the connection setup
+   * @param options - Optional `abortSignal` and `autoCapture`
    * @returns A connection instance
    */
   connect: (
     createSession: RealtimeRelayCreateSession,
     clientTools?: ReadonlyArray<AnyClientTool>,
-    options?: { abortSignal?: AbortSignal },
+    options?: RealtimeConnectOptions,
   ) => Promise<RealtimeConnection>
 }
 

@@ -134,6 +134,7 @@ export class RealtimeClient {
           : undefined
       const options = this.options
       const isRelay = isRelayOptions(options)
+      const autoCapture = options.autoCapture === true
 
       let connection: RealtimeConnection
       if (isRelay) {
@@ -148,7 +149,7 @@ export class RealtimeClient {
             return options.createSession({ sdp: offer.sdp, config })
           },
           toolsList,
-          { abortSignal: connectAbort.signal },
+          { abortSignal: connectAbort.signal, autoCapture },
         )
       } else {
         const token = await options.getToken()
@@ -157,6 +158,7 @@ export class RealtimeClient {
         this.scheduleTokenRefresh()
         connection = await options.adapter.connect(token, toolsList, {
           abortSignal: connectAbort.signal,
+          autoCapture,
         })
       }
       if (connectAbort.signal.aborted) {
@@ -193,7 +195,7 @@ export class RealtimeClient {
       if (!isRelay) this.applySessionConfig()
 
       // Start audio capture if configured
-      if (this.options.autoCapture) {
+      if (autoCapture) {
         await connection.startAudioCapture()
         if (connectAbort.signal.aborted) {
           // A later connect() replaced this connection: close it. After
@@ -606,28 +608,30 @@ export class RealtimeClient {
           )
           return
         }
+        // The result goes to the session that asked for it. After a
+        // reconnect or a disconnect that session is gone: send nothing.
+        const sendResult = (result: string) => {
+          if (this.connection === connection) {
+            connection.sendToolResult(toolCallId, result)
+          }
+        }
         const tool = this.clientTools.get(toolName)
         const execute = tool?.execute
         if (execute) {
           void (async () => {
             try {
               const output = await execute(input)
-              this.connection?.sendToolResult(
-                toolCallId,
+              sendResult(
                 typeof output === 'string' ? output : JSON.stringify(output),
               )
             } catch (error) {
               const errMsg =
                 error instanceof Error ? error.message : String(error)
-              this.connection?.sendToolResult(
-                toolCallId,
-                JSON.stringify({ error: errMsg }),
-              )
+              sendResult(JSON.stringify({ error: errMsg }))
             }
           })()
         } else {
-          this.connection?.sendToolResult(
-            toolCallId,
+          sendResult(
             JSON.stringify({
               error: `Unknown or non-executable tool: ${String(toolName)}`,
             }),

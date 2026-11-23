@@ -4,6 +4,7 @@ import { createOpenAIWebRTCTransport } from './webrtc-transport'
 import type {
   AnyClientTool,
   RealtimeAdapter,
+  RealtimeConnectOptions,
   RealtimeConnection,
   RealtimeEvent,
   RealtimeEventHandler,
@@ -48,7 +49,7 @@ export function openaiRealtime(
     async connect(
       token: RealtimeToken,
       _clientTools?: ReadonlyArray<AnyClientTool>,
-      options?: { abortSignal?: AbortSignal },
+      connectOptions?: RealtimeConnectOptions,
     ): Promise<RealtimeConnection> {
       const model = token.config.model ?? 'gpt-realtime-2.1'
       logger.request(`activity=realtime provider=openai model=${model}`, {
@@ -57,7 +58,7 @@ export function openaiRealtime(
       })
 
       if (connectionMode === 'webrtc') {
-        return createWebRTCConnection(token, logger, options?.abortSignal)
+        return createWebRTCConnection(token, logger, connectOptions)
       }
       const error = new Error('WebSocket connection mode not yet implemented')
       logger.errors('openai.realtime fatal', {
@@ -112,7 +113,7 @@ async function exchangeRealtimeSdp(
 async function createWebRTCConnection(
   token: RealtimeToken,
   logger: InternalLogger,
-  abortSignal?: AbortSignal,
+  connectOptions?: RealtimeConnectOptions,
 ): Promise<RealtimeConnection> {
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
 
@@ -143,7 +144,8 @@ async function createWebRTCConnection(
     onServerEvent: handleServerEvent,
     onOpen: () => emit('status_change', { status: 'connected' }),
     onError: (error) => emit('error', { error }),
-    abortSignal,
+    abortSignal: connectOptions?.abortSignal,
+    autoCapture: connectOptions?.autoCapture,
   })
   const { sendEvent } = transport
 
@@ -337,9 +339,9 @@ async function createWebRTCConnection(
     },
 
     async startAudioCapture() {
-      // Audio capture is established during connection setup
-      // This method enables the tracks and signals listening mode
-      transport.startAudioCapture()
+      // Opens the microphone when connect did not (autoCapture false), then
+      // enables the tracks and signals listening mode
+      await transport.startAudioCapture()
       currentMode = 'listening'
       emit('mode_change', { mode: 'listening' })
     },

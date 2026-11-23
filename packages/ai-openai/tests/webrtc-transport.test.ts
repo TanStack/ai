@@ -10,6 +10,7 @@ interface FakeChannel {
   onopen: (() => void) | null
   onclose: (() => void) | null
   onerror: ((event: Event) => void) | null
+  onbufferedamountlow?: () => void
 }
 
 /** Fake browser WebRTC and microphone globals that record what was released. */
@@ -24,9 +25,11 @@ function stubBrowser() {
     onclose: null,
     onerror: null,
   }
+  const sender = { replaceTrack: vi.fn(async () => {}) }
   const pc = {
     createDataChannel: () => channel,
     addTrack: vi.fn(),
+    addTransceiver: vi.fn(() => ({ sender })),
     createOffer: async () => ({ type: 'offer', sdp: 'v=0' }),
     setLocalDescription: async () => {},
     setRemoteDescription: vi.fn(async () => {}),
@@ -51,7 +54,7 @@ function stubBrowser() {
       }
     }),
   )
-  return { track, stream, channel, pc, getUserMedia }
+  return { track, stream, channel, pc, sender, getUserMedia }
 }
 
 function connect(
@@ -59,6 +62,7 @@ function connect(
     onError?: (error: Error) => void
     onClose?: () => void
     abortSignal?: AbortSignal
+    autoCapture?: boolean
   } = {},
 ) {
   const error = vi.fn()
@@ -74,8 +78,29 @@ function connect(
     onError: overrides.onError ?? (() => {}),
     onClose: overrides.onClose,
     abortSignal: overrides.abortSignal,
+    autoCapture: overrides.autoCapture,
   })
   return { pending, loggedError: error }
+}
+
+/** Opens the data channel and waits for connect() to return the transport. */
+async function openTransport(
+  browser: ReturnType<typeof stubBrowser>,
+  pending: ReturnType<typeof connect>['pending'],
+) {
+  await untilWaitingForChannel(browser.pc)
+  browser.channel.readyState = 'open'
+  browser.channel.onopen?.()
+  return pending
+}
+
+/** Records the type of each event that the data channel took. */
+function recordSentTypes(channel: FakeChannel) {
+  const sent: Array<string> = []
+  channel.send.mockImplementation((data: string) => {
+    sent.push(JSON.parse(data).type)
+  })
+  return sent
 }
 
 /** Waits until the SDP exchange is done and connect() waits for the channel. */
@@ -119,43 +144,37 @@ describe('createOpenAIWebRTCTransport', () => {
   })
 
   it('reports a data channel error after it opens through onError', async () => {
-    const { track, channel, pc } = stubBrowser()
+    const browser = stubBrowser()
     const onError = vi.fn()
     const { pending } = connect({ onError })
-    await untilWaitingForChannel(pc)
-    channel.onopen?.()
-    await pending
-    channel.onerror?.(new Event('error'))
+    await openTransport(browser, pending)
+    browser.channel.onerror?.(new Event('error'))
 
     expect(onError).toHaveBeenCalledWith(
       new Error('Data channel error: [object Event]'),
     )
-    expect(track.stop).not.toHaveBeenCalled()
+    expect(browser.track.stop).not.toHaveBeenCalled()
   })
 
   it('calls onClose when the open data channel closes without close()', async () => {
-    const { channel, pc } = stubBrowser()
+    const browser = stubBrowser()
     const onClose = vi.fn()
     const { pending } = connect({ onClose })
-    await untilWaitingForChannel(pc)
-    channel.onopen?.()
-    await pending
+    await openTransport(browser, pending)
 
-    channel.onclose?.()
+    browser.channel.onclose?.()
 
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('does not call onClose when close() closes the channel', async () => {
-    const { channel, pc } = stubBrowser()
+    const browser = stubBrowser()
     const onClose = vi.fn()
     const { pending } = connect({ onClose })
-    await untilWaitingForChannel(pc)
-    channel.onopen?.()
-    const transport = await pending
+    const transport = await openTransport(browser, pending)
 
     await transport.close()
-    channel.onclose?.()
+    browser.channel.onclose?.()
 
     expect(onClose).not.toHaveBeenCalled()
   })
@@ -184,7 +203,7 @@ describe('createOpenAIWebRTCTransport', () => {
   })
 
   it('connects without an input meter when audio analysis setup throws', async () => {
-    const { track, channel, pc } = stubBrowser()
+    const browser = stubBrowser()
     vi.stubGlobal(
       'AudioContext',
       vi.fn(function AudioContext() {
@@ -192,9 +211,7 @@ describe('createOpenAIWebRTCTransport', () => {
       }),
     )
     const { pending, loggedError } = connect()
-    await untilWaitingForChannel(pc)
-    channel.onopen?.()
-    const transport = await pending
+    const transport = await openTransport(browser, pending)
     const visualization = transport.getAudioVisualization()
 
     expect(visualization.inputLevel).toBe(0)
@@ -205,7 +222,88 @@ describe('createOpenAIWebRTCTransport', () => {
         error: new Error('AudioContext is not allowed'),
       }),
     )
-    expect(track.stop).not.toHaveBeenCalled()
-    expect(pc.addTrack).toHaveBeenCalled()
+    expect(browser.track.stop).not.toHaveBeenCalled()
+    expect(browser.pc.addTrack).toHaveBeenCalled()
+  })
+
+  it('does not open the microphone on connect when autoCapture is false', async () => {
+    const browser = stubBrowser()
+    const { pending } = connect({ autoCapture: false })
+    await openTransport(browser, pending)
+
+    expect(browser.getUserMedia).not.toHaveBeenCalled()
+    expect(browser.pc.addTransceiver).toHaveBeenCalledWith('audio', {
+      direction: 'sendrecv',
+    })
+    expect(browser.pc.addTrack).not.toHaveBeenCalled()
+  })
+
+  it('opens the microphone on the first startAudioCapture and stops it on close', async () => {
+    const browser = stubBrowser()
+    const { pending } = connect({ autoCapture: false })
+    const transport = await openTransport(browser, pending)
+
+    await transport.startAudioCapture()
+    await transport.startAudioCapture()
+
+    expect(browser.getUserMedia).toHaveBeenCalledTimes(1)
+    expect(browser.sender.replaceTrack).toHaveBeenCalledWith(browser.track)
+    expect(browser.track.stop).not.toHaveBeenCalled()
+
+    await transport.close()
+    expect(browser.track.stop).toHaveBeenCalled()
+  })
+
+  it('rejects startAudioCapture when the late microphone request fails', async () => {
+    const browser = stubBrowser()
+    browser.getUserMedia.mockRejectedValue(new Error('Permission denied'))
+    const { pending } = connect({ autoCapture: false })
+    const transport = await openTransport(browser, pending)
+
+    await expect(transport.startAudioCapture()).rejects.toThrow(
+      'Microphone access required for realtime voice: Permission denied',
+    )
+    expect(browser.sender.replaceTrack).not.toHaveBeenCalled()
+  })
+
+  it('keeps events that a full send buffer refuses and sends them in order after bufferedamountlow', async () => {
+    const browser = stubBrowser()
+    const onError = vi.fn()
+    const { pending } = connect({ onError })
+    const transport = await openTransport(browser, pending)
+    const sent = recordSentTypes(browser.channel)
+    browser.channel.send.mockImplementationOnce(() => {
+      throw new DOMException(
+        'RTCDataChannel send queue is full',
+        'OperationError',
+      )
+    })
+
+    transport.sendEvent({ type: 'response.item.create' })
+    transport.sendEvent({ type: 'response.create' })
+    expect(sent).toEqual([])
+
+    browser.channel.onbufferedamountlow?.()
+    expect(sent).toEqual(['response.item.create', 'response.create'])
+    expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('reports a send failure that is not a full buffer through onError', async () => {
+    const browser = stubBrowser()
+    const onError = vi.fn()
+    const { pending } = connect({ onError })
+    const transport = await openTransport(browser, pending)
+    const sent = recordSentTypes(browser.channel)
+    browser.channel.send.mockImplementationOnce(() => {
+      throw new TypeError('Message too large')
+    })
+
+    transport.sendEvent({ type: 'session.update' })
+    transport.sendEvent({ type: 'response.create' })
+
+    expect(onError).toHaveBeenCalledWith(
+      new Error('Failed to send session.update: Message too large'),
+    )
+    expect(sent).toEqual(['response.create'])
   })
 })

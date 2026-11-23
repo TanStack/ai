@@ -1,8 +1,12 @@
 import { createRealtimeEventEmitter } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { toResponsesSettings } from './live-session'
-import { createOpenAIWebRTCTransport } from './webrtc-transport'
+import {
+  createOpenAIWebRTCTransport,
+  waitUnlessAborted,
+} from './webrtc-transport'
 import type {
+  RealtimeConnectOptions,
   RealtimeConnection,
   RealtimeMode,
   RealtimeRelayAdapter,
@@ -81,11 +85,7 @@ export function openaiLive(
     provider: 'openai',
     kind: 'relay',
     connect(createSession, _clientTools, connectOptions) {
-      return createLiveConnection(
-        createSession,
-        logger,
-        connectOptions?.abortSignal,
-      )
+      return createLiveConnection(createSession, logger, connectOptions)
     },
   }
 }
@@ -93,8 +93,9 @@ export function openaiLive(
 async function createLiveConnection(
   createSession: RealtimeRelayCreateSession,
   logger: InternalLogger,
-  abortSignal?: AbortSignal,
+  connectOptions?: RealtimeConnectOptions,
 ) {
+  const abortSignal = connectOptions?.abortSignal
   const { emit, on } = createRealtimeEventEmitter()
 
   let currentMode: RealtimeMode = 'idle'
@@ -113,6 +114,8 @@ async function createLiveConnection(
     markStarted = () => resolve()
     failStart = reject
   })
+  // A start failure after connect() returned has no reader. Mark it handled.
+  void sessionStarted.catch(() => {})
   // disconnect() waits for this after it sends `session.close`.
   let markClosed = () => {}
   const sessionClosed = new Promise<void>((resolve) => {
@@ -129,10 +132,10 @@ async function createLiveConnection(
     // `createSession` takes no signal. Stop the wait when the signal aborts,
     // so the transport releases the microphone at once.
     signal?.throwIfAborted()
-    const answer = await Promise.race([
+    const answer = await waitUnlessAborted(
       createSession({ sdp: offerSdp }),
-      rejectOnAbort(signal),
-    ])
+      signal,
+    )
     logger.request(
       `activity=realtime provider=openai model=${answer.config.model ?? '<unknown>'}`,
       {
@@ -155,6 +158,7 @@ async function createLiveConnection(
     // The data channel closed without `session.closed`.
     onClose: () => endSession('connection_lost'),
     abortSignal,
+    autoCapture: connectOptions?.autoCapture,
   })
   const { sendEvent } = transport
 
@@ -186,11 +190,10 @@ async function createLiveConnection(
   const startTimeout = startTimer(START_TIMEOUT_MS)
   try {
     abortSignal?.throwIfAborted()
-    const result = await Promise.race([
-      sessionStarted,
-      startTimeout.promise,
-      rejectOnAbort(abortSignal),
-    ])
+    const result = await waitUnlessAborted(
+      Promise.race([sessionStarted, startTimeout.promise]),
+      abortSignal,
+    )
     if (result === 'timeout') {
       throw new Error(
         `GPT-Live session did not start in ${START_TIMEOUT_MS / 1000} s`,
@@ -328,18 +331,9 @@ async function createLiveConnection(
   const connection: RealtimeConnection = {
     async disconnect() {
       const closeTimeout = startTimer(CLOSE_TIMEOUT_MS)
-      try {
-        sendEvent({ type: 'session.close' })
-        await Promise.race([sessionClosed, closeTimeout.promise])
-      } catch (error) {
-        // A full send buffer makes send() throw. Close locally anyway.
-        logger.errors(`${SOURCE} session.close failed`, {
-          error,
-          source: SOURCE,
-        })
-      } finally {
-        closeTimeout.clear()
-      }
+      sendEvent({ type: 'session.close' })
+      await Promise.race([sessionClosed, closeTimeout.promise])
+      closeTimeout.clear()
       hasEnded = true
       await closeTransport()
       setMode('idle')
@@ -347,7 +341,7 @@ async function createLiveConnection(
     },
 
     async startAudioCapture() {
-      transport.startAudioCapture()
+      await transport.startAudioCapture()
       sendEvent({ type: 'session.input_audio.unmute' })
       setMode('listening')
     },
@@ -424,15 +418,6 @@ async function createLiveConnection(
   }
 
   return connection
-}
-
-/** Rejects with the abort reason when `signal` aborts. Never settles without a signal. */
-function rejectOnAbort(signal?: AbortSignal) {
-  return new Promise<never>((_, reject) => {
-    signal?.addEventListener('abort', () => reject(signal.reason), {
-      once: true,
-    })
-  })
 }
 
 /** A promise that resolves with `'timeout'` after `ms`. `clear` stops the timer. */

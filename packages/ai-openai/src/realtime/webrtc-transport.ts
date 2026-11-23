@@ -24,6 +24,11 @@ export async function createOpenAIWebRTCTransport(options: {
   /** Runs when the open data channel closes, and close() did not close it. */
   onClose?: () => void
   abortSignal?: AbortSignal
+  /**
+   * When false, connect does not open the microphone. The first
+   * startAudioCapture() opens it. Default: true.
+   */
+  autoCapture?: boolean
 }) {
   const { logger, source, abortSignal } = options
 
@@ -37,6 +42,10 @@ export async function createOpenAIWebRTCTransport(options: {
   let inputSource: MediaStreamAudioSourceNode | null = null
   let outputSource: MediaStreamAudioSourceNode | null = null
   let localStream: MediaStream | null = null
+  // With autoCapture false: the sender of the audio transceiver that has no
+  // track yet, and the microphone request of startAudioCapture() in progress.
+  let audioSender: RTCRtpSender | null = null
+  let microphoneRequest: Promise<void> | null = null
 
   // Audio element for playback (more reliable than AudioContext.destination)
   let audioElement: HTMLAudioElement | null = null
@@ -59,6 +68,15 @@ export async function createOpenAIWebRTCTransport(options: {
   let isChannelOpen = false
   // True after close() starts, so a local close is not reported as onClose.
   let isClosedLocally = false
+
+  // Events that wait to be sent, in order: events sent before the data
+  // channel opens, and events that a full send buffer did not take.
+  const pendingEvents: Array<Record<string, unknown>> = []
+  // ponytail: 64 KiB. When the buffer drains below this, the queue is sent.
+  channel.bufferedAmountLowThreshold = 64 * 1024
+  channel.onbufferedamountlow = () => {
+    if (!isClosedLocally) flushPendingEvents()
+  }
 
   // Resolves when the data channel opens. A close or an error before that
   // rejects it, so the setup cleanup runs and connect() does not hang.
@@ -123,32 +141,16 @@ export async function createOpenAIWebRTCTransport(options: {
     // A disconnect during the token fetch already aborted the signal. Do not
     // ask for the microphone in that case.
     abortSignal?.throwIfAborted()
-    // IMPORTANT: Request microphone access and add audio track BEFORE creating offer
-    // OpenAI's voice APIs require an audio track in the SDP offer
-    const microphone = navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        sampleRate: 24000,
-      },
-    })
-    try {
-      // An abort while the permission prompt is open rejects at once.
-      localStream = await waitUnlessAborted(microphone, abortSignal)
-    } catch (error) {
-      if (abortSignal?.aborted) {
-        // The browser can still give the stream after the abort. Stop it then.
-        void microphone.then(stopTracks, () => {})
-        throw abortSignal.reason
+    // IMPORTANT: OpenAI's voice APIs require an audio m-line in the SDP
+    // offer, so the audio goes on the peer connection BEFORE the offer.
+    if (options.autoCapture === false) {
+      // No microphone yet. startAudioCapture() puts its track on this sender.
+      audioSender = pc.addTransceiver('audio', { direction: 'sendrecv' }).sender
+    } else {
+      localStream = await requestMicrophone(abortSignal)
+      for (const track of localStream.getAudioTracks()) {
+        pc.addTrack(track, localStream)
       }
-      throw new Error(
-        `Microphone access required for realtime voice: ${error instanceof Error ? error.message : error}`,
-      )
-    }
-
-    // Add audio track to peer connection
-    for (const track of localStream.getAudioTracks()) {
-      pc.addTrack(track, localStream)
     }
 
     // Create and set local description (now includes audio track)
@@ -168,16 +170,38 @@ export async function createOpenAIWebRTCTransport(options: {
     throw error
   }
 
-  // Set up input audio analysis now that we have the stream. The meter is
-  // optional: if the setup fails, the session continues without it.
-  try {
-    setupInputAudioAnalysis(localStream)
-  } catch (error) {
-    inputAnalyser = null
-    logger.errors(`${source} input audio analysis failed`, {
-      error,
-      source,
-    })
+  if (localStream) startInputMeter(localStream)
+
+  // Set up input audio analysis for the stream. The meter is optional: if
+  // the setup fails, the session continues without it.
+  function startInputMeter(stream: MediaStream) {
+    try {
+      setupInputAudioAnalysis(stream)
+    } catch (error) {
+      inputAnalyser = null
+      logger.errors(`${source} input audio analysis failed`, {
+        error,
+        source,
+      })
+    }
+  }
+
+  // Opens the microphone late (autoCapture false) and sends its track on the
+  // audio transceiver that the offer already has.
+  async function attachMicrophone(sender: RTCRtpSender) {
+    const stream = await requestMicrophone()
+    // close() ran while the permission prompt was open.
+    if (isClosedLocally) return stopTracks(stream)
+    // Set it first, so close() stops it from here on.
+    localStream = stream
+    try {
+      await sender.replaceTrack(stream.getAudioTracks()[0] ?? null)
+    } catch (error) {
+      stopTracks(stream)
+      localStream = null
+      throw error
+    }
+    if (!isClosedLocally) startInputMeter(stream)
   }
 
   // Set up audio analysis for output
@@ -236,32 +260,49 @@ export async function createOpenAIWebRTCTransport(options: {
     inputSource.connect(inputAnalyser)
   }
 
-  // Queue for events sent before the data channel is open
-  const pendingEvents: Array<Record<string, unknown>> = []
-
-  // Send event to server (queues if data channel not yet open)
+  // Send an event to the server. It waits in the queue while the data
+  // channel is not open, or while earlier events wait for the send buffer.
   function sendEvent(event: Record<string, unknown>) {
-    if (dataChannel?.readyState === 'open') {
-      logger.provider(
-        `provider=openai direction=out type=${(event.type as string | undefined) ?? '<unknown>'}`,
-        { frame: event },
-      )
-      dataChannel.send(JSON.stringify(event))
-    } else {
-      pendingEvents.push(event)
+    pendingEvents.push(event)
+    const isFirstInQueue = pendingEvents.length === 1
+    if (isFirstInQueue && dataChannel?.readyState === 'open') {
+      flushPendingEvents()
     }
   }
 
-  // Flush any queued events (called when data channel opens)
+  // Send the queued events in order. Stop at an event that the full send
+  // buffer does not take. `bufferedamountlow` runs this again.
   function flushPendingEvents() {
-    for (const event of pendingEvents) {
-      logger.provider(
-        `provider=openai direction=out type=${(event.type as string | undefined) ?? '<unknown>'}`,
-        { frame: event },
-      )
-      channel.send(JSON.stringify(event))
+    while (pendingEvents.length > 0) {
+      const [event] = pendingEvents
+      if (event && !trySend(event)) return
+      pendingEvents.shift()
     }
-    pendingEvents.length = 0
+  }
+
+  // Returns false when the send buffer is full and the event must wait.
+  // Another send failure goes to onError, and the event is dropped.
+  function trySend(event: Record<string, unknown>) {
+    const type = (event.type as string | undefined) ?? '<unknown>'
+    try {
+      channel.send(JSON.stringify(event))
+    } catch (error) {
+      const isBufferFull =
+        channel.readyState === 'open' &&
+        error instanceof DOMException &&
+        error.name === 'OperationError'
+      if (isBufferFull) return false
+      options.onError(
+        new Error(
+          `Failed to send ${type}: ${error instanceof Error ? error.message : error}`,
+        ),
+      )
+      return true
+    }
+    logger.provider(`provider=openai direction=out type=${type}`, {
+      frame: event,
+    })
+    return true
   }
 
   // Stops the microphone, playback, the data channel, the peer connection,
@@ -307,9 +348,19 @@ export async function createOpenAIWebRTCTransport(options: {
     sendEvent,
     close,
 
-    // Audio capture is established during connection setup.
-    // This enables the microphone tracks again.
-    startAudioCapture() {
+    // With autoCapture false, the first call opens the microphone. Then it
+    // enables the microphone tracks again. Rejects when microphone access
+    // fails.
+    async startAudioCapture() {
+      const sender = audioSender
+      const needsMicrophone =
+        sender !== null && !localStream && !isClosedLocally
+      if (needsMicrophone) {
+        microphoneRequest ??= attachMicrophone(sender).finally(() => {
+          microphoneRequest = null
+        })
+        await microphoneRequest
+      }
       if (localStream) {
         for (const track of localStream.getAudioTracks()) {
           track.enabled = true
@@ -402,7 +453,7 @@ export async function createOpenAIWebRTCTransport(options: {
 }
 
 /** Settle like `promise`, or reject with the abort reason when `signal` aborts first. */
-function waitUnlessAborted<T>(
+export function waitUnlessAborted<T>(
   promise: Promise<T>,
   signal: AbortSignal | undefined,
 ) {
@@ -415,6 +466,33 @@ function waitUnlessAborted<T>(
       .then(resolve, reject)
       .finally(() => signal.removeEventListener('abort', onAbort))
   })
+}
+
+/**
+ * Opens the microphone. An abort while the permission prompt is open rejects
+ * at once with the abort reason. Other failures reject with a
+ * "Microphone access required" error.
+ */
+async function requestMicrophone(abortSignal?: AbortSignal) {
+  const microphone = navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      sampleRate: 24000,
+    },
+  })
+  try {
+    return await waitUnlessAborted(microphone, abortSignal)
+  } catch (error) {
+    if (abortSignal?.aborted) {
+      // The browser can still give the stream after the abort. Stop it then.
+      void microphone.then(stopTracks, () => {})
+      throw abortSignal.reason
+    }
+    throw new Error(
+      `Microphone access required for realtime voice: ${error instanceof Error ? error.message : error}`,
+    )
+  }
 }
 
 function stopTracks(stream: MediaStream) {

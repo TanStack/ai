@@ -18,3 +18,7 @@ GPT-Live has no browser token, so this release adds a relay path:
 The options type is now a union of the token form and the relay form. If you read the type of `getToken` from it (for example `UseRealtimeChatOptions['getToken']`), the type now includes `undefined`.
 
 `RealtimeClient.updateSession()` now sends `providerOptions` to the connection. Before, the client kept `providerOptions` but did not send them.
+
+Realtime adapters now get `RealtimeConnectOptions` (`abortSignal`, `autoCapture`) in `connect()`. With `autoCapture: false`, `openaiRealtime()` and `openaiLive()` open the microphone on the first `startAudioCapture()`, not on connect.
+
+`RealtimeClient` sends a tool result only to the connection that asked for it. After a reconnect, a result from the old session is dropped.

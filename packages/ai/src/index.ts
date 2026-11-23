@@ -581,6 +581,7 @@ export type {
   RealtimeSessionOptions,
   RealtimeRelayCreateSession,
   RealtimeRelayAdapter,
+  RealtimeConnectOptions,
   RealtimeSessionConfig,
   RealtimeToolConfig,
   VADConfig,

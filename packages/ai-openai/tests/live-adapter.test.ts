@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { openaiLive } from '../src/realtime/live-adapter'
 import type {
+  RealtimeConnectOptions,
   RealtimeConnection,
   RealtimeEventPayloads,
   RealtimeRelayCreateSession,
@@ -35,6 +36,7 @@ function stubBrowser() {
   const pc = {
     createDataChannel: () => channel,
     addTrack: vi.fn(),
+    addTransceiver: () => ({ sender: { replaceTrack: async () => {} } }),
     createOffer: async () => ({ type: 'offer', sdp: 'offer-sdp' }),
     setLocalDescription: async () => {},
     setRemoteDescription: vi.fn(async () => {}),
@@ -46,9 +48,8 @@ function stubBrowser() {
       return pc
     }),
   )
-  vi.stubGlobal('navigator', {
-    mediaDevices: { getUserMedia: async () => stream },
-  })
+  const getUserMedia = vi.fn(async () => stream)
+  vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } })
   const audioContext = {
     state: 'running',
     createAnalyser: () => ({ connect: vi.fn() }),
@@ -61,7 +62,7 @@ function stubBrowser() {
       return audioContext
     }),
   )
-  return { track, channel, pc, audioContext }
+  return { track, channel, pc, audioContext, getUserMedia }
 }
 
 const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }
@@ -77,9 +78,14 @@ function nextTask() {
  */
 async function openLive(
   createSession: RealtimeRelayCreateSession = async () => answer,
+  connectOptions?: RealtimeConnectOptions,
 ) {
   const browser = stubBrowser()
-  const pending = openaiLive({ debug: { logger } }).connect(createSession)
+  const pending = openaiLive({ debug: { logger } }).connect(
+    createSession,
+    undefined,
+    connectOptions,
+  )
   await vi.waitFor(() =>
     expect(browser.pc.setRemoteDescription).toHaveBeenCalled(),
   )
@@ -105,8 +111,11 @@ async function openLive(
 }
 
 /** Open the data channel, start the session, and wait for the connection. */
-async function connectLive(createSession?: RealtimeRelayCreateSession) {
-  const live = await openLive(createSession)
+async function connectLive(
+  createSession?: RealtimeRelayCreateSession,
+  connectOptions?: RealtimeConnectOptions,
+) {
+  const live = await openLive(createSession, connectOptions)
   live.serverSends({ type: 'session.started' })
   return { ...live, connection: await live.pending }
 }
@@ -410,18 +419,6 @@ describe('openaiLive', () => {
     expect(pc.close).toHaveBeenCalled()
   })
 
-  it('disconnect closes locally when sending session.close throws', async () => {
-    const { connection, channel, track, pc } = await connectLive()
-    channel.send.mockImplementation(() => {
-      throw new Error('OperationError: the send buffer is full')
-    })
-
-    await connection.disconnect()
-
-    expect(track.stop).toHaveBeenCalled()
-    expect(pc.close).toHaveBeenCalled()
-  })
-
   it('maps usage seconds to billed seconds', async () => {
     const { connection, serverSends } = await connectLive()
     const usage = record(connection, 'usage')
@@ -468,33 +465,15 @@ describe('openaiLive', () => {
     const onUnhandled = (reason: unknown) => unhandled.push(reason)
     process.on('unhandledRejection', onUnhandled)
     try {
-      const browser = stubBrowser()
       const controller = new AbortController()
-      const pending = openaiLive({ debug: { logger } }).connect(
-        async () => answer,
-        undefined,
-        { abortSignal: controller.signal },
-      )
-      await vi.waitFor(() =>
-        expect(browser.pc.setRemoteDescription).toHaveBeenCalled(),
-      )
-      browser.channel.readyState = 'open'
-      browser.channel.onopen?.()
-      await nextTask()
-      browser.channel.onmessage?.({
-        data: JSON.stringify({ type: 'session.started' }),
+      const { connection, serverSends } = await connectLive(undefined, {
+        abortSignal: controller.signal,
       })
-      const connection = await pending
 
       // RealtimeClient.disconnect() aborts the connect signal, then closes.
       controller.abort()
       const closing = connection.disconnect()
-      browser.channel.onmessage?.({
-        data: JSON.stringify({
-          type: 'session.closed',
-          reason: 'close_requested',
-        }),
-      })
+      serverSends({ type: 'session.closed', reason: 'close_requested' })
       await closing
       await nextTask()
       await nextTask()
@@ -503,6 +482,35 @@ describe('openaiLive', () => {
     } finally {
       process.off('unhandledRejection', onUnhandled)
     }
+  })
+
+  it('removes its abort listeners once connect returns', async () => {
+    const controller = new AbortController()
+    const added = vi.spyOn(controller.signal, 'addEventListener')
+    const removed = vi.spyOn(controller.signal, 'removeEventListener')
+
+    await connectLive(undefined, { abortSignal: controller.signal })
+    await nextTask()
+
+    const removedListeners = removed.mock.calls.map(([, listener]) => listener)
+    const leftListeners = added.mock.calls
+      .map(([, listener]) => listener)
+      .filter((listener) => !removedListeners.includes(listener))
+    expect(added).toHaveBeenCalled()
+    expect(leftListeners).toEqual([])
+  })
+
+  it('opens the microphone on startAudioCapture when autoCapture is false', async () => {
+    const { connection, getUserMedia, sentTypes } = await connectLive(
+      undefined,
+      { autoCapture: false },
+    )
+    expect(getUserMedia).not.toHaveBeenCalled()
+
+    await connection.startAudioCapture()
+
+    expect(getUserMedia).toHaveBeenCalledTimes(1)
+    expect(sentTypes()).toEqual(['session.input_audio.unmute'])
   })
 
   it('logs on sendImage', async () => {

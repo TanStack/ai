@@ -139,7 +139,7 @@ const adapter = openaiLiveSession({
 | `model` | `'gpt-live-1.1'` | `'gpt-live-1'` or `'gpt-live-1.1'`. Server only. |
 | `instructions` | the client value | Replaces the `instructions` from the hook. |
 | `voice` | the client value | Replaces the `voice` from the hook. If neither sets it, OpenAI uses `marin`. |
-| `delegation` | none | The Responses model that runs tools, and its settings. `delegation.model` is server only. See [Tools](#tools). |
+| `delegation` | none | The Responses model that runs tools, and its settings. The server sets the start values. See [Tools](#tools). |
 | `store` | OpenAI default | Lets OpenAI store the session. |
 | `apiKey` | `OPENAI_API_KEY` | The OpenAI API key. |
 | `baseURL` | `https://api.openai.com/v1` | The API base URL. |
@@ -236,7 +236,9 @@ If the browser sends tools and the server has no `delegation`, `realtimeSession(
 - `parallelToolCalls`: lets the delegated model call more than one tool in one turn.
 - `maxOutputTokens`: the output limit for the delegated model (16 or more).
 
-The delegation `model` stays on the server. If you send `delegation.model` to `updateSession`, the adapter drops it and logs an error.
+`updateSession` does not change the delegation `model`. If you send `delegation.model`, the adapter drops it and logs an error.
+
+The server sets the start values of `delegation`, which include the model. But the browser holds the data channel, so a user can change these values with a raw `session.update` event. Do not use the delegation model as a security limit or a cost limit. Set spend limits in your OpenAI project.
 
 ## Differences from other realtime models
 
@@ -337,6 +339,25 @@ export function myProviderSession(): RealtimeSessionAdapter {
 import type { RealtimeRelayAdapter } from '@tanstack/ai'
 import { createMyConnection } from './my-connection'
 
+// Asks for the microphone. Stops the wait when `signal` aborts.
+function getMicrophone(signal?: AbortSignal): Promise<MediaStream> {
+  return new Promise((resolve, reject) => {
+    signal?.throwIfAborted()
+    const onAbort = () => reject(signal?.reason)
+    signal?.addEventListener('abort', onAbort, { once: true })
+    navigator.mediaDevices
+      .getUserMedia({ audio: true })
+      .then((stream) => {
+        // The stream can come after the abort. Then nothing uses it.
+        if (signal?.aborted) {
+          stream.getTracks().forEach((track) => track.stop())
+        }
+        resolve(stream)
+      }, reject)
+      .finally(() => signal?.removeEventListener('abort', onAbort))
+  })
+}
+
 export function myProviderLive(): RealtimeRelayAdapter {
   return {
     provider: 'my-provider',
@@ -345,9 +366,7 @@ export function myProviderLive(): RealtimeRelayAdapter {
       const peer = new RTCPeerConnection()
       let mic: MediaStream | null = null
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-        })
+        const stream = await getMicrophone(options?.abortSignal)
         mic = stream
         stream.getTracks().forEach((track) => peer.addTrack(track, stream))
         const events = peer.createDataChannel('events')
@@ -355,7 +374,8 @@ export function myProviderLive(): RealtimeRelayAdapter {
         const speaker = new Audio()
         speaker.autoplay = true
         peer.ontrack = (event) => {
-          speaker.srcObject = event.streams[0] ?? null
+          // A provider can send a track with no stream.
+          speaker.srcObject = event.streams[0] ?? new MediaStream([event.track])
         }
 
         const offer = await peer.createOffer()
@@ -385,6 +405,10 @@ export function myProviderLive(): RealtimeRelayAdapter {
 Set `peer.ontrack` before `setRemoteDescription()`. The browser can fire the `track` event before that call returns, and a later handler misses the audio of the model.
 
 If a step fails, for example `createSession` rejects, the `catch` stops each microphone track and closes the peer. Then it throws the error again.
+
+If `options?.abortSignal` aborts while the browser asks for the microphone, `getMicrophone` rejects at once. If the stream comes after the abort, it stops the tracks.
+
+The adapter can also read `options?.autoCapture`. If it is `false`, open the microphone on the first `startAudioCapture()`, not on connect. `openaiLive()` does this.
 
 `createMyConnection` returns a `RealtimeConnection`. From then on, the connection owns the microphone and the peer. It maps the provider events to the realtime events, and it stops the microphone on `disconnect()`. For a full example, read the source of `openaiLive()` in `@tanstack/ai-openai`.
 

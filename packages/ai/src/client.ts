@@ -395,6 +395,7 @@ export type {
   RealtimeMessagePart,
   RealtimeMode,
   RealtimeRelayAdapter,
+  RealtimeConnectOptions,
   RealtimeRelayCreateSession,
   RealtimeSessionAnswer,
   RealtimeSessionConfig,
