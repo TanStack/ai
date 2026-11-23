@@ -109,8 +109,9 @@ export function openaiLiveTranscription<
       // Deltas per item, joined into one interim text. An item stays here
       // from its commit until its transcript completes.
       const interim = new Map<string, string>()
-      // Audio or text with no final yet. When there is none, close does not wait.
-      let pending = false
+      // Audio sent since the last commit. With none, and no open item, close
+      // does not wait.
+      let uncommitted = false
       // The server answered the commit that close() sent.
       // ponytail: a VAD commit that is in flight when close() starts also sets
       // this. Its item stays open, so only the close-time item can be missed,
@@ -160,15 +161,12 @@ export function openaiLiveTranscription<
         onMessage: (message, socket) => {
           const m = message as OpenAIRealtimeEvent
           switch (m.type ?? '') {
-            case 'input_audio_buffer.speech_started':
-              pending = true
-              break
             case 'input_audio_buffer.committed':
+              uncommitted = false
               interim.set(m.item_id ?? '', interim.get(m.item_id ?? '') ?? '')
               if (socket.closing) flushed = true
               break
             case 'conversation.item.input_audio_transcription.delta': {
-              pending = true
               const text =
                 (interim.get(m.item_id ?? '') ?? '') + (m.delta ?? '')
               interim.set(m.item_id ?? '', text)
@@ -178,7 +176,6 @@ export function openaiLiveTranscription<
             }
             case 'conversation.item.input_audio_transcription.completed': {
               interim.delete(m.item_id ?? '')
-              pending = interim.size > 0
               const text = m.transcript?.trim()
               if (text) options.emit({ type: 'final', text })
               if (!noVad || socket.closing) options.emit({ type: 'turn-end' })
@@ -207,7 +204,7 @@ export function openaiLiveTranscription<
 
       return {
         send: (audio) => {
-          pending = true
+          uncommitted = true
           live.sendJson({
             type: 'input_audio_buffer.append',
             audio: bytesToBase64(audio),
@@ -216,7 +213,7 @@ export function openaiLiveTranscription<
         close: () =>
           live.finish(
             { type: 'input_audio_buffer.commit' },
-            pending ? 5000 : 0,
+            uncommitted || interim.size > 0 ? 5000 : 0,
           ),
       }
     },

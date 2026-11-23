@@ -900,7 +900,7 @@ Silence is the other enemy. A model round with the docs tool takes a few seconds
 
 Create `src/server/vite-plugin.ts`. It takes WebSocket upgrades on two paths:
 
-- `/voice`: the page sends a `start` frame first with its choices and keys, because a browser cannot set headers on a WebSocket. This path takes local connections only, so a tunnel cannot use your env keys.
+- `/voice`: the page sends a `start` frame first with its choices and keys, because a browser cannot set headers on a WebSocket. This path takes connections only from the page on localhost. A tunnel or another site cannot use your env keys.
 - `/twilio`: Twilio sends a `start` frame with its `<Parameter>` values. The call starts only when the `token` value matches `TWILIO_STREAM_TOKEN`. Keys come from env.
 
 A missing key closes the socket with a caption that says which one.
@@ -929,14 +929,19 @@ export function voiceServer(): Plugin {
         const url = new URL(request.url ?? '/', 'http://localhost')
         if (url.pathname !== '/voice' && url.pathname !== '/twilio') return
         // A request through a tunnel has the tunnel's host name.
-        const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(
-          request.headers.host ?? '',
-        )
-        if (url.pathname === '/voice' && !local) {
+        const host = request.headers.host ?? ''
+        const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host)
+        // A browser always sends Origin, and a page cannot change it. So a
+        // site you visit cannot open /voice and use your env keys.
+        const sameOrigin =
+          request.headers.origin?.replace(/^https?:\/\//, '') === host
+        if (url.pathname === '/voice' && !(local && sameOrigin)) {
           socket.end('HTTP/1.1 403 Forbidden\r\n\r\n')
           return
         }
         wss.handleUpgrade(request, socket, head, (ws) => {
+          // A bad frame emits `error`. With no listener, it stops the server.
+          ws.on('error', (error) => console.error('socket error', error))
           const run =
             url.pathname === '/twilio'
               ? startFromTwilio(ws)

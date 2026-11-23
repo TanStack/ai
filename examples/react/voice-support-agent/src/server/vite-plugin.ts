@@ -31,10 +31,13 @@ export function voiceServer(): Plugin {
         const url = new URL(request.url ?? '/', 'http://localhost')
         if (url.pathname !== '/voice' && url.pathname !== '/twilio') return
         // A request through a tunnel has the tunnel's host name.
-        const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(
-          request.headers.host ?? '',
-        )
-        if (url.pathname === '/voice' && !local) {
+        const host = request.headers.host ?? ''
+        const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host)
+        // A browser always sends Origin, and a page cannot change it. So a
+        // site you visit cannot open /voice and use your env keys.
+        const sameOrigin =
+          request.headers.origin?.replace(/^https?:\/\//, '') === host
+        if (url.pathname === '/voice' && !(local && sameOrigin)) {
           socket.end('HTTP/1.1 403 Forbidden\r\n\r\n')
           return
         }

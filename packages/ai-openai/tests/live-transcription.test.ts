@@ -56,6 +56,7 @@ describe('openaiLiveTranscription', () => {
       delta: d,
     })
     socket.receive({ type: 'input_audio_buffer.speech_started' })
+    socket.receive({ type: 'input_audio_buffer.committed', item_id: 'a' })
     socket.receive(delta('Hel'))
     socket.receive(delta('lo'))
     socket.receive({
@@ -113,6 +114,46 @@ describe('openaiLiveTranscription', () => {
     expect(events).toEqual([
       { type: 'final', text: 'Last words.' },
       { type: 'turn-end' },
+    ])
+  })
+
+  it('waits on close for audio sent after the last commit', async () => {
+    const ws = fakeWebSocket()
+    const opening = transcriptionSession({
+      adapter: openaiLiveTranscription('gpt-transcribe', {
+        apiKey: 'k',
+        WebSocket: ws.WebSocket,
+      }),
+      audio: { encoding: 'mulaw', sampleRate: 8000 },
+    })
+    const socket = ws.sockets[0]!
+    socket.open()
+    socket.receive({ type: 'session.updated' })
+    const session = await opening
+    const events: Array<LiveTranscriptionEvent> = []
+    const reading = (async () => {
+      for await (const e of session) events.push(e)
+    })()
+    const completed = (id: string, transcript: string) => ({
+      type: 'conversation.item.input_audio_transcription.completed',
+      item_id: id,
+      transcript,
+    })
+
+    session.send(new Uint8Array([0xff]))
+    socket.receive({ type: 'input_audio_buffer.committed', item_id: 'a' })
+    session.send(new Uint8Array([0xff])) // B: not committed yet
+    socket.receive(completed('a', 'First.'))
+    const closing = session.close()
+    // Without the wait, the socket closes here and B is lost.
+    await new Promise((r) => setTimeout(r, 10))
+    socket.receive({ type: 'input_audio_buffer.committed', item_id: 'b' })
+    socket.receive(completed('b', 'Second.'))
+    await closing
+    await reading
+    expect(events.filter((e) => e.type === 'final')).toEqual([
+      { type: 'final', text: 'First.' },
+      { type: 'final', text: 'Second.' },
     ])
   })
 

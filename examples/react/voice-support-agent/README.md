@@ -36,7 +36,7 @@ Characters live in `src/server/characters.ts`: helpful, startup founder, frightf
 
 4. Call the number.
 
-The `/twilio` socket takes a call only when `token` matches `TWILIO_STREAM_TOKEN`. The `/voice` socket takes local connections only, so the tunnel cannot use your keys from the page.
+The `/twilio` socket takes a call only when `token` matches `TWILIO_STREAM_TOKEN`. The `/voice` socket takes connections only from the page on localhost, so the tunnel and other sites cannot use your env keys.
 
 ## Files
 
