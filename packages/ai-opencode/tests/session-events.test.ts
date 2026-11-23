@@ -13,6 +13,8 @@ function fakeClient() {
   let closed = false
   let answerPrompt: ((value: unknown) => void) | undefined
   const replies: Array<unknown> = []
+  /** The HTTP status of the reply to each request. The default is 200. */
+  const replyStatus = new Map<string, number>()
   const stream: AsyncIterableIterator<unknown> = {
     [Symbol.asyncIterator]() {
       return stream
@@ -34,6 +36,7 @@ function fakeClient() {
   }
   return {
     replies,
+    replyStatus,
     push(event: unknown) {
       const resolve = waiting
       waiting = undefined
@@ -58,9 +61,20 @@ function fakeClient() {
         abort: () => Promise.resolve(),
       },
       event: { subscribe: () => Promise.resolve({ stream }) },
-      postSessionIdPermissionsPermissionId: (request: unknown) => {
+      // Like the SDK: with `throwOnError`, a failed reply throws its error
+      // body. Without it, the result carries the error and the response.
+      postSessionIdPermissionsPermissionId: (request: {
+        path: { permissionID: string }
+        throwOnError?: boolean
+      }) => {
         replies.push(request)
-        return Promise.resolve({ data: true })
+        const status = replyStatus.get(request.path.permissionID) ?? 200
+        if (status < 300) {
+          return Promise.resolve({ data: true, response: { status } })
+        }
+        const error = { name: 'PermissionNotFoundError' }
+        if (request.throwOnError === true) return Promise.reject(error)
+        return Promise.resolve({ data: undefined, error, response: { status } })
       },
     },
   }
@@ -80,14 +94,17 @@ afterEach(() => {
 function start(
   fake: ReturnType<typeof fakeClient>,
   seen: Array<string>,
-  onPermissionRequest: (request: OpencodePermissionRequest) => 'once' = () =>
-    'once',
+  onPermissionRequest: (
+    request: OpencodePermissionRequest,
+  ) => 'once' | 'reject' = () => 'once',
+  errors: Array<unknown> = [],
 ) {
   current.client = fake.client
   return startOpencodeSession({
     baseUrl: 'http://opencode.test',
     providerID: 'opencode',
     modelID: 'test-model',
+    onError: (error) => errors.push(error),
     onEvent: (event) => {
       const part =
         event.type === 'message.part.updated'
@@ -139,6 +156,55 @@ describe('startOpencodeSession with OpenCode 1.x events', () => {
       path: { id: 'ses-1', permissionID: 'per-1' },
       body: { response: 'once' },
     })
+    await handle.dispose()
+  })
+
+  // OpenCode 1.19.6 rejects every pending request of a session when it gets
+  // one `reject`. A reply to such a request then gets a 404.
+  it('treats a reply to a request that OpenCode already settled as done', async () => {
+    const fake = fakeClient()
+    fake.replyStatus.set('per-2', 404)
+    const errors: Array<unknown> = []
+    const handle = await start(fake, [], () => 'reject', errors)
+
+    for (const [id, command] of [
+      ['per-1', 'echo one'],
+      ['per-2', 'echo two'],
+    ]) {
+      fake.push({
+        type: 'permission.asked',
+        properties: {
+          id,
+          sessionID: 'ses-1',
+          permission: 'bash',
+          patterns: [command],
+        },
+      })
+    }
+
+    await vi.waitFor(() => expect(fake.replies).toHaveLength(2))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(errors).toEqual([])
+    await handle.dispose()
+  })
+
+  it('reports a reply that fails for another reason', async () => {
+    const fake = fakeClient()
+    fake.replyStatus.set('per-1', 500)
+    const errors: Array<unknown> = []
+    const handle = await start(fake, [], () => 'reject', errors)
+
+    fake.push({
+      type: 'permission.asked',
+      properties: {
+        id: 'per-1',
+        sessionID: 'ses-1',
+        permission: 'bash',
+        patterns: ['echo one'],
+      },
+    })
+
+    await vi.waitFor(() => expect(errors).toHaveLength(1))
     await handle.dispose()
   })
 

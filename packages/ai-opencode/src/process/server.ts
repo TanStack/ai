@@ -230,12 +230,21 @@ export async function startOpencodeSession(
     ): Promise<void> => {
       try {
         const response = await options.onPermissionRequest(request)
-        await client.postSessionIdPermissionsPermissionId({
+        const reply = await client.postSessionIdPermissionsPermissionId({
           path: { id: request.sessionID, permissionID: request.id },
           query: dirQuery,
           body: { response },
-          throwOnError: true,
         })
+        // OpenCode 1.x also settles the other pending requests of the
+        // session: a `reject` rejects them, and an `always` can allow them.
+        // A reply to such a request gets a 404, and it needs no answer.
+        if (
+          reply.error !== undefined &&
+          reply.response.status !== 404 &&
+          !lifecycle.disposed
+        ) {
+          options.onError?.(reply.error)
+        }
       } catch (error) {
         if (!lifecycle.disposed) options.onError?.(error)
       }

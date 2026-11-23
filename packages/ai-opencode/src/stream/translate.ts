@@ -452,19 +452,29 @@ export async function* translateOpencodeStream(
         event.properties.info.role,
       )
     } else if (event.type === 'message.part.delta') {
-      // OpenCode 1.x sends the new text of a part in its own event. A delta
-      // that comes before the part or its role is skipped: the last update
-      // of the part carries its full text.
+      // OpenCode 1.x sends the new text of a part in its own event. The part
+      // keeps the text, so its last update matches the text that was sent.
+      // A delta for a part not seen yet is skipped: the next update of the
+      // part carries its text.
       const { partID, field, delta } = event.properties
-      const part = knownParts.get(partID)
+      const known = knownParts.get(partID)
       if (
         field === 'text' &&
         delta !== '' &&
-        part !== undefined &&
-        (isTextPart(part) || isReasoningPart(part)) &&
-        messageRoles.get(part.messageID) === 'assistant'
+        known !== undefined &&
+        (isTextPart(known) || isReasoningPart(known))
       ) {
-        yield* handlePart(part, delta)
+        const part = { ...known, text: known.text + delta }
+        knownParts.set(partID, part)
+        const role = messageRoles.get(part.messageID)
+        if (role === 'assistant') {
+          yield* handlePart(part, delta)
+        } else if (role === undefined) {
+          // The role comes later: keep the text on the held update.
+          const held = pendingParts.get(part.messageID) ?? []
+          const index = held.findIndex((pending) => pending.part.id === partID)
+          if (index !== -1) held[index] = { part }
+        }
       }
     } else if (event.type === 'message.part.updated') {
       const { part, delta } = event.properties
