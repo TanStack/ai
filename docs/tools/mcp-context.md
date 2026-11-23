@@ -116,18 +116,22 @@ export async function GET() {
 }
 ```
 
-2. On the chat server, map the chosen name to `mcp.prompts` and return SSE:
+2. On the chat server, read the prompt from `forwardedProps` (where
+`fetchServerSentEvents({ body })` puts it) and return SSE:
 
 ```ts
 // api/chat.ts
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
-const body = await request.json()
-if (typeof body !== 'object' || body === null) {
-  return new Response('Bad request', { status: 400 })
-}
-const { messages, threadId, promptName, promptArgs } = body
+const { messages, threadId, forwardedProps } =
+  await chatParamsFromRequest(request)
+const promptName = forwardedProps.promptName
+const promptArgs = forwardedProps.promptArgs
 
 const stream = chat({
   adapter: openaiText('gpt-6.1-sol'),
