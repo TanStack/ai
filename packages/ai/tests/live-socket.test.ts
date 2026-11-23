@@ -35,6 +35,22 @@ describe('openLiveSocket', () => {
     expect(ws.sockets).toHaveLength(0)
   })
 
+  it('closes a supplied socket when the signal is already aborted', async () => {
+    const ws = fakeWebSocket()
+    const socket = new ws.WebSocket('wss://example.test')
+    ws.sockets[0]!.open()
+    const abort = new AbortController()
+    abort.abort(new Error('deadline'))
+    await expect(
+      openLiveSocket({
+        socket,
+        connect: { emit: () => {}, end: () => {}, abortSignal: abort.signal },
+        onMessage: () => {},
+      }),
+    ).rejects.toThrow('deadline')
+    expect(socket.readyState).toBe(3)
+  })
+
   it('rejects connect when the provider fails before it is ready', async () => {
     const { ws, events, opening } = connect({
       readyWhen: (m) => (m as { type?: string }).type === 'ready',

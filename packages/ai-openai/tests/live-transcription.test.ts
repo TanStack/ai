@@ -77,6 +77,45 @@ describe('openaiLiveTranscription', () => {
     ])
   })
 
+  it('waits on close for an item VAD committed before', async () => {
+    const ws = fakeWebSocket()
+    const opening = transcriptionSession({
+      adapter: openaiLiveTranscription('gpt-transcribe', {
+        apiKey: 'k',
+        WebSocket: ws.WebSocket,
+      }),
+      audio: { encoding: 'mulaw', sampleRate: 8000 },
+    })
+    const socket = ws.sockets[0]!
+    socket.open()
+    socket.receive({ type: 'session.updated' })
+    const session = await opening
+    const events: Array<LiveTranscriptionEvent> = []
+    const reading = (async () => {
+      for await (const e of session) events.push(e)
+    })()
+
+    session.send(new Uint8Array([0xff]))
+    socket.receive({ type: 'input_audio_buffer.committed', item_id: 'a' })
+    const closing = session.close()
+    // The buffer is empty: VAD committed it already. Item a is in progress.
+    socket.receive({
+      type: 'error',
+      error: { code: 'input_audio_buffer_commit_empty', message: 'empty' },
+    })
+    socket.receive({
+      type: 'conversation.item.input_audio_transcription.completed',
+      item_id: 'a',
+      transcript: 'Last words.',
+    })
+    await closing
+    await reading
+    expect(events).toEqual([
+      { type: 'final', text: 'Last words.' },
+      { type: 'turn-end' },
+    ])
+  })
+
   it('turns off VAD for gpt-live-transcribe', async () => {
     const ws = fakeWebSocket()
     void transcriptionSession({

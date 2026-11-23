@@ -567,9 +567,14 @@ export async function transcribeCall(env: Env, audio: AsyncIterable<Uint8Array>)
     audio: { encoding: "mulaw", sampleRate: 8000 },
   });
 
+  let ended = false;
   const feeding = (async () => {
     try {
-      for await (const chunk of audio) session.send(chunk);
+      for await (const chunk of audio) {
+        // Stop reading the audio when the session ended early.
+        if (ended) break;
+        session.send(chunk);
+      }
     } finally {
       await session.close();
     }
@@ -577,7 +582,9 @@ export async function transcribeCall(env: Env, audio: AsyncIterable<Uint8Array>)
 
   for await (const event of session) {
     if (event.type === "final") console.log(event.text);
+    if (event.type === "error") console.error(event.error);
   }
+  ended = true;
   await feeding;
 }
 ```
@@ -585,6 +592,7 @@ export async function transcribeCall(env: Env, audio: AsyncIterable<Uint8Array>)
 - `@cf/deepgram/nova-3` takes PCM and μ-law. Other formats are converted to PCM.
 - `@cf/deepgram/flux` takes PCM and detects turns itself.
 - Both take the Deepgram `modelOptions`, such as `keyterms` and `endpointing`.
+- `keyterms` takes one entry here. If you pass more, `transcriptionSession()` throws an error.
 
 This adapter needs the binding. On other servers, use [`deepgramLiveTranscription`](./deepgram) with a Deepgram key.
 

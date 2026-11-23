@@ -81,6 +81,7 @@ export function openLiveSocket(
     )
   }
   if (abortSignal?.aborted) {
+    options.socket?.close(1000)
     return Promise.reject(
       abortSignal.reason instanceof Error
         ? abortSignal.reason

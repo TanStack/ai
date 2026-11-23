@@ -187,13 +187,24 @@ For speaker labels, use `gpt-4o-transcribe-diarize`. See [Speaker diarization](.
 import { transcriptionSession } from '@tanstack/ai'
 import { openaiLiveTranscription } from '@tanstack/ai-openai'
 
-const session = await transcriptionSession({
-  adapter: openaiLiveTranscription('gpt-transcribe'),
-  audio: { encoding: 'mulaw', sampleRate: 8000 },
-})
+export async function transcribe(audio: AsyncIterable<Uint8Array>) {
+  const session = await transcriptionSession({
+    adapter: openaiLiveTranscription('gpt-transcribe'),
+    audio: { encoding: 'mulaw', sampleRate: 8000 },
+  })
 
-for await (const event of session) {
-  if (event.type === 'final') console.log(event.text)
+  const feeding = (async () => {
+    try {
+      for await (const chunk of audio) session.send(chunk)
+    } finally {
+      await session.close()
+    }
+  })()
+
+  for await (const event of session) {
+    if (event.type === 'final') console.log(event.text)
+  }
+  await feeding
 }
 ```
 

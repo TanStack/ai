@@ -694,11 +694,15 @@ export async function handleCall(twilio: WebSocket) {
   // Listen before the session opens: Twilio sends audio right away.
   const early: Array<string> = []
   let session: TranscriptionSession | undefined
+  let callEnded = false
   twilio.addEventListener('message', (event) => {
     const payload = mediaPayload(event.data) // base64 string or bytes
     if (payload) session ? session.send(payload) : early.push(payload)
   })
-  twilio.addEventListener('close', () => void session?.close()) // flushes
+  twilio.addEventListener('close', () => {
+    callEnded = true
+    void session?.close() // flushes
+  })
 
   session = await transcriptionSession({
     adapter: deepgramLiveTranscription('nova-3'),
@@ -706,6 +710,7 @@ export async function handleCall(twilio: WebSocket) {
     language: 'en',
   })
   for (const payload of early) session.send(payload)
+  if (callEnded) await session.close() // the call ended while it opened
 
   for await (const event of session) {
     // { type: 'interim', text }  can still change (captions, barge-in)
@@ -733,7 +738,8 @@ linear16 PCM automatically, including G.711 decode and resampling):
 - `cloudflareLiveTranscription` needs the Workers AI binding (Workers only).
 - `mistralLiveTranscription` sends no `turn-end`.
 - `openaiLiveTranscription('gpt-live-transcribe')` has no voice activity
-  detection: no `turn-end`, one `final` at close. Use `gpt-transcribe` for turns.
+  detection: no `turn-end` while audio flows, then one `final` and one
+  `turn-end` at close. Use `gpt-transcribe` for turns.
 - `createAudioConverter(from, to)` is exported for manual conversion; keep one
   converter per stream (it carries state between chunks).
 - Custom adapters implement `LiveTranscriptionAdapter` (`kind: 'liveTranscription'`,

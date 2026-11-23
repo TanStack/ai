@@ -1,6 +1,9 @@
 import { bytesToBase64, openLiveSocket } from '@tanstack/ai/adapter-internals'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
-import type { WebSocketConstructor } from '@tanstack/ai/adapter-internals'
+import type {
+  LiveSocket,
+  WebSocketConstructor,
+} from '@tanstack/ai/adapter-internals'
 import type { LiveTranscriptionAdapter } from '@tanstack/ai'
 import type { OpenAITurnDetection } from '../realtime/types'
 
@@ -103,10 +106,19 @@ export function openaiLiveTranscription<
           : options.audio.encoding === 'alaw'
             ? { type: 'audio/pcma' }
             : { type: 'audio/pcm', rate: 24000 }
-      // Deltas per item, joined into one interim text.
+      // Deltas per item, joined into one interim text. An item stays here
+      // from its commit until its transcript completes.
       const interim = new Map<string, string>()
       // Audio or text with no final yet. When there is none, close does not wait.
       let pending = false
+      // The server answered the commit that close() sent.
+      // ponytail: a VAD commit that is in flight when close() starts also sets
+      // this. Its item stays open, so only the close-time item can be missed,
+      // and then only in that small window.
+      let flushed = false
+      const closeWhenDone = (socket: LiveSocket) => {
+        if (socket.closing && flushed && interim.size === 0) socket.close()
+      }
 
       const live = await openLiveSocket({
         url: `${config.baseURL ?? 'wss://api.openai.com/v1/realtime'}?intent=transcription`,
@@ -151,6 +163,10 @@ export function openaiLiveTranscription<
             case 'input_audio_buffer.speech_started':
               pending = true
               break
+            case 'input_audio_buffer.committed':
+              interim.set(m.item_id ?? '', interim.get(m.item_id ?? '') ?? '')
+              if (socket.closing) flushed = true
+              break
             case 'conversation.item.input_audio_transcription.delta': {
               pending = true
               const text =
@@ -166,17 +182,19 @@ export function openaiLiveTranscription<
               const text = m.transcript?.trim()
               if (text) options.emit({ type: 'final', text })
               if (!noVad || socket.closing) options.emit({ type: 'turn-end' })
-              if (socket.closing) socket.close()
+              closeWhenDone(socket)
               break
             }
             case 'conversation.item.input_audio_transcription.failed':
             case 'error':
               // Committing an empty buffer when closing is not an error.
+              // Items that VAD committed before can still be in progress.
               if (
                 socket.closing &&
                 m.error?.code === 'input_audio_buffer_commit_empty'
               ) {
-                socket.close()
+                flushed = true
+                closeWhenDone(socket)
               } else {
                 socket.fail(
                   new Error(m.error?.message ?? 'OpenAI realtime error'),
