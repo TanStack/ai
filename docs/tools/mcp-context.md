@@ -128,6 +128,10 @@ import {
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 const { messages, threadId, forwardedProps } =
   await chatParamsFromRequest(request)
 const promptName = forwardedProps.promptName
@@ -143,10 +147,7 @@ const stream = chat({
       ? {
           prompts: {
             name: promptName,
-            args:
-              typeof promptArgs === 'object' && promptArgs !== null
-                ? promptArgs
-                : undefined,
+            args: isRecord(promptArgs) ? promptArgs : undefined,
           },
         }
       : {}),
