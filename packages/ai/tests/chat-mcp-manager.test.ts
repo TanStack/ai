@@ -535,6 +535,50 @@ describe('MCPManager resolveContext', () => {
       content: 'file:///1',
     })
   })
+
+  it('throws when every attached resource block is omitted', async () => {
+    const s = {
+      tools: async () => [] as Array<AnyServerTool>,
+      close: async () => {},
+      readResource: async (uri: string) => ({
+        contents: [
+          {
+            uri,
+            mimeType: 'application/octet-stream',
+            blob: 'abc',
+          },
+        ],
+      }),
+    }
+    const m = MCPManager.from({
+      clients: [s],
+      attachResources: { uris: ['file:///x.bin'] },
+      resourcePartOptions: { onReject: 'omit' },
+      connection: 'keep-alive',
+    })
+    await expect(m.resolveContext()).rejects.toThrow(/every content block was omitted/)
+  })
+
+  it('surfaces source errors when every getPrompt fails', async () => {
+    const s = {
+      tools: async () => [] as Array<AnyServerTool>,
+      close: async () => {},
+      getPrompt: async () => {
+        throw new Error('network down')
+      },
+    }
+    const m = MCPManager.from({
+      clients: [s],
+      prompts: { name: 'summarize' },
+      connection: 'keep-alive',
+    })
+    await expect(m.resolveContext()).rejects.toMatchObject({
+      message: expect.stringContaining('failed on every'),
+      cause: expect.objectContaining({
+        errors: [expect.objectContaining({ message: 'network down' })],
+      }),
+    })
+  })
 })
 
 describe('mergeMcpContextIntoMessages', () => {

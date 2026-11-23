@@ -265,6 +265,7 @@ export class MCPManager {
     if (this.#prompts) {
       for (const ref of normalizePrompts(this.#prompts)) {
         let resolved = false
+        const errors: Array<unknown> = []
         for (const source of this.#sources) {
           if (!source.getPrompt) continue
           try {
@@ -274,13 +275,19 @@ export class MCPManager {
             promptMessages.push(...mcpPromptToMessages(prompt))
             resolved = true
             break
-          } catch {
-            // try next source
+          } catch (error) {
+            errors.push(error)
           }
         }
         if (!resolved) {
           throw new Error(
-            `MCP prompt "${ref.name}" was not found on any mcp.clients source`,
+            errors.length > 0
+              ? `MCP prompt "${ref.name}" failed on every mcp.clients source`
+              : `MCP prompt "${ref.name}" was not found on any mcp.clients source`,
+            {
+              cause:
+                errors.length > 0 ? new AggregateError(errors) : undefined,
+            },
           )
         }
       }
@@ -299,9 +306,17 @@ export class MCPManager {
             `MCP resource "${uri}" could not be read (no client implements readResource)`,
           )
         }
+        const before = contentParts.length
         for (const block of result.contents) {
           const part = mcpResourceToContentPart(block, this.#resourcePartOptions)
           if (part) contentParts.push(part)
+        }
+        // onReject: 'omit' can drop every block; do not pretend the attach worked.
+        if (result.contents.length > 0 && contentParts.length === before) {
+          throw new Error(
+            `MCP resource "${uri}" was read but every content block was omitted ` +
+              `(resourcePartOptions.onReject: 'omit')`,
+          )
         }
       }
     }
