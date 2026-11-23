@@ -92,6 +92,7 @@ You must pass `threadId`. You must also pass `connection` or `fetcher`, not both
 | `context` | Client-only runtime context for client tools. It is not sent to the server. |
 | `queue` | What `sendMessage` does while a run is busy: `"queue"` (default), `"drop"`, `"interrupt"`, a config, or a function. See [Queueing](../chat/queueing). |
 | `interrupts` | Definitions from `defineInterrupt()`. See [Interrupts](../interrupts/overview). |
+| `activities` | Definitions from `defineActivityType()`, for types only. They type the activity parts of the messages. The built-in types need no entry. The client does not check the content. See [Activities](../chat/activities). |
 | `byok` | A keyring from [`defineByok`](#definebyok). The client sends the key in `x-byok-*` headers, never in the body. |
 | `byokProvider` | A function that returns the provider slug for this chat. If it returns nothing, the client uses `provider` from the merged `forwardedProps` and send `body`. If no slug resolves, the send throws. It does not send every stored key. |
 | `streamProcessor` | `{ chunkStrategy }`. Controls when text updates are applied. Default: `ImmediateStrategy`, every chunk. |
@@ -122,6 +123,7 @@ Callbacks:
 | `clear()` | Clears all messages. |
 | `setMessagesManually(messages)` | Replaces the messages. |
 | `addToolResult(result)` | Gives a client tool result by hand: `{ toolCallId, tool, output, state?, errorText? }`. |
+| `respondToSandboxApproval(approvalId, granted)` | Answers a pending `sandbox.approval` row from a harness adapter, then starts the next run. `true` allows the action. `false` denies it. |
 | `attach()`, `detach()` | Start and stop the connection for a view. |
 | `subscribe(options?)`, `unsubscribe()` | Start and stop the live subscription loop. |
 | `getSnapshot()`, `subscribeSnapshot(listener)` | Read the UI state, and listen for changes. |
@@ -187,6 +189,17 @@ If `append()` starts the stream, it resolves after the full HTTP response is pro
 `append()` copies `metadata` from a `UIMessage` onto the stored message.
 
 After `stop()`, a later `addToolResult()` for the stopped turn is ignored. A new user message starts a new turn, and `addToolResult()` applies to that turn.
+
+#### `respondToSandboxApproval(approvalId, granted)`
+
+Pass the `content.approvalId` of a pending `sandbox.approval` row. Pass `true` to allow the action, or `false` to deny it.
+
+- It sets the row to `granted` or `denied`, then starts the next run. The request of that run carries the row, and the adapter gets the decision.
+- If a run is in progress, the next run starts after that run ends.
+- If an interrupt waits for an answer, it only sets the row. The next run carries the decision.
+- If no pending row has this `approvalId`, it does nothing. So a second answer for the same row does nothing.
+
+For a React sample with Allow and Deny buttons, see [Show an approval prompt](../sandbox/events#show-an-approval-prompt).
 
 #### `getSnapshot()` and `subscribeSnapshot(listener)`
 
@@ -493,7 +506,8 @@ interface UIMessage<TTools = any> {
 | `ToolResultPart` | `"tool-result"` | `toolCallId`, `content`, `state`, `error`, `outcome`, `metadata`. |
 | `ImagePart`, `AudioPart`, `VideoPart`, `DocumentPart` | media types | Media content. See [Multimodal Content](../advanced/multimodal-content). |
 | `StructuredOutputPart` | `"structured-output"` | Typed `data` and `partial`. See [Structured Outputs](../structured-outputs/overview). |
-| `ActivityPart`, `UIResourcePart`, `SubagentPart` | other | Activity records, MCP App resources, and subagent runs. |
+| `ActivityPart` | `"activity"` | `activityType` and `content`. In the messages of `ChatClient` and the hooks, `part.activityType === "sandbox.status"` types `content`. This works for the built-in types and the types in `activities`. Read other types with `definition.is(part)`. See [Activities](../chat/activities). |
+| `UIResourcePart`, `SubagentPart` | other | MCP App resources and subagent runs. |
 
 Thinking parts are for the UI only. The client does not send them back to the model.
 

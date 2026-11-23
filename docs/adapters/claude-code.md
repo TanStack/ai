@@ -417,7 +417,9 @@ A headless run has no person to answer a permission prompt. So the default `perm
 
 - To allow fewer actions, set `permissionMode`, `allowedTools`, or `disallowedTools`.
 - To allow, ask, or deny each command and capability, add a sandbox [Policy](../sandbox/policy). The adapter maps the policy to Claude Code flags and answers the permission prompts of Claude Code from it.
-- If the policy says `ask`, the adapter sends an approval-requested event and denies the action. The client approves, then runs the turn again.
+- If the policy says `ask`, the adapter denies the action. It sends a `sandbox.approval` activity row with `status: 'pending'`.
+- The client answers the row with `respondToSandboxApproval(approvalId, granted)`. In the next run, the adapter sets the row to `granted` or `denied`, and allows or denies the action. See [Show an approval prompt](../sandbox/events#show-an-approval-prompt).
+- The adapter also sends the `approval-requested` `CUSTOM` event. That event is deprecated.
 
 ### Settings sources
 

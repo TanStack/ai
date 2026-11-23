@@ -139,6 +139,7 @@ The session:
 - `agents`: the background agents that run now. Each one has an `id`, a `name`, a `status` (`running`, or `waiting` for an answer), `send`, and `cancel`.
 - `queuedTurns` and `waitingInputs`: how many messages wait for their turn, and which ones, in the order they run.
 - `plugins`: the saved state of each plugin, by plugin name.
+- `activities`: the activity rows of the session, for example the status of a sandbox start. See [Show activities](#show-activities).
 
 Settings and usage, for a settings panel or a status bar:
 
@@ -475,6 +476,48 @@ view.on('agent', (child) => {
   if (child.status !== 'running') view.notice({ text: `${child.name} is ${child.status}.` })
 })
 ```
+
+## Show activities
+
+`state.activities` holds the activity rows of the session, for example the start of a sandbox or an approval prompt of a harness adapter. The rows show while a turn runs and after a reload, because the session log keeps them.
+
+Each item has:
+
+- `id`: the id of the row. A new value for the same `id` replaces the item in place.
+- `activityType` and `content`: the type of the row and its last content.
+- `operationId`: the operation that first sent the row.
+
+Compare `activityType` to a built-in name, and TypeScript types `content`. This component shows the sandbox status and the approval prompts:
+
+```tsx
+import type { ViewActivity } from '@tanstack/ai-harness/view'
+
+export function Activities({ activities }: { activities: Array<ViewActivity> }) {
+  return (
+    <ul>
+      {activities.map((activity) => {
+        if (activity.activityType === 'sandbox.status') {
+          return <li key={activity.id}>Sandbox: {activity.content.status}</li>
+        }
+        if (activity.activityType === 'sandbox.approval') {
+          return (
+            <li key={activity.id}>
+              {activity.content.title} ({activity.content.status})
+            </li>
+          )
+        }
+        return null
+      })}
+    </ul>
+  )
+}
+```
+
+Get the list with `useSelector(view.store, (state) => state.activities)`, and pass it to the component. When a run starts a sandbox, the list shows `Sandbox: starting`. The same item then changes to `Sandbox: ready`.
+
+After a reload, `view.ready` fills the list from the session snapshot. The list keeps the order in which the rows were first sent, and an item is not tied to a message.
+
+For an activity type of your own, read the content with the `is()` of its `defineActivityType` definition.
 
 ## Plugin state and plugin events
 

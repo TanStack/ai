@@ -203,6 +203,78 @@ Set `needsApproval: true` on the tool. The tool component then gets an `interrup
 
 `resolveInterrupt(true)` approves. `resolveInterrupt(false)` denies. Full example: [Ask before a tool runs](./recipes/tool-approval).
 
+### Render an activity
+
+An activity is a row that the server adds to the chat, such as a sandbox start or deploy progress. Register one component for each activity type in `activitiesComponents`. Type the `$props()` of each component with `ActivityProps`. Then `part.content` is typed.
+
+`SandboxCard.svelte` renders the built-in `'sandbox.status'` type:
+
+```svelte
+<script lang="ts">
+  import type { ActivityProps } from '@tanstack/ai-svelte/ui'
+  import type { chatOptions } from './chat-ui'
+
+  let { part }: ActivityProps<typeof chatOptions, 'sandbox.status'> = $props()
+</script>
+
+<p>Sandbox: {part.content.status}</p>
+```
+
+`DeployCard.svelte` renders your own `'deploy.progress'` type:
+
+```svelte
+<script lang="ts">
+  import type { ActivityProps } from '@tanstack/ai-svelte/ui'
+  import type { chatOptions } from './chat-ui'
+
+  let { part }: ActivityProps<typeof chatOptions, 'deploy.progress'> =
+    $props()
+</script>
+
+<p>Step {part.content.step} of {part.content.total}</p>
+```
+
+In `chat-ui.ts`, add `deployProgress` to `activities`. Then register both cards:
+
+```ts ignore
+import { fetchServerSentEvents } from '@tanstack/ai-svelte'
+import { createChatHook } from '@tanstack/ai-svelte/ui'
+import { defineActivityType } from '@tanstack/ai'
+import { z } from 'zod'
+import DeployCard from './DeployCard.svelte'
+import Layout from './Layout.svelte'
+import Message from './Message.svelte'
+import SandboxCard from './SandboxCard.svelte'
+import Text from './Text.svelte'
+
+const deployProgress = defineActivityType({
+  activityType: 'deploy.progress',
+  contentSchema: z.object({ step: z.number(), total: z.number() }),
+})
+
+export const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+  activities: [deployProgress],
+}
+
+export const { createAppChat, ui } = createChatHook({
+  options: chatOptions,
+  components: { layout: Layout, message: Message },
+  partsComponents: { text: Text },
+  activitiesComponents: {
+    'sandbox.status': SandboxCard,
+    'deploy.progress': DeployCard,
+  },
+})
+```
+
+- `'sandbox.status'` is a built-in type, so it is always a key.
+- `'deploy.progress'` is a key because `deployProgress` is in `activities`. Its `part.content` is `{ step: number; total: number }`.
+- A key that is not built in and not in `activities` is a type error.
+- A type with no entry renders with `partsComponents.activity`.
+
+To emit an activity from a tool or a middleware, read [Activities](../chat/activities).
+
 ### Ask the user your own question
 
 Define the question with `defineInterrupt`. Add it to `interrupts` in `chatOptions`. Register a component under its id in `interruptsComponents.generic`, and render the `interrupts` snippet in the layout:
@@ -259,7 +331,7 @@ Call `ui.useChatContext()` only inside `UIChat` or `UIProvider`. A call outside 
 
 ### Type a widget in its own file
 
-Every widget above is already in its own file. Type its `$props()` with `ToolProps`, `PartProps`, `InterruptProps`, or `MessageProps`. Pass `typeof chatOptions` and a name.
+Every widget above is already in its own file. Type its `$props()` with `ToolProps`, `PartProps`, `InterruptProps`, `ActivityProps`, or `MessageProps`. Pass `typeof chatOptions` and a name.
 
 You now have a typed chat UI in Svelte. Each widget is your own component.
 

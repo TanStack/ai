@@ -159,6 +159,61 @@ toolsComponents: {
 
 `resolveInterrupt(true)` approves. `resolveInterrupt(false)` denies. Full example: [Ask before a tool runs](./recipes/tool-approval).
 
+### Render an activity
+
+An activity is a row that the server adds to the chat, such as a sandbox start or deploy progress. Register one component for each activity type in `activitiesComponents`. Each component gets the activity as `part`, and `part.content` is typed:
+
+```tsx
+import { fetchServerSentEvents } from '@tanstack/ai-octane'
+import { createChatHook, type ActivityProps } from '@tanstack/ai-octane/ui'
+import { defineActivityType } from '@tanstack/ai'
+import { z } from 'zod'
+
+const deployProgress = defineActivityType({
+  activityType: 'deploy.progress',
+  contentSchema: z.object({ step: z.number(), total: z.number() }),
+})
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+  activities: [deployProgress],
+}
+
+export function SandboxCard(
+  props: ActivityProps<typeof chatOptions, 'sandbox.status'>,
+) {
+  return <p>Sandbox: {props.part.content.status}</p>
+}
+
+export const { useAppChat } = createChatHook({
+  options: chatOptions,
+  components: {
+    layout: (props) => <props.Messages />,
+    message: (props) => (
+      <article>
+        <props.Parts />
+      </article>
+    ),
+  },
+  partsComponents: { fallback: () => null },
+  activitiesComponents: {
+    'sandbox.status': SandboxCard,
+    'deploy.progress': (props) => (
+      <p>
+        Step {props.part.content.step} of {props.part.content.total}
+      </p>
+    ),
+  },
+})
+```
+
+- `'sandbox.status'` is a built-in type, so it is always a key. `SandboxCard` types its props with `ActivityProps`, so you can move it to its own file.
+- `'deploy.progress'` is a key because `deployProgress` is in `activities`. Its `part.content` is `{ step: number; total: number }`.
+- A key that is not built in and not in `activities` is a type error.
+- A type with no entry renders with `partsComponents.activity`.
+
+To emit an activity from a tool or a middleware, read [Activities](../chat/activities).
+
 ### Ask the user your own question
 
 Define the question with `defineInterrupt`. Add it to `interrupts` in `chatOptions`. Register a component under its id in `interruptsComponents.generic`, and render `props.Interrupts` in the layout:
@@ -251,7 +306,7 @@ Call `useChatContext()` only inside `chat.AppChat`. A call outside that tree thr
 
 ### Type a widget in its own file
 
-Move a widget to its own file and type its props with `ToolProps`, `PartProps`, or `InterruptProps`. Pass `typeof chatOptions` and a key. For a tool widget, the key is the tool name, and `part.input` and `part.output` are typed for that tool:
+Move a widget to its own file and type its props with `ToolProps`, `PartProps`, `InterruptProps`, or `ActivityProps`. Pass `typeof chatOptions` and a key. For a tool widget, the key is the tool name, and `part.input` and `part.output` are typed for that tool:
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-octane'

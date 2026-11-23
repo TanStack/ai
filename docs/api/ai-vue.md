@@ -80,6 +80,7 @@ You must pass `threadId`. You must also pass `connection` or `fetcher`, not both
 | `live` | Subscribe while `live` is `true`. |
 | `queue` | What `sendMessage` does while a run is busy. Default: queue the message. See [Queueing](../chat/queueing). |
 | `interrupts` | Definitions from `defineInterrupt()`. See [Interrupts](../interrupts/overview). |
+| `activities` | Definitions from `defineActivityType()`, for types only. They type the activity parts in `messages`. See [Activities](../chat/activities). |
 | `byok`, `byokProvider` | A keyring from `defineByok()`. See [Bring Your Own Key](../advanced/byok). |
 | `devtools` | Display options for TanStack AI Devtools. |
 
@@ -102,6 +103,7 @@ State values are read-only Vue refs. Read `.value` in `<script setup>`. In `<tem
 | `reload()` | Runs the last user message again. |
 | `append(message)` | Adds a `UIMessage` or `ModelMessage` and starts a run. |
 | `addToolResult(result)` | Gives the result of a client tool by hand: `{ toolCallId, tool, output, state?, errorText? }`. |
+| `respondToSandboxApproval(approvalId, granted)` | Answers a pending `sandbox.approval` row, then starts the next run. `true` allows the action. `false` denies it. See [Show an approval prompt](../sandbox/events#show-an-approval-prompt). |
 | `setMessages(messages)`, `clear()` | Replace or clear the messages. |
 | `queue`, `cancelQueued(id)` | Messages that wait while a run is busy. See [Queueing](../chat/queueing). |
 | `runId` | The id of the run in flight, or `null`. |

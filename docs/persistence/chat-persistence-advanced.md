@@ -91,11 +91,20 @@ An AG-UI `ACTIVITY_SNAPSHOT` or `ACTIVITY_DELTA` event shows in the client as a 
    }
    ```
 
+`withPersistence` saves the rows while the run streams, so a reload during the run shows them too:
+
+- It saves on each `ACTIVITY_SNAPSHOT` and `ACTIVITY_DELTA` of the run, and when the run starts.
+- It saves again at an interrupt and when the run ends. A run that stops or fails also saves its rows.
+- Each save calls `saveActivities(threadId, list)` with the full list of the thread.
+- A failed activity save does not fail the run.
+
+A row that a middleware sends in `setup` is saved at once, before the run starts. For example, `withSandbox` sends the `sandbox.status` row while the sandbox boots, so a reload during the boot gets the `starting` row. A run that fails or stops in `setup` keeps the rows that it sent.
+
+Before the run starts, a save first calls `loadActivities`, and then merges the new rows into the stored rows by id. So each activity change before the run starts costs one more store read.
+
 Some facts about activity rows:
 
 - The model never gets activity rows as input.
-- A run that stops or fails also saves its activity rows.
-- A failed activity save does not fail the run.
 - Each `ActivityRecord` keeps the `metadata` of the row.
 
 ## Keep every stored message

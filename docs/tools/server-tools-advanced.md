@@ -215,6 +215,8 @@ const importData = toolDefinition({
 
 Each `emitCustomEvent` call flushes through durability at once, so the client can show progress while the tool still runs. Pass `{ batch: true }` only for a high-volume stream. To read the events on the client, see [Custom Events](../protocol/custom-events).
 
+Chat persistence does not save custom events. For progress that must still show after a reload, send an activity row with `context?.emitActivity?.(definition, id, content)`. `withPersistence` saves the row, and `useChat` types its content. See [Activities](../chat/activities).
+
 ## Read a middleware capability
 
 Call `context.get(capability)` in a server tool. It returns the value that a middleware of the run provides, with the type of the capability.

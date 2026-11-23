@@ -191,6 +191,86 @@ toolsComponents: {
 
 `resolveInterrupt(true)` approves. `resolveInterrupt(false)` denies. Full example: [Ask before a tool runs](./recipes/tool-approval).
 
+### Render an activity
+
+An activity is a row that the server adds to the chat, such as a sandbox start or deploy progress. Register one component for each activity type in `activitiesComponents`. Each component gets the activity as `handle.props.part`, and `part.content` is typed:
+
+```tsx
+import { fetchServerSentEvents } from '@tanstack/ai-remix'
+import {
+  createChatHook,
+  type ActivityProps,
+  type LayoutProps,
+  type MessageProps,
+} from '@tanstack/ai-remix/ui'
+import { defineActivityType } from '@tanstack/ai'
+import type { Handle } from 'remix/ui'
+import { z } from 'zod'
+
+const deployProgress = defineActivityType({
+  activityType: 'deploy.progress',
+  contentSchema: z.object({ step: z.number(), total: z.number() }),
+})
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+  activities: [deployProgress],
+}
+
+export function SandboxCard(
+  handle: Handle<ActivityProps<typeof chatOptions, 'sandbox.status'>>,
+) {
+  return () => <p>Sandbox: {handle.props.part.content.status}</p>
+}
+
+export const { createAppChat, ui } = createChatHook({
+  options: chatOptions,
+  components: {
+    layout(handle: Handle<LayoutProps<typeof chatOptions>>) {
+      return () => {
+        const { Messages } = handle.props
+        return <Messages />
+      }
+    },
+    message(handle: Handle<MessageProps<typeof chatOptions>>) {
+      return () => {
+        const { Parts } = handle.props
+        return (
+          <article>
+            <Parts />
+          </article>
+        )
+      }
+    },
+  },
+  partsComponents: {
+    fallback() {
+      return () => null
+    },
+  },
+  activitiesComponents: {
+    'sandbox.status': SandboxCard,
+    'deploy.progress'(handle) {
+      return () => {
+        const { step, total } = handle.props.part.content
+        return (
+          <p>
+            Step {step} of {total}
+          </p>
+        )
+      }
+    },
+  },
+})
+```
+
+- `'sandbox.status'` is a built-in type, so it is always a key. `SandboxCard` types its handle with `ActivityProps`, so you can move it to its own file.
+- `'deploy.progress'` is a key because `deployProgress` is in `activities`. Its `part.content` is `{ step: number; total: number }`.
+- A key that is not built in and not in `activities` is a type error.
+- A type with no entry renders with `partsComponents.activity`.
+
+To emit an activity from a tool or a middleware, read [Activities](../chat/activities).
+
 ### Ask the user your own question
 
 Define the question with `defineInterrupt`. Add it to `interrupts` in `chatOptions`. Register a component under its id in `interruptsComponents.generic`, and render `Interrupts` in the layout:
@@ -269,7 +349,7 @@ The return type on `ChatInput` stops a circular type between the widget and the 
 
 ### Type a widget in its own file
 
-Type the `handle.props` of a widget with `ToolProps`, `PartProps`, `InterruptProps`, `LayoutProps`, or `MessageProps`. Pass `typeof chatOptions` and a name. Share `chatOptions` from its own module:
+Type the `handle.props` of a widget with `ToolProps`, `PartProps`, `InterruptProps`, `ActivityProps`, `LayoutProps`, or `MessageProps`. Pass `typeof chatOptions` and a name. Share `chatOptions` from its own module:
 
 ```tsx ignore
 import type { ToolProps } from '@tanstack/ai-remix/ui'

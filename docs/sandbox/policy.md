@@ -53,7 +53,7 @@ Each command or capability gets one of three decisions:
 | Decision | What happens |
 | --- | --- |
 | `allow` | The agent runs it. |
-| `ask` | The agent pauses. The harness sends an approval request, and the client answers it before the action continues. |
+| `ask` | The action needs approval. The user gets an approval prompt, and the action runs only after the user allows it. |
 | `deny` | The action is blocked. The agent cannot run it. |
 
 ## Commands
@@ -119,7 +119,9 @@ const policy = defineSandboxPolicy({
 
 ## How `ask` reaches the user
 
-When the agent tries an `ask` action, the harness pauses it and sends an approval request into the run stream. Your client approves or rejects it. Until the client answers, the action waits.
+When the agent tries an `ask` action, the adapter denies the action for that run. Then it sends a `sandbox.approval` activity row with the status `pending`. The Claude Code, OpenCode, and ACP adapters send this row. The ACP adapter needs `permissions: 'interactive'`.
+
+Your client shows the row. When the user decides, the client calls `respondToSandboxApproval(approvalId, granted)`. That call starts the next run, and the adapter gets the decision. When the agent tries the action again, the adapter allows or denies it with no new prompt. See [Show an approval prompt](./events#show-an-approval-prompt) for a component with Allow and Deny buttons.
 
 Use `ask` for actions that are usually fine but sometimes dangerous, such as `pnpm install` with a new dependency, or an outbound `curl`. The human stays in the loop, and you do not have to list every safe command.
 

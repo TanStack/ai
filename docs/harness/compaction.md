@@ -59,6 +59,7 @@ const host = createHarnessHost({ persistence: memoryPersistence() })
 - Compaction runs before a model call when the count passes `maxTokens`. If the usage of the last model call of a turn passed `maxTokens` or `contextWindow`, compaction also runs right after that call. This check needs `countTokens: 'usage'`.
 - The log only grows, so the original messages stay in the store. The fold that the model gets starts with the summary.
 - Readers still get every message. `session.transcript()`, `GET transcript`, and the chat hydration show the full history, not the summary.
+- A compaction and the [`/compact`](./coding-agent#what-each-plugin-adds) command keep only the newest `sandbox.status` [activity](./custom-ui#show-activities) of the session. A live view shows this change after it loads the session snapshot again, for example after a reload.
 - A thread can change its model. To give each model its own limit, pass a function, like `maxTokens: ({ model }) => ...`. See [A limit for each model](../advanced/compaction-advanced#a-limit-for-each-model).
 
 ## Prepare the summary in the background
@@ -124,6 +125,47 @@ A model call can still fail because the context is too long. `withCompaction` ha
 - To compact the next call yourself, for example before you switch the thread to a model with a smaller context window, call `compaction.compactNext(session.threadId)`.
 
 For a strategy that always finds something to cut on the retry, see [Give the retry something to cut](../advanced/compaction#give-the-retry-something-to-cut).
+
+## Compact from your own command
+
+Your plugin has a summary command that calls `ctx.session.replaceTranscript`. By default, that write keeps every activity, so the old `sandbox.status` rows stay. Pass `{ compaction: true }` as the second argument, and the write counts as a compaction:
+
+```ts group=harness-compaction
+import { defineCommand, definePlugin } from '@tanstack/ai-harness'
+
+export const summary = definePlugin({
+  name: 'acme/summary',
+  setup: (ctx) => ({
+    commands: {
+      summary: defineCommand({
+        description: 'Replace the conversation with a summary',
+        run: async (_input, { run }) => {
+          const transcript = await ctx.session.transcript()
+          const { text } = await ctx.model.chat({
+            run,
+            label: 'summary',
+            options: {
+              messages: [...transcript, { role: 'user', content: 'Sum up this conversation.' }],
+            },
+          })
+          await ctx.session.replaceTranscript(
+            [
+              { role: 'user', content: `Summary of our conversation so far:\n${text}` },
+              { role: 'assistant', content: 'Understood. I will continue from this summary.' },
+            ],
+            { compaction: true },
+          )
+          return 'Replaced the conversation with a summary.'
+        },
+      }),
+    },
+  }),
+})
+```
+
+- The session keeps only the newest `sandbox.status` row. The other activities stay, in their order.
+- A live view shows this change after it loads the session snapshot again.
+- If the write is not a summary, for example an undo, do not pass `compaction: true`. Then the session keeps every row.
 
 ## What you have now
 
