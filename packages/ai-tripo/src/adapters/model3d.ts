@@ -1,0 +1,453 @@
+import { BaseModel3DAdapter } from '@tanstack/ai/adapters'
+import { resolveMediaPrompt } from '@tanstack/ai'
+import { createTripoClient, mapTripoStatus, tripoInputFor } from '../client'
+import {
+  DEFAULT_TRIPO_GENERATION_MODEL,
+  TRIPO_ENDPOINT_PATHS,
+  TRIPO_PROMPT_ROUTES,
+} from '../model-meta'
+import type {
+  ContentPartSource,
+  MediaPrompt,
+  Model3DFile,
+  Model3DFileRole,
+  Model3DFormat,
+  Model3DGenerationOptions,
+  Model3DPart,
+} from '@tanstack/ai'
+import type {
+  TripoClient,
+  TripoClientConfig,
+  TripoTask,
+  TripoTaskOutput,
+} from '../client'
+import type {
+  TripoDefaultModelFor,
+  TripoModel3DEndpoint,
+  TripoModel3DInputModalities,
+  TripoModel3DProviderOptions,
+  TripoModelFor,
+} from '../model-meta'
+
+/** Turns a source into a Tripo input value. A `data` source is uploaded. */
+type TripoUpload = (source: ContentPartSource) => Promise<string>
+
+const noFields = async () => ({})
+
+// A file or a URL as the `{ url }` or `{ file_token }` object that
+// `texture_prompt.image` and `style_image` take.
+async function imageReference(upload: TripoUpload, source: ContentPartSource) {
+  const value = await upload(source)
+  return source.type === 'url' ? { url: value } : { file_token: value }
+}
+
+// Positional views [front, left, back, right]. Tripo reads "" as a skipped
+// view. ponytail: the views fill from the front, so a caller cannot skip
+// left; add view keys to the prompt parts if that is needed.
+async function positionalViews(
+  upload: TripoUpload,
+  sources: ReadonlyArray<ContentPartSource>,
+) {
+  const views = await Promise.all(sources.map(upload))
+  return [...views, '', '', ''].slice(0, 4)
+}
+
+function meshFields(
+  endpoint: TripoModel3DEndpoint,
+  meshes: ReadonlyArray<Model3DPart>,
+) {
+  const route = TRIPO_PROMPT_ROUTES[endpoint].mesh
+  if (route === null) {
+    if (meshes.length > 0) {
+      throw new Error(`tripo: ${endpoint} takes no model3d prompt part.`)
+    }
+    return noFields
+  }
+  const [mesh, ...rest] = meshes
+  if (!mesh || rest.length > 0) {
+    throw new Error(
+      `tripo: ${endpoint} takes one model3d prompt part (received ${meshes.length}).`,
+    )
+  }
+  const needsTaskId = route.taskIdOnly && mesh.source.type !== 'file'
+  if (needsTaskId) {
+    throw new Error(
+      `tripo: ${endpoint} takes the mesh only as a Tripo task id. Pass { type: 'file', value: '<task id>', provider: 'tripo' }.`,
+    )
+  }
+  return async (upload: TripoUpload) => ({ input: await upload(mesh.source) })
+}
+
+function multiviewFields(sources: ReadonlyArray<ContentPartSource>) {
+  const [first] = sources
+  const isMultiviewTask = sources.length === 1 && first?.type === 'file'
+  if (isMultiviewTask) {
+    return async (upload: TripoUpload) => ({
+      inputs: [{ task_id: await upload(first) }],
+    })
+  }
+  if (sources.length < 2 || sources.length > 4) {
+    throw new Error(
+      `tripo: multiview-to-model takes 2 to 4 images (front, left, back, right), or one image-to-multiview task as a file source (received ${sources.length} images).`,
+    )
+  }
+  return async (upload: TripoUpload) => ({
+    inputs: await positionalViews(upload, sources),
+  })
+}
+
+// `text`, `image`, and `images` are exclusive. `style_image` goes only with
+// `text`. With no text and no image, `texture_prompt` is left out: Tripo
+// takes that for a mesh that Tripo made and rejects it for other meshes.
+function textureFields(
+  text: string,
+  sources: ReadonlyArray<ContentPartSource>,
+) {
+  const [first, ...rest] = sources
+  if (sources.length > 4) {
+    throw new Error(
+      `tripo: texture takes 1 to 4 images (received ${sources.length}).`,
+    )
+  }
+  if (text && rest.length > 0) {
+    throw new Error(
+      'tripo: texture takes a text with at most one style image, or images without a text.',
+    )
+  }
+  if (text) {
+    return async (upload: TripoUpload) => ({
+      texture_prompt: first
+        ? { text, style_image: await imageReference(upload, first) }
+        : { text },
+    })
+  }
+  if (!first) return noFields
+  if (rest.length === 0) {
+    return async (upload: TripoUpload) => ({
+      texture_prompt: { image: await imageReference(upload, first) },
+    })
+  }
+  return async (upload: TripoUpload) => ({
+    texture_prompt: { images: await positionalViews(upload, sources) },
+  })
+}
+
+function textAndImageFields(
+  endpoint: TripoModel3DEndpoint,
+  text: string,
+  sources: ReadonlyArray<ContentPartSource>,
+) {
+  const route = TRIPO_PROMPT_ROUTES[endpoint]
+  if (route.text === 'prompt') {
+    if (!text) throw new Error(`tripo: ${endpoint} needs a text prompt.`)
+    return async () => ({ prompt: text })
+  }
+  const imageRoute = route.image
+  switch (imageRoute) {
+    case null:
+      return noFields
+    case 'input': {
+      const [image, ...rest] = sources
+      if (!image || rest.length > 0) {
+        throw new Error(
+          `tripo: ${endpoint} takes one image (received ${sources.length}).`,
+        )
+      }
+      return async (upload: TripoUpload) => ({ input: await upload(image) })
+    }
+    case 'inputs':
+      return multiviewFields(sources)
+    case 'texture_prompt':
+      return textureFields(text, sources)
+    default: {
+      const unknownRoute: never = imageRoute
+      throw new Error(`tripo: unknown image route ${String(unknownRoute)}`)
+    }
+  }
+}
+
+/**
+ * Checks the prompt against the routes of the endpoint and returns a function
+ * that builds the request fields. It throws for a part that the endpoint
+ * cannot use, so no part is dropped and nothing is uploaded or charged
+ * before the prompt is valid.
+ */
+function promptFieldsFor(endpoint: TripoModel3DEndpoint, prompt: MediaPrompt) {
+  const resolved = resolveMediaPrompt(prompt)
+  const route = TRIPO_PROMPT_ROUTES[endpoint]
+  const hasUnsupportedParts =
+    resolved.videos.length > 0 || resolved.audios.length > 0
+  if (hasUnsupportedParts) {
+    throw new Error(
+      `tripo: ${endpoint} takes text, image, and model3d prompt parts only. Remove the video and audio parts.`,
+    )
+  }
+  if (resolved.text && route.text === null) {
+    throw new Error(
+      `tripo: ${endpoint} takes no text prompt. Remove the text from the prompt.`,
+    )
+  }
+  if (resolved.images.length > 0 && route.image === null) {
+    throw new Error(`tripo: ${endpoint} takes no image prompt parts.`)
+  }
+  const mesh = meshFields(endpoint, resolved.models3d)
+  const sources = resolved.images.map((image) => image.source)
+  const textAndImages = textAndImageFields(endpoint, resolved.text, sources)
+  return async (upload: TripoUpload) => ({
+    ...(await mesh(upload)),
+    ...(await textAndImages(upload)),
+  })
+}
+
+const MESH_FORMATS: ReadonlyArray<Model3DFormat> = [
+  'glb',
+  'gltf',
+  'fbx',
+  'obj',
+  'usdz',
+  'stl',
+  '3mf',
+]
+
+// The format from the extension of the URL path, so a query string such as
+// `?sig=...` does not count. ponytail: a path with no known extension (a
+// convert result with no extension, a zip) reads as GLB. If a convert needs
+// the real format, keep its `format` option on the job and use it here.
+function formatFromUrl(url: string) {
+  const extension = new URL(url).pathname.split('.').pop()?.toLowerCase()
+  return MESH_FORMATS.find((format) => format === extension) ?? 'glb'
+}
+
+// The role of `model_url`. It is `'base'` for the endpoints not listed.
+const MAIN_FILE_ROLES: Partial<Record<TripoModel3DEndpoint, Model3DFileRole>> =
+  { rig: 'rigged', retarget: 'animation' }
+
+// Every file URL of the task output. `pbr_model` and `base_model` can repeat
+// `model_url`, so a URL that is already listed is skipped.
+function collectFiles(endpoint: TripoModel3DEndpoint, output: TripoTaskOutput) {
+  const files: Array<Model3DFile> = []
+  const add = (url: unknown, role: Model3DFileRole, isMesh = true) => {
+    const isNewUrl =
+      typeof url === 'string' && url !== '' && !files.some((f) => f.url === url)
+    if (!isNewUrl) return
+    files.push({ url, role, ...(isMesh ? { format: formatFromUrl(url) } : {}) })
+  }
+  add(output.model_url, MAIN_FILE_ROLES[endpoint] ?? 'base')
+  add(output.pbr_model, 'pbr')
+  add(output.base_model, 'base')
+  const animationUrls = output.model_urls ?? []
+  for (const url of animationUrls) add(url, 'animation')
+  add(output.seg_model_url, 'part')
+  add(output.uv_render_url, 'texture', false)
+  return files
+}
+
+function isMeshFile(
+  file: Model3DFile,
+): file is Model3DFile & { format: Model3DFormat } {
+  return file.format !== undefined
+}
+
+/**
+ * Tripo 3D model adapter. One class runs every Tripo 3D endpoint as a task:
+ * text, image, and multiview to model, texture, convert, rig, retarget,
+ * decimate, UV unwrap, and segment.
+ *
+ * The endpoint is the adapter model. Text, image, and `model3d` prompt parts
+ * go to the request fields of the endpoint. A part with a `file` source is a
+ * Tripo task id or `file_token`, so one result can feed the next step. A
+ * `data` source is uploaded first, so Tripo never gets a data URI. Tripo has
+ * no cancel API, so the adapter has no `cancel3DModelJob`.
+ *
+ * @experimental Tripo support is experimental and may change.
+ */
+export class TripoModel3DAdapter<
+  E extends TripoModel3DEndpoint,
+  M extends TripoModelFor<E> = TripoDefaultModelFor<E>,
+> extends BaseModel3DAdapter<
+  E,
+  TripoModel3DProviderOptions<E, M>,
+  Record<E, TripoModel3DProviderOptions<E, M>>,
+  Record<E, TripoModel3DInputModalities<E>>
+> {
+  readonly name = 'tripo' as const
+  // A `file` source is a Tripo task id or `file_token`.
+  override readonly supportsFileSources = true
+  private readonly client: TripoClient
+  private readonly tripoModel: TripoModelFor<E> | undefined
+
+  // ponytail: `M` only types `modelOptions`. `tripo3DModel()` infers it from
+  // the model argument, so the constructor takes any model of the endpoint.
+  constructor(
+    endpoint: E,
+    model: TripoModelFor<E> | undefined,
+    config?: TripoClientConfig,
+  ) {
+    super({}, endpoint)
+    this.tripoModel = model
+    this.client = createTripoClient(config)
+  }
+
+  private readTask(jobId: string, signal: AbortSignal | undefined) {
+    return this.client.get<TripoTask>(`/tasks/${encodeURIComponent(jobId)}`, {
+      signal,
+    })
+  }
+
+  async create3DModelJob(
+    options: Model3DGenerationOptions<TripoModel3DProviderOptions<E, M>>,
+  ) {
+    const { modelOptions, logger, abortSignal } = options
+
+    logger.request(
+      `activity=generate3DModel provider=tripo model=${this.model}`,
+      { provider: 'tripo', model: this.model },
+    )
+
+    try {
+      const path = TRIPO_ENDPOINT_PATHS[this.model]
+      const buildPromptFields = promptFieldsFor(this.model, options.prompt)
+      const promptFields = await buildPromptFields((source) =>
+        tripoInputFor(this.client, source, abortSignal),
+      )
+      const isGeneration = path.startsWith('/generation/')
+      const model =
+        this.tripoModel ??
+        (isGeneration ? DEFAULT_TRIPO_GENERATION_MODEL : undefined)
+      const body = {
+        ...modelOptions,
+        ...promptFields,
+        ...(model ? { model } : {}),
+      }
+      const data = await this.client.post<{ task_id: string }>(
+        path,
+        body,
+        abortSignal,
+      )
+      return { jobId: data.task_id, model: this.model }
+    } catch (error) {
+      logger.errors('tripo.create3DModelJob fatal', {
+        error,
+        source: 'tripo.create3DModelJob',
+      })
+      throw error
+    }
+  }
+
+  async get3DModelStatus(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ) {
+    const task = await this.readTask(jobId, options?.abortSignal)
+    return { jobId, ...mapTripoStatus(task) }
+  }
+
+  /**
+   * Reads the finished task. A failed task throws with the Tripo error
+   * message. `url` is the first GLB, else the first mesh file. A task with
+   * no mesh file throws.
+   */
+  async get3DModel(jobId: string, options?: { abortSignal?: AbortSignal }) {
+    const task = await this.readTask(jobId, options?.abortSignal)
+    const { status, error } = mapTripoStatus(task)
+    if (status === 'failed') {
+      throw new Error(`tripo: ${this.model} task ${jobId} failed: ${error}`)
+    }
+    const output = task.output ?? {}
+    const files = collectFiles(this.model, output)
+    const meshFiles = files.filter(isMeshFile)
+    const main = meshFiles.find((file) => file.format === 'glb') ?? meshFiles[0]
+    if (!main) {
+      throw new Error(`tripo: task ${jobId} returned no 3D model file.`)
+    }
+    return {
+      jobId,
+      url: main.url,
+      format: main.format,
+      files,
+      ...(output.rendered_image_url
+        ? { previewImageUrl: output.rendered_image_url }
+        : {}),
+    }
+  }
+}
+
+type TripoModel3DArgs<E extends TripoModel3DEndpoint> =
+  | [model?: TripoModelFor<E>, config?: TripoClientConfig]
+  | [config?: TripoClientConfig]
+
+// The model in the factory arguments, or the default model when the
+// arguments have none. A config object is not a model, so it gives the
+// default.
+type TripoModelFromArgs<
+  E extends TripoModel3DEndpoint,
+  A extends TripoModel3DArgs<E>,
+> = A extends [infer Model extends TripoModelFor<E>, ...Array<unknown>]
+  ? Model
+  : TripoDefaultModelFor<E>
+
+/**
+ * Create a Tripo 3D model adapter. It reads the API key from `config.apiKey`,
+ * or from the `TRIPO_API_KEY` environment variable.
+ *
+ * @param endpoint - The Tripo endpoint, for example `'image-to-model'` or
+ *   `'rig'`. It types `modelOptions` and the prompt parts.
+ * @param args - An optional Tripo `model`, then an optional client config
+ *   (API key, base URL, headers, fetch). Only endpoints with a model choice
+ *   take the model. Without a model, the config can be the second argument.
+ *   The generation endpoints send `v3.1-20260211` when no model is given.
+ *
+ * @example
+ * ```ts
+ * import { generate3DModel } from '@tanstack/ai'
+ * import { tripo3DModel } from '@tanstack/ai-tripo'
+ *
+ * const mesh = await generate3DModel({
+ *   adapter: tripo3DModel('image-to-model'),
+ *   threadId: 'thread-1',
+ *   prompt: [
+ *     { type: 'image', source: { type: 'url', value: 'https://example.com/knight.png' } },
+ *   ],
+ *   wait: true,
+ * })
+ *
+ * const rig = await generate3DModel({
+ *   adapter: tripo3DModel('rig', 'v3.0-20260909'),
+ *   threadId: 'thread-1',
+ *   prompt: [
+ *     { type: 'model3d', source: { type: 'file', value: mesh.jobId, provider: 'tripo' } },
+ *   ],
+ *   wait: true,
+ * })
+ *
+ * const walk = await generate3DModel({
+ *   adapter: tripo3DModel('retarget'),
+ *   threadId: 'thread-1',
+ *   prompt: [
+ *     { type: 'model3d', source: { type: 'file', value: rig.jobId, provider: 'tripo' } },
+ *   ],
+ *   modelOptions: { animation: 'preset:walk' },
+ *   wait: true,
+ * })
+ * ```
+ *
+ * @experimental Tripo support is experimental and may change.
+ */
+export function tripo3DModel<
+  E extends TripoModel3DEndpoint,
+  A extends TripoModel3DArgs<E>,
+>(endpoint: E, ...args: A) {
+  const [first, second]: TripoModel3DArgs<E> = args
+  if (typeof first === 'object') {
+    return new TripoModel3DAdapter<E, TripoModelFromArgs<E, A>>(
+      endpoint,
+      undefined,
+      first,
+    )
+  }
+  return new TripoModel3DAdapter<E, TripoModelFromArgs<E, A>>(
+    endpoint,
+    first,
+    second,
+  )
+}
