@@ -126,6 +126,7 @@ import { Route as ApiGeminiServerToolsWireRouteImport } from './routes/api.gemin
 import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api.generation-persistence-resume'
 import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api.generation-persistence-server'
 import { Route as ApiHarnessAgentTreeRouteImport } from './routes/api.harness-agent-tree'
+import { Route as ApiHarnessClientEventsRouteImport } from './routes/api.harness-client-events'
 import { Route as ApiHarnessContinueRouteImport } from './routes/api.harness-continue'
 import { Route as ApiHarnessFirstPartyRouteImport } from './routes/api.harness-first-party'
 import { Route as ApiHarnessForwardingRouteImport } from './routes/api.harness-forwarding'
@@ -855,6 +856,11 @@ const ApiGenerationPersistenceServerRoute =
 const ApiHarnessAgentTreeRoute = ApiHarnessAgentTreeRouteImport.update({
   id: '/api/harness-agent-tree',
   path: '/api/harness-agent-tree',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHarnessClientEventsRoute = ApiHarnessClientEventsRouteImport.update({
+  id: '/api/harness-client-events',
+  path: '/api/harness-client-events',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHarnessContinueRoute = ApiHarnessContinueRouteImport.update({
@@ -1588,6 +1594,7 @@ export interface FileRoutesByFullPath {
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/harness-agent-tree': typeof ApiHarnessAgentTreeRoute
+  '/api/harness-client-events': typeof ApiHarnessClientEventsRoute
   '/api/harness-continue': typeof ApiHarnessContinueRoute
   '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
@@ -1824,6 +1831,7 @@ export interface FileRoutesByTo {
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/harness-agent-tree': typeof ApiHarnessAgentTreeRoute
+  '/api/harness-client-events': typeof ApiHarnessClientEventsRoute
   '/api/harness-continue': typeof ApiHarnessContinueRoute
   '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
@@ -2061,6 +2069,7 @@ export interface FileRoutesById {
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/harness-agent-tree': typeof ApiHarnessAgentTreeRoute
+  '/api/harness-client-events': typeof ApiHarnessClientEventsRoute
   '/api/harness-continue': typeof ApiHarnessContinueRoute
   '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
@@ -2299,6 +2308,7 @@ export interface FileRouteTypes {
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/harness-agent-tree'
+    | '/api/harness-client-events'
     | '/api/harness-continue'
     | '/api/harness-first-party'
     | '/api/harness-forwarding'
@@ -2535,6 +2545,7 @@ export interface FileRouteTypes {
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/harness-agent-tree'
+    | '/api/harness-client-events'
     | '/api/harness-continue'
     | '/api/harness-first-party'
     | '/api/harness-forwarding'
@@ -2771,6 +2782,7 @@ export interface FileRouteTypes {
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/harness-agent-tree'
+    | '/api/harness-client-events'
     | '/api/harness-continue'
     | '/api/harness-first-party'
     | '/api/harness-forwarding'
@@ -3008,6 +3020,7 @@ export interface RootRouteChildren {
   ApiGenerationPersistenceResumeRoute: typeof ApiGenerationPersistenceResumeRoute
   ApiGenerationPersistenceServerRoute: typeof ApiGenerationPersistenceServerRoute
   ApiHarnessAgentTreeRoute: typeof ApiHarnessAgentTreeRoute
+  ApiHarnessClientEventsRoute: typeof ApiHarnessClientEventsRoute
   ApiHarnessContinueRoute: typeof ApiHarnessContinueRoute
   ApiHarnessFirstPartyRoute: typeof ApiHarnessFirstPartyRoute
   ApiHarnessForwardingRoute: typeof ApiHarnessForwardingRoute
@@ -3942,6 +3955,13 @@ declare module '@tanstack/react-router' {
       path: '/api/harness-agent-tree'
       fullPath: '/api/harness-agent-tree'
       preLoaderRoute: typeof ApiHarnessAgentTreeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-client-events': {
+      id: '/api/harness-client-events'
+      path: '/api/harness-client-events'
+      fullPath: '/api/harness-client-events'
+      preLoaderRoute: typeof ApiHarnessClientEventsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/harness-continue': {
@@ -4946,6 +4966,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGenerationPersistenceResumeRoute: ApiGenerationPersistenceResumeRoute,
   ApiGenerationPersistenceServerRoute: ApiGenerationPersistenceServerRoute,
   ApiHarnessAgentTreeRoute: ApiHarnessAgentTreeRoute,
+  ApiHarnessClientEventsRoute: ApiHarnessClientEventsRoute,
   ApiHarnessContinueRoute: ApiHarnessContinueRoute,
   ApiHarnessFirstPartyRoute: ApiHarnessFirstPartyRoute,
   ApiHarnessForwardingRoute: ApiHarnessForwardingRoute,
