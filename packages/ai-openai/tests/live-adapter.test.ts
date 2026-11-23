@@ -463,6 +463,48 @@ describe('openaiLive', () => {
     expect(pc.close).toHaveBeenCalled()
   })
 
+  it('does not leave an unhandled rejection when the signal aborts after connect', async () => {
+    const unhandled: Array<unknown> = []
+    const onUnhandled = (reason: unknown) => unhandled.push(reason)
+    process.on('unhandledRejection', onUnhandled)
+    try {
+      const browser = stubBrowser()
+      const controller = new AbortController()
+      const pending = openaiLive({ debug: { logger } }).connect(
+        async () => answer,
+        undefined,
+        { abortSignal: controller.signal },
+      )
+      await vi.waitFor(() =>
+        expect(browser.pc.setRemoteDescription).toHaveBeenCalled(),
+      )
+      browser.channel.readyState = 'open'
+      browser.channel.onopen?.()
+      await nextTask()
+      browser.channel.onmessage?.({
+        data: JSON.stringify({ type: 'session.started' }),
+      })
+      const connection = await pending
+
+      // RealtimeClient.disconnect() aborts the connect signal, then closes.
+      controller.abort()
+      const closing = connection.disconnect()
+      browser.channel.onmessage?.({
+        data: JSON.stringify({
+          type: 'session.closed',
+          reason: 'close_requested',
+        }),
+      })
+      await closing
+      await nextTask()
+      await nextTask()
+
+      expect(unhandled).toEqual([])
+    } finally {
+      process.off('unhandledRejection', onUnhandled)
+    }
+  })
+
   it('logs on sendImage', async () => {
     const { connection } = await connectLive()
 
