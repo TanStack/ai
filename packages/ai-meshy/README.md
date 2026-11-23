@@ -19,7 +19,7 @@
 <br />
 # @tanstack/ai-meshy
 
-Meshy adapter for TanStack AI 3D model and motion generation. Use it with `generate3DModel()` to make, texture, rig, and animate 3D models. Use it with `generateMotion()` to make animation clips.
+Meshy adapter for TanStack AI 3D model and motion generation. Use it with `generate3dModel()` to make, texture, rig, and animate 3D models. Use it with `generate3dMotion()` to make animation clips.
 
 ## Installation
 
@@ -32,11 +32,11 @@ Set the `MESHY_API_KEY` environment variable, or pass `apiKey` to the adapter.
 ## Usage
 
 ```typescript
-import { generate3DModel } from '@tanstack/ai'
-import { meshy3DModel } from '@tanstack/ai-meshy'
+import { generate3dModel } from '@tanstack/ai'
+import { meshy3dModel } from '@tanstack/ai-meshy'
 
-const model = await generate3DModel({
-  adapter: meshy3DModel('text-to-3d-preview', 'meshy-7.1'),
+const model = await generate3dModel({
+  adapter: meshy3dModel('text-to-3d-preview', 'meshy-7.1'),
   prompt: 'A small wooden treasure chest with iron bands',
   threadId: 'thread-1',
   wait: true,

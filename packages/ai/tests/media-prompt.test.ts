@@ -4,7 +4,7 @@ import type {
   ImagePart,
   MediaInputMetadata,
   MediaPromptPart,
-  Model3DPart,
+  Model3dPart,
 } from '../src'
 
 function image(
@@ -18,7 +18,7 @@ function image(
   }
 }
 
-function mesh(value: string): Model3DPart {
+function mesh(value: string): Model3dPart {
   return { type: 'model3d', source: { type: 'url', value } }
 }
 

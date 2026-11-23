@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { cancelMotionJob, generateMotion } from '@tanstack/ai'
-import { meshyMotion } from '../src/adapters/motion'
+import { cancel3dMotionJob, generate3dMotion } from '@tanstack/ai'
+import { meshy3dMotion } from '../src/adapters/motion'
 import type { MeshyTask } from '../src/client'
 
 const MOTION_URL = 'https://api.meshy.ai/openapi/v1/text-to-motion'
@@ -61,17 +61,17 @@ const succeededTask = motionTask({
 
 function adapterWith(...responses: Array<Response>) {
   const meshy = fakeMeshy(...responses)
-  const adapter = meshyMotion('prime', { apiKey: 'key', fetch: meshy.fetch })
+  const adapter = meshy3dMotion('prime', { apiKey: 'key', fetch: meshy.fetch })
   return { adapter, requests: meshy.requests }
 }
 
-describe('meshyMotion', () => {
+describe('meshy3dMotion', () => {
   it('sends prompt, mode and duration', async () => {
     const { adapter, requests } = adapterWith(
       Response.json({ result: 'task-1' }, { status: 202 }),
     )
 
-    const job = await generateMotion({
+    const job = await generate3dMotion({
       adapter,
       prompt: 'a person jumps over a fence',
       duration: 4,
@@ -96,7 +96,7 @@ describe('meshyMotion', () => {
     const { adapter, requests } = adapterWith()
 
     await expect(
-      generateMotion({
+      generate3dMotion({
         adapter,
         prompt: 'a person waves',
         threadId: 'thread-1',
@@ -119,12 +119,12 @@ describe('meshyMotion', () => {
       ),
     )
 
-    expect(await adapter.getMotionStatus('task-1')).toEqual({
+    expect(await adapter.get3dMotionStatus('task-1')).toEqual({
       jobId: 'task-1',
       status: 'processing',
       progress: 40,
     })
-    expect(await adapter.getMotionStatus('task-1')).toEqual({
+    expect(await adapter.get3dMotionStatus('task-1')).toEqual({
       jobId: 'task-1',
       status: 'failed',
       progress: 0,
@@ -136,11 +136,11 @@ describe('meshyMotion', () => {
     ])
   })
 
-  describe('getMotion', () => {
-    it('getMotion returns the motion asset', async () => {
+  describe('get3dMotion', () => {
+    it('get3dMotion returns the motion asset', async () => {
       const { adapter } = adapterWith(Response.json(succeededTask))
 
-      expect(await adapter.getMotion('task-1')).toEqual({
+      expect(await adapter.get3dMotion('task-1')).toEqual({
         jobId: 'task-1',
         model: 'prime',
         assets: [
@@ -159,7 +159,7 @@ describe('meshyMotion', () => {
         ),
       )
 
-      await expect(adapter.getMotion('task-1')).rejects.toThrow(
+      await expect(adapter.get3dMotion('task-1')).rejects.toThrow(
         'Prompt was flagged',
       )
     })
@@ -169,7 +169,7 @@ describe('meshyMotion', () => {
         Response.json(motionTask({ status: 'SUCCEEDED', progress: 100 })),
       )
 
-      await expect(adapter.getMotion('task-1')).rejects.toThrow(
+      await expect(adapter.get3dMotion('task-1')).rejects.toThrow(
         'Meshy task task-1 succeeded but has no motion_url',
       )
     })
@@ -181,7 +181,7 @@ describe('meshyMotion', () => {
       new Response(null, { status: 200 }),
     )
 
-    await cancelMotionJob({ adapter, jobId: 'task-1' })
+    await cancel3dMotionJob({ adapter, jobId: 'task-1' })
     expect(requests.map(({ method, url }) => `${method} ${url}`)).toEqual([
       `GET ${MOTION_URL}/task-1`,
       `DELETE ${MOTION_URL}/task-1`,
@@ -191,7 +191,9 @@ describe('meshyMotion', () => {
   it('cancel throws a clear error for a running task and sends no DELETE', async () => {
     const { adapter, requests } = adapterWith(Response.json(motionTask()))
 
-    await expect(cancelMotionJob({ adapter, jobId: 'task-1' })).rejects.toThrow(
+    await expect(
+      cancel3dMotionJob({ adapter, jobId: 'task-1' }),
+    ).rejects.toThrow(
       'Meshy task task-1 is already running and cannot be canceled',
     )
     expect(requests.map(({ method }) => method)).toEqual(['GET'])
@@ -200,7 +202,7 @@ describe('meshyMotion', () => {
   it('cancel keeps a finished clip: no DELETE', async () => {
     const { adapter, requests } = adapterWith(Response.json(succeededTask))
 
-    await cancelMotionJob({ adapter, jobId: 'task-1' })
+    await cancel3dMotionJob({ adapter, jobId: 'task-1' })
     expect(requests.map(({ method }) => method)).toEqual(['GET'])
   })
 })

@@ -273,10 +273,10 @@ export const MESH_TOOL_MODELS = {
   },
 } as const
 
-export type Model3DModel = (typeof MODEL3D_MODELS)[number]
+export type Model3dModel = (typeof MODEL3D_MODELS)[number]
 type MeshTool = keyof typeof MESH_TOOL_MODELS
-export type Model3DModelId =
-  | Model3DModel['id']
+export type Model3dModelId =
+  | Model3dModel['id']
   | (typeof MESH_TOOL_MODELS)[MeshTool]['id']
 
 const MESH_TOOL_IDS: ReadonlyArray<string> = Object.values(
@@ -288,7 +288,7 @@ const MODEL3D_IDS: ReadonlyArray<string> = [
   ...MESH_TOOL_IDS,
 ]
 
-export function isModel3DModelId(value: string): value is Model3DModelId {
+export function isModel3dModelId(value: string): value is Model3dModelId {
   return MODEL3D_IDS.includes(value)
 }
 

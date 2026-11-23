@@ -6,7 +6,7 @@ keywords:
   - tanstack ai
   - uthana
   - motion generation
-  - generateMotion
+  - generate3dMotion
   - text-to-motion
   - retargeting
   - animation
@@ -15,7 +15,7 @@ keywords:
   - adapter
 ---
 
-`uthanaMotion()` with `generateMotion()` turns a prompt into a skeletal animation clip (FBX or GLB). Upload your own humanoid character, and Uthana makes the clip on that rig. The adapter has no chat.
+`uthana3dMotion()` with `generate3dMotion()` turns a prompt into a skeletal animation clip (FBX or GLB). Upload your own humanoid character, and Uthana makes the clip on that rig. The adapter has no chat.
 
 > [!WARNING]
 > Motion generation is experimental. The API can change. Uthana bills for each second of motion.
@@ -43,12 +43,12 @@ Create an API key in your [Uthana](https://uthana.com) account. Put it in the en
 UTHANA_API_KEY=your-uthana-key
 ```
 
-`uthanaMotion` reads `UTHANA_API_KEY`. To pass the key in code, set `apiKey`:
+`uthana3dMotion` reads `UTHANA_API_KEY`. To pass the key in code, set `apiKey`:
 
 ```ts
-import { uthanaMotion } from '@tanstack/ai-uthana'
+import { uthana3dMotion } from '@tanstack/ai-uthana'
 
-const adapter = uthanaMotion('text-to-motion-3.0', {
+const adapter = uthana3dMotion('text-to-motion-3.0', {
   apiKey: process.env.UTHANA_API_KEY,
 })
 ```
@@ -59,12 +59,12 @@ This script makes an axe attack and saves the FBX next to the script. A 3.0 job 
 
 ```ts
 import { writeFile } from 'node:fs/promises'
-import { generateMotion, getMotionJobStatus } from '@tanstack/ai'
-import { uthanaMotion } from '@tanstack/ai-uthana'
+import { generate3dMotion, get3dMotionJobStatus } from '@tanstack/ai'
+import { uthana3dMotion } from '@tanstack/ai-uthana'
 
-const adapter = uthanaMotion('text-to-motion-3.0')
+const adapter = uthana3dMotion('text-to-motion-3.0')
 
-const { jobId } = await generateMotion({
+const { jobId } = await generate3dMotion({
   adapter,
   threadId: 'orc-attacks',
   prompt:
@@ -72,10 +72,10 @@ const { jobId } = await generateMotion({
   duration: 4,
 })
 
-let status = await getMotionJobStatus({ adapter, jobId })
+let status = await get3dMotionJobStatus({ adapter, jobId })
 while (status.status === 'pending' || status.status === 'processing') {
   await new Promise((resolve) => setTimeout(resolve, 5000))
-  status = await getMotionJobStatus({ adapter, jobId })
+  status = await get3dMotionJobStatus({ adapter, jobId })
 }
 
 if (!status.motion) {
@@ -103,23 +103,23 @@ Server route at `/api/generate/motion`:
 
 ```ts
 import {
-  generateMotion,
+  generate3dMotion,
   generationParamsFromRequest,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { uthanaMotion } from '@tanstack/ai-uthana'
+import { uthana3dMotion } from '@tanstack/ai-uthana'
 
 export async function POST(request: Request) {
   const { input, threadId, runId } = await generationParamsFromRequest(
-    'motion',
+    'motion3d',
     request,
   )
   if (typeof input.prompt !== 'string') {
     return new Response('Send a text prompt.', { status: 400 })
   }
 
-  const stream = generateMotion({
-    adapter: uthanaMotion('text-to-motion-3.0'),
+  const stream = generate3dMotion({
+    adapter: uthana3dMotion('text-to-motion-3.0'),
     prompt: input.prompt,
     duration: typeof input.duration === 'number' ? input.duration : undefined,
     modelOptions: { formats: ['fbx', 'glb'] },
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
 }
 ```
 
-In the browser, read the stream with the generic `useGeneration` hook and `MotionGenerationResult`. The client code is the same for every motion provider:
+In the browser, read the stream with the generic `useGeneration` hook and `Motion3dGenerationResult`. The client code is the same for every motion provider:
 
 - [Show the job in a browser](../media/motion-generation#show-the-job-in-a-browser) has a short React component.
 - The [Generate Motion tutorial](../tutorials/generate-motion) builds a full page with status lines and download links.
@@ -164,11 +164,11 @@ console.log(character.characterId, character.autoRigConfidence)
 4. Pass the id as `modelOptions.character_id`:
 
 ```ts
-import { generateMotion } from '@tanstack/ai'
-import { uthanaMotion } from '@tanstack/ai-uthana'
+import { generate3dMotion } from '@tanstack/ai'
+import { uthana3dMotion } from '@tanstack/ai-uthana'
 
-const { jobId } = await generateMotion({
-  adapter: uthanaMotion('text-to-motion-3.0'),
+const { jobId } = await generate3dMotion({
+  adapter: uthana3dMotion('text-to-motion-3.0'),
   threadId: 'orc-attacks',
   prompt: 'An orc chieftain swings a two-handed axe in a wide arc',
   duration: 5,
@@ -217,7 +217,7 @@ Put these in `modelOptions`:
 
 ### What you get back
 
-`status.motion` (or the `generation:result` event) is a `MotionGenerationResult`. Each asset has:
+`status.motion` (or the `generation:result` event) is a `Motion3dGenerationResult`. Each asset has:
 
 - `url`: a `data:` URL with the file bytes.
 - `format`: `'fbx'` or `'glb'`.
@@ -229,7 +229,7 @@ The result has no `seed` and no `usage`. Uthana does not return them.
 ## What Uthana does not do
 
 - **No seed and no guidance.** You cannot repeat a take with the same seed.
-- **No cancel.** Uthana has no cancel API, so `cancelMotionJob()` throws. A closed stream or `abortSignal` stops the local work only. The job keeps running, and you still pay for it.
+- **No cancel.** Uthana has no cancel API, so `cancel3dMotionJob()` throws. A closed stream or `abortSignal` stops the local work only. The job keeps running, and you still pay for it.
 - **No progress number.** The status goes from `pending` to `processing` to `completed` or `failed`. The stream sends no `generation:progress` events.
 
 If a job fails, `status.error` holds the error text from Uthana.
@@ -238,16 +238,16 @@ If a job fails, `status.error` holds the error text from Uthana.
 
 ### Check a job from another process
 
-`getMotionJobStatus()` downloads the files when the job is complete. The job id holds the `character_id`, `formats`, and `fps` of the submit, so any adapter downloads the same files:
+`get3dMotionJobStatus()` downloads the files when the job is complete. The job id holds the `character_id`, `formats`, and `fps` of the submit, so any adapter downloads the same files:
 
 ```ts
-import { getMotionJobStatus } from '@tanstack/ai'
-import { uthanaMotion } from '@tanstack/ai-uthana'
+import { get3dMotionJobStatus } from '@tanstack/ai'
+import { uthana3dMotion } from '@tanstack/ai-uthana'
 
-// jobId is the id that generateMotion() returned, in any process.
+// jobId is the id that generate3dMotion() returned, in any process.
 export function checkMotionJob(jobId: string) {
-  return getMotionJobStatus({
-    adapter: uthanaMotion('text-to-motion-3.0'),
+  return get3dMotionJobStatus({
+    adapter: uthana3dMotion('text-to-motion-3.0'),
     jobId,
   })
 }
@@ -261,13 +261,13 @@ On a pay-as-you-go Uthana account, downloads are unlimited. Other plans count do
 
 ### Bring your own key
 
-`uthanaByok` from `@tanstack/ai-uthana/byok` declares Uthana for the BYOK store, with `UTHANA_API_KEY` as its env var. On the server, pass the key that you read as `uthanaMotion(model, { apiKey })`. See [Bring Your Own Key](../advanced/byok).
+`uthanaByok` from `@tanstack/ai-uthana/byok` declares Uthana for the BYOK store, with `UTHANA_API_KEY` as its env var. On the server, pass the key that you read as `uthana3dMotion(model, { apiKey })`. See [Bring Your Own Key](../advanced/byok).
 
 ### API reference
 
 | Export | What it does |
 | --- | --- |
-| `uthanaMotion(model, config?)` | Creates a motion adapter for `generateMotion()` |
+| `uthana3dMotion(model, config?)` | Creates a motion adapter for `generate3dMotion()` |
 | `createUthanaCharacter(options)` | Uploads a humanoid model and returns `{ characterId, name, autoRigConfidence? }` |
 | `UTHANA_DEFAULT_CHARACTER_ID` | The id of Tar, Uthana's default character |
 

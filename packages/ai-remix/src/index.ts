@@ -64,10 +64,10 @@ export type {
   CreateGenerateVideoOptions,
   CreateGenerateVideoReturn,
 } from './create-generate-video.ts'
-export { createGenerate3DModel } from './create-generate-3d-model.ts'
+export { createGenerate3dModel } from './create-generate-3d-model.ts'
 export type {
-  CreateGenerate3DModelOptions,
-  CreateGenerate3DModelReturn,
+  CreateGenerate3dModelOptions,
+  CreateGenerate3dModelReturn,
 } from './create-generate-3d-model.ts'
 export { createAudioRecorder } from './create-audio-recorder.ts'
 export type { CreateAudioRecorderOptions } from './create-audio-recorder.ts'
@@ -142,7 +142,7 @@ export {
   type TranscriptionGenerateInput,
   type SummarizeGenerateInput,
   type VideoGenerateInput,
-  type Model3DGenerateInput,
+  type Model3dGenerateInput,
   type VideoGenerateResult,
   type VideoStatusInfo,
 } from '@tanstack/ai-client'

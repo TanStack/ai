@@ -229,10 +229,10 @@ const result = await embed({
 
 ***
 
-### generate3DModel
+### generate3dModel
 
 ```ts
-generate3DModel: <TAdapter, TStream, TWait>(options) => Model3DActivityResult<TStream, TWait>;
+generate3dModel: <TAdapter, TStream, TWait>(options) => Model3dActivityResult<TStream, TWait>;
 ```
 
 Defined in: [packages/ai/src/activities/chat/agents/bound.ts:251](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L251)
@@ -241,7 +241,7 @@ Defined in: [packages/ai/src/activities/chat/agents/bound.ts:251](https://github
 
 ##### TAdapter
 
-`TAdapter` *extends* [`Model3DAdapter`](Model3DAdapter.md)\<`string`, `any`, `any`, `any`\>
+`TAdapter` *extends* [`Model3dAdapter`](Model3dAdapter.md)\<`string`, `any`, `any`, `any`\>
 
 ##### TStream
 
@@ -255,11 +255,11 @@ Defined in: [packages/ai/src/activities/chat/agents/bound.ts:251](https://github
 
 ##### options
 
-`WithOptionalThreadId`\<[`Model3DActivityOptions`](../type-aliases/Model3DActivityOptions.md)\<`TAdapter`, `TStream`, `TWait`\>\>
+`WithOptionalThreadId`\<[`Model3dActivityOptions`](../type-aliases/Model3dActivityOptions.md)\<`TAdapter`, `TStream`, `TWait`\>\>
 
 #### Returns
 
-[`Model3DActivityResult`](../type-aliases/Model3DActivityResult.md)\<`TStream`, `TWait`\>
+[`Model3dActivityResult`](../type-aliases/Model3dActivityResult.md)\<`TStream`, `TWait`\>
 
 ***
 

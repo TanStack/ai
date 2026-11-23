@@ -9,23 +9,23 @@ keywords:
   - 3mf
   - remesh
   - printability
-  - generate3DModel
-  - get3DModelJobStatus
+  - generate3dModel
+  - get3dModelJobStatus
   - adapter
 ---
 
-Pass a model that you already have to a Meshy endpoint, for example `meshy3DModel('print-repair')`. You get back a changed model: a new topology, new formats, or a file that is ready for your printer. To make a first model, start at [Meshy](./meshy).
+Pass a model that you already have to a Meshy endpoint, for example `meshy3dModel('print-repair')`. You get back a changed model: a new topology, new formats, or a file that is ready for your printer. To make a first model, start at [Meshy](./meshy).
 
 ## Change a model
 
 A mesh is a `model3d` part. Use a Meshy task id to change the result of an earlier job. Use a URL to change a file of your own:
 
 ```ts
-import { generate3DModel } from '@tanstack/ai'
-import { meshy3DModel } from '@tanstack/ai-meshy'
+import { generate3dModel } from '@tanstack/ai'
+import { meshy3dModel } from '@tanstack/ai-meshy'
 
-const remeshed = await generate3DModel({
-  adapter: meshy3DModel('remesh'),
+const remeshed = await generate3dModel({
+  adapter: meshy3dModel('remesh'),
   prompt: [
     {
       type: 'model3d',
@@ -108,13 +108,13 @@ This script makes a dragon figure from a concept image. Then it repairs the figu
 
 ```ts
 import { writeFile } from 'node:fs/promises'
-import { generate3DModel } from '@tanstack/ai'
-import { meshy3DModel } from '@tanstack/ai-meshy'
+import { generate3dModel } from '@tanstack/ai'
+import { meshy3dModel } from '@tanstack/ai-meshy'
 
 const threadId = 'dragon-figure'
 
-const figure = await generate3DModel({
-  adapter: meshy3DModel('image-to-3d', 'meshy-7.1'),
+const figure = await generate3dModel({
+  adapter: meshy3dModel('image-to-3d', 'meshy-7.1'),
   prompt: [
     {
       type: 'image',
@@ -130,16 +130,16 @@ const meshyFigure = {
   source: { type: 'file', value: figure.jobId, provider: 'meshy' },
 } as const
 
-const repaired = await generate3DModel({
-  adapter: meshy3DModel('print-repair'),
+const repaired = await generate3dModel({
+  adapter: meshy3dModel('print-repair'),
   prompt: [meshyFigure],
   threadId,
   wait: true,
   modelOptions: { printer_type: 'fdm', intended_print_height_mm: 120 },
 })
 
-const colored = await generate3DModel({
-  adapter: meshy3DModel('print-multi-color'),
+const colored = await generate3dModel({
+  adapter: meshy3dModel('print-multi-color'),
   prompt: [meshyFigure],
   threadId,
   wait: true,
@@ -150,8 +150,8 @@ const response = await fetch(colored.url)
 if (!response.ok) throw new Error(`Download failed: ${colored.url}`)
 await writeFile('dragon.3mf', Buffer.from(await response.arrayBuffer()))
 
-const parts = await generate3DModel({
-  adapter: meshy3DModel('print-split'),
+const parts = await generate3dModel({
+  adapter: meshy3dModel('print-split'),
   prompt: [meshyFigure, { type: 'text', content: 'head, wings, body, tail' }],
   threadId,
   wait: true,
@@ -178,11 +178,11 @@ Meshy keeps generated files for 3 days, on all plans except Enterprise. Copy eac
 `relief` carves a photo into a plaque. It takes one image part:
 
 ```ts
-import { generate3DModel } from '@tanstack/ai'
-import { meshy3DModel } from '@tanstack/ai-meshy'
+import { generate3dModel } from '@tanstack/ai'
+import { meshy3dModel } from '@tanstack/ai-meshy'
 
-const plaque = await generate3DModel({
-  adapter: meshy3DModel('relief'),
+const plaque = await generate3dModel({
+  adapter: meshy3dModel('relief'),
   prompt: [
     {
       type: 'image',
@@ -229,19 +229,19 @@ for (const action of swings) {
 }
 ```
 
-The filters are `search`, `category`, `subCategory`, and `actionIds`. Every filter that you set must match. Pass `actionId` as `modelOptions.action_id` to `meshy3DModel('animation')`. A biped rig takes only biped actions.
+The filters are `search`, `category`, `subCategory`, and `actionIds`. Every filter that you set must match. Pass `actionId` as `modelOptions.action_id` to `meshy3dModel('animation')`. A biped rig takes only biped actions.
 
 ## Check a job from another request
 
-Without `wait` or `stream`, `generate3DModel()` only submits the job and returns `{ jobId, model }`. Save the id, then read the job in another request with `get3DModelJobStatus()`:
+Without `wait` or `stream`, `generate3dModel()` only submits the job and returns `{ jobId, model }`. Save the id, then read the job in another request with `get3dModelJobStatus()`:
 
 ```ts
-import { generate3DModel, get3DModelJobStatus } from '@tanstack/ai'
-import { meshy3DModel } from '@tanstack/ai-meshy'
+import { generate3dModel, get3dModelJobStatus } from '@tanstack/ai'
+import { meshy3dModel } from '@tanstack/ai-meshy'
 
 // Request 1: submit the job, and save the id
-const { jobId } = await generate3DModel({
-  adapter: meshy3DModel('rigging'),
+const { jobId } = await generate3dModel({
+  adapter: meshy3dModel('rigging'),
   prompt: [
     {
       type: 'model3d',
@@ -252,8 +252,8 @@ const { jobId } = await generate3DModel({
 })
 
 // Request 2: read the job with an adapter for the same endpoint
-const status = await get3DModelJobStatus({
-  adapter: meshy3DModel('rigging'),
+const status = await get3dModelJobStatus({
+  adapter: meshy3dModel('rigging'),
   jobId,
 })
 
@@ -266,19 +266,19 @@ if (status.status === 'completed' && status.result) {
 }
 ```
 
-The endpoint sets the Meshy URL of the task, so use the same endpoint in both requests. For a motion job, call `getMotionJobStatus()` with `meshyMotion()` in the same way.
+The endpoint sets the Meshy URL of the task, so use the same endpoint in both requests. For a motion job, call `get3dMotionJobStatus()` with `meshy3dMotion()` in the same way.
 
 ## Cancel a job
 
 Meshy cancels only a task that waits in the queue (`'pending'`). Then Meshy gives back the credits. The adapter reads the task first and cancels only a `'pending'` task.
 
 ```ts
-import { meshy3DModel } from '@tanstack/ai-meshy'
+import { meshy3dModel } from '@tanstack/ai-meshy'
 
-const adapter = meshy3DModel('image-to-3d', 'meshy-7.1')
+const adapter = meshy3dModel('image-to-3d', 'meshy-7.1')
 
 try {
-  await adapter.cancel3DModelJob('your-task-id')
+  await adapter.cancel3dModelJob('your-task-id')
 } catch (error) {
   if (error instanceof Error) console.error(error.message)
 }
@@ -289,7 +289,7 @@ What to know:
 - For a running task, the cancel throws `Meshy task <id> is already running and cannot be canceled`. The task finishes, and Meshy charges for it.
 - For a finished task, the cancel does nothing. The model and its files stay.
 - A task can finish between the read and the cancel request. Then Meshy deletes the finished model. This window is one request long, so it is rare.
-- `cancelMotionJob()` from `@tanstack/ai` works in the same way for `meshyMotion()` jobs.
+- `cancel3dMotionJob()` from `@tanstack/ai` works in the same way for `meshy3dMotion()` jobs.
 - With `stream` or `wait`, an abort or a `timeout` also asks Meshy to cancel. If the task already runs, the failed cancel goes to the error log.
 
 ## Errors
@@ -301,12 +301,12 @@ What to know:
 The adapter repeats a status request on 408, 409, 429, and 5xx. It never repeats a create request, so one call cannot charge twice.
 
 ```ts
-import { generate3DModel } from '@tanstack/ai'
-import { MeshyApiError, meshy3DModel } from '@tanstack/ai-meshy'
+import { generate3dModel } from '@tanstack/ai'
+import { MeshyApiError, meshy3dModel } from '@tanstack/ai-meshy'
 
 try {
-  const model = await generate3DModel({
-    adapter: meshy3DModel('text-to-3d-preview', 'meshy-7.1'),
+  const model = await generate3dModel({
+    adapter: meshy3dModel('text-to-3d-preview', 'meshy-7.1'),
     prompt: 'A wooden barrel, game asset',
     threadId: 'barrel',
     wait: true,
@@ -323,14 +323,14 @@ try {
 
 ## Bring your own key
 
-`meshyByok` from `@tanstack/ai-meshy/byok` declares Meshy for the BYOK store, with `MESHY_API_KEY` as its env var. On the server, pass the key that you read as `apiKey` in the last argument of `meshy3DModel()` or `meshyMotion()`. See [Bring Your Own Key](../advanced/byok).
+`meshyByok` from `@tanstack/ai-meshy/byok` declares Meshy for the BYOK store, with `MESHY_API_KEY` as its env var. On the server, pass the key that you read as `apiKey` in the last argument of `meshy3dModel()` or `meshy3dMotion()`. See [Bring Your Own Key](../advanced/byok).
 
 ## API reference
 
 | Export | What it does |
 | --- | --- |
-| `meshy3DModel(endpoint, aiModel?, config?)` | Creates a 3D model adapter for `generate3DModel()` |
-| `meshyMotion(mode, config?)` | Creates a motion adapter for `generateMotion()`. `mode` is `'prime'` or `'swift'`. |
+| `meshy3dModel(endpoint, aiModel?, config?)` | Creates a 3D model adapter for `generate3dModel()` |
+| `meshy3dMotion(mode, config?)` | Creates a motion adapter for `generate3dMotion()`. `mode` is `'prime'` or `'swift'`. |
 | `analyzeMeshyPrintability(options)` | Checks if a model can be printed, and returns the report |
 | `getMeshyBalance(options?)` | Returns the credit balance |
 | `listMeshyAnimations(options?)` | Lists the actions in the animation library |
