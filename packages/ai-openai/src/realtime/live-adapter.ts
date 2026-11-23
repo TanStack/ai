@@ -13,6 +13,13 @@ import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { OpenAILiveOptions } from './live-types'
 
 const SOURCE = 'openai.live'
+// ponytail: connect() waits at most 15 s for `session.started`. The server
+// sends it right after the data channel opens. Make it an option if a slow
+// network needs more time.
+const START_TIMEOUT_MS = 15_000
+// ponytail: disconnect() waits at most 1 s for `session.closed`. Then it
+// closes the connection locally anyway.
+const CLOSE_TIMEOUT_MS = 1_000
 
 /** The fields that this adapter reads from the Live server events. */
 type LiveServerEvent = {
@@ -44,7 +51,8 @@ interface DelegationCalls {
  *
  * GPT-Live has no text input and no image input. `sendText` and `sendImage`
  * log an error. `updateSession` can only change the delegation settings
- * (`providerOptions.delegation`).
+ * (`providerOptions.delegation`). It cannot change the delegated `model`:
+ * only the server sets it.
  *
  * @param options - Optional configuration, for example `debug`
  * @returns A RealtimeRelayAdapter for use with `RealtimeClient`
@@ -94,6 +102,22 @@ async function createLiveConnection(
   // The transcript of the person who speaks now
   let turn: { role: 'user' | 'assistant'; text: string } | null = null
   const delegations = new Map<string, DelegationCalls>()
+  // The transport closes only once. A second `audioContext.close()` rejects.
+  let closing: Promise<void> | null = null
+
+  // connect() returns the connection only after `session.started`. Before
+  // that, the server must not get `session.input_audio.unmute`.
+  let markStarted = () => {}
+  let failStart: (error: Error) => void = () => {}
+  const sessionStarted = new Promise<void>((resolve, reject) => {
+    markStarted = () => resolve()
+    failStart = reject
+  })
+  // disconnect() waits for this after it sends `session.close`.
+  let markClosed = () => {}
+  const sessionClosed = new Promise<void>((resolve) => {
+    markClosed = () => resolve()
+  })
 
   function setMode(mode: RealtimeMode) {
     if (currentMode === mode) return
@@ -131,6 +155,33 @@ async function createLiveConnection(
     abortSignal,
   })
   const { sendEvent } = transport
+
+  function closeTransport() {
+    closing ??= transport.close().catch((error: unknown) => {
+      logger.errors(`${SOURCE} close failed`, { error, source: SOURCE })
+    })
+    return closing
+  }
+
+  const startTimeout = startTimer(START_TIMEOUT_MS)
+  try {
+    abortSignal?.throwIfAborted()
+    const result = await Promise.race([
+      sessionStarted,
+      startTimeout.promise,
+      rejectOnAbort(abortSignal),
+    ])
+    if (result === 'timeout') {
+      throw new Error(
+        `GPT-Live session did not start in ${START_TIMEOUT_MS / 1000} s`,
+      )
+    }
+  } catch (error) {
+    await closeTransport()
+    throw error
+  } finally {
+    startTimeout.clear()
+  }
 
   function appendTranscript(role: 'user' | 'assistant', delta: string) {
     if (turn?.role !== role) finishTurn()
@@ -187,7 +238,7 @@ async function createLiveConnection(
       emit('tool_call', {
         toolCallId: item.call_id,
         toolName: item.name,
-        input: parseArguments(item.arguments, logger),
+        input: parseArguments(item, logger),
       })
       return
     }
@@ -204,6 +255,7 @@ async function createLiveConnection(
     const event = raw as LiveServerEvent
     switch (event.type) {
       case 'session.started':
+        markStarted()
         emit('status_change', { status: 'connected' })
         setMode('listening')
         break
@@ -240,35 +292,37 @@ async function createLiveConnection(
         })
         break
 
-      case 'session.closed':
+      case 'session.closed': {
+        const error = new Error(
+          `GPT-Live session closed: ${event.reason ?? 'unknown reason'}`,
+        )
+        failStart(error)
+        markClosed()
         finishTurn()
         // The server ended the session: release the mic and the peer.
-        transport.close().catch((error: unknown) => {
-          logger.errors(`${SOURCE} close failed`, { error, source: SOURCE })
-        })
-        if (event.reason !== 'close_requested') {
-          emit('error', {
-            error: new Error(
-              `GPT-Live session closed: ${event.reason ?? 'unknown reason'}`,
-            ),
-          })
-        }
+        void closeTransport()
+        if (event.reason !== 'close_requested') emit('error', { error })
         setMode('idle')
         emit('status_change', { status: 'idle' })
         break
+      }
 
-      case 'error':
-        emit('error', {
-          error: new Error(event.error?.message || 'Unknown error'),
-        })
+      case 'error': {
+        const error = new Error(event.error?.message || 'Unknown error')
+        failStart(error)
+        emit('error', { error })
         break
+      }
     }
   }
 
   const connection: RealtimeConnection = {
     async disconnect() {
       sendEvent({ type: 'session.close' })
-      await transport.close()
+      const closeTimeout = startTimer(CLOSE_TIMEOUT_MS)
+      await Promise.race([sessionClosed, closeTimeout.promise])
+      closeTimeout.clear()
+      await closeTransport()
       setMode('idle')
       emit('status_change', { status: 'idle' })
     },
@@ -294,36 +348,48 @@ async function createLiveConnection(
     },
 
     sendToolResult(callId: string, result: string) {
+      const entries = [...delegations]
+      const owner = entries.find(([, calls]) => calls.pending.has(callId))
+      if (!owner) {
+        // Do not log `result`. It can hold user data.
+        logger.errors(`${SOURCE} sendToolResult for an unknown tool call`, {
+          source: SOURCE,
+          callId,
+        })
+        return
+      }
+      const [delegationId, calls] = owner
       sendEvent({
         type: 'response.item.create',
         item: { type: 'function_call_output', call_id: callId, output: result },
       })
-      for (const [delegationId, calls] of delegations) {
-        if (!calls.pending.delete(callId)) continue
-        resumeIfReady(delegationId, calls)
-        return
-      }
+      calls.pending.delete(callId)
+      resumeIfReady(delegationId, calls)
     },
 
     updateSession(config: Partial<RealtimeSessionConfig>) {
       const { providerOptions, ...rest } = config
       const { delegation, ...otherProviderOptions } = providerOptions ?? {}
+      // Only the server sets the delegated model.
+      const { model, ...delegationSettings } = delegation ?? {}
       const ignored = [
         ...Object.keys(rest),
         ...Object.keys(otherProviderOptions).map(
           (key) => `providerOptions.${key}`,
         ),
+        ...(model === undefined ? [] : ['providerOptions.delegation.model']),
       ]
       if (ignored.length > 0) {
         logger.errors(
-          `${SOURCE} updateSession can only change providerOptions.delegation`,
+          `${SOURCE} updateSession can only change providerOptions.delegation, without model`,
           { source: SOURCE, ignored },
         )
       }
-      if (!delegation) return
+      const responses = toResponsesSettings(delegationSettings)
+      if (Object.keys(responses).length === 0) return
       sendEvent({
         type: 'session.update',
-        session: { delegation: { responses: toResponsesSettings(delegation) } },
+        session: { delegation: { responses } },
       })
     },
 
@@ -350,16 +416,29 @@ function rejectOnAbort(signal?: AbortSignal) {
   })
 }
 
+/** A promise that resolves with `'timeout'` after `ms`. `clear` stops the timer. */
+function startTimer(ms: number) {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const promise = new Promise<'timeout'>((resolve) => {
+    timer = setTimeout(() => resolve('timeout'), ms)
+  })
+  return { promise, clear: () => clearTimeout(timer) }
+}
+
 /** Parse tool arguments. Bad JSON goes to the tool as the raw string. */
-function parseArguments(args: string, logger: InternalLogger): unknown {
+function parseArguments(
+  item: { call_id: string; name: string; arguments: string },
+  logger: InternalLogger,
+): unknown {
   try {
-    return JSON.parse(args)
-  } catch (error) {
+    return JSON.parse(item.arguments)
+  } catch {
+    // Do not log the arguments or the parser error. They can hold user data.
     logger.errors(`${SOURCE} tool arguments are not valid JSON`, {
       source: SOURCE,
-      error,
-      arguments: args,
+      toolName: item.name,
+      toolCallId: item.call_id,
     })
-    return args
+    return item.arguments
   }
 }

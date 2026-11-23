@@ -48,24 +48,33 @@ function stubBrowser() {
   vi.stubGlobal('navigator', {
     mediaDevices: { getUserMedia: async () => stream },
   })
+  const audioContext = {
+    state: 'running',
+    createAnalyser: () => ({ connect: vi.fn() }),
+    createMediaStreamSource: () => ({ connect: vi.fn() }),
+    close: vi.fn(async () => {}),
+  }
   vi.stubGlobal(
     'AudioContext',
     vi.fn(function AudioContext() {
-      return {
-        state: 'running',
-        createAnalyser: () => ({ connect: vi.fn() }),
-        createMediaStreamSource: () => ({ connect: vi.fn() }),
-        close: async () => {},
-      }
+      return audioContext
     }),
   )
-  return { track, channel, pc }
+  return { track, channel, pc, audioContext }
 }
 
 const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }
 
-/** Connect with fake globals and open the data channel. */
-async function connectLive(
+/** In a browser, each data channel message is a new task. Wait for one. */
+function nextTask() {
+  return new Promise((resolve) => setImmediate(resolve))
+}
+
+/**
+ * Start connect with fake globals and open the data channel. The server has
+ * not sent `session.started` yet, so `pending` has not resolved.
+ */
+async function openLive(
   createSession: RealtimeRelayCreateSession = async () => answer,
 ) {
   const browser = stubBrowser()
@@ -75,19 +84,30 @@ async function connectLive(
   )
   browser.channel.readyState = 'open'
   browser.channel.onopen?.()
-  const connection = await pending
+  await nextTask()
+  function sentEvents() {
+    return browser.channel.send.mock.calls.map(([data]) =>
+      JSON.parse(String(data)),
+    )
+  }
   return {
     ...browser,
-    connection,
+    pending,
     serverSends(event: object) {
       browser.channel.onmessage?.({ data: JSON.stringify(event) })
     },
+    sentEvents,
     sentTypes() {
-      return browser.channel.send.mock.calls.map(
-        ([data]) => JSON.parse(String(data)).type,
-      )
+      return sentEvents().map((event) => event.type)
     },
   }
+}
+
+/** Open the data channel, start the session, and wait for the connection. */
+async function connectLive(createSession?: RealtimeRelayCreateSession) {
+  const live = await openLive(createSession)
+  live.serverSends({ type: 'session.started' })
+  return { ...live, connection: await live.pending }
 }
 
 /** Record every payload of one event type. */
@@ -124,6 +144,7 @@ const responseCompleted = {
 
 describe('openaiLive', () => {
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.clearAllMocks()
   })
@@ -137,6 +158,104 @@ describe('openaiLive', () => {
       type: 'answer',
       sdp: 'answer-sdp',
     })
+  })
+
+  it('returns the connection only after session.started', async () => {
+    const { pending, serverSends } = await openLive()
+    let isConnected = false
+    void pending.then(() => {
+      isConnected = true
+    })
+
+    await nextTask()
+    expect(isConnected).toBe(false)
+
+    serverSends({ type: 'session.started' })
+    await pending
+    expect(isConnected).toBe(true)
+  })
+
+  it('rejects connect and stops the mic when the session closes before it starts', async () => {
+    const { pending, serverSends, track, pc } = await openLive()
+
+    serverSends({ type: 'session.closed', reason: 'expired' })
+
+    await expect(pending).rejects.toThrow('GPT-Live session closed: expired')
+    expect(track.stop).toHaveBeenCalled()
+    expect(pc.close).toHaveBeenCalled()
+  })
+
+  it('rejects connect and stops the mic when session.started does not come in 15 s', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const { pending, track } = await openLive()
+    const rejection = expect(pending).rejects.toThrow(
+      'GPT-Live session did not start in 15 s',
+    )
+
+    await vi.advanceTimersByTimeAsync(15_000)
+
+    await rejection
+    expect(track.stop).toHaveBeenCalled()
+  })
+
+  it('disconnect sends session.close and closes once after session.closed', async () => {
+    const { connection, serverSends, sentTypes, track, audioContext } =
+      await connectLive()
+
+    const done = connection.disconnect()
+    await nextTask()
+    expect(sentTypes()).toEqual(['session.close'])
+    expect(track.stop).not.toHaveBeenCalled()
+
+    serverSends({ type: 'session.closed', reason: 'close_requested' })
+    await done
+
+    expect(track.stop).toHaveBeenCalled()
+    expect(audioContext.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('disconnect closes after 1 s when session.closed does not come', async () => {
+    const { connection, track } = await connectLive()
+    vi.useFakeTimers()
+
+    const done = connection.disconnect()
+    await vi.advanceTimersByTimeAsync(999)
+    expect(track.stop).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    await done
+    expect(track.stop).toHaveBeenCalled()
+  })
+
+  it('updateSession drops delegation.model and sends the other delegation fields', async () => {
+    const { connection, sentEvents } = await connectLive()
+
+    connection.updateSession({
+      providerOptions: {
+        delegation: { model: 'gpt-5.5', instructions: 'Be brief.' },
+      },
+    })
+
+    expect(sentEvents()).toEqual([
+      {
+        type: 'session.update',
+        session: { delegation: { responses: { instructions: 'Be brief.' } } },
+      },
+    ])
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('updateSession'),
+      { source: 'openai.live', ignored: ['providerOptions.delegation.model'] },
+    )
+  })
+
+  it('updateSession sends nothing when delegation has only the model', async () => {
+    const { connection, sentTypes } = await connectLive()
+
+    connection.updateSession({
+      providerOptions: { delegation: { model: 'gpt-5.5' } },
+    })
+
+    expect(sentTypes()).toEqual([])
   })
 
   it('maps transcript deltas', async () => {
@@ -205,9 +324,22 @@ describe('openaiLive', () => {
     serverSends(functionCall('call_1', '{"city":'))
 
     expect(toolCalls[0]?.input).toBe('{"city":')
+    // The log has no arguments and no parser error: they can hold user data.
     expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining('tool arguments are not valid JSON'),
-      expect.objectContaining({ arguments: '{"city":' }),
+      { source: 'openai.live', toolName: 'get_weather', toolCallId: 'call_1' },
+    )
+  })
+
+  it('does not send a tool result for an unknown call id', async () => {
+    const { connection, sentTypes } = await connectLive()
+
+    connection.sendToolResult('call_unknown', '"secret"')
+
+    expect(sentTypes()).toEqual([])
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('sendToolResult for an unknown tool call'),
+      { source: 'openai.live', callId: 'call_unknown' },
     )
   })
 

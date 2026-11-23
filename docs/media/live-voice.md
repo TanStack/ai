@@ -139,7 +139,7 @@ const adapter = openaiLiveSession({
 | `model` | `'gpt-live-1.1'` | `'gpt-live-1'` or `'gpt-live-1.1'`. Server only. |
 | `instructions` | the client value | Replaces the `instructions` from the hook. |
 | `voice` | the client value | Replaces the `voice` from the hook. If neither sets it, OpenAI uses `marin`. |
-| `delegation` | none | The Responses model that runs tools. Server only. See [Tools](#tools). |
+| `delegation` | none | The Responses model that runs tools, and its settings. `delegation.model` is server only. See [Tools](#tools). |
 | `store` | OpenAI default | Lets OpenAI store the session. |
 | `apiKey` | `OPENAI_API_KEY` | The OpenAI API key. |
 | `baseURL` | `https://api.openai.com/v1` | The API base URL. |
@@ -170,9 +170,9 @@ export async function POST(request: Request) {
 }
 ```
 
-2. Pass the `.client()` tools to the hook:
+2. Pass the `.client()` tools to the hook in your chat component:
 
-```typescript
+```tsx
 import { toolDefinition } from '@tanstack/ai'
 import { useRealtimeChat } from '@tanstack/ai-react'
 import { openaiLive } from '@tanstack/ai-openai'
@@ -196,44 +196,54 @@ const getWeather = getWeatherDef.client(async ({ location }) => {
   return res.json()
 })
 
-export function useWeatherLiveChat() {
-  return useRealtimeChat({
+export function WeatherLiveChat() {
+  const { status, connect, disconnect, updateSession } = useRealtimeChat({
     createSession,
     adapter: openaiLive(),
     tools: [getWeather],
   })
+
+  function switchToMetric() {
+    updateSession({
+      providerOptions: {
+        delegation: {
+          instructions: 'Use metric units.',
+          maxOutputTokens: 500,
+        },
+      },
+    })
+  }
+
+  return (
+    <div>
+      <button onClick={status === 'idle' ? connect : disconnect}>
+        {status === 'idle' ? 'Start conversation' : 'End conversation'}
+      </button>
+      <button onClick={switchToMetric} disabled={status !== 'connected'}>
+        Use metric units
+      </button>
+    </div>
+  )
 }
 ```
 
 If the browser sends tools and the server has no `delegation`, `realtimeSession()` rejects. No session starts.
 
-The `delegation` option also takes `instructions`, `toolChoice`, `parallelToolCalls`, and `maxOutputTokens`. To change these settings while connected, call `updateSession`:
+3. To change the delegation settings while connected, call `updateSession` from the same `useRealtimeChat` call. The **Use metric units** button above does this. `updateSession` changes these `delegation` fields:
 
-```typescript
-import { useRealtimeChat } from '@tanstack/ai-react'
-import { openaiLive } from '@tanstack/ai-openai'
-import { createSession } from './create-session'
+- `instructions`: the instructions for the delegated model.
+- `toolChoice`: how the delegated model picks tools.
+- `parallelToolCalls`: lets the delegated model call more than one tool in one turn.
+- `maxOutputTokens`: the output limit for the delegated model (16 or more).
 
-export function useMetricUnitsButton() {
-  const { updateSession } = useRealtimeChat({
-    createSession,
-    adapter: openaiLive(),
-  })
-  return () =>
-    updateSession({
-      providerOptions: {
-        delegation: { instructions: 'Use metric units.' },
-      },
-    })
-}
-```
+The delegation `model` stays on the server. If you send `delegation.model` to `updateSession`, the adapter drops it and logs an error.
 
 ## Differences from other realtime models
 
 GPT-Live does not support these hook functions:
 
 - `sendText()` and `sendImage()`: GPT-Live has no text or image input. The calls log an error and do nothing.
-- `updateSession()`: it changes only `providerOptions.delegation`. It logs an error for the other fields.
+- `updateSession()`: it changes only `providerOptions.delegation`, and not `delegation.model`. It logs an error for the other fields.
 
 These functions work in a different way:
 
@@ -333,23 +343,35 @@ export function myProviderLive(): RealtimeRelayAdapter {
     kind: 'relay',
     async connect(createSession, clientTools, options) {
       const peer = new RTCPeerConnection()
-      const mic = await navigator.mediaDevices.getUserMedia({ audio: true })
-      mic.getTracks().forEach((track) => peer.addTrack(track, mic))
-      const events = peer.createDataChannel('events')
+      let mic: MediaStream | null = null
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        })
+        mic = stream
+        stream.getTracks().forEach((track) => peer.addTrack(track, stream))
+        const events = peer.createDataChannel('events')
 
-      const offer = await peer.createOffer()
-      await peer.setLocalDescription(offer)
-      if (!offer.sdp) throw new Error('The offer has no SDP')
-      options?.abortSignal?.throwIfAborted()
+        const offer = await peer.createOffer()
+        await peer.setLocalDescription(offer)
+        if (!offer.sdp) throw new Error('The offer has no SDP')
+        options?.abortSignal?.throwIfAborted()
 
-      const answer = await createSession({ sdp: offer.sdp })
-      await peer.setRemoteDescription({ type: 'answer', sdp: answer.sdp })
-      return createMyConnection({ peer, mic, events, clientTools })
+        const answer = await createSession({ sdp: offer.sdp })
+        await peer.setRemoteDescription({ type: 'answer', sdp: answer.sdp })
+        return createMyConnection({ peer, mic: stream, events, clientTools })
+      } catch (error) {
+        mic?.getTracks().forEach((track) => track.stop())
+        peer.close()
+        throw error
+      }
     },
   }
 }
 ```
 
-`createMyConnection` returns a `RealtimeConnection`. It maps the provider events to the realtime events, and it stops the microphone on `disconnect()`. For a full example, read the source of `openaiLive()` in `@tanstack/ai-openai`.
+If a step fails, for example `createSession` rejects, the `catch` stops each microphone track and closes the peer. Then it throws the error again.
+
+`createMyConnection` returns a `RealtimeConnection`. From then on, the connection owns the microphone and the peer. It maps the provider events to the realtime events, and it stops the microphone on `disconnect()`. For a full example, read the source of `openaiLive()` in `@tanstack/ai-openai`.
 
 Pass the adapter to `useRealtimeChat` with `createSession`. The hook sees `kind: 'relay'` and sends the offer and the config through your route.

@@ -145,6 +145,42 @@ describe('useRealtimeChat', () => {
     unmount()
   })
 
+  it('uses a new token adapter that has a non-relay kind on reconnect', async () => {
+    const firstConnection = createConnection()
+    const secondConnection = createConnection()
+    const firstAdapter = createAdapter('first', [firstConnection.connection])
+    const secondAdapter = createAdapter('second', [secondConnection.connection])
+    const secondWithKind = Object.assign(secondAdapter.adapter, {
+      kind: 'token',
+    })
+    const secondToken = createToken('second', 'second-token')
+    const getToken = vi.fn(async () => createToken('first', 'first-token'))
+
+    const { result, rerender, unmount } = renderHook(
+      (options: UseRealtimeChatOptions) => useRealtimeChat(options),
+      { initialProps: createOptions(firstAdapter.adapter, getToken) },
+    )
+
+    await act(async () => {
+      await result.current.connect()
+      await result.current.disconnect()
+    })
+
+    rerender(createOptions(secondWithKind, async () => secondToken))
+    await act(async () => {
+      await result.current.connect()
+    })
+
+    expect(firstAdapter.connect).toHaveBeenCalledTimes(1)
+    expect(secondAdapter.connect).toHaveBeenCalledWith(secondToken, undefined)
+    expect(result.current.status).toBe('connected')
+
+    await act(async () => {
+      await result.current.disconnect()
+    })
+    unmount()
+  })
+
   it('uses updated authentication when refreshing an active session', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-16T12:00:00Z'))

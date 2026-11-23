@@ -3,6 +3,7 @@ import { RealtimeClient } from '@tanstack/ai-client'
 import type {
   RealtimeMessage,
   RealtimeMode,
+  RealtimeRelayAdapter,
   RealtimeSessionConfig,
   RealtimeStatus,
 } from '@tanstack/ai'
@@ -14,6 +15,14 @@ import type {
 // Empty frequency data for when client is not connected
 const emptyFrequencyData = new Uint8Array(128)
 const emptyTimeDomainData = new Uint8Array(128).fill(128)
+
+// Only `kind: 'relay'` marks a relay adapter. A token adapter can have other
+// properties, such as a `kind` that is not 'relay'.
+function isRelayAdapter(
+  adapter: UseRealtimeChatOptions['adapter'],
+): adapter is RealtimeRelayAdapter {
+  return 'kind' in adapter && adapter.kind === 'relay'
+}
 
 /**
  * Octane hook for realtime voice conversations.
@@ -110,7 +119,7 @@ export function useRealtimeChat(
               },
               connect(token, tools) {
                 const latest = optionsRef.current.adapter
-                const adapter = 'kind' in latest ? initial.adapter : latest
+                const adapter = isRelayAdapter(latest) ? initial.adapter : latest
                 return adapter.connect(token, tools)
               },
             },

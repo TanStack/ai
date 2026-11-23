@@ -44,6 +44,7 @@ import { Route as MessageHistoryPagingRouteImport } from './routes/message-histo
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as MotionTestRouteImport } from './routes/motion-test'
 import { Route as PersistenceDurabilityRouteImport } from './routes/persistence-durability'
+import { Route as RealtimeRelayRouteImport } from './routes/realtime-relay'
 import { Route as SolidReactiveChatRouteImport } from './routes/solid-reactive-chat'
 import { Route as SubagentsTestRouteImport } from './routes/subagents-test'
 import { Route as SubagentsUiTestRouteImport } from './routes/subagents-ui-test'
@@ -421,6 +422,11 @@ const MotionTestRoute = MotionTestRouteImport.update({
 const PersistenceDurabilityRoute = PersistenceDurabilityRouteImport.update({
   id: '/persistence-durability',
   path: '/persistence-durability',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RealtimeRelayRoute = RealtimeRelayRouteImport.update({
+  id: '/realtime-relay',
+  path: '/realtime-relay',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SolidReactiveChatRoute = SolidReactiveChatRouteImport.update({
@@ -1513,6 +1519,7 @@ export interface FileRoutesByFullPath {
   '/middleware-test': typeof MiddlewareTestRoute
   '/motion-test': typeof MotionTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/realtime-relay': typeof RealtimeRelayRoute
   '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
   '/subagents-ui-test': typeof SubagentsUiTestRoute
@@ -1750,6 +1757,7 @@ export interface FileRoutesByTo {
   '/middleware-test': typeof MiddlewareTestRoute
   '/motion-test': typeof MotionTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/realtime-relay': typeof RealtimeRelayRoute
   '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
   '/subagents-ui-test': typeof SubagentsUiTestRoute
@@ -1988,6 +1996,7 @@ export interface FileRoutesById {
   '/middleware-test': typeof MiddlewareTestRoute
   '/motion-test': typeof MotionTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/realtime-relay': typeof RealtimeRelayRoute
   '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
   '/subagents-ui-test': typeof SubagentsUiTestRoute
@@ -2227,6 +2236,7 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/motion-test'
     | '/persistence-durability'
+    | '/realtime-relay'
     | '/solid-reactive-chat'
     | '/subagents-test'
     | '/subagents-ui-test'
@@ -2464,6 +2474,7 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/motion-test'
     | '/persistence-durability'
+    | '/realtime-relay'
     | '/solid-reactive-chat'
     | '/subagents-test'
     | '/subagents-ui-test'
@@ -2701,6 +2712,7 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/motion-test'
     | '/persistence-durability'
+    | '/realtime-relay'
     | '/solid-reactive-chat'
     | '/subagents-test'
     | '/subagents-ui-test'
@@ -2939,6 +2951,7 @@ export interface RootRouteChildren {
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   MotionTestRoute: typeof MotionTestRoute
   PersistenceDurabilityRoute: typeof PersistenceDurabilityRoute
+  RealtimeRelayRoute: typeof RealtimeRelayRoute
   SolidReactiveChatRoute: typeof SolidReactiveChatRoute
   SubagentsTestRoute: typeof SubagentsTestRoute
   SubagentsUiTestRoute: typeof SubagentsUiTestRoute
@@ -3381,6 +3394,13 @@ declare module '@tanstack/react-router' {
       path: '/persistence-durability'
       fullPath: '/persistence-durability'
       preLoaderRoute: typeof PersistenceDurabilityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/realtime-relay': {
+      id: '/realtime-relay'
+      path: '/realtime-relay'
+      fullPath: '/realtime-relay'
+      preLoaderRoute: typeof RealtimeRelayRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/solid-reactive-chat': {
@@ -4880,6 +4900,7 @@ const rootRouteChildren: RootRouteChildren = {
   MiddlewareTestRoute: MiddlewareTestRoute,
   MotionTestRoute: MotionTestRoute,
   PersistenceDurabilityRoute: PersistenceDurabilityRoute,
+  RealtimeRelayRoute: RealtimeRelayRoute,
   SolidReactiveChatRoute: SolidReactiveChatRoute,
   SubagentsTestRoute: SubagentsTestRoute,
   SubagentsUiTestRoute: SubagentsUiTestRoute,

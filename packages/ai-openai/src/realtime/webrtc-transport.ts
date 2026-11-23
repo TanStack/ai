@@ -54,14 +54,37 @@ export async function createOpenAIWebRTCTransport(options: {
   const channel = pc.createDataChannel('oai-events')
   dataChannel = channel
 
-  // Promise that resolves when the data channel is open and ready
-  const dataChannelReady = new Promise<void>((resolve) => {
+  let isChannelOpen = false
+
+  // Resolves when the data channel opens. A close or an error before that
+  // rejects it, so the setup cleanup runs and connect() does not hang.
+  const dataChannelReady = new Promise<void>((resolve, reject) => {
     channel.onopen = () => {
+      isChannelOpen = true
       flushPendingEvents()
       options.onOpen()
       resolve()
     }
+
+    channel.onclose = () => {
+      reject(new Error('Data channel closed before it opened'))
+    }
+
+    channel.onerror = (error) => {
+      logger.errors(`${source} fatal`, {
+        error,
+        source,
+      })
+      const failure = new Error(`Data channel error: ${error}`)
+      // Before the channel opens, the error fails the setup. After it opens,
+      // the session reports it through onError.
+      if (isChannelOpen) options.onError(failure)
+      else reject(failure)
+    }
   })
+  // A setup failure can close the channel before anything waits on this
+  // promise. Mark it as handled so that it is not an unhandled rejection.
+  void dataChannelReady.catch(() => {})
 
   channel.onmessage = (event) => {
     try {
@@ -79,14 +102,6 @@ export async function createOpenAIWebRTCTransport(options: {
     }
   }
 
-  channel.onerror = (error) => {
-    logger.errors(`${source} fatal`, {
-      error,
-      source,
-    })
-    options.onError(new Error(`Data channel error: ${error}`))
-  }
-
   // Handle incoming audio track
   pc.ontrack = (event) => {
     if (event.track.kind === 'audio' && event.streams[0]) {
@@ -102,23 +117,30 @@ export async function createOpenAIWebRTCTransport(options: {
     abortSignal?.throwIfAborted()
     // IMPORTANT: Request microphone access and add audio track BEFORE creating offer
     // OpenAI's voice APIs require an audio track in the SDP offer
+    const microphone = navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        sampleRate: 24000,
+      },
+    })
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          sampleRate: 24000,
-        },
-      })
-
-      // Add audio track to peer connection
-      for (const track of localStream.getAudioTracks()) {
-        pc.addTrack(track, localStream)
-      }
+      // An abort while the permission prompt is open rejects at once.
+      localStream = await waitUnlessAborted(microphone, abortSignal)
     } catch (error) {
+      if (abortSignal?.aborted) {
+        // The browser can still give the stream after the abort. Stop it then.
+        void microphone.then(stopTracks, () => {})
+        throw abortSignal.reason
+      }
       throw new Error(
         `Microphone access required for realtime voice: ${error instanceof Error ? error.message : error}`,
       )
+    }
+
+    // Add audio track to peer connection
+    for (const track of localStream.getAudioTracks()) {
+      pc.addTrack(track, localStream)
     }
 
     // Create and set local description (now includes audio track)
@@ -130,7 +152,7 @@ export async function createOpenAIWebRTCTransport(options: {
     const answerSdp = await options.exchangeSdp(offer.sdp ?? '', abortSignal)
     await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
   } catch (error) {
-    for (const track of localStream?.getTracks() ?? []) track.stop()
+    if (localStream) stopTracks(localStream)
     localStream = null
     channel.close()
     dataChannel = null
@@ -138,8 +160,17 @@ export async function createOpenAIWebRTCTransport(options: {
     throw error
   }
 
-  // Set up input audio analysis now that we have the stream
-  setupInputAudioAnalysis(localStream)
+  // Set up input audio analysis now that we have the stream. The meter is
+  // optional: if the setup fails, the session continues without it.
+  try {
+    setupInputAudioAnalysis(localStream)
+  } catch (error) {
+    inputAnalyser = null
+    logger.errors(`${source} input audio analysis failed`, {
+      error,
+      source,
+    })
+  }
 
   // Set up audio analysis for output
   function setupOutputAudioAnalysis(stream: MediaStream) {
@@ -229,9 +260,7 @@ export async function createOpenAIWebRTCTransport(options: {
   // and the audio context.
   async function close() {
     if (localStream) {
-      for (const track of localStream.getTracks()) {
-        track.stop()
-      }
+      stopTracks(localStream)
       localStream = null
     }
 
@@ -363,19 +392,22 @@ export async function createOpenAIWebRTCTransport(options: {
   }
 }
 
-/** Resolve with `promise`, or reject with the abort reason when `signal` aborts first. */
-function waitUnlessAborted(
-  promise: Promise<void>,
+/** Settle like `promise`, or reject with the abort reason when `signal` aborts first. */
+function waitUnlessAborted<T>(
+  promise: Promise<T>,
   signal: AbortSignal | undefined,
-): Promise<void> {
+) {
   if (!signal) return promise
-  return new Promise((resolve, reject) => {
+  return new Promise<T>((resolve, reject) => {
     const onAbort = () => reject(signal.reason)
     if (signal.aborted) return onAbort()
     signal.addEventListener('abort', onAbort, { once: true })
-    void promise.then(() => {
-      signal.removeEventListener('abort', onAbort)
-      resolve()
-    })
+    void promise
+      .then(resolve, reject)
+      .finally(() => signal.removeEventListener('abort', onAbort))
   })
+}
+
+function stopTracks(stream: MediaStream) {
+  for (const track of stream.getTracks()) track.stop()
 }
