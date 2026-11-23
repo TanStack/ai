@@ -1806,7 +1806,7 @@
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-09"
+          "updatedAt": "2026-11-23"
         },
         {
           "label": "Anthropic: Advanced",
