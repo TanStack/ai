@@ -4496,6 +4496,9 @@ importers:
       '@tanstack/ai-openai':
         specifier: workspace:*
         version: link:../../packages/ai-openai
+      '@tanstack/ai-opencode':
+        specifier: workspace:*
+        version: link:../../packages/ai-opencode
       '@tanstack/ai-openrouter':
         specifier: workspace:*
         version: link:../../packages/ai-openrouter

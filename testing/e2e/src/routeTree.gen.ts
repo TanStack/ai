@@ -186,6 +186,7 @@ import { Route as ApiOpenaiResponsesUsageRouteImport } from './routes/api.openai
 import { Route as ApiOpenaiShellSkillsWireRouteImport } from './routes/api.openai-shell-skills-wire'
 import { Route as ApiOpenaiStrictToolNullWireRouteImport } from './routes/api.openai-strict-tool-null-wire'
 import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
+import { Route as ApiOpencodeEventsRouteImport } from './routes/api.opencode-events'
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
 import { Route as ApiOpenrouterJsonObjectWireRouteImport } from './routes/api.openrouter-json-object-wire'
 import { Route as ApiOpenrouterReasoningWireRouteImport } from './routes/api.openrouter-reasoning-wire'
@@ -1167,6 +1168,11 @@ const ApiOpenaiUsageDetailsRoute = ApiOpenaiUsageDetailsRouteImport.update({
   path: '/api/openai-usage-details',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOpencodeEventsRoute = ApiOpencodeEventsRouteImport.update({
+  id: '/api/opencode-events',
+  path: '/api/opencode-events',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOpenrouterCostRoute = ApiOpenrouterCostRouteImport.update({
   id: '/api/openrouter-cost',
   path: '/api/openrouter-cost',
@@ -1648,6 +1654,7 @@ export interface FileRoutesByFullPath {
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
+  '/api/opencode-events': typeof ApiOpencodeEventsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
@@ -1884,6 +1891,7 @@ export interface FileRoutesByTo {
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
+  '/api/opencode-events': typeof ApiOpencodeEventsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
@@ -2121,6 +2129,7 @@ export interface FileRoutesById {
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
+  '/api/opencode-events': typeof ApiOpencodeEventsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
@@ -2359,6 +2368,7 @@ export interface FileRouteTypes {
     | '/api/openai-shell-skills-wire'
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
+    | '/api/opencode-events'
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
     | '/api/openrouter-reasoning-wire'
@@ -2595,6 +2605,7 @@ export interface FileRouteTypes {
     | '/api/openai-shell-skills-wire'
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
+    | '/api/opencode-events'
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
     | '/api/openrouter-reasoning-wire'
@@ -2831,6 +2842,7 @@ export interface FileRouteTypes {
     | '/api/openai-shell-skills-wire'
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
+    | '/api/opencode-events'
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
     | '/api/openrouter-reasoning-wire'
@@ -3068,6 +3080,7 @@ export interface RootRouteChildren {
   ApiOpenaiShellSkillsWireRoute: typeof ApiOpenaiShellSkillsWireRoute
   ApiOpenaiStrictToolNullWireRoute: typeof ApiOpenaiStrictToolNullWireRoute
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
+  ApiOpencodeEventsRoute: typeof ApiOpencodeEventsRoute
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
   ApiOpenrouterJsonObjectWireRoute: typeof ApiOpenrouterJsonObjectWireRoute
   ApiOpenrouterReasoningWireRoute: typeof ApiOpenrouterReasoningWireRoute
@@ -4364,6 +4377,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpenaiUsageDetailsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/opencode-events': {
+      id: '/api/opencode-events'
+      path: '/api/opencode-events'
+      fullPath: '/api/opencode-events'
+      preLoaderRoute: typeof ApiOpencodeEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/openrouter-cost': {
       id: '/api/openrouter-cost'
       path: '/api/openrouter-cost'
@@ -5006,6 +5026,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenaiShellSkillsWireRoute: ApiOpenaiShellSkillsWireRoute,
   ApiOpenaiStrictToolNullWireRoute: ApiOpenaiStrictToolNullWireRoute,
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,
+  ApiOpencodeEventsRoute: ApiOpencodeEventsRoute,
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
   ApiOpenrouterJsonObjectWireRoute: ApiOpenrouterJsonObjectWireRoute,
   ApiOpenrouterReasoningWireRoute: ApiOpenrouterReasoningWireRoute,
