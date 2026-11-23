@@ -2,6 +2,7 @@ import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import {
   createAdapterFalClient,
+  falValidationMessage,
   generateId as utilGenerateId,
 } from '../utils/client'
 import { buildFalUsage, takeBillableUnits } from '../utils/billing'
@@ -261,15 +262,11 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
       if (options?.abortSignal?.aborted) throw error
       // fal.ai may report COMPLETED status but throw on result fetch
       // (e.g. 422 validation errors). Extract the detailed error info.
-      const err = error as { body?: { detail?: unknown }; message?: string }
-      const detail = err.body?.detail
-      if (Array.isArray(detail)) {
-        const messages = detail.map(
-          (d: { msg?: string; loc?: Array<string> }) =>
-            d.loc ? `${d.loc.join('.')}: ${d.msg}` : d.msg,
-        )
-        throw new Error(`Video generation failed: ${messages.join('; ')}`)
+      const validation = falValidationMessage(error)
+      if (validation) {
+        throw new Error(`Video generation failed: ${validation}`)
       }
+      const err = error as { message?: string }
       throw new Error(
         `Failed to retrieve video result: ${err.message || String(error)}`,
       )

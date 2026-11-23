@@ -43,6 +43,16 @@ test.describe('chat({ reasoning }) — wire format', () => {
     })
   })
 
+  test('openai-compatible sends reasoning_effort from the reasoning option', async ({
+    request,
+    testId,
+  }) => {
+    const { bodies, text } = await run(request, 'openai-compatible', testId)
+    expect(bodies[0]?.['model']).toBe('deepseek-reasoner')
+    expect(bodies[0]?.['reasoning_effort']).toBe('medium')
+    expect(text).toContain('Fender Stratocaster')
+  })
+
   test('anthropic sends budget thinking for a budget model', async ({
     request,
     testId,
@@ -52,6 +62,7 @@ test.describe('chat({ reasoning }) — wire format', () => {
     expect(bodies[0]?.['thinking']).toEqual({
       type: 'enabled',
       budget_tokens: 8192,
+      block_binding: { prefix_mismatch_behavior: 'drop_block' },
     })
     expect(bodies[0]?.['max_tokens']).toBeGreaterThan(8192)
   })
@@ -65,6 +76,7 @@ test.describe('chat({ reasoning }) — wire format', () => {
     expect(bodies[0]?.['thinking']).toEqual({
       type: 'adaptive',
       display: 'summarized',
+      block_binding: { prefix_mismatch_behavior: 'drop_block' },
     })
     expect(bodies[0]?.['output_config']).toEqual({ effort: 'medium' })
     expect(bodies[0]).not.toHaveProperty('effort')

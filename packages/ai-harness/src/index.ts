@@ -1,6 +1,7 @@
 export { defineHarness, isHarnessDefinition } from './define'
 export type {
   AnyHarness,
+  HandoffToolContext,
   HarnessAgentsOf,
   HarnessConfig,
   HarnessDefinition,

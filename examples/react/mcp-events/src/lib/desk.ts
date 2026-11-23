@@ -145,10 +145,7 @@ export function handleWebhook(request: Request) {
 async function signAndDeliver(sub: StoredSub, bodyObj: unknown) {
   const raw = new TextEncoder().encode(JSON.stringify(bodyObj))
   const timestamp = Math.floor(Date.now() / 1000)
-  const messageId =
-    isRecord(bodyObj) && typeof bodyObj.eventId === 'string'
-      ? bodyObj.eventId
-      : `msg_${crypto.randomUUID()}`
+  const messageId = `msg_${crypto.randomUUID()}`
   const signature = await signMCPEventPayload({
     secret: sub.secret,
     messageId,

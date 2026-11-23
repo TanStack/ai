@@ -5,8 +5,65 @@ import type {
   ToolCacheEntry,
   ToolCacheStorage,
 } from '../src/middlewares/tool-cache'
-import type { StreamChunk } from '../src/types'
+import type { StreamChunk, Tool } from '../src/types'
 import { ev, createMockAdapter, collectChunks, serverTool } from './test-utils'
+
+type CacheMiddleware = ReturnType<typeof toolCacheMiddleware>
+
+function toolCallFor(id: string, name: string, args: Record<string, unknown>) {
+  return {
+    id,
+    type: 'function' as const,
+    function: { name, arguments: JSON.stringify(args) },
+  }
+}
+
+/** Calls the onBeforeToolCall hook directly, without a chat() run. */
+function beforeToolCall(
+  mw: CacheMiddleware,
+  tool: Tool,
+  toolCallId: string,
+  args: Record<string, unknown> = {},
+) {
+  // The hook does not read the chat context, so an empty one is enough.
+  return mw.onBeforeToolCall!(
+    {} as Parameters<NonNullable<CacheMiddleware['onBeforeToolCall']>>[0],
+    {
+      toolCall: toolCallFor(toolCallId, tool.name, args),
+      tool,
+      args,
+      toolName: tool.name,
+      toolCallId,
+    },
+  )
+}
+
+/** Calls the onAfterToolCall hook directly for a successful tool call. */
+function afterToolCall(
+  mw: CacheMiddleware,
+  tool: Tool,
+  toolCallId: string,
+  options: {
+    result: unknown
+    args?: Record<string, unknown>
+    metadata?: Record<string, unknown>
+  },
+) {
+  // The hook does not read the chat context, so an empty one is enough.
+  return mw.onAfterToolCall!(
+    {} as Parameters<NonNullable<CacheMiddleware['onAfterToolCall']>>[0],
+    {
+      toolCall: toolCallFor(toolCallId, tool.name, options.args ?? {}),
+      tool,
+      toolName: tool.name,
+      toolCallId,
+      ok: true,
+      duration: 10,
+      result: options.result,
+      metadata: options.metadata,
+    },
+  )
+}
 
 // ============================================================================
 // Tests
@@ -188,84 +245,24 @@ describe('toolCacheMiddleware', () => {
 
       // Manually simulate the cache flow with controlled time
       // First tool call: cache miss, execute, store
-      const beforeResult1 = await cacheMiddleware.onBeforeToolCall!(
-        {} as Parameters<
-          NonNullable<typeof cacheMiddleware.onBeforeToolCall>
-        >[0],
-        {
-          toolCall: {
-            id: 'tc-1',
-            type: 'function',
-            function: { name: 'getData', arguments: '{}' },
-          },
-          tool: tool,
-          args: {},
-          toolName: 'getData',
-          toolCallId: 'tc-1',
-        },
-      )
+      const beforeResult1 = await beforeToolCall(cacheMiddleware, tool, 'tc-1')
       // No cache entry — should proceed
       expect(beforeResult1).toBeUndefined()
 
       // Simulate successful execution and store result
-      await cacheMiddleware.onAfterToolCall!(
-        {} as Parameters<
-          NonNullable<typeof cacheMiddleware.onAfterToolCall>
-        >[0],
-        {
-          toolCall: {
-            id: 'tc-1',
-            type: 'function',
-            function: { name: 'getData', arguments: '{}' },
-          },
-          tool: tool,
-          toolName: 'getData',
-          toolCallId: 'tc-1',
-          ok: true,
-          duration: 10,
-          result: { data: 1 },
-        },
-      )
+      await afterToolCall(cacheMiddleware, tool, 'tc-1', {
+        result: { data: 1 },
+      })
 
       // Second call immediately — should hit cache
-      const beforeResult2 = await cacheMiddleware.onBeforeToolCall!(
-        {} as Parameters<
-          NonNullable<typeof cacheMiddleware.onBeforeToolCall>
-        >[0],
-        {
-          toolCall: {
-            id: 'tc-2',
-            type: 'function',
-            function: { name: 'getData', arguments: '{}' },
-          },
-          tool: tool,
-          args: {},
-          toolName: 'getData',
-          toolCallId: 'tc-2',
-        },
-      )
+      const beforeResult2 = await beforeToolCall(cacheMiddleware, tool, 'tc-2')
       expect(beforeResult2).toEqual({ type: 'skip', result: { data: 1 } })
 
       // Advance time past TTL
       vi.advanceTimersByTime(6000)
 
       // Third call after TTL — should miss cache
-      const beforeResult3 = await cacheMiddleware.onBeforeToolCall!(
-        {} as Parameters<
-          NonNullable<typeof cacheMiddleware.onBeforeToolCall>
-        >[0],
-        {
-          toolCall: {
-            id: 'tc-3',
-            type: 'function',
-            function: { name: 'getData', arguments: '{}' },
-          },
-          tool: tool,
-          args: {},
-          toolName: 'getData',
-          toolCallId: 'tc-3',
-        },
-      )
+      const beforeResult3 = await beforeToolCall(cacheMiddleware, tool, 'tc-3')
       // Expired — should proceed with execution
       expect(beforeResult3).toBeUndefined()
     } finally {
@@ -638,45 +635,15 @@ describe('toolCacheMiddleware', () => {
         })
 
         // Store an entry via onAfterToolCall
-        await cacheMiddleware.onAfterToolCall!(
-          {} as Parameters<
-            NonNullable<typeof cacheMiddleware.onAfterToolCall>
-          >[0],
-          {
-            toolCall: {
-              id: 'tc-1',
-              type: 'function',
-              function: { name: 'getData', arguments: '{}' },
-            },
-            tool: tool,
-            toolName: 'getData',
-            toolCallId: 'tc-1',
-            ok: true,
-            duration: 10,
-            result: { data: 1 },
-          },
-        )
+        await afterToolCall(cacheMiddleware, tool, 'tc-1', {
+          result: { data: 1 },
+        })
 
         // Advance time past TTL
         vi.advanceTimersByTime(6000)
 
         // Try to get — should be expired
-        const result = await cacheMiddleware.onBeforeToolCall!(
-          {} as Parameters<
-            NonNullable<typeof cacheMiddleware.onBeforeToolCall>
-          >[0],
-          {
-            toolCall: {
-              id: 'tc-2',
-              type: 'function',
-              function: { name: 'getData', arguments: '{}' },
-            },
-            tool: tool,
-            args: {},
-            toolName: 'getData',
-            toolCallId: 'tc-2',
-          },
-        )
+        const result = await beforeToolCall(cacheMiddleware, tool, 'tc-2')
 
         expect(result).toBeUndefined()
         // deleteItem called for expired entry
@@ -698,50 +665,60 @@ describe('toolCacheMiddleware', () => {
       const cacheMiddleware = toolCacheMiddleware({ storage })
 
       // Trigger a before check (miss)
-      await cacheMiddleware.onBeforeToolCall!(
-        {} as Parameters<
-          NonNullable<typeof cacheMiddleware.onBeforeToolCall>
-        >[0],
-        {
-          toolCall: {
-            id: 'tc-1',
-            type: 'function',
-            function: { name: 'search', arguments: '{"q":"hello"}' },
-          },
-          tool: tool,
-          args: { q: 'hello' },
-          toolName: 'search',
-          toolCallId: 'tc-1',
-        },
-      )
+      await beforeToolCall(cacheMiddleware, tool, 'tc-1', { q: 'hello' })
 
       const expectedKey = JSON.stringify(['search', { q: 'hello' }])
       expect(getSpy).toHaveBeenCalledWith(expectedKey)
 
       // Store a result
-      await cacheMiddleware.onAfterToolCall!(
-        {} as Parameters<
-          NonNullable<typeof cacheMiddleware.onAfterToolCall>
-        >[0],
-        {
-          toolCall: {
-            id: 'tc-1',
-            type: 'function',
-            function: { name: 'search', arguments: '{"q":"hello"}' },
-          },
-          tool: tool,
-          toolName: 'search',
-          toolCallId: 'tc-1',
-          ok: true,
-          duration: 5,
-          result: { results: [] },
-        },
-      )
+      await afterToolCall(cacheMiddleware, tool, 'tc-1', {
+        result: { results: [] },
+        args: { q: 'hello' },
+      })
 
       expect(setSpy).toHaveBeenCalledWith(expectedKey, {
         result: { results: [] },
         timestamp: expect.any(Number),
       })
+    })
+
+    it('should store result metadata and return it on a cache hit', async () => {
+      const tool = serverTool('search', () => ({ results: ['doc-1'] }))
+      const storage = createMapStorage()
+      const cacheMiddleware = toolCacheMiddleware({ storage })
+
+      await afterToolCall(cacheMiddleware, tool, 'tc-1', {
+        result: { results: ['doc-1'] },
+        metadata: { sources: [{ id: 'doc-1', title: 'Guide' }] },
+      })
+
+      expect(storage.store.get(JSON.stringify(['search', {}]))).toEqual({
+        result: { results: ['doc-1'] },
+        timestamp: expect.any(Number),
+        metadata: { sources: [{ id: 'doc-1', title: 'Guide' }] },
+      })
+      expect(await beforeToolCall(cacheMiddleware, tool, 'tc-2')).toEqual({
+        type: 'skip',
+        result: { results: ['doc-1'] },
+        metadata: { sources: [{ id: 'doc-1', title: 'Guide' }] },
+      })
+    })
+
+    it('should serve an entry without metadata as a skip with no metadata', async () => {
+      const tool = serverTool('getWeather', () => ({ temp: 72 }))
+      const storage = createMapStorage()
+      storage.store.set(JSON.stringify(['getWeather', {}]), {
+        result: { temp: 72 },
+        timestamp: Date.now(),
+      })
+      const cacheMiddleware = toolCacheMiddleware({ storage })
+
+      expect(await beforeToolCall(cacheMiddleware, tool, 'tc-1')).toStrictEqual(
+        {
+          type: 'skip',
+          result: { temp: 72 },
+        },
+      )
     })
 
     it('should share cache across multiple chat() calls via shared storage', async () => {

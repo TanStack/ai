@@ -2190,6 +2190,9 @@ export class SharedLog<TState = unknown> {
     const isBusy = [...this.views.values()].some((view) => view.hooks.isBusy())
     if (epoch === undefined || isBusy || this.pending.length > 0) return
     this.epoch = undefined
+    // No owner, so no snapshot to write: the timer would only wait for a
+    // limit that no snapshot of this host can meet.
+    this.stopSnapshotTimer()
     await this.ownership.release(this.logId, epoch)
   }
 

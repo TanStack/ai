@@ -12,10 +12,12 @@ import {
 } from './response-stream'
 import { parseSseDataLine } from './sse-utils'
 import type {
+  AnyClientTool,
   ModelMessage,
   RunAgentInput,
   RunAgentResumeItem,
   RunErrorEvent,
+  SchemaInput,
   StreamChunk,
   UIMessage,
 } from '@tanstack/ai/client'
@@ -1002,6 +1004,22 @@ export interface RunAgentInputContext {
   forwardedProps?: Record<string, unknown>
   /** Extra request headers for this run (e.g. BYOK keys). POST only. */
   headers?: Record<string, string>
+  /** The chat config of this run. See {@link ChatRunConfig}. */
+  config?: ChatRunConfig
+}
+
+/**
+ * The chat config that the client gives the connection, so an adapter needs
+ * no copy of it. `connect` gets it as `runContext.config`, and `joinRun` gets
+ * it as its third argument. Fields are only added, never removed.
+ */
+export interface ChatRunConfig {
+  /** The chat `threadId`. */
+  threadId: string
+  /** The client tools, as passed to `useChat({ tools })`. */
+  tools: ReadonlyArray<AnyClientTool>
+  /** The schema passed to `useChat({ outputSchema })`. */
+  outputSchema?: SchemaInput
 }
 
 export interface ConnectConnectionAdapter {
@@ -1043,6 +1061,7 @@ export interface ConnectConnectionAdapter {
   joinRun?: (
     runId: string,
     abortSignal?: AbortSignal,
+    config?: ChatRunConfig,
   ) => AsyncIterable<StreamChunk>
   /**
    * Fetch server-driven hydration for a chat `threadId`: the stored transcript
@@ -1142,6 +1161,7 @@ export interface ResumableConnectConnectionAdapter extends ConnectConnectionAdap
   joinRun: (
     runId: string,
     abortSignal?: AbortSignal,
+    config?: ChatRunConfig,
   ) => AsyncIterable<StreamChunk>
   /**
    * Fetch server-authoritative hydration for `threadId`: the stored transcript,
@@ -1181,6 +1201,7 @@ export interface SubscribeConnectionAdapter {
   joinRun?: (
     runId: string,
     abortSignal?: AbortSignal,
+    config?: ChatRunConfig,
   ) => AsyncIterable<StreamChunk>
   /**
    * Server-authoritative hydration for a thread (transcript + in-flight-run
@@ -1397,10 +1418,15 @@ export function normalizeConnectionAdapter(
     ...(typeof (connection as ResumableConnectConnectionAdapter).joinRun ===
     'function'
       ? {
-          joinRun: (runId: string, abortSignal?: AbortSignal) =>
+          joinRun: (
+            runId: string,
+            abortSignal?: AbortSignal,
+            config?: ChatRunConfig,
+          ) =>
             (connection as ResumableConnectConnectionAdapter).joinRun(
               runId,
               abortSignal,
+              config,
             ),
         }
       : {}),
@@ -1498,6 +1524,65 @@ type ResolvedConnectionOptions = Pick<
   'body' | 'headers'
 >
 
+/**
+ * The server owns the app metadata of a tool result. A tool result that the
+ * client sends back keeps only the reserved `tanstack` key.
+ * ponytail: local, because the React Native client graph may import only
+ * @tanstack/ai/client, which does not export the metadata helpers.
+ */
+function withReservedMetadataOnly<
+  T extends { metadata?: Record<string, unknown> },
+>(row: T) {
+  const { metadata, ...rest } = row
+  const tanstack = metadata?.tanstack
+  return tanstack === undefined ? rest : { ...rest, metadata: { tanstack } }
+}
+
+/**
+ * Removes the app metadata of tool results from the UIMessages that a
+ * `ChatFetcher` or a `stream()` factory gets. Same rule as the wire rows of a connection adapter.
+ */
+function withoutAppResultMetadata(
+  messages: Array<UIMessage>,
+): Array<UIMessage> {
+  return messages.map((message) => ({
+    ...message,
+    parts: message.parts.map((part) => {
+      if (part.type === 'tool-result') return withReservedMetadataOnly(part)
+      if (part.type === 'subagent') {
+        return {
+          ...part,
+          subagent: {
+            ...part.subagent,
+            messages: withoutAppResultMetadata(part.subagent.messages),
+          },
+        }
+      }
+      if (part.type !== 'tool-call') return part
+      const { resultMetadata: _ignored, ...rest } = part
+      return rest
+    }),
+  }))
+}
+
+/** ChatClient sends UIMessages. A caller can still pass ModelMessages. */
+function isUIMessageList(
+  messages: Array<UIMessage> | Array<ModelMessage>,
+): messages is Array<UIMessage> {
+  return messages.every((message) => 'parts' in message)
+}
+
+/** The messages that a `stream()` or `rpcStream()` callback gets, without app result metadata. */
+function withoutAppMessageMetadata(
+  messages: Array<UIMessage> | Array<ModelMessage>,
+) {
+  return isUIMessageList(messages)
+    ? withoutAppResultMetadata(messages)
+    : messages.map((row) =>
+        row.role === 'tool' ? withReservedMetadataOnly(row) : row,
+      )
+}
+
 function buildRunAgentInputBody(
   messages: Array<UIMessage> | Array<ModelMessage>,
   data: Record<string, any> | undefined,
@@ -1511,7 +1596,11 @@ function buildRunAgentInputBody(
       'Connection adapter: connect() and send() need a run context with a threadId. ChatClient and the generation clients pass one. Pass it when you call the adapter yourself.',
     )
   }
-  const wireMessages = uiMessagesToWire(messages)
+  // Server snapshots also use uiMessagesToWire and keep all the metadata,
+  // so the strip is done here.
+  const wireMessages = uiMessagesToWire(messages).map((row) =>
+    row.role === 'tool' ? withReservedMetadataOnly(row) : row,
+  )
   const forwardedProps = {
     ...options.body,
     ...runContext.forwardedProps,
@@ -3001,10 +3090,10 @@ export function stream(
 ): ConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal, runContext) {
-      // Pass messages as-is (UIMessages with parts preserved)
-      // Server-side chat() handles conversion to ModelMessages
+      // Pass UIMessages with parts. Server-side chat() converts them to
+      // ModelMessages. The server owns result metadata, so it is not sent.
       const source = streamFactory(
-        messages,
+        withoutAppMessageMetadata(messages),
         data,
         abortSignal,
         buildRunAgentInputBody(messages, data, runContext, {}),
@@ -3045,7 +3134,7 @@ export function fetcherToConnectionAdapter(
       const uiMessages = messages as Array<UIMessage>
       const result = await fetcher(
         {
-          messages: uiMessages,
+          messages: withoutAppResultMetadata(uiMessages),
           data,
           threadId: runContext.threadId,
           runId: runContext.runId,
@@ -3144,10 +3233,9 @@ export function rpcStream(
 ): ConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal, runContext) {
-      // Pass messages as-is (UIMessages with parts preserved)
-      // Server-side chat() handles conversion to ModelMessages
+      // Same messages as stream(): the server owns result metadata.
       const source = rpcCall(
-        messages,
+        withoutAppMessageMetadata(messages),
         data,
         abortSignal,
         buildRunAgentInputBody(messages, data, runContext, {}),

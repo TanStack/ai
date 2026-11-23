@@ -6,10 +6,11 @@ const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
 /**
- * Generates one image on each gpt-image-2.5 model through aimock's native
- * `/v1/images/generations` handler, with a listed size and a 2.5-only
- * quality. The adapter validates the model and size before sending, so an
- * unknown id fails here with "Unknown image model".
+ * Generates one image on each gpt-image-2.5 and gpt-image-2.6 model through
+ * aimock's native `/v1/images/generations` handler, with a listed size and
+ * the `max` quality that only these models accept. The adapter validates the
+ * model and size before sending, so an unknown id fails here with
+ * "Unknown image model".
  */
 export const Route = createFileRoute('/api/openai-image-2-5-models')({
   server: {
@@ -18,6 +19,8 @@ export const Route = createFileRoute('/api/openai-image-2-5-models')({
         const results: Record<string, { imageCount?: number; error?: string }> =
           {}
         for (const model of [
+          'gpt-image-2.6-flare',
+          'gpt-image-2.6-sunburst',
           'gpt-image-2.5-flare',
           'gpt-image-2.5-sunburst',
         ] as const) {

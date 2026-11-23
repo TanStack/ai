@@ -327,15 +327,27 @@ describe('createMCPEventWebhook', () => {
     expect((await webhook(request)).status).toBe(401)
   })
 
-  it('returns 400 for an invalid control', async () => {
+  it('returns 400 for an unknown control', async () => {
     const record = sampleRecord()
     const { webhook } = await setup(record)
     const request = await signedRequest({
       record,
-      body: { type: 'gap' },
+      body: { type: 'nope' },
       timestamp: FIXED_TS,
     })
     expect((await webhook(request)).status).toBe(400)
+  })
+
+  it('verifies a webhook-timestamp that has a leading zero', async () => {
+    const record = sampleRecord()
+    const { webhook } = await setup(record)
+    const request = await signedRequest({
+      record,
+      body: eventBody(),
+      timestamp: `0${FIXED_TS}`,
+    })
+    expect(request.headers.get('webhook-timestamp')).toBe(`0${FIXED_TS}`)
+    expect((await webhook(request)).status).toBe(204)
   })
 
   it('on terminated, calls onTerminated then deletes the record and returns 204, even when pending or expired', async () => {
@@ -401,6 +413,23 @@ describe('createMCPEventWebhook', () => {
       timestamp: FIXED_TS,
     })
     expect((await webhook(request)).status).toBe(503)
+  })
+
+  it('on a gap with no cursor, calls onGap with null and stores null', async () => {
+    const record = sampleRecord()
+    const { webhook, onGap, store } = await setup(record)
+    const request = await signedRequest({
+      record,
+      body: { type: 'gap' },
+      timestamp: FIXED_TS,
+    })
+    expect((await webhook(request)).status).toBe(204)
+    expect(onGap).toHaveBeenCalledWith(
+      expect.objectContaining({
+        gap: { cursor: null, truncated: true },
+      }),
+    )
+    expect((await store.get(record.key))?.cursor).toBeNull()
   })
 
   it('on gap, calls onGap, stores cursor and truncated:true, returns 204', async () => {
@@ -496,16 +525,51 @@ describe('createMCPEventWebhook', () => {
     expect((await webhook(request)).status).toBe(400)
   })
 
-  it('returns 400 when eventId differs from webhook-id', async () => {
+  it.each([
+    ['equal to eventId (older servers)', 'evt_1'],
+    ['a per-message id (SEP-3415)', 'msg_1'],
+  ])('accepts webhook-id %s', async (_label, messageId) => {
     const record = sampleRecord()
-    const { webhook } = await setup(record)
+    const { webhook, onEvent } = await setup(record)
     const request = await signedRequest({
       record,
-      body: eventBody({ eventId: 'evt_other' }),
+      body: eventBody(),
       timestamp: FIXED_TS,
-      messageId: 'evt_1',
+      messageId,
     })
-    expect((await webhook(request)).status).toBe(400)
+    expect((await webhook(request)).status).toBe(204)
+    const arg = onEvent.mock.calls[0]![0]
+    expect(arg.messageId).toBe(messageId)
+    expect(arg.event.eventId).toBe('evt_1')
+  })
+
+  it('delivers one event to two subscriptions with different webhook-ids', async () => {
+    const first = sampleRecord()
+    const second = sampleRecord({ key: 'key-2', id: 'sub-2' })
+    const { webhook, onEvent, store } = await setup(first)
+    await store.set(second)
+    for (const [record, messageId] of [
+      [first, 'msg_a'],
+      [second, 'msg_b'],
+    ] as const) {
+      const request = await signedRequest({
+        record,
+        body: eventBody(),
+        timestamp: FIXED_TS,
+        messageId,
+      })
+      expect((await webhook(request)).status).toBe(204)
+    }
+    expect(
+      onEvent.mock.calls.map(([arg]) => [
+        arg.subscription.id,
+        arg.messageId,
+        arg.event.eventId,
+      ]),
+    ).toEqual([
+      ['sub-1', 'msg_a', 'evt_1'],
+      ['sub-2', 'msg_b', 'evt_1'],
+    ])
   })
 
   it('returns 400 and calls onError(stage payload) when validatePayload throws', async () => {

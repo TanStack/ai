@@ -96,6 +96,33 @@ describe('onAfterToolCall replaceResult', () => {
     })
   })
 
+  it('stores a replaced string error result as that string', async () => {
+    const { resultChunk, toolMessage } = await runToolCall(
+      serverTool('lookup', () => {
+        throw new Error('disk full while writing /var/log/huge.log')
+      }),
+      [
+        {
+          name: 'short-errors',
+          onAfterToolCall: (_ctx, info) =>
+            info.ok ? undefined : { type: 'replaceResult', result: '42' },
+        },
+      ],
+    )
+
+    expect(resultChunk).toMatchObject({
+      content: '42',
+      metadata: {
+        tanstack: { state: 'output-error', toolResultKind: 'text' },
+      },
+    })
+    expect(toolMessage).toMatchObject({
+      content: '42',
+      error: '42',
+      metadata: { tanstack: { toolResultKind: 'text' } },
+    })
+  })
+
   it('keeps the result when a hook returns another truthy value', async () => {
     // A hook written before `replaceResult` existed can return anything.
     const legacyHook = (() => ({
@@ -110,7 +137,7 @@ describe('onAfterToolCall replaceResult', () => {
     expect(toolMessage).toMatchObject({ content: '{"rows":500}' })
   })
 
-  it('gives the hook the parsed skip result and replaces it', async () => {
+  it('gives the hook the skip result and replaces it', async () => {
     let seen: unknown
     const { resultChunk } = await runToolCall(
       serverTool('lookup', () => 'not called'),
@@ -129,7 +156,7 @@ describe('onAfterToolCall replaceResult', () => {
       ],
     )
 
-    expect(seen).toEqual({ rows: 3 })
+    expect(seen).toBe('{"rows":3}')
     expect(resultChunk).toMatchObject({ content: 'from cache' })
   })
 })

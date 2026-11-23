@@ -308,3 +308,5 @@ A Chromium window opens on tanstack.com. The model clicks through the site, and 
 The full example is on GitHub: [TanStack/ai `examples/react/computer-use`](https://github.com/TanStack/ai/tree/main/examples/react/computer-use). It has the same task in the input box.
 
 To use Anthropic, change only the adapter. To run a full desktop in a sandbox, see [Drivers](../computer-use/drivers).
+
+To let the model sign in to a site without seeing the password, open [Sign In Without the Model](./computer-use-login).

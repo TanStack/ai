@@ -30,7 +30,10 @@ import {
   readCodeExecutionSkills,
 } from '../tools/code-execution-tool'
 import { validateTextProviderOptions } from '../text/text-provider-options'
-import { anthropicThinking } from '../text/reasoning'
+import {
+  ANTHROPIC_THINKING_BINDING_BETA,
+  anthropicThinking,
+} from '../text/reasoning'
 import {
   ANTHROPIC_DEFERRED_TOOL_PLACEHOLDER_NAME,
   applyAnthropicPromptCache,
@@ -423,6 +426,8 @@ const COMPUTER_USE_BETAS = {
 /**
  * Computes the `betas` array for a Messages request. Unions:
  * - `interleaved-thinking-2025-05-14` when interleaved thinking is enabled,
+ * - `thinking-binding-controls-2026-08-01` when thinking is on, so a
+ *   rewritten prefix drops signed thinking blocks instead of failing,
  * - `code-execution-2025-08-25` when a `code_execution` tool is present,
  * - `skills-2025-10-02` when that tool carries skills,
  * - the `computer-use-*` beta of a single `computer` tool version (the
@@ -461,6 +466,12 @@ export function computeAnthropicBetas(
     typeof modelOptions.thinking.budget_tokens === 'number' &&
     modelOptions.thinking.budget_tokens > 0
   if (useInterleavedThinking) betas.add('interleaved-thinking-2025-05-14')
+  if (
+    modelOptions?.thinking?.type === 'enabled' ||
+    modelOptions?.thinking?.type === 'adaptive'
+  ) {
+    betas.add(ANTHROPIC_THINKING_BINDING_BETA)
+  }
 
   // Context editing requires the beta header; the body field alone is not
   // enough (issue #1074). `null` is a typed "unset" — do not enable the beta.
@@ -761,30 +772,36 @@ export class AnthropicTextAdapter<
 
   /**
    * With a token, drop `x-api-key`. With OAuth, also send the identity
-   * headers, and merge the configured `anthropic-beta` with the request betas.
+   * headers. A configured `anthropic-beta` replaces the SDK's `betas`
+   * header, so merge it with the request betas.
    */
   private requestHeaders(
     headers: HeadersInit | undefined,
     betas: Array<AnthropicBeta> | undefined,
   ) {
-    if (!this.tokenAuthentication) return headers
+    if (
+      !this.tokenAuthentication &&
+      !new Headers(headers).has('anthropic-beta')
+    )
+      return headers
     const requestHeaders = new Headers(
       this.oauth ? this.oauthHeaders : undefined,
     )
     new Headers(headers).forEach((value, name) =>
       requestHeaders.set(name, value),
     )
-    if (this.oauth) {
-      const configured = (requestHeaders.get('anthropic-beta') ?? '')
-        .split(',')
-        .map((value) => value.trim())
-        .filter(Boolean)
+    const configured = (requestHeaders.get('anthropic-beta') ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+    if (this.oauth || configured.length > 0) {
       requestHeaders.set(
         'anthropic-beta',
         [...new Set([...(betas ?? []), ...configured])].join(','),
       )
     }
-    return { ...Object.fromEntries(requestHeaders), 'x-api-key': null }
+    const merged = Object.fromEntries(requestHeaders)
+    return this.tokenAuthentication ? { ...merged, 'x-api-key': null } : merged
   }
 
   async *chatStream(

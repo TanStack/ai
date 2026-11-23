@@ -10,6 +10,7 @@ import type {
   Tool as McpToolDef,
   ToolAnnotations,
 } from '@modelcontextprotocol/client'
+import { appMetadata } from '@tanstack/ai/adapter-internals'
 import type {
   AnyServerTool,
   ContentPart,
@@ -625,6 +626,7 @@ export function makeMcpExecute(
       abortSignal?: AbortSignal
       inputResponse?: ToolInputResponse
       askInput?: AskInput
+      setResultMetadata?: (value: Record<string, unknown>) => void
     },
   ) => {
     const callArgs = isRecord(args) ? args : {}
@@ -646,6 +648,13 @@ export function makeMcpExecute(
       ctx?.askInput,
       meta,
     )
+    // `_meta` is data for the app, not for the model. Keep all keys except
+    // the reserved `tanstack` key. Set it before an error throw, so that an
+    // error result also keeps it.
+    const resultMetadata = appMetadata(result._meta)
+    if (resultMetadata !== undefined) {
+      ctx?.setResultMetadata?.(resultMetadata)
+    }
     if (result.isError) {
       const text = Array.isArray(result.content)
         ? mcpContentToTanstack(result.content)

@@ -11,12 +11,18 @@ export {
   generateAudio,
   generateVideo,
   getVideoJobStatus,
+  generate3dModel,
+  get3dModelJobStatus,
   generateSpeech,
   listVoices,
   generateVoice,
   generateTranscription,
   embed,
   generateWorld,
+  generate3dMotion,
+  get3dMotionJobStatus,
+  cancel3dMotionJob,
+  MOTION3D_EVENTS,
   generateLiveVideo,
   uploadFile,
   getFile,
@@ -31,11 +37,13 @@ export { createRerankOptions } from './activities/rerank/index'
 export { createImageOptions } from './activities/generateImage/index'
 export { createAudioOptions } from './activities/generateAudio/index'
 export { createVideoOptions } from './activities/generateVideo/index'
+export { create3dModelOptions } from './activities/generate3dModel/index'
 export { createSpeechOptions } from './activities/generateSpeech/index'
 export { createVoiceOptions } from './activities/generateVoice/index'
 export { createTranscriptionOptions } from './activities/generateTranscription/index'
 export { createEmbedOptions } from './activities/embed/index'
 export { createWorldOptions } from './activities/generateWorld/index'
+export { create3dMotionOptions } from './activities/generate3dMotion/index'
 export { createLiveVideoOptions } from './activities/generateLiveVideo/index'
 
 // Re-export types
@@ -58,6 +66,15 @@ export type {
   TranscriptionAdapter,
   AnyVideoAdapter,
   VideoAdapter,
+  AnyModel3dAdapter,
+  Model3dAdapter,
+  Model3dAdapterConfig,
+  Model3dActivityOptions,
+  Model3dActivityResult,
+  Model3dProviderOptions,
+  Model3dPromptForAdapter,
+  Model3dJobStatusOptions,
+  Model3dJobStatusResult,
   AnyEmbeddingAdapter,
   EmbeddingAdapter,
   AnyRerankAdapter,
@@ -72,6 +89,14 @@ export type {
   WireAnswer,
   AnyWorldAdapter,
   WorldAdapter,
+  AnyMotion3dAdapter,
+  Motion3dAdapter,
+  Motion3dActivityOptions,
+  Motion3dActivityResult,
+  Motion3dProviderOptions,
+  Motion3dJobStatusOptions,
+  Motion3dJobStatusResult,
+  CancelMotion3dJobOptions,
   AnyLiveVideoAdapter,
   LiveVideoAdapter,
   FilesAdapter,
@@ -79,6 +104,9 @@ export type {
   FileHandle,
   FileUploadInput,
 } from './activities/index'
+
+// 3D model adapter base (experimental)
+export { BaseModel3dAdapter } from './activities/generate3dModel/adapter'
 
 // Rerank adapter base + types
 export { BaseRerankAdapter } from './activities/rerank/adapter'
@@ -154,13 +182,25 @@ export {
   type InferToolName,
   type InferToolInput,
   type InferToolOutput,
+  type InferToolResultMetadata,
   type ApprovalCapabilityOf,
   type ApprovalSchemaConfig,
   type ApprovalSchemaOf,
   type InputSchemaOf,
   type OutputSchemaOf,
   type NoSchema,
+  type TruncateStrategy,
+  type FieldProjection,
+  type ToolContextPolicy,
 } from './activities/chat/tools/tool-definition'
+export {
+  truncateHead,
+  truncateTail,
+  truncateHeadTail,
+  dropWithRef,
+  aboveTokens,
+  type StrategyOptions,
+} from './activities/chat/tools/projection-builders'
 export {
   hashSchemaInput,
   normalizeApprovalSchema,

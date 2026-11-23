@@ -471,7 +471,16 @@ export type BeforeToolCallDecision =
   | undefined
   | null
   | { type: 'transformArgs'; args: unknown }
-  | { type: 'skip'; result: unknown }
+  | {
+      type: 'skip'
+      result: unknown
+      /**
+       * Optional result metadata for the app. The model never sees it. The
+       * tool does not run, so the result gets only this metadata. The value
+       * is not checked against the tool schema.
+       */
+      metadata?: Record<string, unknown>
+    }
   | { type: 'abort'; reason?: string }
 
 /**
@@ -485,7 +494,16 @@ export type GuardToolCallDecision =
   | void
   | undefined
   | null
-  | { type: 'skip'; result: unknown }
+  | {
+      type: 'skip'
+      result: unknown
+      /**
+       * Optional result metadata for the app. The model never sees it. The
+       * tool does not run, so the result gets only this metadata. The value
+       * is not checked against the tool schema.
+       */
+      metadata?: Record<string, unknown>
+    }
   | { type: 'abort'; reason?: string }
 
 /**
@@ -507,6 +525,11 @@ export interface AfterToolCallInfo {
   /** The result (if ok) or error (if not ok) */
   result?: unknown
   error?: unknown
+  /**
+   * Result metadata for the app. The model never sees it. A `replaceResult`
+   * with `metadata` from an earlier middleware changes this value.
+   */
+  metadata?: Record<string, unknown>
 }
 
 /**
@@ -515,10 +538,18 @@ export interface AfterToolCallInfo {
  * - { type: 'replaceResult', result }: use this result instead. The model and
  *   the stream see it. The next middleware gets it as `info.result`. An error
  *   result stays an error.
+ * - { type: 'replaceResult', result, metadata }: also replace the result
+ *   metadata. The next middleware gets it as `info.metadata`.
  */
 export type AfterToolCallDecision = void | {
   type: 'replaceResult'
   result: unknown
+  /**
+   * Optional result metadata for the app. The model never sees it.
+   * Missing or `undefined` keeps the current metadata. `{}` removes all
+   * metadata. The value is not checked against the tool schema.
+   */
+  metadata?: Record<string, unknown>
 }
 
 // ===========================

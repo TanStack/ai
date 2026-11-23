@@ -2,8 +2,7 @@ import type { ClientCapabilities } from '@modelcontextprotocol/client'
 import { isRecord } from './value'
 
 /**
- * MCP Events extension id from SEP-3415
- * (`modelcontextprotocol/modelcontextprotocol@2ec39b9`).
+ * MCP Events extension id from the final text of SEP-3415.
  *
  * @experimental
  */

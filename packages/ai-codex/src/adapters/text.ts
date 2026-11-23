@@ -21,6 +21,8 @@ import {
   resolveDurableRunId,
   spawnNdjson,
 } from '@tanstack/ai-sandbox'
+import { mountHostLogin } from '@tanstack/ai-sandbox/host-login'
+import { codexAuthFile } from '../login'
 import { buildPrompt } from '../messages/prompt'
 import { translateThreadEvents } from '../stream/translate'
 import { projectCodexWorkspace } from './projection'
@@ -70,6 +72,16 @@ function defaultSandboxMode(provider: string): CodexSandboxMode {
 
 export type CodexAuthMode = 'host' | 'api-key'
 
+/** API key variables that Codex prefers over its `codex login` file. */
+const API_KEY_VARS = ['CODEX_API_KEY', 'OPENAI_API_KEY']
+
+/** `env` without {@link API_KEY_VARS}. */
+function withoutApiKeys(env: Record<string, string>) {
+  return Object.fromEntries(
+    Object.entries(env).filter(([name]) => !API_KEY_VARS.includes(name)),
+  )
+}
+
 export interface CodexTextConfig {
   /** Working directory inside the sandbox. Defaults to `/workspace`. */
   cwd?: string
@@ -98,7 +110,10 @@ export interface CodexTextConfig {
   codexExecutable?: string
   /**
    * `'api-key'` (default) expects `CODEX_API_KEY` in the process or sandbox
-   * secrets. `'host'` uses `codex login`. Not inferred from the sandbox.
+   * secrets. `'host'` uses the `codex login` of this machine (see
+   * `codexPlanLogin`): codex runs without `CODEX_API_KEY` and
+   * `OPENAI_API_KEY`, and a sandbox that is not `local-process` gets a copy
+   * of the login file for the run. Not inferred from the sandbox.
    */
   authMode?: CodexAuthMode
   /** Extra environment variables for the codex process inside the sandbox. */
@@ -303,6 +318,14 @@ export class CodexTextAdapter<
     let bridge: HostToolBridge | undefined
     const tempFiles: Array<string> = []
     let cleanupSandbox: SandboxHandle | undefined
+    let releaseLogin:
+      | ((options: { keep: boolean }) => Promise<void>)
+      | undefined
+    // A durable agent can outlive this stream. Its login then stays in the
+    // sandbox for the host that attaches.
+    let keepLogin = false
+    let runFailed = false
+    let releaseFailure: { error: unknown } | undefined
     // Durability caveat: the journaled path below derives its journal file
     // path from `runId` alone (see `journalPaths` in `@tanstack/ai-sandbox`),
     // and a successor host must recompute that same path to resume this run.
@@ -332,6 +355,23 @@ export class CodexTextAdapter<
       const sandbox = this.sandboxFrom(options)
       cleanupSandbox = sandbox
       const cwd = this.workdir(options)
+      const authMode =
+        options.modelOptions?.authMode ??
+        this.adapterConfig.authMode ??
+        'api-key'
+      const isHostAuth = authMode === 'host'
+      if (isHostAuth) {
+        // Before any other work, so a missing login fails fast.
+        const login = await mountHostLogin(sandbox, {
+          hostPath: codexAuthFile(process.env),
+          sandboxHomePath: '.codex/auth.json',
+          label: 'Codex',
+          connectCommand: '/connect:codex',
+          adopt: durability?.attach === true,
+        })
+        releaseLogin = login.release
+        if (durability?.attach === true) keepLogin = true
+      }
 
       // Project declarative workspace inputs (MCP/skills) into codex's native
       // format. Re-runs each call so rotated secrets re-apply; idempotent ops
@@ -382,7 +422,7 @@ export class CodexTextAdapter<
         tempFiles.push(schemaPath)
         outputSchemaArg = schemaFile
       }
-      const command = this.buildCommand(
+      const codexCommand = this.buildCommand(
         options,
         resume,
         bridge,
@@ -390,6 +430,14 @@ export class CodexTextAdapter<
         sandbox.provider,
         outputSchemaArg,
       )
+      // Codex uses an API key before its login file. With the plan login,
+      // remove the keys that the sandbox env or its secrets can hold.
+      const command = isHostAuth
+        ? `env ${API_KEY_VARS.map((name) => `-u ${name}`).join(' ')} ${codexCommand}`
+        : codexCommand
+      const configEnv = this.adapterConfig.env
+      const env =
+        isHostAuth && configEnv ? withoutApiKeys(configEnv) : configEnv
 
       logger.request(
         `activity=chat provider=codex model=${this.model} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${resume ?? 'none'}`,
@@ -436,7 +484,7 @@ export class CodexTextAdapter<
       const rawEvents = spawnNdjson(sandbox, runCommand, {
         cwd,
         ...(stdinInput !== undefined ? { input: stdinInput } : {}),
-        ...(this.adapterConfig.env ? { env: this.adapterConfig.env } : {}),
+        ...(env ? { env } : {}),
         ...(options.abortController?.signal
           ? { signal: options.abortController.signal }
           : options.request?.signal
@@ -478,6 +526,7 @@ export class CodexTextAdapter<
       // translator alone: the stored log holds the previous host's MERGED
       // output, so comparing against anything else would compare against a
       // stream the log never contained.
+      keepLogin = durability !== undefined
       yield* alignedIfAttaching(
         mergeChunkStreams(
           translateThreadEvents(asEvents(), {
@@ -499,7 +548,22 @@ export class CodexTextAdapter<
         durability,
         logger,
       )
+      // The journal read also ends when the host is aborted. The agent runs on.
+      const signal = options.abortController?.signal ?? options.request?.signal
+      keepLogin = keepLogin && signal?.aborted === true
     } catch (error: unknown) {
+      runFailed = true
+      const signal = options.abortController?.signal ?? options.request?.signal
+      // Only a durable agent can run on, and only if its exit was not seen.
+      // A dead or stalled journal read does not mean the agent stopped.
+      // ponytail: the exit is told by the message `spawnNdjson` throws.
+      const exited =
+        error instanceof Error &&
+        error.message.startsWith('Agent process exited with code')
+      keepLogin =
+        durability !== undefined &&
+        !exited &&
+        (signal?.aborted === true || keepLogin)
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
       logger.errors('codex.chatStream fatal', {
@@ -519,6 +583,11 @@ export class CodexTextAdapter<
         },
       }
     } finally {
+      // First, because the sandbox copy of the login holds the plan tokens.
+      releaseFailure = await releaseLogin?.({ keep: keepLogin }).then(
+        () => undefined,
+        (error: unknown) => ({ error }),
+      )
       channel.close()
       await bridge?.close()
       if (cleanupSandbox) {
@@ -530,7 +599,16 @@ export class CodexTextAdapter<
           }
         }
       }
+      if (releaseFailure) {
+        logger.errors('codex.chatStream login release failed', {
+          error: releaseFailure.error,
+          source: 'codex.chatStream',
+        })
+      }
     }
+    // Reached when the stream ran to its end. A failed run already reported
+    // its own error, so a release error does not replace it.
+    if (releaseFailure && !runFailed) throw releaseFailure.error
   }
 
   structuredOutput(

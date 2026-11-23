@@ -33,11 +33,13 @@ export default mergeConfig(
     // Core entry + the optional ngrok tool-bridge provisioner subpath
     // (`@tanstack/ai-sandbox/ngrok`), which lazy-loads the optional `@ngrok/ngrok`
     // peer dep so the core never pulls in its native binary + the SandboxInstanceStore
-    // conformance testkit (`@tanstack/ai-sandbox/testkit`).
+    // conformance testkit (`@tanstack/ai-sandbox/testkit`), and the server-only
+    // plan sign-in helpers (`@tanstack/ai-sandbox/host-login`).
     entry: [
       './src/index.ts',
       './src/harness.ts',
       './src/ngrok.ts',
+      './src/host-login.ts',
       './src/testkit/conformance.ts',
     ],
     srcDir: './src',

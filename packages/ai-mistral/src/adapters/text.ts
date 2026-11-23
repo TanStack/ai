@@ -803,6 +803,12 @@ export class MistralTextAdapter<
           )
         }
         if (finishReason) {
+          // Mistral reports a failed generation as finish_reason 'error'. It
+          // must not end the run as a success; the catch below closes open
+          // lifecycle events and chatStream emits the RUN_ERROR.
+          if (finishReason === 'error') {
+            throw new Error(`Provider finish_reason: ${finishReason}`)
+          }
           if (finishReason === 'tool_calls' || toolCallsInProgress.size > 0) {
             for (const [, toolCall] of toolCallsInProgress) {
               if (

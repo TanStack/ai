@@ -19,6 +19,7 @@ import type { AnySummarizeAdapter } from './summarize/adapter'
 import type { AnyImageAdapter } from './generateImage/adapter'
 import type { AnyAudioAdapter } from './generateAudio/adapter'
 import type { AnyVideoAdapter } from './generateVideo/adapter'
+import type { AnyModel3dAdapter } from './generate3dModel/adapter'
 import type { AnyTTSAdapter } from './generateSpeech/adapter'
 import type { AnyVoiceAdapter } from './generateVoice/adapter'
 import type { AnyTranscriptionAdapter } from './generateTranscription/adapter'
@@ -26,6 +27,7 @@ import type { AnyEmbeddingAdapter } from './embed/adapter'
 import type { AnyRerankAdapter } from './rerank/adapter'
 import type { AnyEvaluateAdapter } from './evaluate/adapter'
 import type { AnyWorldAdapter } from './generateWorld/adapter'
+import type { AnyMotion3dAdapter } from './generate3dMotion/adapter'
 import type { AnyLiveVideoAdapter } from './generateLiveVideo/adapter'
 import type { AnyFilesAdapter } from './files/adapter'
 
@@ -228,6 +230,30 @@ export {
 export { durationToSeconds, snapToDurationOption } from './generateVideo/snap'
 
 // ===========================
+// 3D Model Activity (Experimental)
+// ===========================
+
+export {
+  kind as model3dKind,
+  generate3dModel,
+  get3dModelJobStatus,
+  create3dModelOptions,
+  type Model3dActivityOptions,
+  type Model3dActivityResult,
+  type Model3dProviderOptions,
+  type Model3dPromptForAdapter,
+  type Model3dJobStatusOptions,
+  type Model3dJobStatusResult,
+} from './generate3dModel/index'
+
+export {
+  BaseModel3dAdapter,
+  type Model3dAdapter,
+  type Model3dAdapterConfig,
+  type AnyModel3dAdapter,
+} from './generate3dModel/adapter'
+
+// ===========================
 // TTS Activity
 // ===========================
 
@@ -327,6 +353,30 @@ export {
 } from './generateWorld/adapter'
 
 // ===========================
+// Motion Activity (Experimental)
+// ===========================
+
+export {
+  kind as motionKind,
+  generate3dMotion,
+  get3dMotionJobStatus,
+  cancel3dMotionJob,
+  MOTION3D_EVENTS,
+  type Motion3dActivityOptions,
+  type Motion3dActivityResult,
+  type Motion3dProviderOptions,
+  type Motion3dJobStatusOptions,
+  type Motion3dJobStatusResult,
+  type CancelMotion3dJobOptions,
+} from './generate3dMotion/index'
+
+export {
+  BaseMotion3dAdapter,
+  type Motion3dAdapter,
+  type AnyMotion3dAdapter,
+} from './generate3dMotion/adapter'
+
+// ===========================
 // Live Activity (Experimental)
 // ===========================
 
@@ -377,6 +427,7 @@ export type AIAdapter =
   | AnyImageAdapter
   | AnyAudioAdapter
   | AnyVideoAdapter
+  | AnyModel3dAdapter
   | AnyTTSAdapter
   | AnyVoiceAdapter
   | AnyTranscriptionAdapter
@@ -384,6 +435,7 @@ export type AIAdapter =
   | AnyRerankAdapter
   | AnyEvaluateAdapter
   | AnyWorldAdapter
+  | AnyMotion3dAdapter
   | AnyLiveVideoAdapter
   | AnyFilesAdapter
 
@@ -394,6 +446,7 @@ export type AdapterKind =
   | 'image'
   | 'audio'
   | 'video'
+  | '3dModel'
   | 'tts'
   | 'voice'
   | 'transcription'
@@ -401,5 +454,6 @@ export type AdapterKind =
   | 'rerank'
   | 'evaluate'
   | 'world'
+  | 'motion3d'
   | 'liveVideo'
   | 'files'

@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import {
+  fal3dModel,
   falFiles,
   falImage,
   falLiveVideo,
@@ -25,6 +26,7 @@ import {
 } from '@tanstack/ai-byteplus'
 import {
   fileSourceFromHandle,
+  generate3dModel,
   generateImage,
   generateLiveVideo,
   generateVideo,
@@ -58,6 +60,8 @@ import type {
 } from './models'
 import {
   isLiveVideoModelId,
+  isMeshToolModelId,
+  isModel3dModelId,
   liveVideoProvider,
   WORLD_RESOLUTIONS,
 } from './models'
@@ -167,6 +171,7 @@ function asImageToVideoPrompt(
 async function uploadInlineImageInputs(
   prompt: string | Array<TextPart | ImagePart<MediaInputMetadata>>,
   files: FilesAdapter,
+  abortSignal?: AbortSignal,
 ): Promise<string | Array<TextPart | ImagePart<MediaInputMetadata>>> {
   if (typeof prompt === 'string') return prompt
   return Promise.all(
@@ -175,6 +180,7 @@ async function uploadInlineImageInputs(
       const handle = await uploadFile({
         adapter: files,
         input: { data: part.source.value, mimeType: part.source.mimeType },
+        abortSignal,
       })
       return { ...part, source: fileSourceFromHandle(handle) }
     }),
@@ -202,6 +208,10 @@ function falI(model: Parameters<typeof falImage>[0]) {
 
 function falV(model: Parameters<typeof falVideo>[0]) {
   return falVideo(model, { apiKey: requireByok(falByok) })
+}
+
+function fal3d(model: Parameters<typeof fal3dModel>[0]) {
+  return fal3dModel(model, { apiKey: requireByok(falByok) })
 }
 
 function falL(model: Parameters<typeof falLiveVideo>[0]) {
@@ -261,7 +271,7 @@ function isWorldResolution(value: string): value is WorldResolution {
 }
 
 export const generateImageFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: MediaPrompt; model: string }) => {
+  .validator((data: { prompt: MediaPrompt; model: string }) => {
     if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
     if (!data.model) throw new Error('Model is required')
     return data
@@ -691,7 +701,7 @@ async function videoStreamForModel(
  * through the UI.
  */
 export const generateVideoFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: VideoRequest) => {
+  .validator((data: VideoRequest) => {
     if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
     if (!data.model) throw new Error('Model is required')
     return data
@@ -703,6 +713,68 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }) =>
     toServerSentEventsResponse(await videoStreamForModel(data)),
   )
+
+// ============================================================================
+// 3D models — fal image-to-3D and retexture (experimental)
+// ============================================================================
+
+interface Model3dRequest {
+  /** One of `MODEL3D_MODELS` or `MESH_TOOL_MODELS` in `./models`. */
+  model: string
+  /**
+   * Image-to-3D: one image part, plus text for endpoints that read text.
+   * Mesh tools: one `model3d` part, plus one reference image for retexture.
+   */
+  prompt: MediaPrompt
+  /** Endpoint options, for example `{ polygon_type: 'quadrilateral' }`. */
+  modelOptions?: Record<string, string | number | boolean>
+}
+
+/**
+ * Streams one fal 3D job as Server-Sent Events. `useGenerate3dModel` takes
+ * this as its `fetcher`: progress events and the finished model arrive on
+ * the one request, so the browser runs no polling loop.
+ */
+export const generate3dModelFn = createServerFn({ method: 'POST' })
+  .validator((data: Model3dRequest) => {
+    if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
+    if (!isModel3dModelId(data.model)) {
+      throw new Error(`Unknown 3D model: ${data.model}`)
+    }
+    return data
+  })
+  .handler(async ({ data }) => {
+    // Images are uploaded once to fal storage, so the request carries a
+    // storage URL and not a large base64 string. A mesh part already holds
+    // the URL of an earlier result.
+    const abortSignal = getRequest().signal
+    const parts = typeof data.prompt === 'string' ? [] : data.prompt
+    const meshes = parts.filter((part) => part.type === 'model3d')
+    if (meshes.length > 0 && !isMeshToolModelId(data.model)) {
+      throw new Error(`${data.model} takes no mesh`)
+    }
+    const others = await uploadInlineImageInputs(
+      asImagePrompt(
+        typeof data.prompt === 'string'
+          ? data.prompt
+          : parts.filter((part) => part.type !== 'model3d'),
+      ),
+      falF(),
+      abortSignal,
+    )
+    abortSignal.throwIfAborted()
+    const prompt = typeof others === 'string' ? others : [...meshes, ...others]
+    return toServerSentEventsResponse(
+      generate3dModel({
+        adapter: fal3d(data.model),
+        prompt,
+        modelOptions: data.modelOptions,
+        threadId: 'media-3d',
+        stream: true,
+        abortSignal,
+      }),
+    )
+  })
 
 // ============================================================================
 // Seedance Studio — BytePlus ModelArk direct (ARK_API_KEY, server-side only)
@@ -866,7 +938,7 @@ function seedanceStream(data: SeedanceRequest): AsyncIterable<StreamChunk> {
  * to poll with — the server does the waiting and reports status on the wire.
  */
 export const generateSeedanceVideoFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: SeedanceRequest) => {
+  .validator((data: SeedanceRequest) => {
     if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
     if (!data.model) throw new Error('Model is required')
     return data
@@ -884,7 +956,7 @@ interface LiveVideoRequest {
  * client (`@reactor-team/js-sdk` or `@fal-ai/client`). There is no job URL.
  */
 export const generateLiveVideoFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: LiveVideoRequest) => {
+  .validator((data: LiveVideoRequest) => {
     if (typeof data.prompt !== 'string' || data.prompt.trim().length === 0) {
       throw new Error('Prompt is required')
     }
@@ -960,7 +1032,7 @@ const WORLDLABS_TIMEOUT_MS = 12 * 60 * 1000
  * and waits until the Marble world is ready (about 5 minutes).
  */
 export const generateWorldFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: WorldRequest) => {
+  .validator((data: WorldRequest) => {
     if (typeof data.prompt !== 'string' || data.prompt.trim().length === 0) {
       throw new Error('Prompt is required')
     }

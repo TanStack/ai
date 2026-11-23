@@ -87,6 +87,7 @@ const isolated = dockerSandbox({ image: 'node:22' })
 - **Workspace:** when `workspace.source` is `localSource(dir)`, `create()` copies the folder into `workdir` (`/workspace` by default). The copy has every file that git does not ignore, with its uncommitted changes, and the history of the current branch. The folder must be a git repository root (not a shallow clone), and the host and the image need `git`. Fork, restore, and resume do not copy the folder again. See [Copy your project into the container](../harness/coding-tools-backends#copy-your-project-into-the-container).
 - **Auth and env:** no host login. Pass credentials as workspace secrets. They go into the container env at create and resume.
 - **Tools:** the agent reaches host tools at `host.docker.internal`. See [Tools](./tools).
+- **Ports:** pass `publishPorts: [port]` to `dockerSandbox()`. Docker publishes each port on 127.0.0.1 only, so other computers cannot connect. `ports.connect(port)` returns `http://127.0.0.1:<host port>`.
 - **Snapshot and resume:** full commit-based snapshots, `fork`, and resume by id. Bootstrap takes a snapshot after `setup`, so later runs resume from it and skip setup.
 
 ## Docker Sandboxes (sbx)
@@ -350,7 +351,7 @@ Snapshots and resume on Railway:
 - `snapshot(label)` saves a native Railway checkpoint named `tsai-<sandbox-id>-<uuid>`. The label stays only on the returned ref, because checkpoint names belong to the environment and a capture replaces an existing name.
 - Checkpoints belong to the environment, not the sandbox. So `restoreSnapshot()` boots a new sandbox from one after its source is destroyed. It applies env, network mode, domains, and idle timeout again from the provider config.
 - Restores and forks run in the region of the source, so `region` applies to fresh sandboxes only.
-- Checkpoints count against a quota for each plan, and the contract has no delete hook. Delete `tsai-*` checkpoints that you do not use with `Sandbox.checkpoints()` and `Sandbox.deleteCheckpoint()` from the `railway` SDK.
+- Checkpoints outlive their sandbox. The provider implements `deleteSnapshot`, so a `tsai-*` checkpoint is deleted when its record replaces it or its sandbox is destroyed. A record that is never destroyed keeps one checkpoint. Delete checkpoints left by older versions with `Sandbox.checkpoints()` and `Sandbox.deleteCheckpoint()` from the `railway` SDK.
 - Resume by id uses `Sandbox.connect`. A missing, `DESTROYED`, `DESTROYING`, or `FAILED` sandbox resumes as `null`. The provider waits for a `CREATING` one. Auth and transport errors are thrown again.
 
 Processes on Railway:

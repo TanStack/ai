@@ -1,4 +1,5 @@
-import type { ExtendedModelDef } from '@tanstack/ai'
+import type { ExtendedModelDef, ModelReasoning } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 import type { ClientOptions } from 'openai'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
@@ -70,6 +71,31 @@ export type ResolveCompatTools<
     ? TTools
     : readonly []
 
+/** A model's reasoning levels: the provider value to send for each level. */
+export type CompatibleReasoning = Exclude<ModelReasoning, false>
+
+/** The `TReasoning` type of an adapter, from its reasoning levels, if any. */
+export type ReasoningOf<TReasoning> = [TReasoning] extends [CompatibleReasoning]
+  ? ModelReasoningCapability<TReasoning>
+  : never
+
+/** Resolve the reasoning levels for model `M` from its `createModel` def. */
+export type ResolveCompatReasoning<
+  TModels extends ReadonlyArray<CompatibleModelInput>,
+  TModelName extends string,
+> = [FindDef<TModels, TModelName>] extends [never]
+  ? never
+  : FindDef<TModels, TModelName> extends ExtendedModelDef<
+        any,
+        any,
+        any,
+        any,
+        any,
+        infer TReasoning
+      >
+    ? ReasoningOf<TReasoning>
+    : never
+
 /** Which underlying OpenAI API the endpoint speaks. */
 export type CompatibleApi = 'chat-completions' | 'responses'
 
@@ -88,7 +114,9 @@ export interface OpenAICompatibleConfig<
 }
 
 /** One-shot helper configuration (single model). */
-export interface OpenAICompatibleTextConfig
+export interface OpenAICompatibleTextConfig<
+  TReasoning extends CompatibleReasoning | undefined = undefined,
+>
   extends
     Omit<ClientOptions, 'apiKey' | 'baseURL'>,
     OpenAIBaseTextAdapterOptions {
@@ -96,4 +124,6 @@ export interface OpenAICompatibleTextConfig
   baseURL: string
   apiKey: NonNullable<ClientOptions['apiKey']>
   api?: CompatibleApi
+  /** The model's reasoning levels for `chat({ reasoning })`. */
+  reasoning?: TReasoning
 }

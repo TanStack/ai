@@ -393,6 +393,28 @@ describe('local-process spawn stdout — UTF-8 decoding', () => {
     await sbx.destroy()
   })
 
+  it('exec() reassembles a multi-byte character split across chunk boundaries', async () => {
+    const sbx = await fresh()
+    await sbx.fs.write(
+      '/workspace/split-utf8.mjs',
+      [
+        `const euro = Buffer.from('€', 'utf8')`,
+        `process.stdout.write(euro.subarray(0, 1))`,
+        `process.stderr.write(euro.subarray(0, 1))`,
+        `setTimeout(() => {`,
+        `  process.stdout.write(euro.subarray(1))`,
+        `  process.stderr.write(euro.subarray(1))`,
+        `}, 50)`,
+      ].join('\n'),
+    )
+    const result = await sbx.process.exec('node split-utf8.mjs', {
+      cwd: '/workspace',
+    })
+    expect(result.stdout).toBe('€')
+    expect(result.stderr).toBe('€')
+    await sbx.destroy()
+  })
+
   it('flushes a genuinely truncated trailing sequence at end of stream (as U+FFFD, not silently dropped)', async () => {
     const sbx = await fresh()
     await sbx.fs.write(

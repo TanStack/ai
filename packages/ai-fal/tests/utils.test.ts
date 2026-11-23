@@ -6,6 +6,7 @@ import {
   extractUrlExtension,
   generateId,
 } from '../src/utils'
+import { falValidationMessage } from '../src/utils/client'
 import { mapSizeToFalFormat } from '../src/image/image-provider-options'
 
 vi.mock('@fal-ai/client', () => ({
@@ -155,5 +156,30 @@ describe('mapSizeToFalFormat', () => {
     expect(Object.prototype.hasOwnProperty.call(result, 'aspect_ratio')).toBe(
       false,
     )
+  })
+})
+
+describe('falValidationMessage', () => {
+  it('returns a string detail as it is', () => {
+    expect(
+      falValidationMessage({ body: { detail: 'Prompt is too long' } }),
+    ).toBe('Prompt is too long')
+  })
+
+  it('joins a detail list and names a missing message', () => {
+    expect(
+      falValidationMessage({
+        body: {
+          detail: [
+            { loc: ['body', 'duration'], msg: 'must be 12 or less' },
+            { loc: ['body', 'seed'] },
+          ],
+        },
+      }),
+    ).toBe('body.duration: must be 12 or less; body.seed: invalid value')
+  })
+
+  it('returns undefined when the error has no detail', () => {
+    expect(falValidationMessage(new Error('network down'))).toBeUndefined()
   })
 })

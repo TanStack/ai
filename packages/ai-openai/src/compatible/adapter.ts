@@ -4,12 +4,46 @@ import {
 } from '@tanstack/openai-base'
 import type OpenAI from 'openai'
 import type { ClientOptions } from 'openai'
-import type { Modality } from '@tanstack/ai'
+import type {
+  Modality,
+  ModelReasoning,
+  ReasoningCapability,
+} from '@tanstack/ai'
 import type { OpenAIMessageMetadataByModality } from '../message-types'
 import type {
   OpenAIBaseTextAdapterOptions,
   OpenAIClientLike,
 } from '@tanstack/openai-base'
+
+/**
+ * Constructor options of the OpenAI-compatible adapters. `reasoning` is typed
+ * from the `TReasoning` type parameter: it is required when `TReasoning` is
+ * set, its levels must be the same levels, and it is not allowed without it.
+ * So the levels that `chat()` accepts are always the levels that go out.
+ */
+export type OpenAICompatibleAdapterOptions<
+  TReasoning extends ReasoningCapability = never,
+> = OpenAIBaseTextAdapterOptions &
+  Pick<ClientOptions, 'fetch'> &
+  ([TReasoning] extends [never]
+    ? { reasoning?: never }
+    : {
+        /** The provider value to send for each level of `chat({ reasoning })`. */
+        reasoning: {
+          levels: Record<TReasoning['levels'], string>
+          budget: TReasoning['budget']
+        }
+      })
+
+/** The options argument: optional without `TReasoning`, required with it. */
+export type OptionsArg<TReasoning extends ReasoningCapability> = [
+  TReasoning,
+] extends [never]
+  ? [options?: OpenAICompatibleAdapterOptions]
+  : [options: OpenAICompatibleAdapterOptions<TReasoning>]
+
+type UntypedOptions = OpenAIBaseTextAdapterOptions &
+  Pick<ClientOptions, 'fetch'> & { reasoning?: ModelReasoning }
 
 /**
  * Generic OpenAI-compatible adapter over the Chat Completions API
@@ -21,23 +55,33 @@ export class OpenAICompatibleChatAdapter<
   TProviderOptions extends Record<string, any> = Record<string, any>,
   TInputModalities extends ReadonlyArray<Modality> = ReadonlyArray<Modality>,
   TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TReasoning extends ReasoningCapability = never,
 > extends OpenAIBaseChatCompletionsTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
   OpenAIMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  TReasoning
 > {
   override readonly kind = 'text' as const
   readonly maxTokensKey = 'max_tokens'
+  private readonly reasoning: ModelReasoning | undefined
 
   constructor(
     client: OpenAIClientLike,
     model: TModel,
     name: string,
-    options?: OpenAIBaseTextAdapterOptions & Pick<ClientOptions, 'fetch'>,
+    ...[options]: OptionsArg<TReasoning>
   ) {
-    super(model, name, client, options)
+    const { reasoning, ...rest }: UntypedOptions = options ?? {}
+    super(model, name, client, rest)
+    this.reasoning = reasoning
+  }
+
+  /** `chat({ reasoning })` goes out as `reasoning_effort`. */
+  protected override modelReasoning(_model: string) {
+    return this.reasoning
   }
 
   /**
@@ -78,22 +122,32 @@ export class OpenAICompatibleResponsesAdapter<
   TProviderOptions extends Record<string, any> = Record<string, any>,
   TInputModalities extends ReadonlyArray<Modality> = ReadonlyArray<Modality>,
   TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TReasoning extends ReasoningCapability = never,
 > extends OpenAIBaseResponsesTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
   OpenAIMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  TReasoning
 > {
   override readonly kind = 'text' as const
   readonly maxTokensKey = 'max_output_tokens'
+  private readonly reasoning: ModelReasoning | undefined
 
   constructor(
     client: OpenAIClientLike,
     model: TModel,
     name: string,
-    options?: OpenAIBaseTextAdapterOptions & Pick<ClientOptions, 'fetch'>,
+    ...[options]: OptionsArg<TReasoning>
   ) {
-    super(model, name, client, options)
+    const { reasoning, ...rest }: UntypedOptions = options ?? {}
+    super(model, name, client, rest)
+    this.reasoning = reasoning
+  }
+
+  /** `chat({ reasoning })` goes out as `reasoning: { effort, summary }`. */
+  protected override modelReasoning(_model: string) {
+    return this.reasoning
   }
 }

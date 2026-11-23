@@ -1,5 +1,42 @@
 # @tanstack/ai-sandbox
 
+## 1.5.0
+
+### Minor Changes
+
+- [#2197](https://github.com/TanStack/ai/pull/2197) [`009b480`](https://github.com/TanStack/ai/commit/009b480b9b88c074f1a52ea8eacd8de5ea6432fc) - Users of a local harness can sign in with their own ChatGPT or SuperGrok plan. Add `login: codexPlanLogin()` or `login: grokBuildPlanLogin()` to the provider in `providerKeys`, and `/connect:codex` or `/connect:grok-build` runs the device sign-in of the vendor CLI.
+
+  With `authMode: 'host'`, Codex and Grok Build run the CLI without its API key variables, and a Docker or cloud sandbox gets a copy of the machine login for each run. `@tanstack/ai-sandbox/host-login` has the shared `cliPlanLogin` and `mountHostLogin` helpers.
+
+### Patch Changes
+
+- Updated dependencies [[`4b00243`](https://github.com/TanStack/ai/commit/4b002432487ce34547162b6f3f0492b4b936aa61), [`009b480`](https://github.com/TanStack/ai/commit/009b480b9b88c074f1a52ea8eacd8de5ea6432fc)]:
+  - @tanstack/ai@1.8.0
+  - @tanstack/ai-harness@0.4.0
+  - @tanstack/ai-persistence@1.1.0
+  - @tanstack/ai-skills@1.0.3
+
+## 1.4.0
+
+### Minor Changes
+
+- [#2180](https://github.com/TanStack/ai/pull/2180) [`e5d9e0f`](https://github.com/TanStack/ai/commit/e5d9e0f5fe6695bdb6ff94b7b489d9416231c63d) - Delete native sandbox snapshots once nothing references them.
+
+  `SandboxProvider` has a new optional `deleteSnapshot({ snapshotId, signal })`. `defineSandbox` calls it, best effort, when a sandbox record's `latestSnapshotId` is replaced (a re-create or a new `after-run` snapshot) and when the sandbox is torn down through `destroy` or `reclaimSandbox`. A failed delete is logged and never fails the run or the teardown. Providers that don't implement it behave as before.
+
+  `railwaySandbox()` implements `deleteSnapshot`, so its `tsai-*` checkpoints are deleted once nothing references them instead of staying in the environment until pruned by hand.
+
+### Patch Changes
+
+- [#2109](https://github.com/TanStack/ai/pull/2109) [`2ed7e21`](https://github.com/TanStack/ai/commit/2ed7e21c676e4d8e308d724d074755942051b661) - A reconnect during a long tool call no longer writes the rest of a durable sandbox run twice. The host that started the run holds the driver claim until the run ends, so the reconnect tails the log.
+
+- [#2108](https://github.com/TanStack/ai/pull/2108) [`8813243`](https://github.com/TanStack/ai/commit/88132439cb41df8fd4b40248a571550505d65921) - Keep text and tool calls the first host already delivered in the saved transcript after a sandbox takeover. The event log still stores that prefix once.
+
+- Updated dependencies [[`95c1d78`](https://github.com/TanStack/ai/commit/95c1d781c92904612e0d675a9ca38f1a8d9a1c09), [`df6f5a9`](https://github.com/TanStack/ai/commit/df6f5a9f5ff782db85c8a36715bac18a7f090180), [`40d1c61`](https://github.com/TanStack/ai/commit/40d1c61c6bdf1957bd124d09b1f07617a05e759d)]:
+  - @tanstack/ai@1.6.0
+  - @tanstack/ai-harness@0.3.0
+  - @tanstack/ai-persistence@1.0.1
+
 ## 1.3.0
 
 ### Minor Changes
