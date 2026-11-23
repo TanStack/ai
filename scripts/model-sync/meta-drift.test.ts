@@ -37,7 +37,7 @@ interface MetaModel {
 function readModels(file: string): Array<MetaModel> {
   const content = readFileSync(resolve(ROOT, file), 'utf8')
   const re =
-    /^const (\w+) = \{\n {2}(?:name|id): '([^']+)'[\s\S]*?^\} as const satisfies ModelMeta<[\s\S]*?\n(?=\n|$)/gm
+    /^const (\w+) = \{\n {2}(?:name|id): '([^']+)'[\s\S]*?^\} as const satisfies ModelMeta<[^>]*>/gm
   return [...content.matchAll(re)].map((match) => ({
     constName: match[1]!,
     model: match[2]!,
