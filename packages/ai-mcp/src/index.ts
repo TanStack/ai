@@ -68,8 +68,21 @@ export {
 } from './input-required'
 // Converters added in Phase 4:
 export { mcpResourceToContentPart } from './resources'
+export type { McpResourceToContentPartOptions } from './resources'
 export { mcpPromptToMessages } from './prompts'
 export { createMCPClients } from './pool'
 export type { MCPClients, MCPClientsConfig } from './pool'
+export {
+  createMCPClientWithOAuthRedirect,
+  finishMCPOAuthRedirect,
+  createUserMcpTokenStore,
+} from './oauth-redirect'
+export type {
+  McpTokenSet,
+  McpOAuthPending,
+  McpTokenStore,
+  CreateMCPClientWithOAuthRedirectOptions,
+  MCPClientWithOAuthResult,
+} from './oauth-redirect'
 export { defineConfig } from './cli/define-config'
 export type { MCPCodegenConfig, CodegenServerConfig } from './cli/define-config'

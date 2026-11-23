@@ -219,8 +219,13 @@ const stream = chat({
 | MCP content block | `ContentPart` |
 |---|---|
 | Has a `text` field | `{ type: 'text', content: text }` |
-| Has a `blob` field | `{ type: 'text', content: '[binary resource <uri>]' }` |
+| Has a `blob` + `image/*` | `{ type: 'image', source: { type: 'data', ... } }` |
+| Has a `blob` + `audio/*` | `{ type: 'audio', source: { type: 'data', ... } }` |
+| Has a `blob` + PDF / `text/*` | `{ type: 'document', source: { type: 'data', ... } }` |
+| Has a `blob` without a known mime | text placeholder (or `onReject: 'omit' \| 'throw'`) |
 | Anything else | `{ type: 'text', content: JSON.stringify(content) }` |
+
+To attach resources inside `chat({ mcp })` without this manual step, see [Attach MCP resources and prompts](./mcp-context).
 
 ### Resource templates
 

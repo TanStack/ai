@@ -88,3 +88,4 @@ packages/ai-persistence/skills-test/.generated
 .agentsroom/
 .opencode/
 .agent/research/
+.agent/proposals/mcp-host-completeness.md

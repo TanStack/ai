@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   MCPDuplicateToolNameError,
   MCPManager,
+  mergeMcpContextIntoMessages,
 } from '../src/activities/chat/mcp/manager'
 import {
   executeServerTool,
@@ -428,5 +429,132 @@ describe('executeServerTool — ui:// resource emit (MCP Apps)', () => {
     const emitted: Array<unknown> = []
     await runToolResult(tool('plain'), 'call_1', () => emitted.push(1))
     expect(emitted).toHaveLength(0)
+  })
+})
+
+describe('MCPManager maxTools / rankTools', () => {
+  it('marks overflow tools as lazy when maxTools is set', async () => {
+    const tools = [tool('a'), tool('b'), tool('c')]
+    const m = MCPManager.from({
+      clients: [source(tools)],
+      maxTools: 2,
+    })
+    const discovered = await m.discover()
+    expect(discovered.map((t) => t.name)).toEqual(['a', 'b', 'c'])
+    expect(discovered[0]?.lazy).toBeUndefined()
+    expect(discovered[1]?.lazy).toBeUndefined()
+    expect(discovered[2]?.lazy).toBe(true)
+  })
+
+  it('ranks readOnlyHint tools first', async () => {
+    const write = tool('write')
+    write.metadata = {
+      mcp: { annotations: { destructiveHint: true } },
+    }
+    const read = tool('read')
+    read.metadata = {
+      mcp: { annotations: { readOnlyHint: true } },
+    }
+    const m = MCPManager.from({
+      clients: [source([write, read])],
+      rankTools: 'annotation',
+      maxTools: 1,
+    })
+    const discovered = await m.discover()
+    expect(discovered[0]?.name).toBe('read')
+    expect(discovered[0]?.lazy).toBeUndefined()
+    expect(discovered[1]?.name).toBe('write')
+    expect(discovered[1]?.lazy).toBe(true)
+  })
+})
+
+describe('MCPManager resolveContext', () => {
+  it('resolves prompts and attachResources uris', async () => {
+    const s = {
+      closed: false,
+      tools: async () => [] as Array<AnyServerTool>,
+      close: async () => {
+        s.closed = true
+      },
+      getPrompt: async (name: string) => ({
+        messages: [
+          { role: 'user', content: { type: 'text', text: `prompt:${name}` } },
+        ],
+      }),
+      readResource: async (uri: string) => ({
+        contents: [
+          {
+            uri,
+            mimeType: 'image/png',
+            blob: 'aGk=',
+          },
+        ],
+      }),
+      resources: async () => [{ uri: 'file:///a.png' }],
+    }
+    const m = MCPManager.from({
+      clients: [s],
+      prompts: { name: 'summarize' },
+      attachResources: { uris: ['file:///a.png'] },
+      connection: 'keep-alive',
+    })
+    const ctx = await m.resolveContext()
+    expect(ctx.promptMessages).toEqual([
+      { role: 'user', content: 'prompt:summarize' },
+    ])
+    expect(ctx.contentParts).toEqual([
+      {
+        type: 'image',
+        source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
+      },
+    ])
+  })
+
+  it('auto-lists resources up to max', async () => {
+    const s = {
+      tools: async () => [] as Array<AnyServerTool>,
+      close: async () => {},
+      resources: async () => [
+        { uri: 'file:///1' },
+        { uri: 'file:///2' },
+        { uri: 'file:///3' },
+      ],
+      readResource: async (uri: string) => ({
+        contents: [{ uri, text: uri }],
+      }),
+    }
+    const m = MCPManager.from({
+      clients: [s],
+      attachResources: { auto: true, max: 2 },
+      connection: 'keep-alive',
+    })
+    const ctx = await m.resolveContext()
+    expect(ctx.contentParts).toHaveLength(2)
+    expect(ctx.contentParts[0]).toMatchObject({
+      type: 'text',
+      content: 'file:///1',
+    })
+  })
+})
+
+describe('mergeMcpContextIntoMessages', () => {
+  it('prepends prompts and appends parts to the last user message', () => {
+    const merged = mergeMcpContextIntoMessages(
+      [{ role: 'user', content: 'hi' }],
+      {
+        promptMessages: [{ role: 'user', content: 'from-prompt' }],
+        contentParts: [{ type: 'text', content: 'doc' }],
+      },
+    )
+    expect(merged).toEqual([
+      { role: 'user', content: 'from-prompt' },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', content: 'hi' },
+          { type: 'text', content: 'doc' },
+        ],
+      },
+    ])
   })
 })

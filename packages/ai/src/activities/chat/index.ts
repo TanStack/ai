@@ -131,7 +131,7 @@ import { provideSandboxRuntime } from './middleware/sandbox-runtime'
 import { provideRunDisconnect } from './middleware/run-disconnect'
 import { CapabilityRegistry } from './middleware/capabilities'
 import { validateCapabilities } from './middleware/validate'
-import { MCPManager } from './mcp/manager'
+import { MCPManager, mergeMcpContextIntoMessages } from './mcp/manager'
 import type {
   InterruptBinding,
   InterruptSubmissionError,
@@ -6665,18 +6665,44 @@ function runStreamingText(
 }
 
 /**
- * MCP tools for one run. When the run is stopped during discovery, it returns
- * no tools: the engine then ends the run through its abort path, so middleware
- * gets `onAbort`. Other discovery errors still throw.
+ * MCP tools + optional resources/prompts for one run. When the run is stopped
+ * during discovery, it returns no tools: the engine then ends the run through
+ * its abort path, so middleware gets `onAbort`. Other discovery errors still
+ * throw.
  */
-async function discoverMcpTools(
+async function applyMcpToTextOptions(
   mcpManager: MCPManager,
+  textOptions: {
+    tools?: ReadonlyArray<any>
+    messages?: ReadonlyArray<any>
+  },
   signal: AbortSignal | undefined,
-) {
+): Promise<void> {
+  let mcpTools
   try {
-    return await mcpManager.discover(signal)
+    mcpTools = await mcpManager.discover(signal)
   } catch (error) {
-    if (signal?.aborted) return []
+    if (signal?.aborted) return
+    throw error
+  }
+  if (mcpTools.length > 0) {
+    ;(textOptions as { tools?: Array<any> }).tools = [
+      ...(textOptions.tools ?? []),
+      ...mcpTools,
+    ]
+  }
+
+  try {
+    const context = await mcpManager.resolveContext(signal)
+    if (
+      context.promptMessages.length > 0 ||
+      context.contentParts.length > 0
+    ) {
+      ;(textOptions as { messages?: Array<any> }).messages =
+        mergeMcpContextIntoMessages(textOptions.messages ?? [], context)
+    }
+  } catch (error) {
+    if (signal?.aborted) return
     throw error
   }
 }
@@ -6698,13 +6724,11 @@ async function* runChatEngine(
   const logger = resolveDebugOption(debug)
 
   const mcpManager = MCPManager.from(mcp)
-  const mcpTools = await discoverMcpTools(
+  await applyMcpToTextOptions(
     mcpManager,
+    textOptions,
     options.abortController?.signal,
   )
-  if (mcpTools.length > 0) {
-    textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
-  }
 
   const engine = new TextEngine(
     {
@@ -7317,13 +7341,11 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
     adapter.combinedStructuredOutputSource?.(options.modelOptions) ?? 'text'
 
   const mcpManager = MCPManager.from(mcp)
-  const mcpTools = await discoverMcpTools(
+  await applyMcpToTextOptions(
     mcpManager,
+    textOptions,
     options.abortController?.signal,
   )
-  if (mcpTools.length > 0) {
-    textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
-  }
 
   const engine = new TextEngine(
     {
@@ -7686,13 +7708,11 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
     : undefined
 
   const mcpManager = MCPManager.from(mcp)
-  const mcpTools = await discoverMcpTools(
+  await applyMcpToTextOptions(
     mcpManager,
+    textOptions,
     options.abortController?.signal,
   )
-  if (mcpTools.length > 0) {
-    textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
-  }
 
   // Inputs may be UIMessages (from useChat) or ModelMessages (from server-side
   // callers). TextEngine handles the conversion uniformly.

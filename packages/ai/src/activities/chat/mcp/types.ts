@@ -1,4 +1,5 @@
 import type { AnyServerTool } from '../tools/tool-definition'
+import type { ContentPart, ModelMessage } from '../../../types'
 
 /**
  * The shape `readResource` resolves to — a structural subset of MCP's
@@ -73,18 +74,54 @@ export interface MCPToolSource {
   close: () => Promise<void>
   /**
    * Reads an MCP resource by URI. Used by the chat manager to eagerly fetch
-   * `ui://` resource widgets (MCP Apps) after a tool result resolves.
+   * `ui://` resource widgets (MCP Apps) after a tool result resolves, and to
+   * resolve `attachResources`.
    *
    * `options.serverId` is the server that owns the tool. `options.meta` is
    * the `_meta` to send with the read.
    *
-   * Optional — sources that do not serve `ui://` resources need not implement
-   * this method. `ai-mcp`'s `MCPClient` satisfies this structurally.
+   * Optional — sources that do not serve resources need not implement this.
    */
   readResource?: (
     uri: string,
     options?: { serverId?: string; meta?: Record<string, unknown> },
   ) => Promise<McpResourceReadResult>
+  /**
+   * Lists concrete resources. Used by `attachResources: { auto: true }`.
+   * `@tanstack/ai-mcp`'s client exposes this as `resources()` — both names
+   * are accepted.
+   */
+  listResources?: (options?: {
+    signal?: AbortSignal
+  }) => Promise<Array<{ uri: string; name?: string; mimeType?: string }>>
+  /** Alias of `listResources` used by `MCPClient.resources()`. */
+  resources?: (options?: {
+    signal?: AbortSignal
+  }) => Promise<Array<{ uri: string; name?: string; mimeType?: string }>>
+  /**
+   * Lists prompt templates. Used when resolving `prompts` by name across
+   * clients that expose `getPrompt`.
+   */
+  listPrompts?: (options?: {
+    signal?: AbortSignal
+  }) => Promise<Array<{ name: string; description?: string }>>
+  /** Alias of `listPrompts` used by `MCPClient.prompts()`. */
+  prompts?: (options?: {
+    signal?: AbortSignal
+  }) => Promise<Array<{ name: string; description?: string }>>
+  /**
+   * Renders one prompt template into MCP messages.
+   */
+  getPrompt?: (
+    name: string,
+    args?: Record<string, unknown>,
+    options?: { signal?: AbortSignal },
+  ) => Promise<{
+    messages: Array<{
+      role: string
+      content?: { type: string; text?: string } | null
+    }>
+  }>
 }
 
 /**
@@ -97,6 +134,24 @@ export interface MCPToolSource {
  *   their lifecycle (e.g. keep them warm across requests).
  */
 export type MCPConnectionPolicy = 'close' | 'keep-alive'
+
+/**
+ * Attach MCP resources as multimodal ContentParts before the model turn.
+ *
+ * - `{ uris }` — read these URIs (tried on every source that has `readResource`)
+ * - `{ auto }` — list resources and take the first `max` (default 8)
+ */
+export type ChatMCPAttachResources =
+  | { uris: ReadonlyArray<string> }
+  | { auto: true; max?: number }
+
+/** One MCP prompt to resolve and prepend to the conversation. */
+export type ChatMCPPromptRef = {
+  name: string
+  args?: Record<string, unknown>
+}
+
+export type ChatMCPPrompt = ChatMCPPromptRef | Array<ChatMCPPromptRef>
 
 /**
  * Options controlling MCP tool discovery and lifecycle for a `chat()` call.
@@ -123,6 +178,45 @@ export interface ChatMCPOptions {
   lazyTools?: boolean
 
   /**
+   * Cap how many MCP tools are offered eagerly. The rest are marked `lazy`
+   * so {@link LazyToolManager} / discovery can load them on demand.
+   * When `lazyTools` is already true, this still caps the catalog size by
+   * keeping only the top `maxTools` names in the lazy set offered first —
+   * remainder stay lazy behind the discovery tool.
+   */
+  maxTools?: number
+
+  /**
+   * Rank tools before applying `maxTools`.
+   *
+   * - `'annotation'` — prefer `readOnlyHint` / non-`destructiveHint` tools
+   *   (from `metadata.mcp.annotations`)
+   * - function — higher score first
+   *
+   * Default: discovery order.
+   */
+  rankTools?: 'annotation' | ((tool: AnyServerTool) => number)
+
+  /**
+   * Inject MCP resources as ContentParts onto the last user message (or a
+   * new user message when the list has no user turn).
+   */
+  attachResources?: ChatMCPAttachResources
+
+  /**
+   * Resolve MCP prompts and prepend their messages to the conversation.
+   */
+  prompts?: ChatMCPPrompt
+
+  /**
+   * Options for converting resource blobs to multimodal parts.
+   */
+  resourcePartOptions?: {
+    maxBytes?: number
+    onReject?: 'placeholder' | 'omit' | 'throw'
+  }
+
+  /**
    * Gives the `_meta` for each MCP request in this chat run. It covers tool
    * calls and the MCP Apps `ui://` resource reads.
    *
@@ -145,4 +239,10 @@ export interface ChatMCPOptions {
     error: unknown,
     source: MCPToolSource,
   ) => void | Promise<void>
+}
+
+/** Context resolved from `attachResources` / `prompts` for one chat run. */
+export type ChatMCPResolvedContext = {
+  promptMessages: Array<ModelMessage>
+  contentParts: Array<ContentPart>
 }

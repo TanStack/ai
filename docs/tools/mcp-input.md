@@ -120,6 +120,11 @@ export function McpInputPrompt() {
 
 Try it. When a tool asks for input, the form shows the question from the server. Type an answer and click **Send**. The tool call continues with your answer.
 
+Ready-made UI recipes:
+
+- [Answer an MCP form interrupt](../ui/recipes/mcp-form-interrupt)
+- [Open an MCP URL elicitation](../ui/recipes/mcp-url-elicitation)
+
 ## How it works
 
 1. The MCP server asks for input during a tool call.

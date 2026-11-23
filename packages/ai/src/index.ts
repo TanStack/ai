@@ -233,11 +233,19 @@ export type {
   MCPRequestMeta,
   MCPRequestMetaInput,
   ChatMCPOptions,
+  ChatMCPAttachResources,
+  ChatMCPPrompt,
+  ChatMCPPromptRef,
+  ChatMCPResolvedContext,
   MCPConnectionPolicy,
+  McpResourceReadResult,
 } from './activities/chat/mcp/types'
 
 // MCP error classes (value exports — usable with instanceof)
-export { MCPDuplicateToolNameError } from './activities/chat/mcp/manager'
+export {
+  MCPDuplicateToolNameError,
+  mergeMcpContextIntoMessages,
+} from './activities/chat/mcp/manager'
 export { DuplicateToolNameError } from './activities/chat/tools/unique-tool-names'
 export { SkillLimitError } from './utilities/errors'
 export type { SkillLimitErrorInit } from './utilities/errors'

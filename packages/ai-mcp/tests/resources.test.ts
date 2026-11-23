@@ -6,19 +6,79 @@ import { makeServerWithResource } from './helpers/in-memory-server'
 describe('mcpResourceToContentPart', () => {
   it('converts a text content block to a TextPart', () => {
     const part = mcpResourceToContentPart({ uri: 'file:///x', text: 'hello' })
-    expect(part.type).toBe('text')
+    expect(part?.type).toBe('text')
     expect((part as { type: 'text'; content: string }).content).toBe('hello')
   })
 
-  it('converts a blob content block to a TextPart with binary placeholder', () => {
+  it('converts an image blob to an ImagePart', () => {
+    const part = mcpResourceToContentPart({
+      uri: 'file:///img.png',
+      mimeType: 'image/png',
+      blob: 'abc123',
+    })
+    expect(part?.type).toBe('image')
+    expect(part).toMatchObject({
+      type: 'image',
+      source: { type: 'data', value: 'abc123', mimeType: 'image/png' },
+    })
+  })
+
+  it('converts an audio blob to an AudioPart', () => {
+    const part = mcpResourceToContentPart({
+      uri: 'file:///a.wav',
+      mimeType: 'audio/wav',
+      blob: 'YmFzZQ==',
+    })
+    expect(part?.type).toBe('audio')
+  })
+
+  it('converts a PDF blob to a DocumentPart', () => {
+    const part = mcpResourceToContentPart({
+      uri: 'file:///doc.pdf',
+      mimeType: 'application/pdf',
+      blob: 'cGRm',
+    })
+    expect(part?.type).toBe('document')
+  })
+
+  it('falls back to a text placeholder when mime is missing', () => {
     const part = mcpResourceToContentPart({
       uri: 'file:///img.png',
       blob: 'abc123',
     })
-    expect(part.type).toBe('text')
+    expect(part?.type).toBe('text')
     expect((part as { type: 'text'; content: string }).content).toBe(
       '[binary resource file:///img.png]',
     )
+  })
+
+  it('omits rejected blobs when onReject is omit', () => {
+    const part = mcpResourceToContentPart(
+      { uri: 'file:///x.bin', blob: 'abc', mimeType: 'application/octet-stream' },
+      { onReject: 'omit' },
+    )
+    expect(part).toBeNull()
+  })
+
+  it('throws when onReject is throw', () => {
+    expect(() =>
+      mcpResourceToContentPart(
+        { uri: 'file:///x.bin', blob: 'abc' },
+        { onReject: 'throw' },
+      ),
+    ).toThrow(/rejected/)
+  })
+
+  it('rejects oversize blobs', () => {
+    const part = mcpResourceToContentPart(
+      {
+        uri: 'file:///big.png',
+        mimeType: 'image/png',
+        blob: 'AAAA',
+      },
+      { maxBytes: 1 },
+    )
+    expect(part?.type).toBe('text')
   })
 
   it('falls back to JSON.stringify for unknown content', () => {
@@ -27,7 +87,7 @@ describe('mcpResourceToContentPart', () => {
       mimeType: 'application/octet-stream',
     }
     const part = mcpResourceToContentPart(input)
-    expect(part.type).toBe('text')
+    expect(part?.type).toBe('text')
     expect((part as { type: 'text'; content: string }).content).toBe(
       JSON.stringify(input),
     )
@@ -45,6 +105,6 @@ describe('MCPClient resource methods (connected)', () => {
 
     const read = await client.readResource(list[0]!.uri)
     const part = mcpResourceToContentPart(read.contents[0]!)
-    expect(part.type).toBe('text')
+    expect(part?.type).toBe('text')
   })
 })

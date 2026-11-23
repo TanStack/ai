@@ -1,6 +1,13 @@
 import type { AnyServerTool } from '../tools/tool-definition'
+import type { ContentPart, ModelMessage } from '../../../types'
+import { mcpPromptToMessages } from './prompt-messages'
+import { mcpResourceToContentPart } from './resource-parts'
 import type {
+  ChatMCPAttachResources,
   ChatMCPOptions,
+  ChatMCPPrompt,
+  ChatMCPPromptRef,
+  ChatMCPResolvedContext,
   MCPRequestMeta,
   MCPToolSource,
   McpResourceReadResult,
@@ -74,6 +81,84 @@ export class MCPDuplicateToolNameError extends Error {
   }
 }
 
+function annotationScore(tool: AnyServerTool): number {
+  const annotations = (
+    tool.metadata as
+      | {
+          mcp?: {
+            annotations?: {
+              readOnlyHint?: boolean
+              destructiveHint?: boolean
+            }
+          }
+        }
+      | undefined
+  )?.mcp?.annotations
+  let score = 0
+  if (annotations?.readOnlyHint) score += 2
+  if (annotations?.destructiveHint) score -= 1
+  return score
+}
+
+function rankTools(
+  tools: Array<AnyServerTool>,
+  rank: ChatMCPOptions['rankTools'],
+): Array<AnyServerTool> {
+  if (!rank) return tools
+  const scored = tools.map((tool, index) => ({
+    tool,
+    index,
+    score: typeof rank === 'function' ? rank(tool) : annotationScore(tool),
+  }))
+  scored.sort((a, b) => b.score - a.score || a.index - b.index)
+  return scored.map((s) => s.tool)
+}
+
+function applyMaxTools(
+  tools: Array<AnyServerTool>,
+  maxTools: number | undefined,
+): Array<AnyServerTool> {
+  if (maxTools === undefined || tools.length <= maxTools) return tools
+  const kept = tools.slice(0, maxTools)
+  const rest = tools.slice(maxTools).map((t) => ({ ...t, lazy: true as const }))
+  return [...kept, ...rest]
+}
+
+function normalizePrompts(prompts: ChatMCPPrompt): Array<ChatMCPPromptRef> {
+  if (Array.isArray(prompts)) return [...prompts]
+  return [prompts]
+}
+
+async function readUriFromSources(
+  sources: ReadonlyArray<MCPToolSource>,
+  uri: string,
+  requestMeta: MCPRequestMeta | undefined,
+): Promise<McpResourceReadResult | undefined> {
+  const errors: Array<unknown> = []
+  for (const source of sources) {
+    if (!source.readResource) continue
+    try {
+      const meta = await requestMeta?.({
+        method: 'resources/read',
+        serverId: undefined,
+        uri,
+      })
+      return await source.readResource(uri, {
+        ...(meta && { meta }),
+      })
+    } catch (error) {
+      errors.push(error)
+    }
+  }
+  if (errors.length > 0) {
+    throw new AggregateError(
+      errors,
+      `Failed to read MCP resource "${uri}" from any client`,
+    )
+  }
+  return undefined
+}
+
 /**
  * Encapsulates MCP tool discovery + connection lifecycle for chat().
  * Built from chat()'s `mcp` option; runners only call `discover()` then
@@ -88,6 +173,11 @@ export class MCPManager {
   readonly #sources: ReadonlyArray<MCPToolSource>
   readonly #shouldClose: boolean
   readonly #lazyTools: boolean
+  readonly #maxTools?: number
+  readonly #rankTools?: ChatMCPOptions['rankTools']
+  readonly #attachResources?: ChatMCPAttachResources
+  readonly #prompts?: ChatMCPPrompt
+  readonly #resourcePartOptions?: ChatMCPOptions['resourcePartOptions']
   readonly #requestMeta?: MCPRequestMeta
   readonly #onDiscoveryError?: (
     error: unknown,
@@ -99,6 +189,11 @@ export class MCPManager {
     // default 'close'; only 'keep-alive' disables closing
     this.#shouldClose = options ? options.connection !== 'keep-alive' : false
     this.#lazyTools = options?.lazyTools ?? false
+    this.#maxTools = options?.maxTools
+    this.#rankTools = options?.rankTools
+    this.#attachResources = options?.attachResources
+    this.#prompts = options?.prompts
+    this.#resourcePartOptions = options?.resourcePartOptions
     this.#requestMeta = options?.requestMeta
     this.#onDiscoveryError = options?.onDiscoveryError
   }
@@ -146,11 +241,88 @@ export class MCPManager {
         if (seen.has(t.name)) throw new MCPDuplicateToolNameError(t.name)
         seen.add(t.name)
       }
-      return tools
+      const ranked = rankTools(tools, this.#rankTools)
+      return applyMaxTools(ranked, this.#maxTools)
     } catch (err) {
       await this.dispose() // cleanup-on-failure (no-op if keep-alive)
       throw err
     }
+  }
+
+  /**
+   * Resolve `attachResources` / `prompts` into messages and content parts.
+   * Safe to call with no options — returns empty arrays.
+   */
+  async resolveContext(signal?: AbortSignal): Promise<ChatMCPResolvedContext> {
+    const promptMessages: Array<ModelMessage> = []
+    const contentParts: Array<ContentPart> = []
+
+    if (this.#prompts) {
+      for (const ref of normalizePrompts(this.#prompts)) {
+        let resolved = false
+        for (const source of this.#sources) {
+          if (!source.getPrompt) continue
+          try {
+            const prompt = await source.getPrompt(ref.name, ref.args, {
+              ...(signal && { signal }),
+            })
+            promptMessages.push(...mcpPromptToMessages(prompt))
+            resolved = true
+            break
+          } catch {
+            // try next source
+          }
+        }
+        if (!resolved) {
+          throw new Error(
+            `MCP prompt "${ref.name}" was not found on any mcp.clients source`,
+          )
+        }
+      }
+    }
+
+    if (this.#attachResources) {
+      const uris = await this.#resolveResourceUris(this.#attachResources, signal)
+      for (const uri of uris) {
+        const result = await readUriFromSources(
+          this.#sources,
+          uri,
+          this.#requestMeta,
+        )
+        if (!result) {
+          throw new Error(
+            `MCP resource "${uri}" could not be read (no client implements readResource)`,
+          )
+        }
+        for (const block of result.contents) {
+          const part = mcpResourceToContentPart(block, this.#resourcePartOptions)
+          if (part) contentParts.push(part)
+        }
+      }
+    }
+
+    return { promptMessages, contentParts }
+  }
+
+  async #resolveResourceUris(
+    attach: ChatMCPAttachResources,
+    signal?: AbortSignal,
+  ): Promise<Array<string>> {
+    if ('uris' in attach) return [...attach.uris]
+    const max = attach.max ?? 8
+    const uris: Array<string> = []
+    for (const source of this.#sources) {
+      const list = source.listResources ?? source.resources
+      if (!list) continue
+      const listed = await list.call(source, {
+        ...(signal && { signal }),
+      })
+      for (const item of listed) {
+        if (uris.length >= max) return uris
+        if (!uris.includes(item.uri)) uris.push(item.uri)
+      }
+    }
+    return uris
   }
 
   /** Close sources iff policy is 'close'. Idempotent; never throws. */
@@ -158,4 +330,47 @@ export class MCPManager {
     if (!this.#shouldClose || this.#sources.length === 0) return
     await Promise.allSettled(this.#sources.map((s) => s.close()))
   }
+}
+
+/**
+ * Merge resolved MCP context into a chat message list.
+ * Prompt messages are prepended. Content parts append to the last user
+ * message, or create a user message when none exists.
+ */
+export function mergeMcpContextIntoMessages(
+  messages: ReadonlyArray<ModelMessage>,
+  context: ChatMCPResolvedContext,
+): Array<ModelMessage> {
+  let next: Array<ModelMessage> = [
+    ...context.promptMessages,
+    ...messages.map((m) => ({ ...m })),
+  ]
+  if (context.contentParts.length === 0) return next
+
+  let lastUserIndex = -1
+  for (let i = next.length - 1; i >= 0; i--) {
+    if (next[i]?.role === 'user') {
+      lastUserIndex = i
+      break
+    }
+  }
+
+  if (lastUserIndex === -1) {
+    next = [
+      ...next,
+      { role: 'user', content: context.contentParts },
+    ]
+    return next
+  }
+
+  const user = next[lastUserIndex]!
+  const existing = user.content
+  const parts: Array<ContentPart> =
+    typeof existing === 'string'
+      ? [{ type: 'text', content: existing }, ...context.contentParts]
+      : Array.isArray(existing)
+        ? [...existing, ...context.contentParts]
+        : [...context.contentParts]
+  next[lastUserIndex] = { ...user, content: parts }
+  return next
 }

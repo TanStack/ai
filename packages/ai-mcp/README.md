@@ -29,6 +29,9 @@ Discover and run MCP server tools, resources, and prompts inside any TanStack AI
 - `createMCPClient({ transport })` — connect to a single MCP server (Streamable HTTP, SSE, or stdio)
 - `createMCPClients({ ... })` — connect to many servers at once with auto-prefix collision avoidance
 - Auto-discovery (`client.tools()`) or explicit typed binding (`client.tools([toolDefinition(...)])`)
+- `chat({ mcp: { attachResources, prompts, maxTools } })` — inject resources/prompts and cap tool count
+- Multimodal `mcpResourceToContentPart` — image / audio / PDF blobs map to ContentParts
+- `createMCPClientWithOAuthRedirect` / `finishMCPOAuthRedirect` — OAuth redirect without hand-rolled transports
 - Per-client tool policy: `toolFilter` hides tools from the model, `needsApproval` asks before a tool runs
 - Automatic execution of MCP tools that require the experimental tasks flow
 - `@tanstack/ai-mcp/stdio` subpath — Node-only stdio transport, isolated so edge bundles stay clean

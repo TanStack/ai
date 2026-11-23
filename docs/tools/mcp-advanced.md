@@ -66,11 +66,70 @@ const mcp = await createMCPClient({
 
 For a provider with stored tokens and a working refresh, this form is all you need.
 
-An interactive redirect flow needs one more step. After the redirect, you must call `finishAuth(code)` on the transport. `createMCPClient` makes the transport internally, so you cannot reach it. Make the transport yourself instead:
+### OAuth redirect helper
 
-1. Make a `StreamableHTTPClientTransport` with your `authProvider`, and keep a reference to it.
-2. In your OAuth callback route, call `transport.finishAuth(code)`.
-3. Pass the transport to `createMCPClient({ transport })`. See [Custom transport](#custom-transport).
+For a browser redirect (authorization code), use `createMCPClientWithOAuthRedirect` and `finishMCPOAuthRedirect`:
+
+```ts
+import {
+  createMCPClientWithOAuthRedirect,
+  finishMCPOAuthRedirect,
+  createUserMcpTokenStore,
+} from '@tanstack/ai-mcp'
+
+const tokenStore = createUserMcpTokenStore({
+  userId: 'user-1',
+  serverId: 'notion',
+  // get/set/delete for tokens; getPending/setPending/deletePending for PKCE
+  backend: myDb,
+})
+
+// Start / reconnect
+const result = await createMCPClientWithOAuthRedirect({
+  url: 'https://mcp.notion.com/mcp',
+  callbackUrl: 'https://app.example.com/oauth/mcp/callback',
+  tokenStore,
+})
+
+if (result.status === 'redirect') {
+  // Send the user to result.authorizationUrl
+} else {
+  // result.client is ready for chat({ mcp: { clients: [result.client] } })
+}
+
+// Callback route
+const client = await finishMCPOAuthRedirect({
+  url: 'https://mcp.notion.com/mcp',
+  callbackUrl: 'https://app.example.com/oauth/mcp/callback',
+  tokenStore,
+  code: searchParams.get('code')!,
+})
+```
+
+Pass `connection: 'keep-alive'` on `chat({ mcp })` when you reuse the client across requests.
+
+For a harness session with OAuth built in, prefer [`mcpConnector`](../harness/mcp).
+
+To build the transport yourself (advanced), see [Custom transport](#custom-transport): call `transport.finishAuth(code)`, then pass the transport to `createMCPClient`.
+
+## Tool budget
+
+Cap how many MCP tools the model sees at once:
+
+```ts
+chat({
+  adapter: openaiText('gpt-6.1-sol'),
+  messages,
+  threadId: 'thread-1',
+  mcp: {
+    clients: [pool],
+    maxTools: 12,
+    rankTools: 'annotation', // prefer readOnlyHint
+  },
+})
+```
+
+Tools after the cap are marked `lazy` so discovery can load them later. See also [Attach MCP resources and prompts](./mcp-context).
 
 ## Custom transport
 
