@@ -535,7 +535,6 @@ export class OpencodeTextAdapter<
         }
       }
       if (heldFinished) yield heldFinished
-
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)

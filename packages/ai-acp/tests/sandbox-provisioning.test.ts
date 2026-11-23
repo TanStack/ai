@@ -260,22 +260,24 @@ describe('permission modes (the acpCompatible guardrail surface)', () => {
       ]),
     )
     expect(chunks).toEqual(
-      expect.arrayContaining([{
-      type: 'ACTIVITY_SNAPSHOT',
-      messageId: 'sandbox.approval:probe:tool:["execute","rm -rf /",[]]',
-      activityType: 'sandbox.approval',
-      content: {
-        approvalId: 'probe:tool:["execute","rm -rf /",[]]',
-        title: 'rm -rf /',
-        status: 'pending',
-        detail: { provider: 'probe' },
-      },
-      replace: true,
-      timestamp: expect.any(Number),
-      metadata: {
-        tanstack: { model: 'probe', threadId: 'thread-1', runId: 'run-1' },
-      },
-    }]),
+      expect.arrayContaining([
+        {
+          type: 'ACTIVITY_SNAPSHOT',
+          messageId: 'sandbox.approval:probe:tool:["execute","rm -rf /",[]]',
+          activityType: 'sandbox.approval',
+          content: {
+            approvalId: 'probe:tool:["execute","rm -rf /",[]]',
+            title: 'rm -rf /',
+            status: 'pending',
+            detail: { provider: 'probe' },
+          },
+          replace: true,
+          timestamp: expect.any(Number),
+          metadata: {
+            tanstack: { model: 'probe', threadId: 'thread-1', runId: 'run-1' },
+          },
+        },
+      ]),
     )
   })
 
@@ -294,8 +296,8 @@ describe('permission modes (the acpCompatible guardrail surface)', () => {
         patch: [{ op: 'replace', path: '/status', value: 'granted' }],
         timestamp: expect.any(Number),
         metadata: {
-        tanstack: { threadId: 'thread-1', runId: 'run-1' },
-      },
+          tanstack: { threadId: 'thread-1', runId: 'run-1' },
+        },
       },
     ])
   })

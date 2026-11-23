@@ -88,26 +88,29 @@ describe('claude-code sandbox.approval activity', () => {
     expect(
       chunks.some(
         (chunk) =>
-          chunk.type === EventType.CUSTOM && chunk.name === 'approval-requested',
+          chunk.type === EventType.CUSTOM &&
+          chunk.name === 'approval-requested',
       ),
     ).toBe(true)
     expect(chunks).toEqual(
-      expect.arrayContaining([{
-      type: 'ACTIVITY_SNAPSHOT',
-      messageId: 'sandbox.approval:claude-code:command:rm -rf build',
-      activityType: 'sandbox.approval',
-      content: {
-        approvalId: 'claude-code:command:rm -rf build',
-        title: 'Approve Bash: rm -rf build',
-        status: 'pending',
-        detail: { provider: 'claude-code', toolName: 'Bash' },
-      },
-      replace: true,
-      timestamp: expect.any(Number),
-      metadata: {
-        tanstack: { model: 'haiku', threadId: 'thread-1', runId: 'run-1' },
-      },
-    }]),
+      expect.arrayContaining([
+        {
+          type: 'ACTIVITY_SNAPSHOT',
+          messageId: 'sandbox.approval:claude-code:command:rm -rf build',
+          activityType: 'sandbox.approval',
+          content: {
+            approvalId: 'claude-code:command:rm -rf build',
+            title: 'Approve Bash: rm -rf build',
+            status: 'pending',
+            detail: { provider: 'claude-code', toolName: 'Bash' },
+          },
+          replace: true,
+          timestamp: expect.any(Number),
+          metadata: {
+            tanstack: { model: 'haiku', threadId: 'thread-1', runId: 'run-1' },
+          },
+        },
+      ]),
     )
   })
 
@@ -124,8 +127,8 @@ describe('claude-code sandbox.approval activity', () => {
         patch: [{ op: 'replace', path: '/status', value: 'granted' }],
         timestamp: expect.any(Number),
         metadata: {
-        tanstack: { threadId: 'thread-1', runId: 'run-1' },
-      },
+          tanstack: { threadId: 'thread-1', runId: 'run-1' },
+        },
       },
     ])
   })

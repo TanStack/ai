@@ -246,26 +246,33 @@ describe('opencode sandbox.approval activity', () => {
     expect(
       chunks.some(
         (chunk) =>
-          chunk.type === EventType.CUSTOM && chunk.name === 'approval-requested',
+          chunk.type === EventType.CUSTOM &&
+          chunk.name === 'approval-requested',
       ),
     ).toBe(true)
     expect(chunks).toEqual(
-      expect.arrayContaining([{
-      type: 'ACTIVITY_SNAPSHOT',
-      messageId: 'sandbox.approval:opencode:tool:bash:Run rm -rf build',
-      activityType: 'sandbox.approval',
-      content: {
-        approvalId: 'opencode:tool:bash:Run rm -rf build',
-        title: 'Run rm -rf build',
-        status: 'pending',
-        detail: { provider: 'opencode' },
-      },
-      replace: true,
-      timestamp: expect.any(Number),
-      metadata: {
-        tanstack: { model: 'anthropic/claude-sonnet-4-5', threadId: 'thread-1', runId: 'run-1' },
-      },
-    }]),
+      expect.arrayContaining([
+        {
+          type: 'ACTIVITY_SNAPSHOT',
+          messageId: 'sandbox.approval:opencode:tool:bash:Run rm -rf build',
+          activityType: 'sandbox.approval',
+          content: {
+            approvalId: 'opencode:tool:bash:Run rm -rf build',
+            title: 'Run rm -rf build',
+            status: 'pending',
+            detail: { provider: 'opencode' },
+          },
+          replace: true,
+          timestamp: expect.any(Number),
+          metadata: {
+            tanstack: {
+              model: 'anthropic/claude-sonnet-4-5',
+              threadId: 'thread-1',
+              runId: 'run-1',
+            },
+          },
+        },
+      ]),
     )
   })
 
@@ -282,8 +289,8 @@ describe('opencode sandbox.approval activity', () => {
         patch: [{ op: 'replace', path: '/status', value: 'denied' }],
         timestamp: expect.any(Number),
         metadata: {
-        tanstack: { threadId: 'thread-1', runId: 'run-1' },
-      },
+          tanstack: { threadId: 'thread-1', runId: 'run-1' },
+        },
       },
     ])
   })

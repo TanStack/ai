@@ -744,7 +744,6 @@ export class ClaudeCodeTextAdapter<
           // not a git repo / git unavailable — skip the diff event
         }
       }
-
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)

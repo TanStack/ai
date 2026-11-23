@@ -21,7 +21,9 @@ function editRequest(path: string): AcpPermissionRequest {
 
 describe('resolveInteractivePermission', () => {
   it('keys a decision to one action: the same kind, title, and files', () => {
-    const approvals = new Map([['probe:tool:["edit","Edit",["src/a.ts"]]', true]])
+    const approvals = new Map([
+      ['probe:tool:["edit","Edit",["src/a.ts"]]', true],
+    ])
     const decide = (path: string) =>
       resolveInteractivePermission(
         editRequest(path),
