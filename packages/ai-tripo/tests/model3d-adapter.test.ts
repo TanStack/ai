@@ -348,6 +348,23 @@ describe('tripo3dModel create3dModelJob', () => {
     ])
   })
 
+  it('rejects convert texture_packaging zip before any request', async () => {
+    const tripo = fakeTripo()
+    const adapter = tripo3dModel('convert', {
+      apiKey: 'key',
+      fetch: tripo.fetch,
+    })
+    const error = await createJob(adapter, [mesh(MESH_URL)], {
+      format: 'FBX',
+      texture_packaging: 'zip',
+    }).catch((caught: unknown) => caught)
+    expect(error).toBeInstanceOf(Error)
+    expect(String(error)).toMatch(
+      /convert with texture_packaging: 'zip' is not supported/,
+    )
+    expect(tripo.requests).toEqual([])
+  })
+
   const rejectedPrompts: Array<
     [string, TripoModel3dEndpoint, MediaPrompt, RegExp]
   > = [
@@ -534,12 +551,64 @@ describe('tripo3dModel get3dModel', () => {
     ])
   })
 
-  it('reads a URL with no extension as GLB', async () => {
-    const result = await resultFor('convert', {
-      model_url: 'https://cdn.tripo3d.ai/out/converted-model',
+  it('marks segment model_url as part', async () => {
+    const onlyModelUrl = await resultFor('segment', {
+      model_url: 'https://cdn.tripo3d.ai/out/parts.glb',
     })
-    expect(result.format).toBe('glb')
+    expect(onlyModelUrl.files).toEqual([
+      {
+        url: 'https://cdn.tripo3d.ai/out/parts.glb',
+        role: 'part',
+        format: 'glb',
+      },
+    ])
+
+    const both = await resultFor('segment', {
+      model_url: 'https://cdn.tripo3d.ai/out/model.glb',
+      seg_model_url: 'https://cdn.tripo3d.ai/out/seg.glb',
+    })
+    expect(both.files).toEqual([
+      {
+        url: 'https://cdn.tripo3d.ai/out/model.glb',
+        role: 'part',
+        format: 'glb',
+      },
+      {
+        url: 'https://cdn.tripo3d.ai/out/seg.glb',
+        role: 'part',
+        format: 'glb',
+      },
+    ])
   })
+
+  it.each([
+    [{ format: 'FBX' as const }, 'fbx'],
+    [{ format: 'GLTF' as const, quad: true }, 'fbx'],
+    [{ format: 'OBJ' as const }, 'obj'],
+  ])(
+    'reads an extensionless convert URL as the requested format %s',
+    async (modelOptions, format) => {
+      const tripo = fakeTripo({
+        task_id: 'task-1',
+        status: 'success',
+        output: { model_url: 'https://cdn.tripo3d.ai/out/converted-model' },
+      })
+      const adapter = tripo3dModel('convert', {
+        apiKey: 'key',
+        fetch: tripo.fetch,
+      })
+      await createJob(adapter, [mesh(MESH_URL)], modelOptions)
+      const result = await adapter.get3dModel('task-1')
+      expect(result.format).toBe(format)
+      expect(result.files).toEqual([
+        {
+          url: 'https://cdn.tripo3d.ai/out/converted-model',
+          role: 'base',
+          format,
+        },
+      ])
+    },
+  )
 
   it('throws when the task has no 3D model file', async () => {
     await expect(

@@ -210,27 +210,67 @@ const MESH_FORMATS: ReadonlyArray<Model3dFormat> = [
 ]
 
 // The format from the extension of the URL path, so a query string such as
-// `?sig=...` does not count. ponytail: a path with no known extension (a
-// convert result with no extension, a zip) reads as GLB. If a convert needs
-// the real format, keep its `format` option on the job and use it here.
-function formatFromUrl(url: string) {
+// `?sig=...` does not count. A path with no known mesh extension uses
+// `fallback` (the convert `format`, or FBX when `quad` is true).
+function formatFromUrl(url: string, fallback: Model3dFormat = 'glb') {
   const extension = new URL(url).pathname.split('.').pop()?.toLowerCase()
-  return MESH_FORMATS.find((format) => format === extension) ?? 'glb'
+  return MESH_FORMATS.find((format) => format === extension) ?? fallback
+}
+
+// Convert output format. `quad: true` always writes FBX.
+function convertMeshFormat(modelOptions: object | undefined): Model3dFormat {
+  if (modelOptions && 'quad' in modelOptions && modelOptions.quad === true) {
+    return 'fbx'
+  }
+  if (
+    modelOptions &&
+    'format' in modelOptions &&
+    typeof modelOptions.format === 'string'
+  ) {
+    const format = modelOptions.format.toLowerCase()
+    return MESH_FORMATS.find((value) => value === format) ?? 'glb'
+  }
+  return 'glb'
+}
+
+// ZIP packaging returns an archive. Model3dResult cannot describe that.
+function assertConvertPackaging(
+  endpoint: TripoModel3dEndpoint,
+  modelOptions: object | undefined,
+) {
+  if (endpoint !== 'convert') return
+  if (
+    modelOptions &&
+    'texture_packaging' in modelOptions &&
+    modelOptions.texture_packaging === 'zip'
+  ) {
+    throw new Error(
+      "tripo: convert with texture_packaging: 'zip' is not supported. Use the default embedded packaging.",
+    )
+  }
 }
 
 // The role of `model_url`. It is `'base'` for the endpoints not listed.
 const MAIN_FILE_ROLES: Partial<Record<TripoModel3dEndpoint, Model3dFileRole>> =
-  { rig: 'rigged', retarget: 'animation' }
+  { rig: 'rigged', retarget: 'animation', segment: 'part' }
 
 // Every file URL of the task output. `pbr_model` and `base_model` can repeat
 // `model_url`, so a URL that is already listed is skipped.
-function collectFiles(endpoint: TripoModel3dEndpoint, output: TripoTaskOutput) {
+function collectFiles(
+  endpoint: TripoModel3dEndpoint,
+  output: TripoTaskOutput,
+  fallbackFormat?: Model3dFormat,
+) {
   const files: Array<Model3dFile> = []
   const add = (url: unknown, role: Model3dFileRole, isMesh = true) => {
     const isNewUrl =
       typeof url === 'string' && url !== '' && !files.some((f) => f.url === url)
     if (!isNewUrl) return
-    files.push({ url, role, ...(isMesh ? { format: formatFromUrl(url) } : {}) })
+    files.push({
+      url,
+      role,
+      ...(isMesh ? { format: formatFromUrl(url, fallbackFormat) } : {}),
+    })
   }
   add(output.model_url, MAIN_FILE_ROLES[endpoint] ?? 'base')
   add(output.pbr_model, 'pbr')
@@ -275,6 +315,7 @@ export class TripoModel3dAdapter<
   override readonly supportsFileSources = true
   private readonly client: TripoClient
   private readonly tripoModel: TripoModelFor<E> | undefined
+  private readonly convertFormats = new Map<string, Model3dFormat>()
 
   // ponytail: `M` only types `modelOptions`. `tripo3dModel()` infers it from
   // the model argument, so the constructor takes any model of the endpoint.
@@ -305,6 +346,7 @@ export class TripoModel3dAdapter<
     )
 
     try {
+      assertConvertPackaging(this.model, modelOptions)
       const path = TRIPO_ENDPOINT_PATHS[this.model]
       const buildPromptFields = promptFieldsFor(this.model, options.prompt)
       const promptFields = await buildPromptFields((source) =>
@@ -324,6 +366,9 @@ export class TripoModel3dAdapter<
         body,
         abortSignal,
       )
+      if (this.model === 'convert') {
+        this.convertFormats.set(data.task_id, convertMeshFormat(modelOptions))
+      }
       return { jobId: data.task_id, model: this.model }
     } catch (error) {
       logger.errors('tripo.create3dModelJob fatal', {
@@ -354,7 +399,11 @@ export class TripoModel3dAdapter<
       throw new Error(`tripo: ${this.model} task ${jobId} failed: ${error}`)
     }
     const output = task.output ?? {}
-    const files = collectFiles(this.model, output)
+    const files = collectFiles(
+      this.model,
+      output,
+      this.convertFormats.get(jobId),
+    )
     const meshFiles = files.filter(isMeshFile)
     const main = meshFiles.find((file) => file.format === 'glb') ?? meshFiles[0]
     if (!main) {
