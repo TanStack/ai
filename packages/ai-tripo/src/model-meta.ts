@@ -411,10 +411,10 @@ export interface TripoConvertOptions {
   /** FBX preset for the target tool. Defaults to `blender`. */
   fbx_preset?: 'blender' | '3dsmax' | 'mixamo' | 'bake_scale'
   /**
-   * FBX texture delivery. Defaults to `embedded`. `zip` returns a zip with the
-   * FBX and a texture folder. Only for `format: 'FBX'`.
+   * FBX texture delivery. Only `embedded`, the default. Tripo also has `zip`,
+   * but that gives an archive and not a model, so the adapter rejects it.
    */
-  texture_packaging?: 'embedded' | 'zip'
+  texture_packaging?: 'embedded'
 }
 
 type TripoNamedRigType =

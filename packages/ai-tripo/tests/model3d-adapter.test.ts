@@ -356,6 +356,7 @@ describe('tripo3dModel create3dModelJob', () => {
     })
     const error = await createJob(adapter, [mesh(MESH_URL)], {
       format: 'FBX',
+      // @ts-expect-error -- the type rejects zip. JS callers still reach the runtime check.
       texture_packaging: 'zip',
     }).catch((caught: unknown) => caught)
     expect(error).toBeInstanceOf(Error)
