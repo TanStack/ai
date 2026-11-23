@@ -21,6 +21,14 @@ const MESHY_RIG_TASK = 'meshy-rig-task'
 const MESHY_ANIM_TASK = 'meshy-anim-task'
 const MESHY_ASSETS = 'https://assets.meshy.ai/e2e'
 
+// The fake Tripo in the route creates these task ids (see the route file).
+const TRIPO_MESH_TASK = 'tripo-mesh-task'
+const TRIPO_RIG_TASK = 'tripo-rig-task'
+const TRIPO_ANIM_TASK = 'tripo-anim-task'
+const TRIPO_ASSETS = 'https://assets.tripo3d.ai/e2e'
+// The PNG signature as base64. The fake Tripo records only the file name.
+const PNG_BASE64 = 'iVBORw0KGgo='
+
 interface StreamEvent {
   type: string
   name?: unknown
@@ -50,23 +58,42 @@ function customEvents(events: Array<StreamEvent>) {
   )
 }
 
-/** The `GET` requests that read a Meshy task `count` times. */
-function meshyTaskReads(path: string, count: number) {
+/** The `GET` requests that read a provider task `count` times. */
+function taskReads(path: string, count: number) {
   return Array.from({ length: count }, () => ({ method: 'GET', path }))
 }
 
-/** The Meshy steps that the route runs in wait mode. */
-type MeshyWaitStep =
-  | { step: 'image-to-3d'; imageUrl: string }
-  | { step: 'rigging'; jobId: string }
+/** The Meshy and Tripo steps that the route runs in wait mode. */
+type ProviderWaitStep =
+  | { provider: 'meshy'; step: 'image-to-3d'; imageUrl: string }
+  | { provider: 'meshy'; step: 'rigging'; jobId: string }
+  | { provider: 'tripo'; step: 'image-to-model'; imageBase64: string }
+  | { provider: 'tripo'; step: 'rig'; jobId: string }
 
-/** Posts one Meshy step and returns the status and the JSON body. */
-async function postMeshyWait(request: APIRequestContext, data: MeshyWaitStep) {
-  const res = await request.post('/api/3d-model', {
-    data: { provider: 'meshy', ...data },
-  })
+/** The Meshy and Tripo steps that the route runs in stream mode. */
+type ProviderStreamStep =
+  | {
+      provider: 'meshy'
+      step: 'animation'
+      jobId: string
+      actionIds: Array<number>
+    }
+  | { provider: 'tripo'; step: 'retarget'; jobId: string }
+
+/** Posts one provider step and returns the status and the JSON body. */
+async function postWait(request: APIRequestContext, data: ProviderWaitStep) {
+  const res = await request.post('/api/3d-model', { data })
   const body: unknown = await res.json()
   return { status: res.status(), body }
+}
+
+/** Posts one provider step and returns the status and the SSE events. */
+async function postStream(
+  request: APIRequestContext,
+  data: ProviderStreamStep,
+) {
+  const res = await request.post('/api/3d-model', { data })
+  return { status: res.status(), events: parseSse(await res.text()) }
 }
 
 interface WaitBody {
@@ -138,7 +165,8 @@ test.describe('generate3DModel activity (meshy)', () => {
   test('image-to-3d waits for the task and sends the image as image_url', async ({
     request,
   }) => {
-    const answer = await postMeshyWait(request, {
+    const answer = await postWait(request, {
+      provider: 'meshy',
       step: 'image-to-3d',
       imageUrl: IMAGE_URL,
     })
@@ -163,7 +191,7 @@ test.describe('generate3DModel activity (meshy)', () => {
             path: '/v1/image-to-3d',
             body: { image_url: IMAGE_URL },
           },
-          ...meshyTaskReads(`/v1/image-to-3d/${MESHY_MESH_TASK}`, 3),
+          ...taskReads(`/v1/image-to-3d/${MESHY_MESH_TASK}`, 3),
         ],
       },
     })
@@ -172,7 +200,8 @@ test.describe('generate3DModel activity (meshy)', () => {
   test('rigging sends the mesh task id as input_task_id', async ({
     request,
   }) => {
-    const answer = await postMeshyWait(request, {
+    const answer = await postWait(request, {
+      provider: 'meshy',
       step: 'rigging',
       jobId: MESHY_MESH_TASK,
     })
@@ -195,7 +224,7 @@ test.describe('generate3DModel activity (meshy)', () => {
             path: '/v1/rigging',
             body: { input_task_id: MESHY_MESH_TASK },
           },
-          ...meshyTaskReads(`/v1/rigging/${MESHY_RIG_TASK}`, 3),
+          ...taskReads(`/v1/rigging/${MESHY_RIG_TASK}`, 3),
         ],
       },
     })
@@ -204,16 +233,13 @@ test.describe('generate3DModel activity (meshy)', () => {
   test('animation streams the clip and sends rig_task_id and action_ids', async ({
     request,
   }) => {
-    const res = await request.post('/api/3d-model', {
-      data: {
-        provider: 'meshy',
-        step: 'animation',
-        jobId: MESHY_RIG_TASK,
-        actionIds: [1, 4],
-      },
+    const { status, events } = await postStream(request, {
+      provider: 'meshy',
+      step: 'animation',
+      jobId: MESHY_RIG_TASK,
+      actionIds: [1, 4],
     })
-    expect(res.status()).toBe(200)
-    const events = parseSse(await res.text())
+    expect(status).toBe(200)
 
     expect(customEvents(events)).toEqual([
       {
@@ -252,7 +278,123 @@ test.describe('generate3DModel activity (meshy)', () => {
             path: '/v1/animations',
             body: { rig_task_id: MESHY_RIG_TASK, action_ids: [1, 4] },
           },
-          ...meshyTaskReads(`/v1/animations/${MESHY_ANIM_TASK}`, 3),
+          ...taskReads(`/v1/animations/${MESHY_ANIM_TASK}`, 3),
+        ],
+      },
+    ])
+    expect(events.at(-1)?.type).toBe('RUN_FINISHED')
+  })
+})
+
+test.describe('generate3DModel activity (tripo)', () => {
+  test('image-to-model uploads the image, then sends the file_token as input', async ({
+    request,
+  }) => {
+    const answer = await postWait(request, {
+      provider: 'tripo',
+      step: 'image-to-model',
+      imageBase64: PNG_BASE64,
+    })
+
+    expect(answer).toEqual({
+      status: 200,
+      body: {
+        result: {
+          jobId: TRIPO_MESH_TASK,
+          url: `${TRIPO_ASSETS}/mesh.glb`,
+          format: 'glb',
+          files: [
+            { url: `${TRIPO_ASSETS}/mesh.glb`, role: 'base', format: 'glb' },
+          ],
+          previewImageUrl: `${TRIPO_ASSETS}/mesh.png`,
+        },
+        // Upload, create, then running, success, and the read of the result.
+        tripoRequests: [
+          { method: 'POST', path: '/files', body: { upload: 'upload.png' } },
+          {
+            method: 'POST',
+            path: '/generation/image-to-model',
+            body: { input: 'file_e2e', model: 'v3.1-20260211' },
+          },
+          ...taskReads(`/tasks/${TRIPO_MESH_TASK}`, 3),
+        ],
+      },
+    })
+  })
+
+  test('rig sends the mesh task id as input', async ({ request }) => {
+    const answer = await postWait(request, {
+      provider: 'tripo',
+      step: 'rig',
+      jobId: TRIPO_MESH_TASK,
+    })
+
+    expect(answer).toEqual({
+      status: 200,
+      body: {
+        result: {
+          jobId: TRIPO_RIG_TASK,
+          url: `${TRIPO_ASSETS}/rig.glb`,
+          format: 'glb',
+          files: [
+            { url: `${TRIPO_ASSETS}/rig.glb`, role: 'rigged', format: 'glb' },
+          ],
+        },
+        tripoRequests: [
+          {
+            method: 'POST',
+            path: '/animations/rig',
+            body: { input: TRIPO_MESH_TASK },
+          },
+          ...taskReads(`/tasks/${TRIPO_RIG_TASK}`, 3),
+        ],
+      },
+    })
+  })
+
+  test('retarget streams the clip and sends the rig task id and preset:walk', async ({
+    request,
+  }) => {
+    const { status, events } = await postStream(request, {
+      provider: 'tripo',
+      step: 'retarget',
+      jobId: TRIPO_RIG_TASK,
+    })
+    expect(status).toBe(200)
+
+    expect(customEvents(events)).toEqual([
+      {
+        name: 'generation:progress',
+        value: { progress: 50, message: 'processing' },
+      },
+      {
+        name: 'generation:progress',
+        value: { progress: 100, message: 'completed' },
+      },
+      {
+        name: 'generation:result',
+        value: {
+          jobId: TRIPO_ANIM_TASK,
+          url: `${TRIPO_ASSETS}/walk.glb`,
+          format: 'glb',
+          files: [
+            {
+              url: `${TRIPO_ASSETS}/walk.glb`,
+              role: 'animation',
+              format: 'glb',
+            },
+          ],
+        },
+      },
+      {
+        name: 'tripo:requests',
+        value: [
+          {
+            method: 'POST',
+            path: '/animations/retarget',
+            body: { animation: 'preset:walk', input: TRIPO_RIG_TASK },
+          },
+          ...taskReads(`/tasks/${TRIPO_ANIM_TASK}`, 3),
         ],
       },
     ])
