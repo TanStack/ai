@@ -464,18 +464,20 @@ describe('OpenAI adapter option mapping', () => {
       const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
       const adapter = new OpenAITextAdapter({ apiKey: 'test-key' }, model)
       ;(adapter as any).client = { responses: { create: responsesCreate } }
+      const modelOptions = {
+        temperature: 0.7,
+        top_p: 0.9,
+        top_logprobs: 2,
+        max_output_tokens: 256,
+      }
 
       for await (const _ of chat({
         adapter,
         messages: [{ role: 'user', content: 'hi' }],
         threadId: 'thread-1',
         reasoning,
-        modelOptions: {
-          temperature: 0.7,
-          top_p: 0.9,
-          top_logprobs: 2,
-          max_output_tokens: 256,
-        },
+        // @ts-expect-error - the types allow sampling only with reasoning 'off'; this checks the runtime removal for JS callers
+        modelOptions,
       })) {
         // consume stream
       }

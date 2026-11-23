@@ -117,10 +117,11 @@ import { openaiText } from '@tanstack/ai-openai'
 const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 const stream = chat({
-  adapter: openaiText('gpt-6.1-sol'),
+  adapter: openaiText('gpt-6.1-terra'),
   messages,
   threadId: 'thread-1',
   // Provider options, typed for this model
+  reasoning: 'off',
   modelOptions: {
     temperature: 0.7,
     max_output_tokens: 1000,

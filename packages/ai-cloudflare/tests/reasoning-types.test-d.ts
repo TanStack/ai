@@ -12,6 +12,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createCloudflareText('@cf/zai-org/glm-5.3', config),
   messages,
   // @ts-expect-error glm-5.3 cannot turn thinking off
@@ -19,6 +20,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createCloudflareText('@cf/qwen/qwq-32b', config),
   messages,
   // @ts-expect-error reasoning_effort is the chat() reasoning option now

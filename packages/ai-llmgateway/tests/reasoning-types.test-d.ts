@@ -11,6 +11,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createLLMGatewayText('gpt-5.5', 'k'),
   messages,
   // @ts-expect-error gpt-5.5 has no max level
@@ -18,6 +19,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createLLMGatewayText('gpt-5.5', 'k'),
   messages,
   // @ts-expect-error this API has no token budget field

@@ -11,6 +11,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createBytePlusText('gpt-oss-120b-250805', 'k'),
   messages,
   // @ts-expect-error gpt-oss on Ark has no max level
@@ -18,6 +19,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createBytePlusText('glm-5-2-260617', 'k'),
   messages,
   // @ts-expect-error thinking is the chat() reasoning option now

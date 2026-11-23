@@ -83,10 +83,18 @@ type ResolveInputModalities<TModel extends string> =
     ? OpenAIModelInputModalitiesByName[TModel]
     : readonly ['text', 'image', 'audio']
 
-/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+/**
+ * The reasoning levels of a model, for `chat({ reasoning })`. `never`: none.
+ * A reasoning model takes the sampling options only with `reasoning: 'off'`,
+ * the same rule as `openAIModelRejectsSamplingParams`.
+ */
 type ResolveReasoning<TModel extends string> =
   TModel extends keyof OpenAIModelReasoningByName
-    ? OpenAIModelReasoningByName[TModel]
+    ? TModel extends `${string}-chat-latest`
+      ? OpenAIModelReasoningByName[TModel]
+      : OpenAIModelReasoningByName[TModel] & {
+          offOnlyOptions: 'temperature' | 'top_p' | 'top_logprobs'
+        }
     : never
 
 /**

@@ -11,6 +11,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createMistralText('mistral-small-latest', 'k'),
   messages,
   // @ts-expect-error mistral-small-latest has only off and high
@@ -18,6 +19,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createMistralText('mistral-large-latest', 'k'),
   messages,
   // @ts-expect-error mistral-large-latest does not reason

@@ -14,6 +14,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createVercelGatewayText('google/gemini-2.5-pro', 'k', {
     api: 'chat',
   }),
@@ -23,6 +24,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createVercelGatewayText('google/gemini-2.5-pro', 'k'),
   messages,
   // @ts-expect-error the Responses API has no token budget field

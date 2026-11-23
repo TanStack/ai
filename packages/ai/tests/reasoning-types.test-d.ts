@@ -46,6 +46,7 @@ chat({
 chat({ adapter: effortModel, messages, reasoning: 'medium' })
 
 chat({
+  threadId: 'thread-1',
   adapter: effortModel,
   messages,
   // @ts-expect-error budgetTokens needs a budget-based model

@@ -105,6 +105,29 @@ describe('Anthropic per-model chat modelOptions gating', () => {
     })
   })
 
+  describe.each(['claude-opus-5', 'claude-opus-5-5'] as const)(
+    '%s — max_tokens, no sampling',
+    (model) => {
+      it('accepts max_tokens and rejects sampling parameters', () => {
+        chat({
+          threadId: 'thread-1',
+          adapter: anthropicText(model),
+          messages: [{ role: 'user', content: 'hi' }],
+          modelOptions: { max_tokens: 2048 },
+        })
+        chat({
+          threadId: 'thread-1',
+          adapter: anthropicText(model),
+          messages: [{ role: 'user', content: 'hi' }],
+          modelOptions: {
+            // @ts-expect-error - Anthropic returns a 400 for temperature on this model
+            temperature: 0.5,
+          },
+        })
+      })
+    },
+  )
+
   describe('claude-sonnet-5 — no sampling', () => {
     it('rejects sampling parameters', () => {
       chat({

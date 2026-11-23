@@ -11,6 +11,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: codexText('gpt-5.1-codex'),
   messages,
   // @ts-expect-error gpt-5.1-codex has no max level
@@ -18,6 +19,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: codexText('gpt-5.1-codex'),
   messages,
   // @ts-expect-error modelReasoningEffort is the chat() reasoning option now

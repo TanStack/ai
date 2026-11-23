@@ -11,6 +11,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: opencodeText('openai/gpt-5.1-codex'),
   messages,
   // @ts-expect-error gpt-5.1-codex cannot turn thinking off

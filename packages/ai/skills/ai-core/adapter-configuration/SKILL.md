@@ -52,6 +52,7 @@ export async function POST(request: Request) {
     adapter: openaiText('gpt-5.2'),
     messages,
     threadId,
+    reasoning: 'off',
     modelOptions: {
       temperature: 0.7,
       max_output_tokens: 1000,
@@ -279,6 +280,7 @@ chat({
   adapter: openaiText('gpt-5.2'),
   messages,
   threadId: 'thread-1',
+  reasoning: 'off',
   modelOptions: { temperature: 0.7, top_p: 0.9, max_output_tokens: 1000 },
 })
 

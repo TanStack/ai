@@ -222,6 +222,7 @@ import type {
 import type { ChatMCPOptions } from './mcp/types'
 import type {
   AdapterReasoning,
+  ModelOptionsForReasoning,
   ReasoningOption,
   ReasoningOptionFor,
 } from '../../reasoning'
@@ -524,11 +525,19 @@ type TextActivityOptionsWithContext<
   TContext = unknown,
   TMiddleware extends Array<unknown> | undefined = undefined,
   TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
+  TReasoningOption = any,
 > = Omit<
   TextActivityOptions<TAdapter, TSchema, TStream, any, TAgents>,
-  'tools' | 'middleware' | 'context' | 'interrupts' | 'toolChoice'
+  | 'tools'
+  | 'middleware'
+  | 'context'
+  | 'interrupts'
+  | 'toolChoice'
+  | 'modelOptions'
+  | 'reasoning'
 > &
-  TypedChatFields<TTools, TInterrupts, TContext, TMiddleware>
+  TypedChatFields<TTools, TInterrupts, TContext, TMiddleware> &
+  ReasoningChatFields<TAdapter, TReasoningOption>
 
 /**
  * The `chat()` options of `ctx.chat` on a subagent. `threadId` is optional:
@@ -544,17 +553,45 @@ export type BoundTextActivityOptions<
   TContext = unknown,
   TMiddleware extends Array<unknown> | undefined = undefined,
   TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
+  TReasoningOption = any,
 > = WithOptionalThreadId<
   Omit<
     TextActivityOptions<TAdapter, TSchema, TStream, any, TAgents>,
-    'tools' | 'middleware' | 'context' | 'interrupts' | 'toolChoice'
+    | 'tools'
+    | 'middleware'
+    | 'context'
+    | 'interrupts'
+    | 'toolChoice'
+    | 'modelOptions'
+    | 'reasoning'
   >
 > &
-  TypedChatFields<TTools, TInterrupts, TContext, TMiddleware>
+  TypedChatFields<TTools, TInterrupts, TContext, TMiddleware> &
+  ReasoningChatFields<TAdapter, TReasoningOption>
 
 /** Activity options with an optional `threadId`. */
 export type WithOptionalThreadId<T> = Omit<T, 'threadId'> & {
   threadId?: string
+}
+
+/**
+ * The `chat()` fields whose types come from the `reasoning` option. The
+ * default `any` takes every `modelOptions` key, for the internal types that
+ * do not infer `reasoning`.
+ */
+type ReasoningChatFields<TAdapter extends AnyTextAdapter, TReasoningOption> = {
+  /**
+   * Model-specific provider options (type comes from adapter). On some
+   * reasoning models, sampling options such as `temperature` need
+   * `reasoning: 'off'`.
+   */
+  modelOptions?: ModelOptionsForReasoning<
+    TAdapter['~types']['providerOptions'],
+    AdapterReasoning<TAdapter>,
+    TReasoningOption
+  >
+  /** {@link TextActivityOptions.reasoning} */
+  reasoning?: TReasoningOption
 }
 
 /** The `chat()` fields whose types come from the tools and middleware. */
@@ -861,6 +898,9 @@ export function createChatOptions<
   > = [],
   TContext = unknown,
   const TMiddleware extends Array<unknown> | undefined = undefined,
+  const TReasoningOption extends
+    | ReasoningOptionFor<AdapterReasoning<TAdapter>>
+    | undefined = undefined,
 >(
   options: BoundTextActivityOptions<
     TAdapter,
@@ -869,7 +909,9 @@ export function createChatOptions<
     TTools,
     TInterrupts,
     TContext,
-    TMiddleware
+    TMiddleware,
+    ReadonlyArray<DefinedAgent>,
+    TReasoningOption
   >,
 ): WithOptionalThreadId<
   Omit<
@@ -879,13 +921,24 @@ export function createChatOptions<
       TStream,
       InferredContext<TTools, TMiddleware>
     >,
-    'tools' | 'middleware' | 'interrupts' | 'context'
+    | 'tools'
+    | 'middleware'
+    | 'interrupts'
+    | 'context'
+    | 'modelOptions'
+    | 'reasoning'
   >
-> & {
-  tools?: TTools
-  interrupts?: TInterrupts
-  middleware?: ExactMiddlewareOption<TTools, TContext, TInterrupts, TMiddleware>
-} & RuntimeContextOption<TTools, TMiddleware, TContext> {
+> &
+  ReasoningChatFields<TAdapter, TReasoningOption> & {
+    tools?: TTools
+    interrupts?: TInterrupts
+    middleware?: ExactMiddlewareOption<
+      TTools,
+      TContext,
+      TInterrupts,
+      TMiddleware
+    >
+  } & RuntimeContextOption<TTools, TMiddleware, TContext> {
   return options
 }
 
@@ -6432,6 +6485,9 @@ export function chat<
   const TMiddleware extends Array<unknown> | undefined = undefined,
   const TAgents extends ReadonlyArray<DefinedAgent> =
     ReadonlyArray<DefinedAgent>,
+  const TReasoningOption extends
+    | ReasoningOptionFor<AdapterReasoning<TAdapter>>
+    | undefined = undefined,
 >(
   options: TextActivityOptionsWithContext<
     TAdapter,
@@ -6441,7 +6497,8 @@ export function chat<
     TInterrupts,
     TContext,
     TMiddleware,
-    TAgents
+    TAgents,
+    TReasoningOption
   >,
 ): TextActivityResult<TSchema, TStream, TTools> {
   // The type requires it, but JS callers and spreads of optional fields can

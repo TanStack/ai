@@ -576,7 +576,7 @@ const CLAUDE_OPUS_5 = {
     AnthropicServiceTierOptions &
     AnthropicStopSequencesOptions &
     AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+    AnthropicMaxTokensOptions
 >
 
 const CLAUDE_FABLE_5_1 = {
@@ -662,7 +662,7 @@ const CLAUDE_OPUS_5_5 = {
     AnthropicServiceTierOptions &
     AnthropicStopSequencesOptions &
     AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+    AnthropicMaxTokensOptions
 >
 
 // Claude Sonnet 5.5: adaptive thinking is the default. `{type: 'disabled'}`
@@ -1023,7 +1023,7 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicServiceTierOptions &
     AnthropicStopSequencesOptions &
     AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+    AnthropicMaxTokensOptions
   [CLAUDE_FABLE_5_1.id]: AnthropicCacheControlOptions &
     AnthropicContainerOptions &
     AnthropicContextManagementOptions &
@@ -1041,7 +1041,7 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicServiceTierOptions &
     AnthropicStopSequencesOptions &
     AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+    AnthropicMaxTokensOptions
   // Claude Sonnet 5.5: adaptive-only thinking config, no sampling
   // parameters — see the CLAUDE_SONNET_5_5 constant above.
   [CLAUDE_SONNET_5_5.id]: AnthropicCacheControlOptions &

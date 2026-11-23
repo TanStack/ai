@@ -35,6 +35,7 @@ import type {
   WithOptionalThreadId,
 } from '../index'
 import type { AnyTextAdapter } from '../adapter'
+import type { AdapterReasoning, ReasoningOptionFor } from '../../../reasoning'
 import type {
   SummarizeActivityOptions,
   SummarizeActivityResult,
@@ -218,6 +219,9 @@ export interface BoundActivities {
     const TMiddleware extends Array<unknown> | undefined = undefined,
     const TAgents extends ReadonlyArray<DefinedAgent> =
       ReadonlyArray<DefinedAgent>,
+    const TReasoningOption extends
+      | ReasoningOptionFor<AdapterReasoning<TAdapter>>
+      | undefined = undefined,
   >(
     options: BoundTextActivityOptions<
       TAdapter,
@@ -227,7 +231,8 @@ export interface BoundActivities {
       TInterrupts,
       TContext,
       TMiddleware,
-      TAgents
+      TAgents,
+      TReasoningOption
     >,
   ) => TextActivityResult<TSchema, TStream, TTools>
   summarize: <

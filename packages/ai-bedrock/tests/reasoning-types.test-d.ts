@@ -13,6 +13,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: bedrockText('openai.gpt-oss-120b-1:0', config),
   messages,
   // @ts-expect-error - gpt-oss has no max level
@@ -28,6 +29,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: bedrockText('openai.gpt-oss-20b-1:0', config),
   messages,
   // @ts-expect-error - gpt-oss takes no token budget
@@ -35,6 +37,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: bedrockText('us.amazon.nova-pro-v1:0', config),
   messages,
   // @ts-expect-error - Nova does not reason
