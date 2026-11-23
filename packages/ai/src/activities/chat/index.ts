@@ -1550,7 +1550,7 @@ class TextEngine<
     }
   }
 
-  private async runTerminalHook(): Promise<void> {
+  private async *runTerminalHook(): AsyncGenerator<StreamChunk> {
     if (this.terminalHookCalled || this.isCancelled()) return
 
     this.terminalHookCalled = true
@@ -1574,23 +1574,27 @@ class TextEngine<
           enumerable: true,
         })
       }
-      await this.middlewareRunner.runOnError(this.middlewareCtx, {
-        error: errForHook,
-        duration: Date.now() - this.streamStartTime,
-      })
+      yield* this.runWhileYielding(
+        this.middlewareRunner.runOnError(this.middlewareCtx, {
+          error: errForHook,
+          duration: Date.now() - this.streamStartTime,
+        }),
+      )
       return
     }
 
     this.addTerminalAssistantMessages()
-    await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
-      finishReason: this.lastFinishReason,
-      duration: Date.now() - this.streamStartTime,
-      content: this.accumulatedContent,
-      usage: rebuildTokenUsage(
-        this.finishedEvent?.usage,
-        tanstackMetadata(this.finishedEvent ?? undefined)?.usage,
-      ),
-    })
+    yield* this.runWhileYielding(
+      this.middlewareRunner.runOnFinish(this.middlewareCtx, {
+        finishReason: this.lastFinishReason,
+        duration: Date.now() - this.streamStartTime,
+        content: this.accumulatedContent,
+        usage: rebuildTokenUsage(
+          this.finishedEvent?.usage,
+          tanstackMetadata(this.finishedEvent ?? undefined)?.usage,
+        ),
+      }),
+    )
   }
 
   async *run(): AsyncGenerator<StreamChunk> {
@@ -1665,15 +1669,17 @@ class TextEngine<
         yield* this.emitSuccessfulEarlyTermination()
         if (!this.terminalHookCalled) {
           this.terminalHookCalled = true
-          await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
-            finishReason: this.lastFinishReason,
-            duration: Date.now() - this.streamStartTime,
-            content: this.accumulatedContent,
-            usage: rebuildTokenUsage(
-              this.finishedEvent?.usage,
-              tanstackMetadata(this.finishedEvent ?? undefined)?.usage,
-            ),
-          })
+          yield* this.runWhileYielding(
+            this.middlewareRunner.runOnFinish(this.middlewareCtx, {
+              finishReason: this.lastFinishReason,
+              duration: Date.now() - this.streamStartTime,
+              content: this.accumulatedContent,
+              usage: rebuildTokenUsage(
+                this.finishedEvent?.usage,
+                tanstackMetadata(this.finishedEvent ?? undefined)?.usage,
+              ),
+            }),
+          )
         }
         return
       }
@@ -1685,7 +1691,7 @@ class TextEngine<
       const hasResumedTools = this.getPendingToolCallsFromMessages().length > 0
       const pendingPhase = yield* this.checkForPendingToolCalls()
       if (pendingPhase === 'stop' || pendingPhase === 'wait') {
-        await this.runTerminalHook()
+        yield* this.runTerminalHook()
         return
       }
       // The resumed tools are a tool phase too: middleware `onShouldContinue`
@@ -1847,7 +1853,7 @@ class TextEngine<
       // Structured-output finalization stays paused until the caller submits
       // the result in a new invocation, but middleware must still observe one
       // terminal hook for the current invocation.
-      await this.runTerminalHook()
+      yield* this.runTerminalHook()
     } catch (error: unknown) {
       if (
         error instanceof Error &&
@@ -1876,10 +1882,12 @@ class TextEngine<
           error,
           threadId: this.middlewareCtx.threadId,
         })
-        await this.middlewareRunner.runOnError(this.middlewareCtx, {
-          error: interruptFailure.error,
-          duration: Date.now() - this.streamStartTime,
-        })
+        yield* this.runWhileYielding(
+          this.middlewareRunner.runOnError(this.middlewareCtx, {
+            error: interruptFailure.error,
+            duration: Date.now() - this.streamStartTime,
+          }),
+        )
         yield this.buildInterruptRunErrorChunk(error)
         return
       }
@@ -1888,21 +1896,25 @@ class TextEngine<
         if (error instanceof MiddlewareAbortError) {
           // Middleware abort decision — call onAbort, not onError
           this.abortReason = error.message
-          await this.middlewareRunner.runOnAbort(this.middlewareCtx, {
-            reason: error.message,
-            duration: Date.now() - this.streamStartTime,
-            cancelRequested: isCancelRequestedReason(error.message),
-          })
+          yield* this.runWhileYielding(
+            this.middlewareRunner.runOnAbort(this.middlewareCtx, {
+              reason: error.message,
+              duration: Date.now() - this.streamStartTime,
+              cancelRequested: isCancelRequestedReason(error.message),
+            }),
+          )
         } else {
           // Genuine error — call onError
           this.logger.errors('chat run failed', {
             error,
             threadId: this.middlewareCtx.threadId,
           })
-          await this.middlewareRunner.runOnError(this.middlewareCtx, {
-            error,
-            duration: Date.now() - this.streamStartTime,
-          })
+          yield* this.runWhileYielding(
+            this.middlewareRunner.runOnError(this.middlewareCtx, {
+              error,
+              duration: Date.now() - this.streamStartTime,
+            }),
+          )
         }
       }
       // Don't rethrow middleware abort errors — the run just stops gracefully
@@ -1914,11 +1926,13 @@ class TextEngine<
       if (!this.terminalHookCalled && this.isCancelled()) {
         this.terminalHookCalled = true
         const reason = this.resolveAbortReason()
-        await this.middlewareRunner.runOnAbort(this.middlewareCtx, {
-          reason,
-          duration: Date.now() - this.streamStartTime,
-          cancelRequested: isCancelRequestedReason(reason),
-        })
+        yield* this.runWhileYielding(
+          this.middlewareRunner.runOnAbort(this.middlewareCtx, {
+            reason,
+            duration: Date.now() - this.streamStartTime,
+            cancelRequested: isCancelRequestedReason(reason),
+          }),
+        )
       }
 
       // Await deferred promises (non-blocking side effects)

@@ -121,6 +121,21 @@ describe('emitActivity', () => {
     expect(activitySnapshots(chunks)).toEqual([firstStepSnapshot])
   })
 
+  it('sends an ACTIVITY_SNAPSHOT emitted in onFinish', async () => {
+    const { chunks } = await runDeploy({
+      middleware: [
+        {
+          name: 'deploy-status',
+          onFinish(ctx) {
+            ctx.emitActivity(deployProgress, 'deploy-1', firstStep)
+          },
+        },
+      ],
+    })
+
+    expect(activitySnapshots(chunks)).toEqual([firstStepSnapshot])
+  })
+
   it('keeps a row emitted in init onConfig in ctx.activities at onFinish', async () => {
     const { chunks, activities } = await runDeploy({
       middleware: [
