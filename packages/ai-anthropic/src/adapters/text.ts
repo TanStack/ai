@@ -772,30 +772,36 @@ export class AnthropicTextAdapter<
 
   /**
    * With a token, drop `x-api-key`. With OAuth, also send the identity
-   * headers, and merge the configured `anthropic-beta` with the request betas.
+   * headers. A configured `anthropic-beta` replaces the SDK's `betas`
+   * header, so merge it with the request betas.
    */
   private requestHeaders(
     headers: HeadersInit | undefined,
     betas: Array<AnthropicBeta> | undefined,
   ) {
-    if (!this.tokenAuthentication) return headers
+    if (
+      !this.tokenAuthentication &&
+      !new Headers(headers).has('anthropic-beta')
+    )
+      return headers
     const requestHeaders = new Headers(
       this.oauth ? this.oauthHeaders : undefined,
     )
     new Headers(headers).forEach((value, name) =>
       requestHeaders.set(name, value),
     )
-    if (this.oauth) {
-      const configured = (requestHeaders.get('anthropic-beta') ?? '')
-        .split(',')
-        .map((value) => value.trim())
-        .filter(Boolean)
+    const configured = (requestHeaders.get('anthropic-beta') ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+    if (this.oauth || configured.length > 0) {
       requestHeaders.set(
         'anthropic-beta',
         [...new Set([...(betas ?? []), ...configured])].join(','),
       )
     }
-    return { ...Object.fromEntries(requestHeaders), 'x-api-key': null }
+    const merged = Object.fromEntries(requestHeaders)
+    return this.tokenAuthentication ? { ...merged, 'x-api-key': null } : merged
   }
 
   async *chatStream(

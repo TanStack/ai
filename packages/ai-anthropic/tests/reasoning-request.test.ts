@@ -174,6 +174,29 @@ describe('Anthropic chat({ reasoning }) request shape', () => {
     expect(body.betas ?? []).not.toContain(BINDING_BETA)
   })
 
+  it('an anthropic-beta request header keeps the binding beta', async () => {
+    // The SDK lets a request header replace its `betas` header. Without the
+    // binding beta, Anthropic rejects `thinking.block_binding` with a 400.
+    const create = vi.fn().mockResolvedValue(textStream('ok'))
+    const adapter = createAnthropicChatWithClient('claude-sonnet-5-5', {
+      beta: { messages: { create } },
+    })
+    for await (const _chunk of adapter.chatStream({
+      threadId: 'thread-1',
+      logger,
+      model: 'claude-sonnet-5-5',
+      messages: [{ role: 'user', content: 'hi' }],
+      reasoning: on('medium'),
+      request: { headers: { 'anthropic-beta': 'my-beta-2026-01-01' } },
+    })) {
+      // Drain the stream.
+    }
+    const [, options] = create.mock.calls[0] ?? []
+    expect(options.headers['anthropic-beta']).toBe(
+      `${BINDING_BETA},my-beta-2026-01-01`,
+    )
+  })
+
   it('Claude Haiku 5.5: adaptive thinking up to xhigh, and off disables it', async () => {
     const xhigh = await send('claude-haiku-5-5', on('xhigh'))
     expect(xhigh.thinking).toEqual({
