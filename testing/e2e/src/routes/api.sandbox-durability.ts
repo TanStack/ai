@@ -1,7 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { EventType, chat } from '@tanstack/ai'
 import { InMemoryLockStore, withLocks } from '@tanstack/ai/locks'
-import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
+import {
+  memoryPersistence,
+  reconstructChat,
+  withPersistence,
+} from '@tanstack/ai-persistence'
 import {
   InMemorySandboxInstanceStore,
   defineSandbox,
@@ -26,9 +30,10 @@ import type { SandboxHandle, SandboxProvider } from '@tanstack/ai-sandbox'
  *
  * Wired as production apps do: `withLocks` plus the instance store handed
  * straight to `withSandbox`. The resume does not need chat persistence.
- * `withPersistence` only stores the `sandbox.status` activity row of each run,
- * which the response returns as `storedActivities`. With `failBoot: true`, the
- * sandbox start throws, and the response still returns `storedActivities`.
+ * `withPersistence` stores the user message and the `sandbox.status` activity
+ * row of each run. The response returns the rows as `storedActivities`, and
+ * the thread as a reload shows it as `reloadOrder`. With `failBoot: true`,
+ * the sandbox start throws, and the response still returns both.
  *
  * Provider-free: fixed AG-UI stream + fake sandbox provider (exempt from aimock).
  */
@@ -171,7 +176,8 @@ export const Route = createFileRoute('/api/sandbox-durability')({
 
         const stream = chat({
           adapter,
-          messages: [{ role: 'user', content: 'go' }],
+          // Like a client with history paging: only the new message.
+          messages: [{ id: `user-${runId}`, role: 'user', content: 'go' }],
           runId,
           threadId,
           middleware: [
@@ -211,7 +217,14 @@ export const Route = createFileRoute('/api/sandbox-durability')({
         const key = sandbox.key({ threadId, runId })
         const record = await instanceStore.get(key)
         const countKey = record?.providerSandboxId ?? key
+        const reloaded = (await (
+          await reconstructChat(
+            persistence,
+            new Request(`http://e2e.test/api/chat?threadId=${threadId}`),
+          )
+        ).json()) as { messages: Array<{ id: string }> }
         return Response.json({
+          reloadOrder: reloaded.messages.map((message) => message.id),
           create: createCountByKey.get(countKey) ?? 0,
           resume: resumeCountByKey.get(countKey) ?? 0,
           providerSandboxId: record?.providerSandboxId ?? null,

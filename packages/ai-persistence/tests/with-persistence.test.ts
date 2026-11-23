@@ -159,8 +159,6 @@ function sandboxRow(content: SandboxStatusContent) {
     id: 'sandbox-r1',
     activityType: 'sandbox.status',
     content,
-    // Incoming is only `next`; stored UI is user + assistant, so index 1 + 2.
-    index: 3,
   })
 }
 
@@ -1795,9 +1793,75 @@ describe('withPersistence (state-only)', () => {
         'act-1',
         'sandbox-r1',
       ])
+      // The request has only `next`. The row goes after the stored user,
+      // act-1, assistant, and `next`.
       expect(records.find((record) => record.id === 'sandbox-r1')).toEqual(
-        sandboxRow(sandboxStarting),
+        expect.objectContaining({
+          id: 'sandbox-r1',
+          content: sandboxStarting,
+          index: 4,
+        }),
       )
+    })
+
+    it('puts the setup row of each run after its user message after a reload', async () => {
+      const persistence = memoryPersistence()
+      for (const run of [1, 2, 3]) {
+        const { adapter } = mockAdapter([
+          [
+            ev.runStarted(`r${run}`),
+            ev.text('hello'),
+            ev.runFinished(`r${run}`),
+          ],
+        ])
+        await collect(
+          chat({
+            adapter,
+            // Like `ChatClient`: the whole thread, but no activity rows.
+            messages: [
+              ...(await loadedThread(persistence)),
+              { id: `u${run}`, role: 'user', content: `question ${run}` },
+            ],
+            runId: `r${run}`,
+            threadId: 't1',
+            middleware: [
+              withPersistence(persistence),
+              {
+                name: 'sandbox',
+                setup: (ctx) => {
+                  ctx.emitActivity(
+                    sandboxStatusActivity,
+                    `sandbox-r${run}`,
+                    sandboxStarting,
+                  )
+                },
+              },
+            ],
+          }) as AsyncIterable<StreamChunk>,
+        )
+      }
+      const reloaded = (await (
+        await reconstructChat(
+          persistence,
+          new Request('http://example.test/api/chat?threadId=t1'),
+        )
+      ).json()) as { messages: Array<{ id: string; role: string }> }
+      // chat() gives each answer its id, so the check shows it as `answer`.
+      expect(
+        reloaded.messages.map((message) =>
+          message.role === 'assistant' ? 'answer' : message.id,
+        ),
+      ).toEqual([
+        'u1',
+        'sandbox-r1',
+        'answer',
+        'u2',
+        'sandbox-r2',
+        'answer',
+        'u3',
+        'sandbox-r3',
+        'answer',
+      ])
     })
 
     it('keeps it when the run fails in setup', async () => {

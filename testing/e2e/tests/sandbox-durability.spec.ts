@@ -27,6 +27,8 @@ interface DurabilityResult {
     Pick<ActivitySnapshotEvent, 'messageId' | 'activityType' | 'content'>
   >
   storedActivities: Array<ActivityRecord>
+  /** The message and row ids of the thread, in the order of a reload. */
+  reloadOrder: Array<string>
 }
 
 /**
@@ -134,6 +136,13 @@ test.describe('sandbox instance durability (server-side resume)', () => {
     expect(second.storedActivities).toEqual([
       storedStatus('sandbox-run-1', firstReady),
       storedStatus('sandbox-run-2', secondReady),
+    ])
+    // After a reload, each row is right after the user message of its run.
+    expect(second.reloadOrder).toEqual([
+      'user-run-1',
+      'sandbox-run-1',
+      'user-run-2',
+      'sandbox-run-2',
     ])
   })
 

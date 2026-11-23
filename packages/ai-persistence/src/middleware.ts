@@ -472,37 +472,42 @@ function keptActivities(
 }
 
 /**
+ * Give the early rows of this run their place after the stored thread. A
+ * client sends no activity rows, and `chat()` places a row that comes before
+ * `onConfig` from the request only. So the `index` of an early row is too
+ * small. Each early row goes after the messages and the other rows, in the
+ * order of its own `index`.
+ */
+function placeEarlyActivities(
+  records: Array<ActivityRecord>,
+  messages: Array<ModelMessage>,
+  isEarly: (record: ActivityRecord) => boolean,
+): Array<ActivityRecord> {
+  const early = records.filter(isEarly).sort((a, b) => a.index - b.index)
+  let index =
+    modelMessagesToUIMessages(messages).length + records.length - early.length
+  const places = new Map(early.map((record) => [record.id, index++]))
+  return records.map((record) => {
+    const place = places.get(record.id)
+    return place === undefined ? record : { ...record, index: place }
+  })
+}
+
+/**
  * Merge the rows of this run into the stored rows by id, as the messages
  * merge. A stored row keeps its place and its `index`, and the current
- * content of its id wins. A new row keeps its own `index`, plus
- * `extraIndex` when it was recorded against a shorter incoming list.
+ * content of its id wins. A new row keeps its own `index`.
  */
 function mergeActivities(
   stored: ReadonlyArray<ActivityRecord>,
   current: ReadonlyArray<ActivityRecord>,
-  extraIndex = 0,
 ) {
   const byId = new Map(stored.map((record) => [record.id, record]))
   for (const record of current) {
-    const index = byId.get(record.id)?.index ?? record.index + extraIndex
+    const index = byId.get(record.id)?.index ?? record.index
     byId.set(record.id, { ...record, index })
   }
   return [...byId.values()]
-}
-
-/**
- * How many stored UI messages sit in front of the incoming list after merge.
- * A setup row's `index` is counted from the incoming list, which can be only
- * the new turn, so add this before the row is saved.
- */
-function extraStoredUiIndex(
-  storedMessages: ReadonlyArray<ModelMessage>,
-  incoming: ReadonlyArray<ModelMessage>,
-) {
-  const extra =
-    modelMessagesToUIMessages(mergeStoredMessages(storedMessages, incoming))
-      .length - modelMessagesToUIMessages(incoming).length
-  return extra > 0 ? extra : 0
 }
 
 /** `metadata.tanstack.run.id` of a stored message, when set. */
@@ -2445,13 +2450,18 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         for (const { id } of ctx.activities) {
           if (!storedIds.has(id)) state?.earlyActivityIds.add(id)
         }
-        const storedMessages = threadMessages(
-          await messageStore.loadThread(ctx.threadId),
+        // ponytail: one more read, of the stored messages, for each of these
+        // saves. A boot that fails before onConfig keeps this place.
+        const messages = mergeStoredMessages(
+          threadMessages(await messageStore.loadThread(ctx.threadId)),
+          ctx.messages,
         )
-        list = mergeActivities(
-          stored,
-          ctx.activities,
-          extraStoredUiIndex(storedMessages, ctx.messages),
+        list = placeEarlyActivities(
+          mergeActivities(stored, ctx.activities),
+          messages,
+          (record) =>
+            !storedIds.has(record.id) ||
+            state?.earlyActivityIds.has(record.id) === true,
         )
       }
       await activityStore.saveActivities(ctx.threadId, list)
@@ -2782,15 +2792,22 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           if (activityStore) {
             // Not best-effort like the save: a failed load followed by a save
             // would wipe the stored rows, so a load error fails the run.
-            patch.activities = mergeActivities(
-              keptActivities(
-                await activityStore.loadActivities(ctx.threadId),
-                stored,
-                storedCutoff(stored, incoming),
-                state?.earlyActivityIds,
+            const storedRows = await activityStore.loadActivities(ctx.threadId)
+            const storedIds = new Set(storedRows.map((record) => record.id))
+            patch.activities = placeEarlyActivities(
+              mergeActivities(
+                keptActivities(
+                  storedRows,
+                  stored,
+                  storedCutoff(stored, incoming),
+                  state?.earlyActivityIds,
+                ),
+                ctx.activities ?? [],
               ),
-              ctx.activities ?? [],
-              extraStoredUiIndex(stored, incoming),
+              patch.messages,
+              (record) =>
+                !storedIds.has(record.id) ||
+                state?.earlyActivityIds.has(record.id) === true,
             )
           }
         }
