@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { EventType } from '@tanstack/ai'
+import { z } from 'zod'
+import { EventType, defineActivityType } from '@tanstack/ai'
 import { HARNESS_EVENTS } from '../src'
 import {
   applyDescription,
@@ -11,6 +12,7 @@ import {
   withUserMessage,
 } from '../src/view/reduce'
 import { at, childRun, custom, sessionSnapshot } from './view-fixtures'
+import type { SandboxStatusContent, StreamChunk } from '@tanstack/ai'
 import type { SessionEvent } from '../src'
 import type { WaitingInput } from '../src/types'
 import type { ItemFactory } from '../src/view/reduce'
@@ -1294,5 +1296,116 @@ describe('view reducer', () => {
       },
     ])
     expect(messages).toHaveLength(2)
+  })
+})
+
+describe('view reducer activities', () => {
+  const deployProgress = defineActivityType({
+    activityType: 'deploy.progress',
+    contentSchema: z.object({ lines: z.array(z.string()) }),
+  })
+
+  /** An `ACTIVITY_SNAPSHOT` that replaces the activity `id`. */
+  const snapshotEvent = (
+    id: string,
+    activityType: string,
+    content: Record<string, unknown>,
+  ): StreamChunk => ({
+    type: EventType.ACTIVITY_SNAPSHOT,
+    messageId: id,
+    activityType,
+    content,
+    replace: true,
+  })
+
+  /** Two activities, each changed once by the second operation. */
+  const changed = () =>
+    fold([
+      at(
+        snapshotEvent('sandbox-run-1', 'sandbox.status', {
+          status: 'starting',
+          provider: 'e2b',
+        }),
+      ),
+      at(snapshotEvent('deploy-1', 'deploy.progress', { lines: ['build'] })),
+      at(
+        {
+          type: EventType.ACTIVITY_DELTA,
+          messageId: 'deploy-1',
+          activityType: 'deploy.progress',
+          patch: [{ op: 'add', path: '/lines/-', value: 'test' }],
+        },
+        'op-2',
+      ),
+      at(
+        snapshotEvent('sandbox-run-1', 'sandbox.status', {
+          status: 'ready',
+          provider: 'e2b',
+        }),
+        'op-2',
+      ),
+    ])
+
+  it('changes an activity in place by id, and keeps the operation that first sent it', () => {
+    expect(changed().activities).toEqual([
+      {
+        id: 'sandbox-run-1',
+        activityType: 'sandbox.status',
+        content: { status: 'ready', provider: 'e2b' },
+        operationId: 'op-1',
+      },
+      {
+        id: 'deploy-1',
+        activityType: 'deploy.progress',
+        content: { lines: ['build', 'test'] },
+        operationId: 'op-1',
+      },
+    ])
+  })
+
+  it('reads a built-in type with ===, and another type with is()', () => {
+    const { activities } = changed()
+
+    const statuses: Array<SandboxStatusContent['status']> = activities.flatMap(
+      (item) =>
+        item.activityType === 'sandbox.status' ? [item.content.status] : [],
+    )
+    const lines: Array<string> = activities.flatMap((item) =>
+      deployProgress.is(item) ? item.content.lines : [],
+    )
+
+    expect(statuses).toEqual(['ready'])
+    expect(lines).toEqual(['build', 'test'])
+  })
+
+  it('takes the activities from the first snapshot only', () => {
+    const activity = {
+      id: 'deploy-1',
+      activityType: 'deploy.progress',
+      content: { lines: ['build'] },
+      operationId: 'op-1',
+    }
+    const first = applySnapshot(
+      emptyState(),
+      sessionSnapshot({ activities: [activity] }),
+      factory,
+      { initial: true },
+    )
+    expect(first.activities).toEqual([activity])
+
+    // A later snapshot can be older or newer than the events of the view.
+    const later = applySnapshot(
+      first,
+      sessionSnapshot({ activities: [] }),
+      factory,
+    )
+    expect(later.activities).toBe(first.activities)
+
+    // A snapshot with no list has no activities.
+    expect(
+      applySnapshot(emptyState(), sessionSnapshot(), factory, {
+        initial: true,
+      }).activities,
+    ).toEqual([])
   })
 })

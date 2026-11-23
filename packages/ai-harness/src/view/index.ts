@@ -1,16 +1,19 @@
-// Browser-safe: runtime imports only from @tanstack/ai, @tanstack/store,
-// ../types, ../media-ref, and ./reduce (it also reads ../usage). Everything
-// else is a type.
+// Browser-safe: runtime imports only from @tanstack/ai (also its
+// adapter-internals entry), @tanstack/store, ../types, ../media-ref, and
+// ./reduce (it also reads ../usage and ../log-records). Everything else is a
+// type.
 import {
   EventType,
   INTERRUPT_PAYLOAD_METADATA_KEY,
   readUnopenedInterruptBinding,
   wireSubagentInfo,
 } from '@tanstack/ai'
+import { isActivityChunk } from '@tanstack/ai/adapter-internals'
 import { createStore } from '@tanstack/store'
 import { mediaPart } from '../media-ref'
 import { HARNESS_EVENTS } from '../types'
 import {
+  activitiesOf,
   agentPartsFrom,
   applyDescription,
   applyEvent,
@@ -90,6 +93,7 @@ export type {
   SignIn,
   ToolCallPart,
   ToolCallStatus,
+  ViewActivity,
   ViewAgent,
   ViewCommand,
   ViewConfigEntry,
@@ -996,7 +1000,13 @@ export function createSessionView(source: SessionViewSource) {
       const snapshot = await source.snapshot()
       const transcript = await source.transcript()
       if (disposed) return
-      commit({ ...get(), messages: messagesFromTranscript(transcript) })
+      // The activity events up to the snapshot cursor do not apply again
+      // (see `replayed`), so the activities come from the snapshot.
+      commit({
+        ...get(),
+        messages: messagesFromTranscript(transcript),
+        activities: activitiesOf(snapshot),
+      })
       takeSnapshot(snapshot)
       saved = transcriptIds(transcript)
       held = []
@@ -1153,13 +1163,16 @@ export function createSessionView(source: SessionViewSource) {
    * after the replay are checked too. Reasoning has no saved id, so replayed
    * lead reasoning waits for the next text or tool call of its operation, and
    * goes with it when that one is saved. A retry drops it. The end of its
-   * operation shows it.
+   * operation shows it. The snapshot has every activity change up to its
+   * cursor, so a replayed activity event is dropped too: a delta applies
+   * once.
    */
   const replayed = (entry: SessionEvent): Array<SessionEvent> => {
     const inReplay = Number(entry.cursor) <= replayEnd
     const { event } = entry
     const operation = entry.operationId
     const isLead = subagentOf(event) === undefined
+    if (inReplay && isActivityChunk(event)) return []
     if (inReplay && !replayOps.has(operation)) return []
     if (isRetry(entry)) {
       takeHeld(operation)

@@ -10,7 +10,7 @@ import type {
 } from '@tanstack/ai'
 import type { LogRecord, LogStore, RunRecord } from '@tanstack/ai-persistence'
 import type { HostFrame } from '../src/protocol'
-import type { PendingQuestion, SessionSnapshot } from '../src'
+import type { PendingQuestion, ProjectOptions, SessionSnapshot } from '../src'
 import type {
   AttributeValue,
   Exception,
@@ -43,6 +43,19 @@ export const questionsOf = ({
             },
           ],
   )
+
+/**
+ * The fold of a durable compaction record: `head` replaces the messages
+ * before `from`, as `projectCompaction` of `@tanstack/ai-compaction` does.
+ */
+export const compaction: ProjectOptions = {
+  record: ({ messages, record }) =>
+    record.type === 'tanstack.compaction' &&
+    Array.isArray(record.head) &&
+    typeof record.from === 'number'
+      ? [...record.head, ...messages.slice(record.from)]
+      : undefined,
+}
 
 /**
  * A log store that calls `overrides` for the methods it has, and `inner` for

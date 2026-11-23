@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { EventType } from '@tanstack/ai'
+import { NO_OWNER_EPOCH, memoryLogStore } from '@tanstack/ai-persistence'
 import {
   KEPT_ENDED,
   THREAD_RECORD_TYPES,
@@ -6,8 +8,11 @@ import {
   foldThreadRecord,
   pluginStateDeltas,
 } from '../src/log-records'
-import { emptyLogState, foldEntry } from '../src/log'
-import type { LogRecord } from '@tanstack/ai-persistence'
+import { emptyLogState, foldEntry, loadLogState, sessionOf } from '../src/log'
+import { emptyUsage } from '../src/usage'
+import { compaction, wrapLogStore } from './helpers'
+import type { StreamChunk } from '@tanstack/ai'
+import type { LogRecord, LogSnapshot } from '@tanstack/ai-persistence'
 import type { ThreadRecord } from '../src/log-records'
 
 function fold(records: ReadonlyArray<ThreadRecord | LogRecord>) {
@@ -520,5 +525,270 @@ describe('the fold of a long thread', () => {
     expect(sizeAfter(4 * KEPT_ENDED)).toBeLessThan(
       sizeAfter(2 * KEPT_ENDED) * 1.1,
     )
+  })
+})
+
+describe('the activities of a thread', () => {
+  /** A `harness.event` record of the operation `operationId`. */
+  const eventRecord = (operationId: string, event: StreamChunk): LogRecord => ({
+    type: 'harness.event',
+    operationId,
+    event,
+  })
+
+  /** An `ACTIVITY_SNAPSHOT` that replaces the activity `id`. */
+  const snapshotEvent = (
+    id: string,
+    activityType: string,
+    content: Record<string, unknown>,
+  ): StreamChunk => ({
+    type: EventType.ACTIVITY_SNAPSHOT,
+    messageId: id,
+    activityType,
+    content,
+    replace: true,
+  })
+
+  const logId = 'log-1'
+
+  /** The activities after a fold of `records`, with the fold of a compaction. */
+  const foldedActivities = (records: ReadonlyArray<LogRecord>) => {
+    const state = emptyLogState()
+    for (const [index, record] of records.entries()) {
+      foldEntry(state, { seq: index + 1, record }, compaction.record)
+    }
+    return [...state.thread.activities.values()]
+  }
+
+  /** A memory log store with `records` in the log `logId`. */
+  const storeWith = async (records: ReadonlyArray<LogRecord>) => {
+    const store = memoryLogStore()
+    await store.append({ logId, seq: 1, epoch: NO_OWNER_EPOCH, records })
+    return store
+  }
+
+  it('folds activity events by id, in the order first sent, with the operation that first sent each one', () => {
+    const records = [
+      eventRecord(
+        'op-1',
+        snapshotEvent('sandbox-run-1', 'sandbox.status', {
+          status: 'starting',
+          provider: 'e2b',
+        }),
+      ),
+      eventRecord(
+        'op-1',
+        snapshotEvent('deploy-1', 'deploy.progress', { step: 1, total: 3 }),
+      ),
+      eventRecord('op-2', {
+        type: EventType.ACTIVITY_DELTA,
+        messageId: 'sandbox-run-1',
+        activityType: 'sandbox.status',
+        patch: [{ op: 'replace', path: '/status', value: 'ready' }],
+      }),
+    ]
+
+    expect(foldedActivities(records)).toEqual([
+      {
+        id: 'sandbox-run-1',
+        activityType: 'sandbox.status',
+        content: { status: 'ready', provider: 'e2b' },
+        operationId: 'op-1',
+      },
+      {
+        id: 'deploy-1',
+        activityType: 'deploy.progress',
+        content: { step: 1, total: 3 },
+        operationId: 'op-1',
+      },
+    ])
+  })
+
+  it('starts with no activities from a version 6 snapshot, and folds the records after it', async () => {
+    const store = await storeWith([
+      eventRecord(
+        'op-1',
+        snapshotEvent('deploy-1', 'deploy.progress', { step: 1 }),
+      ),
+      eventRecord(
+        'op-2',
+        snapshotEvent('deploy-2', 'deploy.progress', { step: 1 }),
+      ),
+    ])
+    // A version 6 snapshot at the first record. Its thread state has no
+    // activities.
+    const snapshot: LogSnapshot = {
+      seq: 1,
+      version: '6',
+      state: {
+        sessions: [
+          [
+            't',
+            {
+              messages: [],
+              transcriptSeq: 0,
+              inputs: [],
+              toolResults: [],
+              started: [],
+              steps: [],
+              usage: emptyUsage(),
+              runUsage: [],
+              revert: null,
+              jobs: [],
+              notes: [],
+              keptRecords: [],
+              thread: {
+                settings: { instructions: 'from the snapshot' },
+                config: [],
+                plugins: [],
+                shared: [],
+                interrupted: null,
+                agentResults: [],
+                turnOverrides: [],
+                schedules: [],
+                runs: [],
+                tree: [],
+                interrupts: [],
+                waits: [],
+                transfers: [],
+                activeAgent: null,
+                workspace: null,
+              },
+            },
+          ],
+        ],
+        reduced: null,
+      },
+    }
+
+    const state = await loadLogState({
+      store: wrapLogStore(store, { getSnapshot: async () => snapshot }),
+      logId,
+      rootThread: 't',
+    })
+
+    const { thread } = sessionOf(state, 't')
+    expect(thread.settings).toEqual({ instructions: 'from the snapshot' })
+    expect([...thread.activities.keys()]).toEqual(['deploy-2'])
+  })
+
+  /** Four messages, a sandbox row for each of three runs, and a deploy. */
+  const runsLog: Array<LogRecord> = [
+    {
+      type: 'harness.transcript',
+      keep: 0,
+      add: [
+        { role: 'user', content: 'Start the sandbox.' },
+        { role: 'assistant', content: 'The sandbox is ready.' },
+        { role: 'user', content: 'Deploy the app.' },
+        { role: 'assistant', content: 'The app is deployed.' },
+      ],
+    },
+    eventRecord(
+      'op-1',
+      snapshotEvent('sandbox-run-1', 'sandbox.status', {
+        status: 'starting',
+        provider: 'e2b',
+      }),
+    ),
+    eventRecord(
+      'op-2',
+      snapshotEvent('sandbox-run-2', 'sandbox.status', {
+        status: 'ready',
+        provider: 'e2b',
+      }),
+    ),
+    eventRecord(
+      'op-2',
+      snapshotEvent('deploy-1', 'deploy.progress', { step: 3, total: 3 }),
+    ),
+    eventRecord(
+      'op-3',
+      snapshotEvent('sandbox-run-3', 'sandbox.status', {
+        status: 'starting',
+        provider: 'e2b',
+      }),
+    ),
+    // The first row changes last, but the third row was added last.
+    eventRecord('op-3', {
+      type: EventType.ACTIVITY_DELTA,
+      messageId: 'sandbox-run-1',
+      activityType: 'sandbox.status',
+      patch: [{ op: 'replace', path: '/status', value: 'failed' }],
+    }),
+  ]
+
+  const summary = { role: 'user', content: 'Summary: the app is deployed.' }
+
+  /** `runsLog`, then a compaction that keeps the last two messages. */
+  const compactedLog: Array<LogRecord> = [
+    ...runsLog,
+    { type: 'tanstack.compaction', head: [summary], from: 2 },
+  ]
+
+  /** The activities that stay after a compaction of `runsLog`. */
+  const compactedActivities = [
+    {
+      id: 'deploy-1',
+      activityType: 'deploy.progress',
+      content: { step: 3, total: 3 },
+      operationId: 'op-2',
+    },
+    {
+      id: 'sandbox-run-3',
+      activityType: 'sandbox.status',
+      content: { status: 'starting', provider: 'e2b' },
+      operationId: 'op-3',
+    },
+  ]
+
+  it('keeps only the newest sandbox status after a compaction, and the other activities in their order', () => {
+    expect(foldedActivities(compactedLog)).toEqual(compactedActivities)
+  })
+
+  it('gives the same activities when it folds the compacted log again from the store', async () => {
+    const state = await loadLogState({
+      store: await storeWith(compactedLog),
+      logId,
+      rootThread: 't',
+      project: compaction,
+    })
+
+    const { thread } = sessionOf(state, 't')
+    expect([...thread.activities.values()]).toEqual(compactedActivities)
+  })
+
+  it('keeps only the newest sandbox status after a transcript record marked as a compaction', () => {
+    const summarized: Array<LogRecord> = [
+      ...runsLog,
+      { type: 'harness.transcript', keep: 0, add: [summary], compaction: true },
+    ]
+
+    expect(foldedActivities(summarized)).toEqual(compactedActivities)
+  })
+
+  it('keeps every activity after a transcript record with no compaction mark, as an undo writes', () => {
+    // The undo of the last turn keeps the first two messages.
+    const undone: Array<LogRecord> = [
+      ...runsLog,
+      { type: 'harness.transcript', keep: 2, add: [] },
+    ]
+
+    // The two older sandbox rows stay before the rows that a compaction keeps.
+    expect(foldedActivities(undone)).toEqual([
+      {
+        id: 'sandbox-run-1',
+        activityType: 'sandbox.status',
+        content: { status: 'failed', provider: 'e2b' },
+        operationId: 'op-1',
+      },
+      {
+        id: 'sandbox-run-2',
+        activityType: 'sandbox.status',
+        content: { status: 'ready', provider: 'e2b' },
+        operationId: 'op-2',
+      },
+      ...compactedActivities,
+    ])
   })
 })

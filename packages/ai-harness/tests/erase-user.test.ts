@@ -10,10 +10,16 @@ import {
   membersOnly,
 } from '../src'
 import { mediaPart } from '../src/media-entry'
-import { gate, messageTexts, mockAdapter, text, toolCall } from './helpers'
+import {
+  compaction,
+  gate,
+  messageTexts,
+  mockAdapter,
+  text,
+  toolCall,
+} from './helpers'
 import type { LogStore } from '@tanstack/ai-persistence'
 import type { ChatMiddleware } from '@tanstack/ai'
-import type { ProjectOptions } from '../src'
 import type { Reply } from './helpers'
 
 const noop = toolDefinition({
@@ -21,19 +27,6 @@ const noop = toolDefinition({
   description: 'Does nothing',
   inputSchema: z.object({}),
 })
-
-/**
- * The fold of a durable compaction record: `head` replaces the messages
- * before `from`, as `projectCompaction` of `@tanstack/ai-compaction` does.
- */
-const compaction: ProjectOptions = {
-  record: ({ messages, record }) =>
-    record.type === 'tanstack.compaction' &&
-    Array.isArray(record.head) &&
-    typeof record.from === 'number'
-      ? [...record.head, ...messages.slice(record.from)]
-      : undefined,
-}
 
 const ada = { id: 'ada' }
 const bob = { id: 'bob' }

@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { EventType } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import {
@@ -23,7 +24,7 @@ import {
   toolCall,
 } from './helpers'
 import type { HarnessPlugin } from '../src'
-import type { AnyTextAdapter } from '@tanstack/ai'
+import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
 const waitFor = <T>(
@@ -302,6 +303,42 @@ describe('compact and usage', () => {
         totalTokens: 48,
       }),
     })
+    await host.close()
+  })
+
+  it('keeps only the newest sandbox status after /compact', async () => {
+    /** One model call that sends the sandbox row `id`, then answers. */
+    const sandboxTurn = (id: string, answer: string) => () => {
+      const events: Array<StreamChunk> = [
+        {
+          type: EventType.ACTIVITY_SNAPSHOT,
+          messageId: id,
+          activityType: 'sandbox.status',
+          content: { status: 'ready', provider: 'e2b' },
+          replace: true,
+        },
+      ]
+      return text(answer).flatMap((chunk) =>
+        chunk.type === EventType.RUN_STARTED ? [chunk, ...events] : [chunk],
+      )
+    }
+    const summarizer = mockAdapter([() => text('We planned a trip.')])
+    const main = mockAdapter([
+      sandboxTurn('sandbox-run-1', 'one'),
+      sandboxTurn('sandbox-run-2', 'two'),
+    ])
+    const { host, session } = await open(main.adapter, [
+      compact({ adapter: summarizer.adapter }),
+    ])
+    const activityIds = () =>
+      session.snapshot().activities?.map((activity) => activity.id)
+    await session.send('first')
+    await session.send('second')
+    expect(activityIds()).toEqual(['sandbox-run-1', 'sandbox-run-2'])
+
+    await session.runCommand({ name: 'compact' })
+
+    expect(activityIds()).toEqual(['sandbox-run-2'])
     await host.close()
   })
 })

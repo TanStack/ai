@@ -1,5 +1,12 @@
+import { EventType, sandboxStatusActivity } from '@tanstack/ai'
+import {
+  applyActivityDeltaToRecords,
+  applyActivitySnapshotToRecords,
+} from '@tanstack/ai/adapter-internals'
 import { isRecord } from './utils'
 import type {
+  ActivityDeltaEvent,
+  ActivitySnapshotEvent,
   Interrupt,
   ModelMessage,
   PromptCacheOptions,
@@ -12,6 +19,7 @@ import type {
   RunRecord,
   RunStore,
 } from '@tanstack/ai-persistence'
+import type { SessionActivity } from './session/types'
 import type {
   HarnessInput,
   RunNode,
@@ -406,6 +414,15 @@ export interface ThreadStateFold {
   activeAgent: string | null | HumanAnswerer
   /** The workspace of the thread, from the last `harness.workspace.bound` record. */
   workspace: WorkspaceBinding | null
+  /**
+   * The activities of the thread, from the activity events of its
+   * `harness.event` records, by id, in the order they were first sent. A
+   * compaction drops each `sandbox.status` activity but the newest (see
+   * `pruneSandboxStatus`).
+   * ponytail: no other activity leaves the fold. A long thread with another
+   * activity per run grows its snapshot; drop old ones if that shows up.
+   */
+  activities: Map<string, SessionActivity>
 }
 
 /**
@@ -448,6 +465,7 @@ export function emptyThreadState() {
     transfers: new Map(),
     activeAgent: null,
     workspace: null,
+    activities: new Map(),
   }
   return state
 }
@@ -703,6 +721,70 @@ function endedNode(node: RunTreeNode, ended: AgentResultRecord) {
     ...(ended.error ? { error: ended.error } : {}),
   }
   return next
+}
+
+/**
+ * The activity `row` after the activity event `event` of the operation
+ * `operationId`. `row` is the activity with the id of the event, when there
+ * is one. A snapshot replaces it or makes it, and a delta patches it. It
+ * keeps the operation that first sent it. `undefined` when the event leaves
+ * no activity: a delta for an id with no activity.
+ */
+export function activityAfter(
+  row: SessionActivity | undefined,
+  operationId: string,
+  event: ActivitySnapshotEvent | ActivityDeltaEvent,
+) {
+  // ponytail: only the row of the event goes through the core helpers, so an
+  // event costs one lookup, not a copy of every activity.
+  const records = row ? [{ ...row, index: 0 }] : []
+  const [next] =
+    event.type === EventType.ACTIVITY_SNAPSHOT
+      ? applyActivitySnapshotToRecords(records, event, 0)
+      : applyActivityDeltaToRecords(records, event)
+  if (!next) return undefined
+  const activity: SessionActivity = {
+    id: next.id,
+    activityType: next.activityType,
+    content: next.content,
+    operationId: row?.operationId ?? operationId,
+  }
+  return activity
+}
+
+/**
+ * The thread state after the activity event of a `harness.event` record of
+ * the operation `operationId`. An activity changes in place, so the
+ * activities keep the order they were first sent in.
+ */
+export function foldActivity(
+  state: ThreadStateFold,
+  operationId: string,
+  event: ActivitySnapshotEvent | ActivityDeltaEvent,
+) {
+  const known = state.activities.get(event.messageId)
+  const activity = activityAfter(known, operationId, event)
+  if (!activity) return state
+  return {
+    ...state,
+    activities: withEntry(state.activities, activity.id, activity),
+  }
+}
+
+/**
+ * Drop each `sandbox.status` activity of the thread but the newest: the one
+ * that was first sent last. The fold of a compaction calls it, so a long
+ * thread does not keep a sandbox row for each run. The other activities
+ * stay, in their order. It changes `state.activities` in place, as
+ * `pruneThreadState` changes its maps.
+ */
+export function pruneSandboxStatus(state: ThreadStateFold) {
+  const { activityType } = sandboxStatusActivity
+  // The map keeps the order of the first send, so the last one is the newest.
+  const older = [...state.activities.values()]
+    .filter((activity) => activity.activityType === activityType)
+    .slice(0, -1)
+  for (const { id } of older) state.activities.delete(id)
 }
 
 /**

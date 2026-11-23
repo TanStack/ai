@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { defineAgent, toolDefinition } from '@tanstack/ai'
+import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   createHarnessHost,
@@ -20,6 +20,7 @@ import {
   toolCall,
   turnInterrupts,
 } from './helpers'
+import type { StreamChunk } from '@tanstack/ai'
 import type { Reply } from './helpers'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
@@ -591,6 +592,107 @@ describe('the agents of a session view', () => {
         },
       ],
     })
+    view.dispose()
+    await host.close()
+  })
+})
+
+describe('the activities of a session view', () => {
+  const deploy = (lines: Array<string>): StreamChunk => ({
+    type: EventType.ACTIVITY_SNAPSHOT,
+    messageId: 'deploy-1',
+    activityType: 'deploy.progress',
+    content: { lines },
+    replace: true,
+  })
+  const addLine = (line: string): StreamChunk => ({
+    type: EventType.ACTIVITY_DELTA,
+    messageId: 'deploy-1',
+    activityType: 'deploy.progress',
+    patch: [{ op: 'add', path: '/lines/-', value: line }],
+  })
+
+  /** One model call that sends `events` after its start, then answers `content`. */
+  const answerAfter = (events: Array<StreamChunk>, content: string) =>
+    text(content).flatMap((chunk) =>
+      chunk.type === EventType.RUN_STARTED ? [chunk, ...events] : [chunk],
+    )
+
+  it('shows activities as they change, and the same after a restart', async () => {
+    const persistence = memoryPersistence()
+    // The log saves a snapshot after each record, so the restart reads the
+    // activities from a snapshot.
+    const openHost = async (replies: Array<Reply>) => {
+      const host = createHarnessHost({
+        persistence,
+        log: { saveSnapshotAfter: { bytes: 1 } },
+      })
+      const harness = defineHarness({
+        name: 'test/view-activities',
+        adapter: mockAdapter(replies).adapter,
+      })
+      const session = await host.open(harness, { threadId: 't' })
+      return { host, session }
+    }
+    const first = await openHost([
+      () => answerAfter([deploy(['build']), addLine('test')], 'Deployed.'),
+    ])
+    const view = createSessionView(first.session)
+    await view.ready
+
+    const turn = first.session.send('deploy')
+    await turn
+
+    const shown = [
+      {
+        id: 'deploy-1',
+        activityType: 'deploy.progress',
+        content: { lines: ['build', 'test'] },
+        operationId: turn.id,
+      },
+    ]
+    await waitFor(() => expect(view.store.get().activities).toEqual(shown))
+    view.dispose()
+    await first.host.close()
+
+    const second = await openHost([])
+    const reloaded = createSessionView(second.session)
+    await reloaded.ready
+    expect(reloaded.store.get().activities).toEqual(shown)
+    reloaded.dispose()
+    await second.host.close()
+  })
+
+  it('applies a delta once when it replays a turn that still runs', async () => {
+    const hold = gate()
+    const { host, session } = await open([
+      () => answerAfter([deploy(['build'])], 'Built.'),
+      () =>
+        (async function* () {
+          yield addLine('test')
+          await hold.opened
+          yield* text('Tested.')
+        })(),
+    ])
+    await session.send('build')
+    const running = session.send('test')
+    // The delta is in the snapshot, and the view replays the running turn
+    // from its start.
+    await waitFor(() =>
+      expect(session.snapshot().activities).toMatchObject([
+        { content: { lines: ['build', 'test'] } },
+      ]),
+    )
+    const view = createSessionView(session)
+    await view.ready
+
+    hold.open()
+    await running
+    await waitFor(() => expect(view.store.get().status).toBe('idle'))
+
+    expect(view.store.get().activities).toMatchObject([
+      { id: 'deploy-1', content: { lines: ['build', 'test'] } },
+    ])
     view.dispose()
     await host.close()
   })

@@ -1,10 +1,19 @@
 import { EventType, INTERRUPT_PAYLOAD_METADATA_KEY } from '@tanstack/ai'
+import { isActivityChunk } from '@tanstack/ai/adapter-internals'
+import { activityAfter } from '../log-records'
 import { isMediaRecord, mediaIdOf, mediaOfMessage } from '../media-ref'
 import { signInOf, waitKind } from '../waits'
 import { HARNESS_EVENTS } from '../types'
 import { addUsage } from '../usage'
-import type { Interrupt, ModelMessage, StreamChunk } from '@tanstack/ai'
+import type {
+  ActivityDeltaEvent,
+  ActivitySnapshotEvent,
+  Interrupt,
+  ModelMessage,
+  StreamChunk,
+} from '@tanstack/ai'
 import type { SessionDescription, SessionSnapshot } from '../session/index'
+import type { SessionActivity } from '../session/types'
 import type { PendingQuestion, SessionEvent } from '../types'
 import type { UsageCall } from '../usage'
 import type { PendingWait, Wait } from '../waits'
@@ -17,6 +26,7 @@ import type {
   SessionViewState,
   SignIn,
   ToolCallPart,
+  ViewActivity,
   ViewAgent,
   ViewInterrupt,
   ViewMessage,
@@ -70,6 +80,7 @@ export function emptyState(): SessionViewState {
     signIns: [],
     waits: [],
     agents: [],
+    activities: [],
     queuedTurns: 0,
     waitingInputs: [],
     commands: [],
@@ -584,12 +595,45 @@ function withConfigValue(
   }
 }
 
+/**
+ * The typed form of an activity. The session keeps each activity as a tool,
+ * a middleware, or an adapter sent it, so a built-in type has its content.
+ * The cast only types it: a view does not check content, as the chat client
+ * does not.
+ */
+const typedActivity = (activity: SessionActivity) => activity as ViewActivity
+
+/** The activities of `snapshot`. A snapshot with no list has none. */
+export function activitiesOf(snapshot: SessionSnapshot) {
+  return (snapshot.activities ?? []).map(typedActivity)
+}
+
+/** `state` after an activity event: its activity changes in place, or is added. */
+function withActivity(
+  state: SessionViewState,
+  operationId: string,
+  event: ActivitySnapshotEvent | ActivityDeltaEvent,
+): SessionViewState {
+  const { activities } = state
+  const known = activities.find((item) => item.id === event.messageId)
+  const next = activityAfter(known, operationId, event)
+  if (!next) return state
+  const activity = typedActivity(next)
+  return {
+    ...state,
+    activities: known
+      ? activities.map((item) => (item === known ? activity : item))
+      : [...activities, activity],
+  }
+}
+
 /** Fold one session event into the state. Returns `state` when nothing changes. */
 export function applyEvent(
   state: SessionViewState,
   entry: SessionEvent,
 ): SessionViewState {
   const { event, operationId } = entry
+  if (isActivityChunk(event)) return withActivity(state, operationId, event)
   if (
     event.type === EventType.TOOL_CALL_RESULT &&
     subagentOf(event) === undefined
@@ -820,9 +864,11 @@ function interruptOfWait(wait: Wait): Interrupt {
 
 /**
  * Take status, approvals, client tools, questions, waits, background agents,
- * and waiting inputs from a snapshot. Plugin state is taken only for the first
- * snapshot. Later changes come as `STATE_SNAPSHOT` events. Returns `state`
- * when nothing changes.
+ * and waiting inputs from a snapshot. Plugin state and activities are taken
+ * only for the first snapshot. Later changes come as events
+ * (`STATE_SNAPSHOT`, `ACTIVITY_SNAPSHOT`, `ACTIVITY_DELTA`): a later snapshot
+ * can be older or newer than the events the view has, and a delta must not
+ * apply twice. Returns `state` when nothing changes.
  */
 export function applySnapshot(
   state: SessionViewState,
@@ -973,6 +1019,9 @@ export function applySnapshot(
   )
   const messages = markWaiting(state.messages, waiting)
   const plugins = options.initial ? snapshot.plugins : state.plugins
+  const activities = options.initial
+    ? keep(state.activities, activitiesOf(snapshot))
+    : state.activities
   const isSame =
     snapshot.threadId === state.threadId &&
     snapshot.status === state.status &&
@@ -987,7 +1036,8 @@ export function applySnapshot(
     waits === state.waits &&
     agents === state.agents &&
     messages === state.messages &&
-    plugins === state.plugins
+    plugins === state.plugins &&
+    activities === state.activities
   if (isSame) return state
   return {
     ...state,
@@ -1005,6 +1055,7 @@ export function applySnapshot(
     agents,
     messages,
     plugins,
+    activities,
   }
 }
 

@@ -303,6 +303,20 @@ export interface JobInfo {
   running: boolean
 }
 
+/**
+ * An activity of a session, for example the status of a sandbox: the last
+ * content that a tool, a middleware, or an adapter sent for the activity
+ * message `id`. The session log keeps it, so it stays after a reload.
+ */
+export interface SessionActivity {
+  /** The id of the activity message. */
+  id: string
+  activityType: string
+  content: Record<string, unknown>
+  /** The operation that first sent the activity. */
+  operationId: string
+}
+
 /** What a session looks like right now. */
 export interface SessionSnapshot {
   threadId: string
@@ -336,6 +350,12 @@ export interface SessionSnapshot {
    * `interrupt` takes `resolve`, the others take `answer`.
    */
   pendingWaits: Array<PendingWait>
+  /**
+   * The activities of the thread, in the order they were first sent. A
+   * session always sets it. A snapshot built by hand (a test fixture) can
+   * leave it out.
+   */
+  activities?: Array<SessionActivity>
   /** The state of each plugin that uses `ctx.state`, by plugin name. */
   plugins: Record<string, unknown>
   /** The token usage of the thread, the same as `session.usage()`. */
