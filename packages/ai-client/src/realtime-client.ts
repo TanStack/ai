@@ -65,6 +65,8 @@ export class RealtimeClient {
   /** Aborts the `adapter.connect()` setup when `disconnect()` runs. */
   private connectAbort: AbortController | null = null
   private token: RealtimeToken | null = null
+  /** Changes from updateSession() after the relay offer left, before connect ends. */
+  private relaySetupChanges: Partial<RealtimeSessionConfig> | null = null
   private tokenRefreshTimeout: ReturnType<typeof setTimeout> | null = null
   private readonly clientTools: Map<string, AnyClientTool>
   private readonly stateChangeCallbacks: Set<RealtimeStateChangeCallback> =
@@ -138,11 +140,13 @@ export class RealtimeClient {
         // The session config goes to the server with the offer, so the
         // relay path has no token and no updateSession() after connect.
         connection = await options.adapter.connect(
-          (offer) =>
-            options.createSession({
-              sdp: offer.sdp,
-              config: this.buildSessionConfig() ?? {},
-            }),
+          (offer) => {
+            const config = this.buildSessionConfig() ?? {}
+            // From here, updateSession() changes go to the session after
+            // connect, because the server already has this config.
+            this.relaySetupChanges = {}
+            return options.createSession({ sdp: offer.sdp, config })
+          },
           toolsList,
           { abortSignal: connectAbort.signal },
         )
@@ -175,8 +179,17 @@ export class RealtimeClient {
       // Subscribe to connection events
       this.subscribeToConnectionEvents()
 
-      // Auto-configure session with client-provided settings
-      if (!isRelay) this.applySessionConfig()
+      // Auto-configure session with client-provided settings. A relay session
+      // got its config at start: it gets only the changes made during setup.
+      if (!isRelay) {
+        this.applySessionConfig()
+      } else {
+        const changes = this.relaySetupChanges
+        this.relaySetupChanges = null
+        if (changes && Object.keys(changes).length > 0) {
+          connection.updateSession(changes)
+        }
+      }
 
       // Start audio capture if configured
       if (this.options.autoCapture) {
@@ -199,6 +212,7 @@ export class RealtimeClient {
       })
       this.options.onConnect?.()
     } catch (error) {
+      this.relaySetupChanges = null
       const err = error instanceof Error ? error : new Error(String(error))
       // `disconnect()` cancelled this connect: the state is already idle.
       if (connectAbort.signal.aborted) throw err
@@ -392,7 +406,11 @@ export class RealtimeClient {
       o.providerOptions = config.providerOptions
     }
 
-    if (!this.connection) return
+    if (!this.connection) {
+      // A relay offer is already on its way: send this change after connect.
+      if (this.relaySetupChanges) Object.assign(this.relaySetupChanges, config)
+      return
+    }
     // A relay session fixes most of its config at start, so it gets only the
     // fields that the caller changed.
     if (isRelayOptions(this.options)) {

@@ -139,6 +139,40 @@ describe('RealtimeClient relay connect', () => {
     client.destroy()
   })
 
+  it('relay sends an updateSession change made during setup once, after connect', async () => {
+    const { connection, updateSession } = fakeConnection()
+    let finishSetup = () => {}
+    const adapter: RealtimeRelayAdapter = {
+      provider: 'test',
+      kind: 'relay',
+      connect: async (createSession) => {
+        await createSession({ sdp: 'offer-sdp' })
+        await new Promise<void>((resolve) => (finishSetup = resolve))
+        return connection
+      },
+    }
+    const createSession = vi.fn(
+      async (_request: RealtimeSessionRequest) => answer,
+    )
+    const client = new RealtimeClient({
+      ...clientConfig,
+      adapter,
+      createSession,
+    })
+
+    const connecting = client.connect()
+    await vi.waitFor(() => expect(createSession).toHaveBeenCalled())
+    client.updateSession({ instructions: 'Answer in French.' })
+    finishSetup()
+    await connecting
+
+    expect(updateSession).toHaveBeenCalledTimes(1)
+    expect(updateSession.mock.calls[0]?.[0]).toEqual({
+      instructions: 'Answer in French.',
+    })
+    client.destroy()
+  })
+
   it('relay connect does not call updateSession after connect', async () => {
     const { client, updateSession } = relayClient()
 
