@@ -289,6 +289,11 @@ interface RunStateEntry {
    */
   earlyActivityIds: Set<string>
   /**
+   * Activity ids that arrived on the request. Append placement is only for
+   * rows emitted in `setup`, so these keep their inbound index.
+   */
+  inboundActivityIds: Set<string>
+  /**
    * Resumes accepted in `onConfig` but not yet committed to the interrupt
    * store. They are applied (resolve/cancel) only once the run reaches a
    * successful boundary — see {@link commitPendingResumes}. Left uncommitted
@@ -491,6 +496,42 @@ function placeEarlyActivities(
     const place = places.get(record.id)
     return place === undefined ? record : { ...record, index: place }
   })
+}
+
+/**
+ * Shift a new inbound row by the stored messages and activity rows that sit
+ * before the incoming transcript. Setup rows (`isEarly`) keep the append
+ * placement from {@link placeEarlyActivities}.
+ */
+function rebaseInboundActivities(
+  records: Array<ActivityRecord>,
+  storedIds: ReadonlySet<string>,
+  isEarly: (record: ActivityRecord) => boolean,
+  extraIndex: number,
+): Array<ActivityRecord> {
+  if (extraIndex === 0) return records
+  return records.map((record) =>
+    storedIds.has(record.id) || isEarly(record)
+      ? record
+      : { ...record, index: record.index + extraIndex },
+  )
+}
+
+/** Stored UI messages and activity rows that precede the incoming transcript. */
+function inboundActivityOffset(
+  mergedMessages: Array<ModelMessage>,
+  incomingMessages: ReadonlyArray<ModelMessage>,
+  storedActivities: ReadonlyArray<ActivityRecord>,
+  incomingActivities: ReadonlyArray<ActivityRecord>,
+): number {
+  const extraUi =
+    modelMessagesToUIMessages([...mergedMessages]).length -
+    modelMessagesToUIMessages([...incomingMessages]).length
+  const incomingIds = new Set(incomingActivities.map((record) => record.id))
+  const extraActivities = storedActivities.filter(
+    (record) => !incomingIds.has(record.id),
+  ).length
+  return extraUi + extraActivities
 }
 
 /**
@@ -2447,8 +2488,15 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       if (isBeforeStart) {
         const stored = await activityStore.loadActivities(ctx.threadId)
         const storedIds = new Set(stored.map((record) => record.id))
+        const isEarly = (record: ActivityRecord) =>
+          state?.earlyActivityIds.has(record.id) === true
         for (const { id } of ctx.activities) {
-          if (!storedIds.has(id)) state?.earlyActivityIds.add(id)
+          if (
+            !storedIds.has(id) &&
+            state?.inboundActivityIds.has(id) !== true
+          ) {
+            state?.earlyActivityIds.add(id)
+          }
         }
         // ponytail: one more read, of the stored messages, for each of these
         // saves. A boot that fails before onConfig keeps this place.
@@ -2457,11 +2505,19 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           ctx.messages,
         )
         list = placeEarlyActivities(
-          mergeActivities(stored, ctx.activities),
+          rebaseInboundActivities(
+            mergeActivities(stored, ctx.activities),
+            storedIds,
+            isEarly,
+            inboundActivityOffset(
+              messages,
+              ctx.messages,
+              stored,
+              ctx.activities,
+            ),
+          ),
           messages,
-          (record) =>
-            !storedIds.has(record.id) ||
-            state?.earlyActivityIds.has(record.id) === true,
+          isEarly,
         )
       }
       await activityStore.saveActivities(ctx.threadId, list)
@@ -2569,6 +2625,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         merged: false,
         interrupted: false,
         earlyActivityIds: new Set(),
+        inboundActivityIds: new Set(
+          (ctx.activities ?? []).map((record) => record.id),
+        ),
         completion: {
           promise: completion,
           resolve: resolveCompletion,
@@ -2794,20 +2853,31 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
             // would wipe the stored rows, so a load error fails the run.
             const storedRows = await activityStore.loadActivities(ctx.threadId)
             const storedIds = new Set(storedRows.map((record) => record.id))
+            const current = ctx.activities ?? []
+            const isEarly = (record: ActivityRecord) =>
+              state?.earlyActivityIds.has(record.id) === true
             patch.activities = placeEarlyActivities(
-              mergeActivities(
-                keptActivities(
-                  storedRows,
-                  stored,
-                  storedCutoff(stored, incoming),
-                  state?.earlyActivityIds,
+              rebaseInboundActivities(
+                mergeActivities(
+                  keptActivities(
+                    storedRows,
+                    stored,
+                    storedCutoff(stored, incoming),
+                    state?.earlyActivityIds,
+                  ),
+                  current,
                 ),
-                ctx.activities ?? [],
+                storedIds,
+                isEarly,
+                inboundActivityOffset(
+                  patch.messages,
+                  incoming,
+                  storedRows,
+                  current,
+                ),
               ),
               patch.messages,
-              (record) =>
-                !storedIds.has(record.id) ||
-                state?.earlyActivityIds.has(record.id) === true,
+              isEarly,
             )
           }
         }

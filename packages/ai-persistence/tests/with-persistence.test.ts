@@ -1733,6 +1733,54 @@ describe('withPersistence (state-only)', () => {
       ])
     })
 
+    it('keeps an inbound row in the middle of the transcript', async () => {
+      const persistence = memoryPersistence()
+      const { adapter } = mockAdapter([
+        [ev.runStarted(), ev.text('hello'), ev.runFinished()],
+      ])
+      await collect(
+        chat({
+          adapter,
+          messages: [
+            { id: 'u1', role: 'user', content: 'hi' },
+            {
+              id: 'act-mid',
+              role: 'activity',
+              parts: [{ type: 'activity', activityType: 'PLAN', content: {} }],
+            },
+            { id: 'a1', role: 'assistant', content: 'old' },
+            { id: 'u2', role: 'user', content: 'again' },
+          ],
+          runId: 'r1',
+          threadId: 't1',
+          middleware: [withPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      expect(await persistence.stores.activities.loadActivities('t1')).toEqual([
+        expect.objectContaining({
+          id: 'act-mid',
+          activityType: 'PLAN',
+          index: 1,
+        }),
+      ])
+      const reconstructed = (await (
+        await reconstructChat(
+          persistence,
+          new Request('http://example.test/api/chat?threadId=t1'),
+        )
+      ).json()) as { messages: Array<{ id: string; role: string }> }
+      expect(reconstructed.messages.map((message) => message.role)).toEqual([
+        'user',
+        'activity',
+        'assistant',
+        'user',
+        'assistant',
+      ])
+      expect(reconstructed.messages[1]).toEqual(
+        expect.objectContaining({ id: 'act-mid' }),
+      )
+    })
+
     it('merges an inbound row instead of replacing the stored rows', async () => {
       const persistence = await seeded()
       const { adapter } = mockAdapter([

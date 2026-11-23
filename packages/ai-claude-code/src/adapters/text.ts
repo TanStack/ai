@@ -11,8 +11,7 @@ import {
   alignedIfAttaching,
   approvalDecisionActivities,
   approvalId,
-  buildApprovalActivity,
-  buildApprovalRequestedEvent,
+  emitPendingApproval,
   createBridgeEventChannel,
   createRunScopedIdGen,
   encodeRunId,
@@ -389,7 +388,7 @@ export class ClaudeCodeTextAdapter<
     policy: SandboxPolicy | undefined,
     approvals: ReadonlyMap<string, boolean> | undefined,
     scripts: Record<string, string> | undefined,
-    sink: Array<AdapterYieldChunk>,
+    channel: BridgeEventChannel,
     threadId: string,
     runId: string,
   ): (input: { tool_name?: string; input?: unknown }) => PermissionToolResult {
@@ -432,10 +431,7 @@ export class ClaudeCodeTextAdapter<
           runId,
           detail: { provider: 'claude-code', toolName },
         }
-        sink.push(
-          buildApprovalRequestedEvent(approval),
-          buildApprovalActivity(approval),
-        )
+        emitPendingApproval(channel, approval)
         return {
           behavior: 'deny',
           message:
@@ -454,7 +450,6 @@ export class ClaudeCodeTextAdapter<
     const { logger } = options
     let bridge: HostToolBridge | undefined
     let channel: BridgeEventChannel | undefined
-    const approvalRequests: Array<AdapterYieldChunk> = []
     // Temp files written for the run (bridge MCP config, redirected prompt) that
     // carry the bearer token / prompt; removed in `finally` so they don't linger
     // in the sandbox after the run.
@@ -518,7 +513,7 @@ export class ClaudeCodeTextAdapter<
                 policy,
                 options.approvals,
                 projection?.scripts,
-                approvalRequests,
+                channel,
                 threadId,
                 runId,
               ),
@@ -750,9 +745,6 @@ export class ClaudeCodeTextAdapter<
         }
       }
 
-      // Surface any pending approval requests (policy `ask` actions awaiting a
-      // client decision); the client approves and re-runs to continue.
-      for (const event of approvalRequests) yield event
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)

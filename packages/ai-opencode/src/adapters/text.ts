@@ -13,8 +13,7 @@ import {
   DurableAttachNotSupportedError,
   SandboxCapability,
   approvalDecisionActivities,
-  buildApprovalActivity,
-  buildApprovalRequestedEvent,
+  emitPendingApproval,
   createBridgeEventChannel,
   getSandbox,
   getSandboxDurability,
@@ -325,10 +324,8 @@ export class OpencodeTextAdapter<
         })
       }
 
-      // Approval-requested events and pending `sandbox.approval` rows for
-      // `ask`-policy actions with no client decision yet, emitted after the
-      // stream so the client can approve + re-run.
-      const approvalRequests: Array<AdapterYieldChunk> = []
+      // Pending `sandbox.approval` rows for `ask`-policy actions go out on
+      // the live bridge channel when the permission callback records them.
 
       const queue = new AsyncQueue<OpencodeStreamEvent>()
       const mode =
@@ -352,10 +349,7 @@ export class OpencodeTextAdapter<
               runId,
               detail: { provider: 'opencode' },
             }
-            approvalRequests.push(
-              buildApprovalRequestedEvent(approval),
-              buildApprovalActivity(approval),
-            )
+            emitPendingApproval(channel, approval)
           }
           return result.response
         })
@@ -542,9 +536,6 @@ export class OpencodeTextAdapter<
       }
       if (heldFinished) yield heldFinished
 
-      // Surface pending approval requests (ask-policy actions awaiting a client
-      // decision); the client approves and re-runs to continue.
-      for (const event of approvalRequests) yield event
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)

@@ -29,6 +29,7 @@ import type {
   ActivitySnapshotEvent,
   StreamChunk,
 } from '@tanstack/ai'
+import type { BridgeEventChannel } from './bridge-events'
 
 /**
  * CUSTOM event name emitted when a harness action needs client approval.
@@ -115,6 +116,36 @@ export function buildApprovalRequestedEvent(input: {
 /** The id of the `sandbox.approval` activity row of an approval. */
 function approvalActivityId(id: string) {
   return `sandbox.approval:${id}`
+}
+
+/**
+ * Emit the pending `sandbox.approval` row and the deprecated
+ * `approval-requested` event on a live bridge channel. Call this from a
+ * permission callback so a crash or takeover still journals the row.
+ */
+export function emitPendingApproval(
+  channel: Pick<BridgeEventChannel, 'emitCustomEvent' | 'emitActivity'>,
+  input: {
+    approvalId: string
+    title: string
+    detail?: Record<string, unknown>
+  },
+): void {
+  channel.emitCustomEvent(APPROVAL_REQUESTED_EVENT, {
+    approvalId: input.approvalId,
+    title: input.title,
+    ...(input.detail ?? {}),
+  })
+  channel.emitActivity(
+    sandboxApprovalActivity,
+    approvalActivityId(input.approvalId),
+    {
+      approvalId: input.approvalId,
+      title: input.title,
+      status: 'pending',
+      ...(input.detail !== undefined && { detail: input.detail }),
+    },
+  )
 }
 
 /**

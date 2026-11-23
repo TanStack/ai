@@ -247,45 +247,75 @@ describe('permission modes (the acpCompatible guardrail surface)', () => {
       permissions: 'interactive',
       permissionMode: 'default',
     })
-    const requested = chunks.findIndex(
-      (c) => c.type === EventType.CUSTOM && c.name === 'approval-requested',
+    expect(chunks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: EventType.CUSTOM,
+          name: 'approval-requested',
+          value: expect.objectContaining({
+            approvalId: 'probe:tool:["execute","rm -rf /",[]]',
+            title: 'rm -rf /',
+          }),
+        }),
+      ]),
     )
-    expect(chunks[requested]).toMatchObject({
-      value: { approvalId: 'probe:tool:execute:rm -rf /', title: 'rm -rf /' },
-    })
-    expect(chunks[requested + 1]).toEqual({
+    expect(chunks).toEqual(
+      expect.arrayContaining([{
       type: 'ACTIVITY_SNAPSHOT',
-      messageId: 'sandbox.approval:probe:tool:execute:rm -rf /',
+      messageId: 'sandbox.approval:probe:tool:["execute","rm -rf /",[]]',
       activityType: 'sandbox.approval',
       content: {
-        approvalId: 'probe:tool:execute:rm -rf /',
+        approvalId: 'probe:tool:["execute","rm -rf /",[]]',
         title: 'rm -rf /',
         status: 'pending',
         detail: { provider: 'probe' },
       },
       replace: true,
       timestamp: expect.any(Number),
-      metadata: { tanstack: { threadId: 'thread-1', runId: 'run-1' } },
-    })
+      metadata: {
+        tanstack: { model: 'probe', threadId: 'thread-1', runId: 'run-1' },
+      },
+    }]),
+    )
   })
 
   it('interactive sets the row to granted right after RUN_STARTED on the next run', async () => {
     const chunks = await runPermission({
       permissions: 'interactive',
       permissionMode: 'default',
-      approvals: new Map([['probe:tool:execute:rm -rf /', true]]),
+      approvals: new Map([['probe:tool:["execute","rm -rf /",[]]', true]]),
     })
     expect(chunks.slice(0, 2)).toEqual([
       expect.objectContaining({ type: 'RUN_STARTED' }),
       {
         type: 'ACTIVITY_DELTA',
-        messageId: 'sandbox.approval:probe:tool:execute:rm -rf /',
+        messageId: 'sandbox.approval:probe:tool:["execute","rm -rf /",[]]',
         activityType: 'sandbox.approval',
         patch: [{ op: 'replace', path: '/status', value: 'granted' }],
         timestamp: expect.any(Number),
-        metadata: { tanstack: { threadId: 'thread-1', runId: 'run-1' } },
+        metadata: {
+        tanstack: { threadId: 'thread-1', runId: 'run-1' },
+      },
       },
     ])
+  })
+
+  it('yields the pending row when the permission callback runs', async () => {
+    const chunks = await runPermission({
+      permissions: 'interactive',
+      permissionMode: 'default',
+    })
+    const snapshot = chunks.findIndex(
+      (chunk) =>
+        chunk.type === EventType.ACTIVITY_SNAPSHOT &&
+        chunk.activityType === 'sandbox.approval',
+    )
+    const finished = chunks.findIndex(
+      (chunk) => chunk.type === EventType.RUN_FINISHED,
+    )
+    expect(snapshot).toBeGreaterThan(-1)
+    expect(finished).toBeGreaterThan(-1)
+    expect(snapshot).toBeLessThan(finished)
   })
 })
 

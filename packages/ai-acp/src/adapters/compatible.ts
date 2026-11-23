@@ -11,8 +11,7 @@ import {
   DurableAttachNotSupportedError,
   SandboxCapability,
   approvalDecisionActivities,
-  buildApprovalActivity,
-  buildApprovalRequestedEvent,
+  emitPendingApproval,
   createBridgeEventChannel,
   getSandbox,
   getSandboxDurability,
@@ -30,7 +29,11 @@ import { resolveInteractivePermission, resolvePermission } from '../permissions'
 import { buildAcpPrompt } from '../messages/prompt'
 import { projectAcpWorkspace, workspaceMcpServers } from './projection'
 import type { AcpMcpServer } from './projection'
-import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
+import type {
+  BridgeEventChannel,
+  HostToolBridge,
+  SandboxHandle,
+} from '@tanstack/ai-sandbox'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -335,7 +338,7 @@ export class AcpCompatibleTextAdapter<
     mode: AcpPermissionMode
     bridgedToolNames: ReadonlySet<string>
     approvals: ReadonlyMap<string, boolean> | undefined
-    approvalRequests: Array<AdapterYieldChunk>
+    channel: BridgeEventChannel
     threadId: string
     runId: string
   }): PermissionHandler {
@@ -362,10 +365,7 @@ export class AcpCompatibleTextAdapter<
             runId: input.runId,
             detail: { provider: this.name },
           }
-          input.approvalRequests.push(
-            buildApprovalRequestedEvent(approval),
-            buildApprovalActivity(approval),
-          )
+          emitPendingApproval(input.channel, approval)
         }
         return result.outcome
       }
@@ -511,12 +511,11 @@ export class AcpCompatibleTextAdapter<
           ? undefined
           : (modelOptions?.authMethodId ?? this.harness.authMethodId)
 
-      const approvalRequests: Array<AdapterYieldChunk> = []
       const permissionHandler = this.makePermissionHandler({
         mode,
         bridgedToolNames,
         approvals: options.approvals,
-        approvalRequests,
+        channel,
         threadId,
         runId,
       })
@@ -674,10 +673,6 @@ export class AcpCompatibleTextAdapter<
         if (parseFailed) heldFinished = undefined
       }
       if (heldFinished) yield heldFinished
-
-      // Surface any pending approval requests (interactive ask-policy actions
-      // awaiting a client decision); the client approves and re-runs to continue.
-      for (const event of approvalRequests) yield event
 
       if (this.harness.emitDiff) {
         yield* this.emitDiffChunks(sandbox, cwd, threadId, runId)

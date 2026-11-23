@@ -70,7 +70,8 @@ export function resolveInteractivePermission(
   const id = approvalId({
     provider,
     kind: 'tool',
-    target: [request.toolCall.kind, title, ...files].filter(Boolean).join(':'),
+    // JSON tuple so a colon in the title or a path cannot collide with another action.
+    target: JSON.stringify([request.toolCall.kind ?? null, title, files]),
   })
   const granted = approvals?.get(id)
   if (granted === true) return { outcome: allow() }

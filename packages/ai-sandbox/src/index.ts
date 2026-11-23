@@ -461,6 +461,7 @@ export {
   approvalId,
   buildApprovalRequestedEvent,
   buildApprovalActivity,
+  emitPendingApproval,
   approvalDecisionActivities,
   APPROVAL_REQUESTED_EVENT,
 } from './approvals'

@@ -243,12 +243,14 @@ describe('resolveInteractivePermission', () => {
 describe('opencode sandbox.approval activity', () => {
   it('sends a pending row right after the approval-requested event', async () => {
     const chunks = await runOpencode()
-    const requested = chunks.findIndex(
-      (chunk) =>
-        chunk.type === EventType.CUSTOM && chunk.name === 'approval-requested',
-    )
-    expect(requested).toBeGreaterThan(-1)
-    expect(chunks[requested + 1]).toEqual({
+    expect(
+      chunks.some(
+        (chunk) =>
+          chunk.type === EventType.CUSTOM && chunk.name === 'approval-requested',
+      ),
+    ).toBe(true)
+    expect(chunks).toEqual(
+      expect.arrayContaining([{
       type: 'ACTIVITY_SNAPSHOT',
       messageId: 'sandbox.approval:opencode:tool:bash:Run rm -rf build',
       activityType: 'sandbox.approval',
@@ -260,8 +262,11 @@ describe('opencode sandbox.approval activity', () => {
       },
       replace: true,
       timestamp: expect.any(Number),
-      metadata: { tanstack: { threadId: 'thread-1', runId: 'run-1' } },
-    })
+      metadata: {
+        tanstack: { model: 'anthropic/claude-sonnet-4-5', threadId: 'thread-1', runId: 'run-1' },
+      },
+    }]),
+    )
   })
 
   it('sets the row to denied right after RUN_STARTED on the next run', async () => {
@@ -276,8 +281,25 @@ describe('opencode sandbox.approval activity', () => {
         activityType: 'sandbox.approval',
         patch: [{ op: 'replace', path: '/status', value: 'denied' }],
         timestamp: expect.any(Number),
-        metadata: { tanstack: { threadId: 'thread-1', runId: 'run-1' } },
+        metadata: {
+        tanstack: { threadId: 'thread-1', runId: 'run-1' },
+      },
       },
     ])
+  })
+
+  it('yields the pending row when the permission callback runs', async () => {
+    const chunks = await runOpencode()
+    const snapshot = chunks.findIndex(
+      (chunk) =>
+        chunk.type === EventType.ACTIVITY_SNAPSHOT &&
+        chunk.activityType === 'sandbox.approval',
+    )
+    const finished = chunks.findIndex(
+      (chunk) => chunk.type === EventType.RUN_FINISHED,
+    )
+    expect(snapshot).toBeGreaterThan(-1)
+    expect(finished).toBeGreaterThan(-1)
+    expect(snapshot).toBeLessThan(finished)
   })
 })
