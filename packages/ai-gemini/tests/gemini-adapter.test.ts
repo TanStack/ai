@@ -2340,6 +2340,28 @@ describe('Gemini adapter usage on error paths', () => {
     expect(chunks.some((c) => c.type === EventType.RUN_FINISHED)).toBe(false)
   })
 
+  it.each([
+    ['MALFORMED_FUNCTION_CALL', 'malformed_function_call'],
+    ['LANGUAGE', 'language'],
+  ])(
+    'ends a %s finish with a RUN_ERROR instead of RUN_FINISHED stop',
+    async (finishReason, code) => {
+      mocks.generateContentStreamSpy.mockResolvedValue(
+        createStream([{ candidates: [{ finishReason }], usageMetadata }]),
+      )
+
+      const chunks = await collectChunks(
+        createTextAdapter().chatStream(chatOptions),
+      )
+
+      expect(runErrorEvent(chunks)).toMatchObject({
+        code,
+        usage: expectedUsage,
+      })
+      expect(chunks.some((c) => c.type === EventType.RUN_FINISHED)).toBe(false)
+    },
+  )
+
   it('ends a blocked prompt with a RUN_ERROR that carries usage', async () => {
     mocks.generateContentStreamSpy.mockResolvedValue(
       createStream([
