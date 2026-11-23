@@ -347,7 +347,8 @@ async function createLiveConnection(
     },
 
     async startAudioCapture() {
-      await transport.startAudioCapture()
+      const wantsCapture = await transport.startAudioCapture()
+      if (!wantsCapture) return
       sendEvent({ type: 'session.input_audio.unmute' })
       setMode('listening')
     },

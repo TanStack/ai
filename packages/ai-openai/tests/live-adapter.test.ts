@@ -62,7 +62,7 @@ function stubBrowser() {
       return audioContext
     }),
   )
-  return { track, channel, pc, audioContext, getUserMedia }
+  return { track, stream, channel, pc, audioContext, getUserMedia }
 }
 
 const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }
@@ -522,6 +522,28 @@ describe('openaiLive', () => {
 
     expect(getUserMedia).toHaveBeenCalledTimes(1)
     expect(sentTypes()).toEqual(['session.input_audio.unmute'])
+  })
+
+  it('does not unmute when stop comes during the permission prompt', async () => {
+    const { connection, getUserMedia, sentTypes, stream } = await connectLive(
+      undefined,
+      { autoCapture: false },
+    )
+    let grantMicrophone = () => {}
+    getUserMedia.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          grantMicrophone = () => resolve(stream)
+        }),
+    )
+
+    const starting = connection.startAudioCapture()
+    await vi.waitFor(() => expect(getUserMedia).toHaveBeenCalled())
+    connection.stopAudioCapture()
+    grantMicrophone()
+    await starting
+
+    expect(sentTypes()).toEqual(['session.input_audio.mute'])
   })
 
   it('logs on sendImage', async () => {

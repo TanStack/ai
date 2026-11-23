@@ -356,7 +356,7 @@ export async function createOpenAIWebRTCTransport(options: {
 
     // With autoCapture false, the first call opens the microphone. Then it
     // enables the microphone tracks again. Rejects when microphone access
-    // fails.
+    // fails. Returns whether capture is still wanted after the wait.
     async startAudioCapture() {
       wantsCapture = true
       const sender = audioSender
@@ -370,6 +370,7 @@ export async function createOpenAIWebRTCTransport(options: {
       }
       // A stop during the wait keeps the tracks off.
       if (localStream) setTracksEnabled(localStream, wantsCapture)
+      return wantsCapture
     },
 
     // Disable tracks rather than stopping them to allow re-enabling
