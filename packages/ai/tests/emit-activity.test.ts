@@ -121,6 +121,26 @@ describe('emitActivity', () => {
     expect(activitySnapshots(chunks)).toEqual([firstStepSnapshot])
   })
 
+  it('keeps a row emitted in init onConfig in ctx.activities at onFinish', async () => {
+    const { chunks, activities } = await runDeploy({
+      middleware: [
+        {
+          name: 'deploy-status',
+          onConfig(ctx) {
+            if (ctx.phase === 'init') {
+              ctx.emitActivity(deployProgress, 'deploy-1', firstStep)
+            }
+          },
+        },
+      ],
+    })
+
+    expect(activitySnapshots(chunks)).toEqual([firstStepSnapshot])
+    expect(activities).toEqual([
+      expect.objectContaining({ id: 'deploy-1', content: firstStep }),
+    ])
+  })
+
   it('fails the tool call when the content fails the schema check', async () => {
     const { chunks } = await runDeploy({
       deploy: (_args, context) => {

@@ -1034,6 +1034,21 @@ function waitOrAbort(ms: number, signal: AbortSignal | undefined) {
 }
 
 /**
+ * Merge live activity rows into a config list by id. A live row with a new
+ * id is appended. When both lists share an id, the live row is kept.
+ */
+function mergeLiveActivities(
+  configActivities: ReadonlyArray<ActivityRecord>,
+  liveActivities: ReadonlyArray<ActivityRecord>,
+): Array<ActivityRecord> {
+  const byId = new Map(configActivities.map((record) => [record.id, record]))
+  for (const record of liveActivities) {
+    byId.set(record.id, record)
+  }
+  return [...byId.values()]
+}
+
+/**
  * Add the decision of each granted or denied `sandbox.approval` row to
  * `approvals`, for the harness adapter. A decision that `approvals` already
  * has wins, for example the decision of a tool-call part.
@@ -6028,7 +6043,9 @@ class TextEngine<
     this.applyResumeToolState(config.resumeToolState)
     this.messages = config.messages
     if (config.activities !== undefined) {
-      this.setActivities(config.activities)
+      this.setActivities(
+        mergeLiveActivities(config.activities, this.activities),
+      )
     }
     this.providerMessages = config.providerMessages ?? config.messages
     this.systemPrompts = config.systemPrompts
