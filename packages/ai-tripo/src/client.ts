@@ -185,7 +185,7 @@ export interface TripoTaskOutput {
 /**
  * A Tripo task from `GET /tasks/{task_id}`. `status` is a string, for example
  * `queued`, `running`, or `success`. Tripo can also send other values, for
- * example `unknown`.
+ * example `unknown`. `input` is the original create request.
  *
  * @experimental Tripo support is experimental and may change.
  */
@@ -197,6 +197,8 @@ export interface TripoTask {
   error_code?: number
   error_message?: string
   output?: TripoTaskOutput
+  /** Original create request. Convert reads `format` and `quad` from it. */
+  input?: object
 }
 
 /**

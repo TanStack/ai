@@ -399,11 +399,12 @@ export class TripoModel3dAdapter<
       throw new Error(`tripo: ${this.model} task ${jobId} failed: ${error}`)
     }
     const output = task.output ?? {}
-    const files = collectFiles(
-      this.model,
-      output,
-      this.convertFormats.get(jobId),
-    )
+    // Same-instance convert jobs store the format. A new adapter reads
+    // `format` and `quad` from the task input instead.
+    const fallbackFormat =
+      this.convertFormats.get(jobId) ??
+      (this.model === 'convert' ? convertMeshFormat(task.input) : undefined)
+    const files = collectFiles(this.model, output, fallbackFormat)
     const meshFiles = files.filter(isMeshFile)
     const main = meshFiles.find((file) => file.format === 'glb') ?? meshFiles[0]
     if (!main) {

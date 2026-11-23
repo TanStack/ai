@@ -610,6 +610,29 @@ describe('tripo3dModel get3dModel', () => {
     },
   )
 
+  it('reads convert format from the task when a new adapter reads the job', async () => {
+    const tripo = fakeTripo({
+      task_id: 'task-1',
+      status: 'success',
+      input: { format: 'GLTF', quad: true },
+      output: { model_url: 'https://cdn.tripo3d.ai/out/converted-model' },
+    })
+    const config = { apiKey: 'key', fetch: tripo.fetch }
+    await createJob(tripo3dModel('convert', config), [mesh(MESH_URL)], {
+      format: 'GLTF',
+      quad: true,
+    })
+    const result = await tripo3dModel('convert', config).get3dModel('task-1')
+    expect(result.format).toBe('fbx')
+    expect(result.files).toEqual([
+      {
+        url: 'https://cdn.tripo3d.ai/out/converted-model',
+        role: 'base',
+        format: 'fbx',
+      },
+    ])
+  })
+
   it('throws when the task has no 3D model file', async () => {
     await expect(
       resultFor('uv', { uv_render_url: 'https://cdn.tripo3d.ai/out/uv.webp' }),
