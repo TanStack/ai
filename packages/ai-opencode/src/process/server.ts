@@ -70,6 +70,55 @@ export interface StartOpencodeSessionOptions {
   onError?: (error: unknown) => void
 }
 
+/**
+ * A `permission.asked` request. OpenCode 1.x sends it in place of
+ * `permission.updated`, and the SDK event types do not have it yet.
+ */
+interface PermissionAsked {
+  id: string
+  sessionID: string
+  /** The permission, for example `'bash'` or `'edit'`. */
+  permission: string
+  /** What the action touches, for example the command of a `bash` request. */
+  patterns?: Array<string>
+  tool?: { callID?: string }
+}
+
+/**
+ * The request of a `permission.asked` event, or `undefined` for any other
+ * event. The title is the patterns, so the title of a `bash` request is its
+ * command, as with `permission.updated`.
+ */
+function askedRequest(
+  type: string,
+  properties: object,
+): OpencodePermissionRequest | undefined {
+  if (type !== 'permission.asked') return undefined
+  const { id, sessionID, permission, patterns, tool } =
+    properties as Partial<PermissionAsked>
+  if (
+    typeof id !== 'string' ||
+    typeof sessionID !== 'string' ||
+    typeof permission !== 'string'
+  ) {
+    return undefined
+  }
+  return {
+    id,
+    sessionID,
+    type: permission,
+    title: (patterns ?? []).join(' '),
+    ...(tool?.callID !== undefined && { callID: tool.callID }),
+  }
+}
+
+/**
+ * The longest wait, after the prompt response, for the `session.idle` that
+ * comes after the last parts of a turn.
+ * ponytail: a fixed bound for a server that sends no `session.idle`.
+ */
+const IDLE_WAIT_MS = 2_000
+
 /** Locate the session id an OpenCode event belongs to, when it carries one. */
 function sessionIdOf(event: Event): string | undefined {
   const props = event.properties as { sessionID?: string } | undefined
@@ -174,19 +223,15 @@ export async function startOpencodeSession(
     }
     const resolvedSessionId = sessionId
 
+    // The reply endpoint answers both `permission.updated` and
+    // `permission.asked` requests.
     const handlePermission = async (
-      permission: Extract<Event, { type: 'permission.updated' }>['properties'],
+      request: OpencodePermissionRequest,
     ): Promise<void> => {
       try {
-        const response = await options.onPermissionRequest({
-          id: permission.id,
-          sessionID: permission.sessionID,
-          type: permission.type,
-          title: permission.title,
-          ...(permission.callID !== undefined && { callID: permission.callID }),
-        })
+        const response = await options.onPermissionRequest(request)
         await client.postSessionIdPermissionsPermissionId({
-          path: { id: permission.sessionID, permissionID: permission.id },
+          path: { id: request.sessionID, permissionID: request.id },
           query: dirQuery,
           body: { response },
           throwOnError: true,
@@ -195,6 +240,9 @@ export async function startOpencodeSession(
         if (!lifecycle.disposed) options.onError?.(error)
       }
     }
+
+    // Set by `prompt()`. The event loop calls it on `session.idle`.
+    let onIdle: (() => void) | undefined
 
     const subscription = await client.event.subscribe()
     const stream = subscription.stream
@@ -206,9 +254,27 @@ export async function startOpencodeSession(
           const sid = sessionIdOf(event)
           if (sid !== undefined && sid !== resolvedSessionId) continue
           if (event.type === 'permission.updated') {
-            void handlePermission(event.properties)
+            const permission = event.properties
+            void handlePermission({
+              id: permission.id,
+              sessionID: permission.sessionID,
+              type: permission.type,
+              title: permission.title,
+              ...(permission.callID !== undefined && {
+                callID: permission.callID,
+              }),
+            })
             continue
           }
+          // Read as a string: the SDK types do not know the events of
+          // OpenCode 1.x.
+          const type: string = event.type
+          const asked = askedRequest(type, event.properties)
+          if (asked !== undefined) {
+            void handlePermission(asked)
+            continue
+          }
+          if (type === 'session.idle') onIdle?.()
           // The SDK event union is a structural superset of the subset the
           // translator consumes; unknown event types match no translator
           // branch and are ignored.
@@ -223,6 +289,12 @@ export async function startOpencodeSession(
       sessionId: resolvedSessionId,
       resumed,
       prompt: async (text: string) => {
+        // The prompt response can arrive before the last parts of the turn
+        // on the event stream. OpenCode sends `session.idle` after those
+        // parts, so the turn ends only when it arrives.
+        const idle = new Promise<void>((resolve) => {
+          onIdle = resolve
+        })
         const result = await client.session.prompt({
           path: { id: resolvedSessionId },
           query: dirQuery,
@@ -232,6 +304,14 @@ export async function startOpencodeSession(
           },
           throwOnError: true,
         })
+        let timer: ReturnType<typeof setTimeout> | undefined
+        await Promise.race([
+          idle,
+          new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, IDLE_WAIT_MS)
+          }),
+        ])
+        clearTimeout(timer)
         const data = result.data
         const message = data.info as OpencodeAssistantMessage
         const responseText = data.parts

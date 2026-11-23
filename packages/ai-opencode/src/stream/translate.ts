@@ -126,8 +126,9 @@ function messageError(
  * OpenCode delivers true token-level deltas for both assistant text and
  * reasoning via `message.part.updated` events (a `delta` string when
  * incremental, otherwise the full part text, from which the delta is
- * derived). The final assistant message — finish reason, token usage, and any
- * fatal error — arrives as the terminal `done` event.
+ * derived). OpenCode 1.x sends the deltas as `message.part.delta` events. The
+ * final assistant message — finish reason, token usage, and any fatal error —
+ * arrives as the terminal `done` event.
  *
  * Invariant: every TOOL_CALL_START is eventually paired with a
  * TOOL_CALL_RESULT (synthesized as `{"status":"interrupted"}` when the run
@@ -158,6 +159,8 @@ export async function* translateOpencodeStream(
 
   /** Accumulated text per text-part id, for delta derivation. */
   const textAccumulators = new Map<string, string>()
+  /** The latest update of each part, for the `message.part.delta` events. */
+  const knownParts = new Map<string, OpencodePart>()
   let openTextId: string | null = null
   let openReasoningId: string | null = null
   /**
@@ -448,8 +451,24 @@ export async function* translateOpencodeStream(
         event.properties.info.id,
         event.properties.info.role,
       )
+    } else if (event.type === 'message.part.delta') {
+      // OpenCode 1.x sends the new text of a part in its own event. A delta
+      // that comes before the part or its role is skipped: the last update
+      // of the part carries its full text.
+      const { partID, field, delta } = event.properties
+      const part = knownParts.get(partID)
+      if (
+        field === 'text' &&
+        delta !== '' &&
+        part !== undefined &&
+        (isTextPart(part) || isReasoningPart(part)) &&
+        messageRoles.get(part.messageID) === 'assistant'
+      ) {
+        yield* handlePart(part, delta)
+      }
     } else if (event.type === 'message.part.updated') {
       const { part, delta } = event.properties
+      knownParts.set(part.id, part)
       const role = messageRoles.get(part.messageID)
       if (role === undefined) {
         const parts = pendingParts.get(part.messageID) ?? []
@@ -474,7 +493,8 @@ export async function* translateOpencodeStream(
       }
     }
     // session.idle / session.error are redundant with the terminal `done`
-    // event and are ignored.
+    // event and are ignored. The prompt of the session handle resolves only
+    // after session.idle, so every part of the turn comes before `done`.
   }
 
   function* finish(
