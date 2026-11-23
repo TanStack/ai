@@ -1,5 +1,6 @@
 import type { InferredClientContext } from '@tanstack/ai-client'
 import type {
+  ChatUIActivitiesOf,
   ChatUIInterruptsOf,
   ChatUISchemaOf,
   ChatUIToolsOf,
@@ -14,7 +15,8 @@ type HeadlessOptions<TOptions> = CreateChatOptions<
   ChatUIToolsOf<TOptions>,
   ChatUISchemaOf<TOptions>,
   InferredClientContext<ChatUIToolsOf<TOptions>>,
-  ChatUIInterruptsOf<TOptions>
+  ChatUIInterruptsOf<TOptions>,
+  ChatUIActivitiesOf<TOptions>
 >
 
 type ChatInstanceOverrides<TOptions> = {

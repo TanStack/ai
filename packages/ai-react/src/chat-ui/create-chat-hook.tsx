@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react'
 import type { ComponentType } from 'react'
 import type { InferredClientContext } from '@tanstack/ai-client'
 import type {
+  ChatUIActivitiesOf,
   ChatUIInterruptsOf,
   ChatUISchemaOf,
   ChatUIToolsOf,
@@ -15,7 +16,9 @@ type HeadlessOptions<TOptions> = UseChatOptions<
   ChatUIToolsOf<TOptions>,
   ChatUISchemaOf<TOptions>,
   InferredClientContext<ChatUIToolsOf<TOptions>>,
-  ChatUIInterruptsOf<TOptions>
+  ChatUIInterruptsOf<TOptions>,
+  undefined,
+  ChatUIActivitiesOf<TOptions>
 >
 
 type ChatInstanceOverrides<TOptions> = {
@@ -43,6 +46,7 @@ type ChatInstanceOverrides<TOptions> = {
  *   partsComponents: { fallback: FallbackPart },
  *   toolsComponents: { getWeather: WeatherTool, purchaseItem: PurchaseTool },
  *   interruptsComponents: { generic: { choosePlan: ChoosePlan } },
+ *   activitiesComponents: { 'sandbox.status': SandboxCard },
  * })
  *
  * function Support() {

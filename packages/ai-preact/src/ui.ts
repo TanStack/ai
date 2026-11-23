@@ -12,6 +12,7 @@ export {
   type PartProps,
   type QueueProps,
   type ToolProps,
+  type ActivityProps,
 } from './chat-ui/create-ui'
 export { createChatHook } from './chat-ui/create-chat-hook'
 export {

@@ -18,6 +18,9 @@ import {
   selectMessageUI,
 } from '@tanstack/ai-client/ui'
 import type {
+  ChatUIActivitiesOf,
+  ChatUIActivityPartOf,
+  ChatUIActivityType,
   ChatUIHasNamedInterrupts,
   ChatUIHasNamedTools,
   ChatUIInterrupt,
@@ -38,6 +41,7 @@ import type {
   QueuedMessage,
   ToolCallPart,
   ToolResultPart,
+  UIMessage,
 } from '@tanstack/ai-client'
 import type { InjectChatResult } from '@tanstack/ai-angular'
 import { ChatHostRef, defaultChatUITokens } from './tokens'
@@ -46,7 +50,8 @@ import type { ChatUITokens } from './tokens'
 export type ChatUIHost<TOptions = unknown> = InjectChatResult<
   ChatUIToolsOf<TOptions>,
   ChatUISchemaOf<TOptions>,
-  ChatUIInterruptsOf<TOptions>
+  ChatUIInterruptsOf<TOptions>,
+  ChatUIActivitiesOf<TOptions>
 >
 
 export type ChatUIQueueItem = QueuedMessage & {
@@ -79,6 +84,14 @@ export type QueueProps<TOptions> = {
 
 export type PartProps<TOptions, TKey extends ChatUIPartKey = ChatUIPartKey> = {
   part: ChatUIPartOf<TOptions, TKey>
+}
+
+/** Inputs of an activity component. `part.content` is typed for `TName`. */
+export type ActivityProps<
+  TOptions,
+  TName extends ChatUIActivityType<TOptions> = ChatUIActivityType<TOptions>,
+> = {
+  part: ChatUIActivityPartOf<TOptions, TName>
 }
 
 export type ToolProps<
@@ -142,6 +155,14 @@ export type ChatUIComponents<
 > = {
   components: ChatUIChromeComponents<TOptions, TInput>
   partsComponents: ChatUIPartsComponents<TOptions>
+  /**
+   * One component for each activity type: the built-in and declared names.
+   * An activity part with no entry here uses `partsComponents.activity`. Type
+   * the inputs of an entry with {@link ActivityProps}.
+   */
+  activitiesComponents?: {
+    [K in ChatUIActivityType<TOptions>]?: Type<unknown>
+  }
 } & (ChatUIHasNamedTools<TOptions> extends true
   ? {
       toolsComponents: {
@@ -203,9 +224,11 @@ export function createChatUI<
     components,
     partsComponents: parts,
     toolsComponents: tools,
+    activitiesComponents: activities,
     interruptsComponents: interrupts,
   } = config as ChatUIFactoryConfig<TOptions, TInput> & {
     toolsComponents?: Record<string, Type<unknown> | undefined>
+    activitiesComponents?: Record<string, Type<unknown> | undefined>
     interruptsComponents?: {
       tools?: Record<string, Type<unknown> | undefined>
       generic?: Record<string, Type<unknown> | undefined>
@@ -303,7 +326,9 @@ export function createChatUI<
   class Parts {
     readonly injector = inject(Injector)
     readonly ref = inject(tokens.chatRef)
-    message = input.required<ChatUIMessages<TOptions>[number]>()
+    // Plain, because the selector reads plain messages. TypeScript cannot
+    // prove that a typed message is one while `TOptions` is generic.
+    message = input.required<UIMessage>()
 
     readonly selectedParts = computed(() => {
       const chat = this.ref.host()
@@ -329,9 +354,14 @@ export function createChatUI<
         }
         return Tool
       }
-      const PartComponent = (parts[selected.key] ?? parts.fallback) as
-        | Type<unknown>
-        | undefined
+      // An activity part uses the entry for its activity type when there is one.
+      const ActivityComponent =
+        selected.part.type === 'activity'
+          ? activities?.[selected.part.activityType]
+          : undefined
+      const PartComponent = (ActivityComponent ??
+        parts[selected.key] ??
+        parts.fallback) as Type<unknown> | undefined
       if (!PartComponent) {
         warn(
           `part:${selected.key}`,

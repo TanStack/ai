@@ -1,7 +1,11 @@
 import { useMemo, useRef } from 'preact/compat'
 import type { ComponentType } from 'preact/compat'
 import type { InferredClientContext } from '@tanstack/ai-client'
-import type { ChatUIInterruptsOf, ChatUIToolsOf } from '@tanstack/ai-client/ui'
+import type {
+  ChatUIActivitiesOf,
+  ChatUIInterruptsOf,
+  ChatUIToolsOf,
+} from '@tanstack/ai-client/ui'
 import { useChat as useUnboundChat } from '../use-chat'
 import type { UseChatOptions } from '../types'
 import { createChatUI } from './create-ui'
@@ -10,7 +14,8 @@ import type { ChatUIFactoryConfig, ChatUIHost, InputProps } from './create-ui'
 type HeadlessOptions<TOptions> = UseChatOptions<
   ChatUIToolsOf<TOptions>,
   InferredClientContext<ChatUIToolsOf<TOptions>>,
-  ChatUIInterruptsOf<TOptions>
+  ChatUIInterruptsOf<TOptions>,
+  ChatUIActivitiesOf<TOptions>
 >
 
 type ChatInstanceOverrides<TOptions> = {
@@ -38,6 +43,7 @@ type ChatInstanceOverrides<TOptions> = {
  *   partsComponents: { fallback: FallbackPart },
  *   toolsComponents: { getWeather: WeatherTool, purchaseItem: PurchaseTool },
  *   interruptsComponents: { generic: { choosePlan: ChoosePlan } },
+ *   activitiesComponents: { 'sandbox.status': SandboxCard },
  * })
  *
  * function Support() {

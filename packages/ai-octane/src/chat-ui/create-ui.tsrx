@@ -11,6 +11,9 @@ import {
   selectMessageUI,
 } from '@tanstack/ai-client/ui'
 import type {
+  ChatUIActivitiesOf,
+  ChatUIActivityPartOf,
+  ChatUIActivityType,
   ChatUIData,
   ChatUIHasNamedInterrupts,
   ChatUIHasNamedTools,
@@ -43,7 +46,8 @@ import type { ChatUIContexts } from './create-ui-contexts.tsrx'
 export type ChatUIHost<TOptions = unknown> = UseChatReturn<
   ChatUIToolsOf<TOptions>,
   ChatUISchemaOf<TOptions>,
-  ChatUIInterruptsOf<TOptions>
+  ChatUIInterruptsOf<TOptions>,
+  ChatUIActivitiesOf<TOptions>
 >
 
 export type ChatUIQueueItem = QueuedMessage & {
@@ -63,7 +67,12 @@ export type LayoutProps<
 } & (TInput extends ComponentType<any> ? { Input: ComponentType } : {})
 
 export type MessageProps<TOptions> = {
-  message: UIMessage<ChatUIToolsOf<TOptions>, ChatUIData<TOptions>>
+  message: UIMessage<
+    ChatUIToolsOf<TOptions>,
+    ChatUIData<TOptions>,
+    undefined,
+    ChatUIActivitiesOf<TOptions>
+  >
   Parts: ComponentType
 }
 
@@ -87,6 +96,14 @@ export type ToolProps<
   part: Extract<ToolCallPart<ChatUIToolsOf<TOptions>>, { name: TName }>
   result?: ToolResultPart
   interrupt?: ChatUIToolApproval<TOptions, TName>
+}
+
+/** Props of an `activitiesComponents` entry: its part, with typed `content`. */
+export type ActivityProps<
+  TOptions,
+  TName extends ChatUIActivityType<TOptions> = ChatUIActivityType<TOptions>,
+> = {
+  part: ChatUIActivityPartOf<TOptions, TName>
 }
 
 export type InterruptProps<
@@ -139,6 +156,17 @@ export type ChatUIInterruptsComponents<TOptions> = {
   generic: GenericInterruptComponents<TOptions>
 }
 
+// The conditional makes TypeScript read the activity types from the options
+// before it types each component. With a plain mapped type, a type from the
+// `activities` option gets no typed props in `createChatUI(options, config)`.
+type ActivityComponentMap<TOptions> = TOptions extends unknown
+  ? {
+      [K in ChatUIActivityType<TOptions>]?: ComponentType<
+        ActivityProps<TOptions, K>
+      >
+    }
+  : never
+
 export type ChatUIComponents<
   TOptions,
   TInput extends ComponentType<InputProps<TOptions>> | undefined =
@@ -146,6 +174,12 @@ export type ChatUIComponents<
 > = {
   components: ChatUIChromeComponents<TOptions, TInput>
   partsComponents: ChatUIPartsComponents<TOptions>
+  /**
+   * One component for each activity type, keyed by `activityType`: the
+   * built-in types and the types in `activities`. Each one gets its part
+   * with typed `content`. A type with no entry uses `partsComponents.activity`.
+   */
+  activitiesComponents?: ActivityComponentMap<TOptions>
 } & (ChatUIHasNamedTools<TOptions> extends true
   ? {
       toolsComponents: {
@@ -292,9 +326,11 @@ export function createChatUI<
     context: contextOption,
     components,
     partsComponents: parts,
+    activitiesComponents: activities,
     toolsComponents: tools,
     interruptsComponents: interrupts,
   } = config as ChatUIFactoryConfig<TOptions, TInput> & {
+    activitiesComponents?: Record<string, ComponentType<any> | undefined>
     toolsComponents?: Record<string, ComponentType<any> | undefined>
     interruptsComponents?: {
       tools?: Record<string, ComponentType<any> | undefined>
@@ -632,6 +668,11 @@ export function createChatUI<
           interrupt={selected.interrupt as ToolProps<TOptions>['interrupt']}
         />
       )
+    }
+
+    if (selected.part.type === 'activity') {
+      const Activity = activities?.[selected.part.activityType]
+      if (Activity) return <Activity part={selected.part} />
     }
 
     const PartComponent = (parts[selected.key] ?? parts.fallback) as

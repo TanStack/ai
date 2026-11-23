@@ -6,7 +6,11 @@
 
 import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
-import { defineInterrupt, toolDefinition } from '@tanstack/ai'
+import {
+  defineActivityType,
+  defineInterrupt,
+  toolDefinition,
+} from '@tanstack/ai'
 import { clientTools } from '@tanstack/ai-client'
 import type { AnyClientTool } from '@tanstack/ai'
 import { injectChat } from '../src/inject-chat'
@@ -15,6 +19,8 @@ import type { DeepPartial, InjectChatResult } from '../src/types'
 
 type Person = { name: string; age: number; email: string }
 type NoTools = ReadonlyArray<AnyClientTool>
+type ActivityPartIn<TMessage extends { parts: ReadonlyArray<unknown> }> =
+  Extract<TMessage['parts'][number], { type: 'activity' }>
 
 // Use a concrete Zod schema type so InferSchemaType resolves to Person.
 const personSchema = z.object({
@@ -37,10 +43,8 @@ describe('injectChat() return type (angular)', () => {
       type R = InjectChatResult<NoTools, ConcretePersonSchema>
       // These accesses must compile (not @ts-expect-error) — if partial/final
       // are absent from the conditional type, this will fail tsc.
-      const _partial: R['partial'] = undefined as unknown as R['partial']
-      const _final: R['final'] = undefined as unknown as R['final']
-      void _partial
-      void _final
+      expectTypeOf<R['partial']>().toBeFunction()
+      expectTypeOf<R['final']>().toBeFunction()
     })
 
     it('partial is Signal<DeepPartial<T>> and final is Signal<T | null>', () => {
@@ -61,8 +65,9 @@ describe('injectChat() return type (angular)', () => {
       type _Partial = R['partial']
       // @ts-expect-error — final only exists when outputSchema is supplied
       type _Final = R['final']
-      void (undefined as unknown as _Partial)
-      void (undefined as unknown as _Final)
+      // Use the aliases, so an unused-alias error cannot meet the expectations.
+      expectTypeOf<_Partial>()
+      expectTypeOf<_Final>()
     })
 
     it('ReturnType of injectChat<> (no schema arg) also omits partial/final', () => {
@@ -72,9 +77,63 @@ describe('injectChat() return type (angular)', () => {
       type _P = R['partial']
       // @ts-expect-error — final must not exist on the no-schema return
       type _F = R['final']
-      void (undefined as unknown as _P)
-      void (undefined as unknown as _F)
+      expectTypeOf<_P>()
+      expectTypeOf<_F>()
     })
+
+    it('exposes respondToSandboxApproval', () => {
+      type R = InjectChatResult<NoTools>
+      expectTypeOf<R['respondToSandboxApproval']>().toEqualTypeOf<
+        (approvalId: string, granted: boolean) => Promise<void>
+      >()
+    })
+  })
+})
+
+describe('injectChat() activity types', () => {
+  it('types the activity parts of messages', () => {
+    const deployProgress = defineActivityType({
+      activityType: 'deploy.progress',
+      contentSchema: z.object({ step: z.number(), total: z.number() }),
+    })
+    const connection = { connect: async function* () {} }
+
+    // `injectChat` needs an injection context, so only the types are checked.
+    const check = () => {
+      // With no `activities`, the built-in types narrow by `===`.
+      const chat = injectChat({ threadId: 'thread-1', connection })
+      const readBuiltIn = (
+        part: ActivityPartIn<ReturnType<typeof chat.messages>[number]>,
+      ) => {
+        if (part.activityType === 'sandbox.status') {
+          expectTypeOf(part.content.status).toEqualTypeOf<
+            'starting' | 'ready' | 'failed'
+          >()
+        }
+        // @ts-expect-error no activity type is named 'sandbox.statuz'
+        if (part.activityType === 'sandbox.statuz') return
+      }
+      void readBuiltIn
+
+      // A declared type narrows by `===`.
+      const typed = injectChat({
+        threadId: 'thread-1',
+        connection,
+        activities: [deployProgress],
+      })
+      const readDeclared = (
+        part: ActivityPartIn<ReturnType<typeof typed.messages>[number]>,
+      ) => {
+        if (part.activityType === 'deploy.progress') {
+          expectTypeOf(part.content).toEqualTypeOf<{
+            step: number
+            total: number
+          }>()
+        }
+      }
+      void readDeclared
+    }
+    void check
   })
 })
 

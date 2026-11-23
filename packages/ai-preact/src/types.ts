@@ -1,4 +1,5 @@
 import type {
+  AnyActivityTypeDefinition,
   AnyClientTool,
   InterruptDefinition,
   ModelMessage,
@@ -62,8 +63,9 @@ export type UseChatOptions<
   TContext = InferredClientContext<TTools>,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> = readonly [],
 > = DistributedOmit<
-  ChatClientOptions<TTools, TContext, TInterrupts>,
+  ChatClientOptions<TTools, TContext, TInterrupts, TActivities>,
   | 'onMessagesChange'
   | 'onLoadingChange'
   | 'onErrorChange'
@@ -95,11 +97,14 @@ export interface UseChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> = readonly [],
 > {
   /**
-   * Current messages in the conversation
+   * Current messages in the conversation. On an activity part,
+   * `part.activityType === 'sandbox.status'` narrows `content` for a built-in
+   * type, and for each type in `activities`.
    */
-  messages: ReadonlyArray<UIMessage<TTools>>
+  messages: ReadonlyArray<UIMessage<TTools, unknown, undefined, TActivities>>
 
   /**
    * Send a message and get a response.
@@ -137,6 +142,14 @@ export interface UseChatReturn<
     state?: 'output-available' | 'output-error'
     errorText?: string
   }) => Promise<void>
+
+  /**
+   * Answer a pending `sandbox.approval` row, then continue the run.
+   */
+  respondToSandboxApproval: (
+    approvalId: string,
+    granted: boolean,
+  ) => Promise<void>
 
   /**
    * The id of the run this client has in flight — one it started or rejoined —

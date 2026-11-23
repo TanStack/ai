@@ -10,6 +10,7 @@ import {
   watch,
 } from 'vue'
 import type {
+  AnyActivityTypeDefinition,
   AnyClientTool,
   InterruptDefinition,
   InferSchemaType,
@@ -40,9 +41,11 @@ export function useChat<
   const TInterrupts extends ReadonlyArray<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
+  const TActivities extends ReadonlyArray<AnyActivityTypeDefinition> =
+    readonly [],
 >(
-  options: UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
-): UseChatReturn<TTools, TSchema, TInterrupts> {
+  options: UseChatOptions<TTools, TSchema, TContext, TInterrupts, TActivities>,
+): UseChatReturn<TTools, TSchema, TInterrupts, TActivities> {
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
   // message (the one after the most recent user message). This keeps
@@ -69,7 +72,9 @@ export function useChat<
     : { fetcher: options.fetcher }
 
   // The hook's identity is its `threadId`.
-  const client = new ChatClient<TTools, TContext, TInterrupts>({
+  // ponytail: `activities` only types `messages`. The client does not read it,
+  // so it is not passed on.
+  const client = new ChatClient<TTools, TContext, TInterrupts, TActivities>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
     ...(options.initialMessages !== undefined && {
@@ -243,6 +248,9 @@ export function useChat<
     await client.addToolResult(result)
   }
 
+  const respondToSandboxApproval = (approvalId: string, granted: boolean) =>
+    client.respondToSandboxApproval(approvalId, granted)
+
   const interrupts = computed(() => snapshot.value.interruptState.interrupts)
   const interruptErrors = computed(
     () => snapshot.value.interruptState.interruptErrors,
@@ -341,6 +349,7 @@ export function useChat<
     setMessages: setMessagesManually,
     clear,
     addToolResult,
+    respondToSandboxApproval,
     runId: pick('runId'),
     interrupts: readonly(interrupts),
     interruptErrors: readonly(interruptErrors),
@@ -351,5 +360,5 @@ export function useChat<
     resumeInterruptsUnsafe,
     partial: readonly(partial),
     final: readonly(final),
-  } as unknown as UseChatReturn<TTools, TSchema, TInterrupts>
+  } as unknown as UseChatReturn<TTools, TSchema, TInterrupts, TActivities>
 }

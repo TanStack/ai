@@ -1,13 +1,17 @@
 // @vitest-environment jsdom
 import { render } from '@testing-library/preact'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { defineActivityType } from '@tanstack/ai'
+import type { StandardSchemaV1 } from '@tanstack/ai'
 import { createChatUI } from '../../src/chat-ui/create-ui'
 import { createChatHook } from '../../src/chat-ui/create-chat-hook'
 import { createChatHookContexts } from '../../src/chat-ui/create-ui-contexts'
+import { useChat } from '../../src/use-chat'
 import type {
   ChatUIFactoryConfig,
   ChatUIHost,
 } from '../../src/chat-ui/create-ui'
+import type { ActivityProps } from '../../src/ui'
 import {
   chatOptions,
   createChatResult,
@@ -19,11 +23,40 @@ import {
   unboundInterrupt,
   unknownToolMessage,
 } from '../../../ai-client/tests/ui-fixtures'
-import type { ToolCallState } from '@tanstack/ai-client'
+import type { ToolCallState, UIMessage } from '@tanstack/ai-client'
 
 function renderToStaticMarkup(ui: Parameters<typeof render>[0]) {
   const { container } = render(ui)
   return container.innerHTML
+}
+
+function activityMessage(
+  activityType: string,
+  content: Record<string, unknown>,
+): UIMessage {
+  return {
+    id: `activity-${activityType}`,
+    role: 'activity',
+    parts: [{ type: 'activity', activityType, content }],
+  }
+}
+
+const progressSchema: StandardSchemaV1<{ step: number; total: number }> = {
+  '~standard': {
+    version: 1,
+    vendor: 'test',
+    validate: () => ({ value: { step: 0, total: 0 } }),
+  },
+}
+
+// A component in its own scope, as in its own file.
+function SandboxCard({
+  part,
+}: ActivityProps<typeof chatOptions, 'sandbox.status'>) {
+  expectTypeOf(part.content.status).toEqualTypeOf<
+    'starting' | 'ready' | 'failed'
+  >()
+  return null
 }
 
 function host(
@@ -74,6 +107,7 @@ function makeUI(patch?: {
   queue?: Config['components']['queue']
   partsComponents?: Config['partsComponents']
   toolsComponents?: Config['toolsComponents']
+  activitiesComponents?: Config['activitiesComponents']
   interruptsComponents?: {
     tools?: Config['interruptsComponents']['tools']
     generic?: Partial<Config['interruptsComponents']['generic']>
@@ -106,6 +140,9 @@ function makeUI(patch?: {
         ...patch?.interruptsComponents?.generic,
       },
     },
+    ...(patch?.activitiesComponents
+      ? { activitiesComponents: patch.activitiesComponents }
+      : {}),
   })
 }
 
@@ -158,6 +195,109 @@ describe('createChatUI', () => {
     renderToStaticMarkup(<UI.Chat chat={chat} />)
     expect(warn).toHaveBeenCalledTimes(1)
     warn.mockRestore()
+  })
+
+  it('renders the activitiesComponents entry for the activity type', () => {
+    const UI = makeUI({
+      partsComponents: { activity: () => <i>generic</i> },
+      activitiesComponents: {
+        'sandbox.status': ({ part }) => <b>{part.content.status}</b>,
+      },
+    })
+    const markup = renderToStaticMarkup(
+      <UI.Chat
+        chat={host({
+          messages: [
+            activityMessage('sandbox.status', {
+              status: 'starting',
+              provider: 'e2b',
+            }),
+          ],
+        })}
+      />,
+    )
+    expect(markup).toContain('<b>starting</b>')
+  })
+
+  it('renders an activity type with no entry with partsComponents.activity', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const UI = makeUI({
+      partsComponents: {
+        activity: ({ part }) => <i>{part.activityType}</i>,
+      },
+      activitiesComponents: { 'sandbox.status': () => <b>status</b> },
+    })
+    const markup = renderToStaticMarkup(
+      <UI.Chat
+        chat={host({
+          messages: [activityMessage('deploy.progress', { step: 1 })],
+        })}
+      />,
+    )
+    expect(markup).toContain('<i>deploy.progress</i>')
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('types activity components and messages from `activities`', () => {
+    const activityChatOptions = {
+      ...chatOptions,
+      activities: [
+        defineActivityType({
+          activityType: 'deploy.progress',
+          contentSchema: progressSchema,
+        }),
+      ],
+    }
+    const rest = {
+      components: { layout: () => null, message: () => null },
+      partsComponents: { fallback: () => null },
+      toolsComponents: { getWeather: () => null, purchaseItem: () => null },
+      interruptsComponents: { generic: { choosePlan: () => null } },
+    }
+    const UI = createChatUI(activityChatOptions, {
+      ...rest,
+      activitiesComponents: {
+        'sandbox.status': ({ part }) => {
+          expectTypeOf(part.content.status).toEqualTypeOf<
+            'starting' | 'ready' | 'failed'
+          >()
+          return null
+        },
+        'deploy.progress': ({ part }) => {
+          expectTypeOf(part.content).toEqualTypeOf<{
+            step: number
+            total: number
+          }>()
+          return null
+        },
+        // @ts-expect-error This activity type is not in the options.
+        'build.log': () => null,
+      },
+    })
+
+    const { useAppChat } = createChatHook({
+      options: activityChatOptions,
+      ...rest,
+    })
+    const checkHooks = () => {
+      const bound = useAppChat({ threadId: 'thread-1' })
+      const part = bound.messages[0]?.parts[0]
+      if (
+        part?.type === 'activity' &&
+        part.activityType === 'deploy.progress'
+      ) {
+        expectTypeOf(part.content.step).toEqualTypeOf<number>()
+      }
+      // A chat from `useChat` with the same options fits the kit.
+      const chat = useChat({ ...activityChatOptions, threadId: 'thread-1' })
+      return <UI.Chat chat={chat} />
+    }
+    void checkHooks
+  })
+
+  it('takes an activity component typed with ActivityProps', () => {
+    makeUI({ activitiesComponents: { 'sandbox.status': SandboxCard } })
   })
 
   it('keeps unmatched tool results and suppresses matched ones', () => {

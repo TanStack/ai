@@ -7,8 +7,13 @@
  */
 
 import { describe, expectTypeOf, it } from 'vitest'
-import { defineInterrupt, toolDefinition } from '@tanstack/ai'
+import {
+  defineActivityType,
+  defineInterrupt,
+  toolDefinition,
+} from '@tanstack/ai'
 import { clientTools } from '@tanstack/ai-client'
+import { createChatHook } from '../src/create-chat-hook'
 import { useChat } from '../src/use-chat'
 import type { AnyClientTool } from '@tanstack/ai'
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
@@ -76,6 +81,13 @@ describe('useChat() return type', () => {
       expectTypeOf<R['isLoading']>().toBeBoolean()
       expectTypeOf<R['messages'][number]['role']>().toEqualTypeOf<
         'system' | 'user' | 'assistant' | 'activity'
+      >()
+    })
+
+    it('exposes respondToSandboxApproval', () => {
+      type R = UseChatReturn<NoTools>
+      expectTypeOf<R['respondToSandboxApproval']>().toEqualTypeOf<
+        (approvalId: string, granted: boolean) => Promise<void>
       >()
     })
   })
@@ -430,6 +442,73 @@ describe('useChat() registered generic interrupt types', () => {
       expectTypeOf<
         Parameters<UnregisteredGeneric['resolveInterrupt']>[0]
       >().toEqualTypeOf<unknown>()
+    }
+    void check
+  })
+})
+
+describe('useChat() activity types', () => {
+  const progressSchema: TestSchema<{ step: number; total: number }> = {
+    '~standard': {
+      version: 1,
+      vendor: 'test',
+      types: {
+        input: { step: 0, total: 0 },
+        output: { step: 0, total: 0 },
+      },
+      validate: () => ({ value: { step: 0, total: 0 } }),
+      jsonSchema: { input: () => ({ type: 'object' }) },
+    },
+  }
+  const deployProgress = defineActivityType({
+    activityType: 'deploy.progress',
+    contentSchema: progressSchema,
+  })
+  const connection = { connect: async function* () {} }
+
+  it('narrows a built-in activity type with no `activities`', () => {
+    const check = () => {
+      const { messages } = useChat({ threadId: 'thread-1', connection })
+      const part = messages[0]?.parts[0]
+      if (part?.type === 'activity' && part.activityType === 'sandbox.status') {
+        expectTypeOf(part.content.status).toEqualTypeOf<
+          'starting' | 'ready' | 'failed'
+        >()
+      }
+    }
+    void check
+  })
+
+  it('narrows a type from `activities`, also through createChatHook', () => {
+    const check = () => {
+      const { messages } = useChat({
+        threadId: 'thread-1',
+        connection,
+        activities: [deployProgress],
+      })
+      const part = messages[0]?.parts[0]
+      if (
+        part?.type === 'activity' &&
+        part.activityType === 'deploy.progress'
+      ) {
+        expectTypeOf(part.content).toEqualTypeOf<{
+          step: number
+          total: number
+        }>()
+      }
+
+      const { useChat: useBoundChat } = createChatHook({
+        connection,
+        activities: [deployProgress],
+      })
+      const bound = useBoundChat({ threadId: 'thread-1' })
+      const boundPart = bound.messages[0]?.parts[0]
+      if (
+        boundPart?.type === 'activity' &&
+        boundPart.activityType === 'deploy.progress'
+      ) {
+        expectTypeOf(boundPart.content.total).toEqualTypeOf<number>()
+      }
     }
     void check
   })

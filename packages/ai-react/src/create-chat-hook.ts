@@ -1,5 +1,6 @@
 import { useChat as useUnboundChat } from './use-chat'
 import type {
+  AnyActivityTypeDefinition,
   AnyClientTool,
   InterruptDefinition,
   SchemaInput,
@@ -35,7 +36,8 @@ type ChatHookOverrides<
  *
  * Pass `threadId` on every call. You can also override `initialMessages`,
  * `live`, and `forwardedProps` per call. Do not change `tools`,
- * `interrupts`, or `outputSchema` here. Those stay on the factory options.
+ * `interrupts`, `activities`, or `outputSchema` here. Those stay on the
+ * factory options.
  *
  * Rename the hook at the call site if you already import `useChat` from
  * `@tanstack/ai-react`: `const { useChat: useAppChat } = createChatHook(chatOptions)`.
@@ -59,9 +61,18 @@ export function createChatHook<
   > = readonly [],
   const TSubagents extends ReadonlyArray<{ name: string }> | undefined =
     undefined,
+  const TActivities extends ReadonlyArray<AnyActivityTypeDefinition> =
+    readonly [],
 >(
   options: DistributedOmit<
-    UseChatOptions<TTools, TSchema, TContext, TInterrupts, TSubagents>,
+    UseChatOptions<
+      TTools,
+      TSchema,
+      TContext,
+      TInterrupts,
+      TSubagents,
+      TActivities
+    >,
     'threadId'
   > & {
     // Plain keys so TypeScript can infer the generics through the Omit.
@@ -69,6 +80,7 @@ export function createChatHook<
     outputSchema?: TSchema
     interrupts?: TInterrupts
     subagents?: TSubagents
+    activities?: TActivities
   },
 ) {
   function useChat(
@@ -86,7 +98,8 @@ export function createChatHook<
       TSchema,
       TContext,
       TInterrupts,
-      TSubagents
+      TSubagents,
+      TActivities
     >)
   }
 

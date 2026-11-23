@@ -1,6 +1,9 @@
 import type { ComponentBody, OctaneNode } from 'octane'
 type ComponentType<P = any> = ComponentBody<P>
 import type {
+  ChatUIActivitiesOf,
+  ChatUIActivityPartOf,
+  ChatUIActivityType,
   ChatUIData,
   ChatUIHasNamedInterrupts,
   ChatUIHasNamedTools,
@@ -30,7 +33,8 @@ import type { ChatUIContexts } from './create-ui-contexts.tsrx'
 export type ChatUIHost<TOptions = unknown> = UseChatReturn<
   ChatUIToolsOf<TOptions>,
   ChatUISchemaOf<TOptions>,
-  ChatUIInterruptsOf<TOptions>
+  ChatUIInterruptsOf<TOptions>,
+  ChatUIActivitiesOf<TOptions>
 >
 export type ChatUIQueueItem = QueuedMessage & {
   cancelQueued: () => void
@@ -51,7 +55,12 @@ export type LayoutProps<
     }
   : {})
 export type MessageProps<TOptions> = {
-  message: UIMessage<ChatUIToolsOf<TOptions>, ChatUIData<TOptions>>
+  message: UIMessage<
+    ChatUIToolsOf<TOptions>,
+    ChatUIData<TOptions>,
+    undefined,
+    ChatUIActivitiesOf<TOptions>
+  >
   Parts: ComponentType
 }
 export type InputProps<TOptions> = {
@@ -76,6 +85,13 @@ export type ToolProps<
   >
   result?: ToolResultPart
   interrupt?: ChatUIToolApproval<TOptions, TName>
+}
+/** Props of an `activitiesComponents` entry: its part, with typed `content`. */
+export type ActivityProps<
+  TOptions,
+  TName extends ChatUIActivityType<TOptions> = ChatUIActivityType<TOptions>,
+> = {
+  part: ChatUIActivityPartOf<TOptions, TName>
 }
 export type InterruptProps<
   TOptions,
@@ -121,6 +137,13 @@ export type ChatUIInterruptsComponents<TOptions> = {
   tools?: ToolApprovalMap<TOptions>
   generic: GenericInterruptComponents<TOptions>
 }
+type ActivityComponentMap<TOptions> = TOptions extends unknown
+  ? {
+      [K in ChatUIActivityType<TOptions>]?: ComponentType<
+        ActivityProps<TOptions, K>
+      >
+    }
+  : never
 export type ChatUIComponents<
   TOptions,
   TInput extends ComponentType<InputProps<TOptions>> | undefined =
@@ -128,6 +151,12 @@ export type ChatUIComponents<
 > = {
   components: ChatUIChromeComponents<TOptions, TInput>
   partsComponents: ChatUIPartsComponents<TOptions>
+  /**
+   * One component for each activity type, keyed by `activityType`: the
+   * built-in types and the types in `activities`. Each one gets its part
+   * with typed `content`. A type with no entry uses `partsComponents.activity`.
+   */
+  activitiesComponents?: ActivityComponentMap<TOptions>
 } & (ChatUIHasNamedTools<TOptions> extends true
   ? {
       toolsComponents: {

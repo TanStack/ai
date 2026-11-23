@@ -12,6 +12,7 @@ import {
 } from '@angular/core'
 import { toReactive } from './internal/to-reactive'
 import type {
+  AnyActivityTypeDefinition,
   AnyClientTool,
   InterruptDefinition,
   InferSchemaType,
@@ -35,6 +36,21 @@ import type {
   UIMessage,
 } from './types'
 
+/**
+ * Creates a chat in an injection context and exposes its state as signals.
+ *
+ * Pass `activities` (from `defineActivityType`) to type the `content` of those
+ * activity parts in `messages`. The built-in types, such as `sandbox.status`,
+ * are typed without it.
+ *
+ * @example
+ * ```ts
+ * const chat = injectChat({
+ *   threadId: 'support-1',
+ *   connection: fetchServerSentEvents('/api/chat'),
+ * })
+ * ```
+ */
 export function injectChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
@@ -42,9 +58,17 @@ export function injectChat<
   const TInterrupts extends ReadonlyArray<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
+  const TActivities extends ReadonlyArray<AnyActivityTypeDefinition> =
+    readonly [],
 >(
-  options: InjectChatOptions<TTools, TSchema, TContext, TInterrupts>,
-): InjectChatResult<TTools, TSchema, TInterrupts> {
+  options: InjectChatOptions<
+    TTools,
+    TSchema,
+    TContext,
+    TInterrupts,
+    TActivities
+  >,
+) {
   assertInInjectionContext(injectChat)
 
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
@@ -69,7 +93,7 @@ export function injectChat<
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
-  const client = new ChatClient<TTools, TContext, TInterrupts>({
+  const client = new ChatClient<TTools, TContext, TInterrupts, TActivities>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
     ...(options.initialMessages !== undefined && {
@@ -262,6 +286,8 @@ export function injectChat<
   }) => {
     await client.addToolResult(result)
   }
+  const respondToSandboxApproval = (approvalId: string, granted: boolean) =>
+    client.respondToSandboxApproval(approvalId, granted)
   const interrupts = computed(() => interruptState().interrupts)
   const interruptErrors = computed(() => interruptState().interruptErrors)
   const resuming = computed(() => interruptState().resuming)
@@ -306,6 +332,7 @@ export function injectChat<
     setMessages,
     clear,
     addToolResult,
+    respondToSandboxApproval,
     runId: computed(() => snapshot().runId),
     interrupts,
     interruptErrors,
@@ -316,5 +343,5 @@ export function injectChat<
     resumeInterruptsUnsafe,
     partial,
     final,
-  } as unknown as InjectChatResult<TTools, TSchema, TInterrupts>
+  } as unknown as InjectChatResult<TTools, TSchema, TInterrupts, TActivities>
 }

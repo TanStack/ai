@@ -1,4 +1,5 @@
 import { getContext, setContext } from 'svelte'
+import type { Component } from 'svelte'
 import {
   automaticPartsForMessage,
   collectInlineToolNames,
@@ -7,6 +8,9 @@ import {
   selectMessageUI,
 } from '@tanstack/ai-client/ui'
 import type {
+  ChatUIActivitiesOf,
+  ChatUIActivityPartOf,
+  ChatUIActivityType,
   ChatUIData,
   ChatUIHasNamedInterrupts,
   ChatUIHasNamedTools,
@@ -35,7 +39,8 @@ export type ChatUIHost<TOptions = unknown> = CreateChatReturn<
   ChatUIToolsOf<TOptions>,
   ChatUISchemaOf<TOptions>,
   unknown,
-  ChatUIInterruptsOf<TOptions>
+  ChatUIInterruptsOf<TOptions>,
+  ChatUIActivitiesOf<TOptions>
 >
 
 type GenericInterruptComponents<TOptions> =
@@ -51,6 +56,15 @@ type GenericInterruptComponents<TOptions> =
 
 type ToolApprovalMap<TOptions> = {
   [K in ChatUIToolName<TOptions>]?: unknown
+}
+
+// One component for each activity type: the built-in and declared names.
+// ponytail: a plain mapped type. React wraps it in a conditional, because an
+// inline function component gets its props from the map. A Svelte component
+// is a typed `.svelte` file, so the map only checks it. Add the conditional
+// if a contextually typed component ever shows up.
+type ActivityComponentMap<TOptions> = {
+  [K in ChatUIActivityType<TOptions>]?: Component<ActivityProps<TOptions, K>>
 }
 
 /** The chrome around the message list: `layout`, `message`, and `input`. */
@@ -76,6 +90,7 @@ export type ChatUIInterruptsComponents<TOptions> = {
 export type ChatUIComponents<TOptions> = ChatUIChromeComponents & {
   parts: ChatUIPartsComponents
   tools?: { [K in ChatUIToolName<TOptions>]?: unknown }
+  activities?: ActivityComponentMap<TOptions>
   interrupts?: {
     tools?: ToolApprovalMap<TOptions>
     generic?: GenericInterruptComponents<TOptions>
@@ -85,6 +100,12 @@ export type ChatUIComponents<TOptions> = ChatUIChromeComponents & {
 export type ChatUIFactoryConfig<TOptions> = {
   components: ChatUIChromeComponents
   partsComponents: ChatUIPartsComponents
+  /**
+   * One component for each activity type. An activity part with no entry
+   * here uses `partsComponents.activity`. Type the props of an entry with
+   * {@link ActivityProps}.
+   */
+  activitiesComponents?: ActivityComponentMap<TOptions>
 } & (ChatUIHasNamedTools<TOptions> extends true
   ? { toolsComponents: { [K in ChatUIToolName<TOptions>]: unknown } }
   : { toolsComponents?: { [K in ChatUIToolName<TOptions>]?: unknown } }) &
@@ -139,6 +160,7 @@ export function createChatUI<const TOptions>(
     components: chrome,
     partsComponents,
     toolsComponents,
+    activitiesComponents,
     interruptsComponents,
   } = config as ChatUIFactoryConfig<TOptions> & {
     toolsComponents?: Record<string, unknown>
@@ -152,6 +174,7 @@ export function createChatUI<const TOptions>(
     ...chrome,
     parts: partsComponents,
     tools: toolsComponents,
+    activities: activitiesComponents,
     interrupts: interruptsComponents,
   } as ChatUIComponents<TOptions>
   const ui: UIRuntime<TOptions> = {
@@ -240,8 +263,10 @@ export function messageParts(
   )
 }
 
-export function listInterrupts<TOptions>(
-  chat: ChatUIHost<TOptions>,
+// The UI components pass the host of a `UIDescriptor` with no options. Its
+// messages fit the plain `UIMessage` that `selectChatUI` reads.
+export function listInterrupts(
+  chat: ChatUIHost,
   inlineToolNames: ReadonlyArray<string>,
 ) {
   return selectChatUI({
@@ -260,9 +285,15 @@ export function toolComponent<TOptions>(
 
 export function partComponent<TOptions>(
   components: ChatUIComponents<TOptions>,
-  key: string,
+  selected: ChatUISelectedPart,
 ) {
-  return components.parts[key as ChatUIPartKey] ?? components.parts.fallback
+  // An activity part uses the entry for its activity type when there is one.
+  const activities: Record<string, unknown> = components.activities ?? {}
+  const activity =
+    selected.part.type === 'activity'
+      ? activities[selected.part.activityType]
+      : undefined
+  return activity ?? components.parts[selected.key] ?? components.parts.fallback
 }
 
 export function interruptComponent<TOptions>(
@@ -280,7 +311,12 @@ export type LayoutProps<TOptions> = {
   readonly __ui?: TOptions
 }
 export type MessageProps<TOptions> = {
-  message: UIMessage<ChatUIToolsOf<TOptions>, ChatUIData<TOptions>>
+  message: UIMessage<
+    ChatUIToolsOf<TOptions>,
+    ChatUIData<TOptions>,
+    undefined,
+    ChatUIActivitiesOf<TOptions>
+  >
 }
 export type InputProps<TOptions> = {
   readonly __ui?: TOptions
@@ -291,6 +327,13 @@ export type QueueProps<TOptions> = {
 }
 export type PartProps<TOptions, TKey extends ChatUIPartKey = ChatUIPartKey> = {
   part: ChatUIPartOf<TOptions, TKey>
+}
+/** Props of an activity component. `part.content` is typed for `TName`. */
+export type ActivityProps<
+  TOptions,
+  TName extends ChatUIActivityType<TOptions> = ChatUIActivityType<TOptions>,
+> = {
+  part: ChatUIActivityPartOf<TOptions, TName>
 }
 export type ToolProps<
   TOptions,

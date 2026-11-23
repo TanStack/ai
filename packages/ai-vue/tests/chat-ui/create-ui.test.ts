@@ -1,5 +1,6 @@
 import { defineComponent, h } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
+import type { UIMessage } from '@tanstack/ai-client'
 import {
   createChatHook,
   createChatUI,
@@ -7,6 +8,7 @@ import {
   UIMessages,
   UIProvider,
 } from '../../src/ui'
+import type { ChatUIFactoryConfig, UIDescriptor } from '../../src/ui'
 import { renderVueText } from './test-renderer'
 import {
   chatOptions,
@@ -53,6 +55,40 @@ const kit = {
   },
 }
 
+const activityKit: ChatUIFactoryConfig<typeof chatOptions> = {
+  ...kit,
+  partsComponents: {
+    ...kit.partsComponents,
+    activity: defineComponent({
+      props: ['part'],
+      setup(props) {
+        return () => h('i', props.part.activityType)
+      },
+    }),
+  },
+  activitiesComponents: {
+    'sandbox.status': (props) => h('b', props.part.content.status),
+  },
+}
+
+function activityMessage(
+  activityType: string,
+  content: Record<string, unknown>,
+): UIMessage {
+  return {
+    id: `activity-${activityType}`,
+    role: 'activity',
+    parts: [{ type: 'activity', activityType, content }],
+  }
+}
+
+function renderChat(
+  ui: UIDescriptor<typeof chatOptions>,
+  chat: ReturnType<typeof createVueChatResult>,
+) {
+  return renderVueText(defineComponent(() => () => h(UIChat, { ui, chat })))
+}
+
 describe('Vue createChatHook', () => {
   it('returns useAppChat, ui, and context composables from options and chatComponents', () => {
     const { useAppChat, ui, useChatContext } = createChatHook({
@@ -70,9 +106,7 @@ describe('Vue createChatUI', () => {
     const ui = createChatUI(chatOptions, kit)
     const chat = createVueChatResult([messageWithToolResults])
 
-    const automatic = await renderVueText(
-      defineComponent(() => () => h(UIChat, { ui, chat })),
-    )
+    const automatic = await renderChat(ui, chat)
     expect(automatic).toContain('Paris')
 
     const manual = await renderVueText(
@@ -102,8 +136,8 @@ describe('Vue createChatUI', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const ui = createChatUI(chatOptions, kit)
     const chat = createVueChatResult([unknownToolMessage])
-    await renderVueText(defineComponent(() => () => h(UIChat, { ui, chat })))
-    await renderVueText(defineComponent(() => () => h(UIChat, { ui, chat })))
+    await renderChat(ui, chat)
+    await renderChat(ui, chat)
     expect(
       warn.mock.calls.filter((call) =>
         String(call[0]).includes('[tanstack-ai-ui]'),
@@ -144,10 +178,29 @@ describe('Vue createChatUI', () => {
         cancelled.push(id)
       },
     })
-    const markup = await renderVueText(
-      defineComponent(() => () => h(UIChat, { ui, chat })),
-    )
+    const markup = await renderChat(ui, chat)
     expect(markup).toContain('<em>later</em>')
     expect(cancelled).toEqual(['q1'])
+  })
+
+  it('renders an activity part with the activitiesComponents entry of its type', async () => {
+    const ui = createChatUI(chatOptions, activityKit)
+    const chat = createVueChatResult([
+      activityMessage('sandbox.status', {
+        status: 'starting',
+        provider: 'e2b',
+      }),
+    ])
+    const markup = await renderChat(ui, chat)
+    expect(markup).toContain('<b>starting</b>')
+    expect(markup).not.toContain('<i>')
+  })
+
+  it('renders partsComponents.activity for a type with no entry', async () => {
+    const ui = createChatUI(chatOptions, activityKit)
+    const chat = createVueChatResult([
+      activityMessage('deploy.progress', { step: 1 }),
+    ])
+    expect(await renderChat(ui, chat)).toContain('<i>deploy.progress</i>')
   })
 })

@@ -1,10 +1,11 @@
 import { EventType } from '@tanstack/ai/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { ChatClient } from '@tanstack/ai-client'
 import { createChat } from '../src/create-chat'
 import type { AnyClientTool } from '@tanstack/ai-client'
 import type { Handle } from 'remix/ui'
 import type { StreamChunk } from '@tanstack/ai/client'
+import type { CreateChatReturn } from '../src/types'
 
 const abortControllers: Array<AbortController> = []
 
@@ -146,5 +147,15 @@ describe('createChat', () => {
     vi.mocked(handle.update).mockClear()
     chat.setMessages([])
     expect(handle.update).not.toHaveBeenCalled()
+  })
+
+  it('types respondToSandboxApproval on the return', () => {
+    type Respond = (approvalId: string, granted: boolean) => Promise<void>
+    expectTypeOf<
+      ReturnType<typeof createChat>['respondToSandboxApproval']
+    >().toEqualTypeOf<Respond>()
+    expectTypeOf<
+      CreateChatReturn['respondToSandboxApproval']
+    >().toEqualTypeOf<Respond>()
   })
 })

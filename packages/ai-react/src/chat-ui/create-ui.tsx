@@ -8,6 +8,9 @@ import {
   selectMessageUI,
 } from '@tanstack/ai-client/ui'
 import type {
+  ChatUIActivitiesOf,
+  ChatUIActivityPartOf,
+  ChatUIActivityType,
   ChatUIApprovalToolName,
   ChatUIData,
   ChatUIHasNamedInterrupts,
@@ -23,7 +26,6 @@ import type {
   ChatUIPartOf,
   ChatUISchemaOf,
   ChatUISelectedPart,
-  ChatUISelectedPartOf,
   ChatUISubagentName,
   ChatUISubagentOf,
   ChatUISubagentOptions,
@@ -47,7 +49,9 @@ import type { ChatUIContexts } from './create-ui-contexts'
 export type ChatUIHost<TOptions = unknown> = UseChatReturn<
   ChatUIToolsOf<TOptions>,
   ChatUISchemaOf<TOptions>,
-  ChatUIInterruptsOf<TOptions>
+  ChatUIInterruptsOf<TOptions>,
+  undefined,
+  ChatUIActivitiesOf<TOptions>
 >
 
 export type ChatUIQueueItem = QueuedMessage & {
@@ -68,7 +72,12 @@ export type LayoutProps<
 } & (TInput extends ComponentType<any> ? { Input: ComponentType } : {})
 
 export type MessageProps<TOptions> = {
-  message: UIMessage<ChatUIToolsOf<TOptions>, ChatUIData<TOptions>>
+  message: UIMessage<
+    ChatUIToolsOf<TOptions>,
+    ChatUIData<TOptions>,
+    undefined,
+    ChatUIActivitiesOf<TOptions>
+  >
   Parts: ComponentType
 }
 
@@ -126,6 +135,14 @@ export type ToolProps<
   interrupt?: ChatUIToolApproval<TOptions, TName>
 }
 
+/** Props of an activity component. `part.content` is typed for `TName`. */
+export type ActivityProps<
+  TOptions,
+  TName extends ChatUIActivityType<TOptions> = ChatUIActivityType<TOptions>,
+> = {
+  part: ChatUIActivityPartOf<TOptions, TName>
+}
+
 export type InterruptProps<
   TOptions,
   TName extends ChatUIInterruptName<TOptions> = never,
@@ -152,6 +169,17 @@ type ToolApprovalMap<TOptions> = {
     InterruptProps<TOptions, K & ChatUIInterruptName<TOptions>>
   >
 }
+
+// The conditional makes TypeScript read the activity types from the options
+// before it types each component. With a plain mapped type, a type from the
+// `activities` option gets no typed props in `createChatUI(options, config)`.
+type ActivityComponentMap<TOptions> = TOptions extends unknown
+  ? {
+      [K in ChatUIActivityType<TOptions>]?: ComponentType<
+        ActivityProps<TOptions, K>
+      >
+    }
+  : never
 
 /** The chrome around the message list: `layout`, `message`, and `input`. */
 export type ChatUIChromeComponents<
@@ -183,6 +211,12 @@ export type ChatUIComponents<
 > = {
   components: ChatUIChromeComponents<TOptions, TInput>
   partsComponents: ChatUIPartsComponents<TOptions>
+  /**
+   * One component for each activity type. The keys are the built-in types
+   * and the types in the `activities` option, and `part.content` is typed
+   * for each key. A type with no entry renders with `partsComponents.activity`.
+   */
+  activitiesComponents?: ActivityComponentMap<TOptions>
 } & (ChatUIHasNamedTools<TOptions> extends true
   ? {
       toolsComponents: {
@@ -382,6 +416,7 @@ export function createChatUI<
     toolsComponents: tools,
     interruptsComponents: interrupts,
     subagentsComponents: subagentComponents,
+    activitiesComponents: activityComponents,
   } = config as ChatUIFactoryConfig<TOptions, TInput> & {
     toolsComponents?: Record<string, ComponentType<any> | undefined>
     interruptsComponents?: {
@@ -389,6 +424,7 @@ export function createChatUI<
       generic?: Record<string, ComponentType<any> | undefined>
     }
     subagentsComponents?: Record<string, ComponentType<any> | undefined>
+    activitiesComponents?: Record<string, ComponentType<any> | undefined>
   }
   const {
     layout: Layout,
@@ -423,14 +459,14 @@ export function createChatUI<
     return chat
   }
 
-  function usePartContext<TKey extends ChatUIPartKey = ChatUIPartKey>() {
+  function usePartContext() {
     const selected = useContext(PartContext)
     if (!selected) {
       throw new Error(
         '`usePartContext` must be used within `UI.Part` or an automatic part.',
       )
     }
-    return selected as ChatUISelectedPartOf<TOptions, TKey>
+    return selected
   }
 
   function useInterruptContext<
@@ -640,11 +676,14 @@ export function createChatUI<
     if (!scope) {
       throw new Error('`Parts` must be rendered by a `message` component.')
     }
+    // `AutomaticParts` also renders the plain messages of subagents, so it
+    // takes a plain message. A typed message is one, but TypeScript cannot
+    // prove that while `TOptions` is generic.
     return (
       <AutomaticParts
         inlineToolNames={scope.inlineToolNames}
         interrupts={scope.interrupts}
-        message={scope.message}
+        message={scope.message as UIMessage}
       />
     )
   }
@@ -758,6 +797,12 @@ export function createChatUI<
           />
         </SubagentRenderContext.Provider>
       )
+    }
+
+    // A type with no entry goes on to `partsComponents.activity`.
+    if (selected.part.type === 'activity') {
+      const Activity = activityComponents?.[selected.part.activityType]
+      if (Activity) return <Activity part={selected.part} />
     }
 
     const PartComponent = (widgets.parts[selected.key] ??

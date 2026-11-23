@@ -1,5 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { createElement } from 'remix/ui'
+import { render } from 'remix/ui/test'
+import { createChat } from '../src/create-chat.ts'
 import { createChatHook } from '../src/chat-ui/create-chat-hook.ts'
 import { createChatUI } from '../src/chat-ui/create-ui.tsx'
 import type {
@@ -8,7 +10,9 @@ import type {
   LayoutProps,
   MessageProps,
 } from '../src/chat-ui/create-ui.tsx'
-import type { Handle, RemixNode } from 'remix/ui'
+import type { ActivityProps } from '../src/ui.ts'
+import type { ActivityTypeDefinition } from '@tanstack/ai/client'
+import type { Handle } from 'remix/ui'
 import type { UIMessage } from '../src/types.ts'
 
 const weatherMessage: UIMessage = {
@@ -26,15 +30,64 @@ const weatherMessage: UIMessage = {
   ],
 }
 
+const sandboxStatusMessage: UIMessage = {
+  id: 'sandbox-run-1',
+  role: 'activity',
+  parts: [
+    {
+      type: 'activity',
+      activityType: 'sandbox.status',
+      content: { status: 'ready', provider: 'e2b' },
+    },
+  ],
+}
+
+const deployProgressMessage: UIMessage = {
+  id: 'deploy-1',
+  role: 'activity',
+  parts: [
+    {
+      type: 'activity',
+      activityType: 'deploy.progress',
+      content: { step: 1, total: 3 },
+    },
+  ],
+}
+
 const chatOptions = {
   tools: [{ name: 'getWeather' as const }],
 }
+
+type DeployProgressContent = { step: number; total: number }
+
+// A declared activity type. The checks below read only its type.
+type DeployProgress = ActivityTypeDefinition<
+  'deploy.progress',
+  DeployProgressContent,
+  DeployProgressContent
+>
+
+type ActivityOptions = { activities: readonly [DeployProgress] }
+
+// The content type of the 'deploy.progress' parts in a list of messages.
+type DeployContentIn<TMessages extends ReadonlyArray<UIMessage<any, any>>> =
+  TMessages[number]['parts'][number] extends infer TPart
+    ? TPart extends { activityType: 'deploy.progress'; content: infer TContent }
+      ? TContent
+      : never
+    : never
 
 function getWeather(handle: Handle<{ part: { input?: { city?: string } } }>) {
   return () => createElement('strong', {}, handle.props.part.input?.city)
 }
 
-const kit = {
+function SandboxCard(
+  handle: Handle<ActivityProps<typeof chatOptions, 'sandbox.status'>>,
+) {
+  return () => createElement('b', {}, handle.props.part.content.status)
+}
+
+const kit: ChatUIFactoryConfig<typeof chatOptions> = {
   components: {
     layout(handle: Handle<LayoutProps<typeof chatOptions>>) {
       return () => {
@@ -57,8 +110,10 @@ const kit = {
   toolsComponents: {
     getWeather,
   },
-} as ChatUIFactoryConfig<typeof chatOptions>
+}
 
+// The fake host has only the fields that the UI reads, and it takes plain
+// messages, so it needs a cast.
 function host(messages: Array<UIMessage>): ChatUIHost<typeof chatOptions> {
   return {
     messages,
@@ -88,48 +143,85 @@ describe('createChatUI', () => {
     cleanup = undefined
   })
 
-  it('renders a getWeather tool component with the city text', async () => {
-    const UI = createChatUI(chatOptions, kit)
+  function renderChat(
+    config: ChatUIFactoryConfig<typeof chatOptions>,
+    messages: Array<UIMessage>,
+  ) {
+    const UI = createChatUI(chatOptions, config)
+    const result = render(createElement(UI.Chat, { chat: host(messages) }))
+    cleanup = result.cleanup
+    return result.container
+  }
 
-    let render:
-      | ((node: RemixNode) => { container: HTMLElement; cleanup: () => void })
-      | undefined
-    try {
-      ;({ render } = await import('remix/ui/test'))
-    } catch {
-      render = undefined
-    }
+  it('renders a getWeather tool component with the city text', () => {
+    const container = renderChat(kit, [weatherMessage])
+    expect(container.textContent).toContain('London')
+  })
 
-    const result = render
-      ? render(
-          createElement(UI.Chat, {
-            chat: host([weatherMessage]),
-          }),
-        )
-      : undefined
-
-    if (result) {
-      cleanup = result.cleanup
-      expect(result.container.textContent).toContain('London')
-      return
-    }
-
-    expect(getWeather).toBeTypeOf('function')
-    const node = getWeather({
-      props: {
-        part: weatherMessage.parts[0],
+  it('renders an activity with its activitiesComponents entry, else with partsComponents.activity', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const container = renderChat(
+      {
+        ...kit,
+        partsComponents: {
+          activity: (handle) => () =>
+            createElement('i', {}, handle.props.part.activityType),
+        },
+        activitiesComponents: { 'sandbox.status': SandboxCard },
       },
-    } as unknown as Handle<{ part: { input?: { city?: string } } }>)()
-    expect(readText(node)).toContain('London')
+      [sandboxStatusMessage, deployProgressMessage],
+    )
+    expect(container.querySelector('b')?.textContent).toBe('ready')
+    expect(container.querySelector('i')?.textContent).toBe('deploy.progress')
+    // A type with no entry is not an error.
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
   })
 })
 
-function readText(node: RemixNode): string {
-  if (node == null || typeof node === 'boolean') return ''
-  if (typeof node === 'string' || typeof node === 'number') return String(node)
-  if (Array.isArray(node)) return node.map(readText).join('')
-  if (typeof node === 'object' && 'props' in node) {
-    return readText(node.props.children as RemixNode)
-  }
-  return ''
-}
+describe('activity types', () => {
+  it('keys activitiesComponents by activity type and types each part', () => {
+    // Never called. It checks the props at a createChatUI call.
+    const createActivityUI = (options: ActivityOptions) =>
+      createChatUI(options, {
+        components: { layout: () => () => null, message: () => () => null },
+        partsComponents: {},
+        activitiesComponents: {
+          'sandbox.status': (handle) => {
+            expectTypeOf(handle.props.part.content.status).toEqualTypeOf<
+              'starting' | 'ready' | 'failed'
+            >()
+            return () => null
+          },
+          'deploy.progress': (handle) => {
+            expectTypeOf(
+              handle.props.part.content,
+            ).toEqualTypeOf<DeployProgressContent>()
+            return () => null
+          },
+          // @ts-expect-error 'build.log' is not built in and not in `activities`
+          'build.log': () => () => null,
+        },
+      })
+    void createActivityUI
+    expectTypeOf<
+      ActivityProps<ActivityOptions, 'deploy.progress'>['part']['content']
+    >().toEqualTypeOf<DeployProgressContent>()
+  })
+
+  it('types the activity parts of the messages from activities', () => {
+    // Never called. It gives the type that createChat returns.
+    const createTypedChat = (handle: Handle, deployProgress: DeployProgress) =>
+      createChat(handle, {
+        connection: { async *connect() {} },
+        threadId: 'thread-1',
+        activities: [deployProgress],
+      })
+    expectTypeOf<
+      DeployContentIn<ReturnType<typeof createTypedChat>['messages']>
+    >().toEqualTypeOf<DeployProgressContent>()
+    expectTypeOf<
+      DeployContentIn<ChatUIHost<ActivityOptions>['messages']>
+    >().toEqualTypeOf<DeployProgressContent>()
+  })
+})

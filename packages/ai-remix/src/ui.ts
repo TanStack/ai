@@ -1,6 +1,7 @@
 // Barrel entry for the `@tanstack/ai-remix/ui` subpath.
 export {
   createChatUI,
+  type ActivityProps,
   type ChatUIComponents,
   type ChatUIFactoryConfig,
   type ChatUIHost,

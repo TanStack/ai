@@ -9,6 +9,7 @@ import type {
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 import type {
+  AnyActivityTypeDefinition,
   AnyClientTool,
   InterruptDefinition,
   InferSchemaType,
@@ -36,7 +37,9 @@ import type {
  * the helper sets `framework: 'remix'` and `hookName: 'createChat'`.
  *
  * @param handle Remix component handle from setup.
- * @param options Chat client options. Pass `connection` or `fetcher`.
+ * @param options Chat client options. Pass `connection` or `fetcher`. Pass
+ *   `activities` (types from `defineActivityType`) to type the activity parts
+ *   of `messages`.
  *
  * @example
  * ```tsx
@@ -69,9 +72,17 @@ export function createChat<
   const TInterrupts extends ReadonlyArray<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
+  const TActivities extends ReadonlyArray<AnyActivityTypeDefinition> =
+    readonly [],
 >(
   handle: Pick<Handle, 'update' | 'signal'>,
-  options: CreateChatOptions<TTools, TSchema, TContext, TInterrupts>,
+  options: CreateChatOptions<
+    TTools,
+    TSchema,
+    TContext,
+    TInterrupts,
+    TActivities
+  >,
 ) {
   let closed = false
 
@@ -87,7 +98,8 @@ export function createChat<
     void handle.update()
   }
 
-  const client = new ChatClient<TTools, TContext, TInterrupts>({
+  // `activities` only types `messages`, so the client does not get it.
+  const client = new ChatClient<TTools, TContext, TInterrupts, TActivities>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
     ...(options.initialMessages !== undefined && {
@@ -228,6 +240,11 @@ export function createChat<
     await client.addToolResult(result)
   }
 
+  const respondToSandboxApproval = (approvalId: string, granted: boolean) => {
+    syncTools()
+    return client.respondToSandboxApproval(approvalId, granted)
+  }
+
   const resolveInterrupts = (
     resolution:
       | boolean
@@ -344,6 +361,7 @@ export function createChat<
     setMessages,
     clear,
     addToolResult,
+    respondToSandboxApproval,
     resolveInterrupts,
     cancelInterrupts,
     retryInterrupts,

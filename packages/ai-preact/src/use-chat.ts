@@ -9,6 +9,7 @@ import type {
   SendMessageOptions,
 } from '@tanstack/ai-client'
 import type {
+  AnyActivityTypeDefinition,
   AnyClientTool,
   InterruptDefinition,
   ModelMessage,
@@ -28,24 +29,29 @@ export function useChat<
   const TInterrupts extends ReadonlyArray<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
+  const TActivities extends ReadonlyArray<AnyActivityTypeDefinition> =
+    readonly [],
 >(
-  options: UseChatOptions<TTools, TContext, TInterrupts>,
-): UseChatReturn<TTools, TInterrupts> {
+  options: UseChatOptions<TTools, TContext, TInterrupts, TActivities>,
+): UseChatReturn<TTools, TInterrupts, TActivities> {
   // The hook's identity is its `threadId`. Reload with the same `threadId`
   // restores the same conversation.
   const clientId = options.threadId
 
-  const subscribedClientRef = useRef<ChatClient | null>(null)
-  const activeClientRef = useRef<ChatClient | null>(null)
+  // Typed activity messages do not fit a plain `ChatClient`.
+  const subscribedClientRef = useRef<ChatClient<any, any, any, any> | null>(
+    null,
+  )
+  const activeClientRef = useRef<ChatClient<any, any, any, any> | null>(null)
   const cleanupInvalidationRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   )
   const cleanupDisposalRef = useRef<{
-    client: ChatClient
+    client: ChatClient<any, any, any, any>
     timeout: ReturnType<typeof setTimeout>
   } | null>(null)
   const optionsRef =
-    useRef<UseChatOptions<TTools, TContext, TInterrupts>>(options)
+    useRef<UseChatOptions<TTools, TContext, TInterrupts, TActivities>>(options)
 
   optionsRef.current = options
 
@@ -62,7 +68,9 @@ export function useChat<
       : { fetcher: initialOptions.fetcher }
 
     const instanceHolder: {
-      current: ChatClient<TTools, TContext, TInterrupts> | undefined
+      current:
+        | ChatClient<TTools, TContext, TInterrupts, TActivities>
+        | undefined
     } = { current: undefined }
     const getActiveInstance = () => {
       const currentInstance = instanceHolder.current
@@ -89,87 +97,89 @@ export function useChat<
         return
       callback()
     }
-    const instance = new ChatClient<TTools, TContext, TInterrupts>({
-      devtoolsBridgeFactory: createChatDevtoolsBridge,
-      ...transport,
-      initialMessages: messagesToUse,
-      threadId: initialOptions.threadId,
-      ...(initialOptions.outputSchema !== undefined && {
-        outputSchema: initialOptions.outputSchema,
-      }),
-      ...(initialOptions.persistence === true
-        ? {
-            persistence: true,
-            ...(initialOptions.history !== undefined && {
-              history: initialOptions.history,
-            }),
-          }
-        : { persistence: initialOptions.persistence }),
-      ...(initialOptions.forwardedProps !== undefined && {
-        forwardedProps: initialOptions.forwardedProps,
-      }),
-      ...(initialOptions.byok !== undefined && { byok: initialOptions.byok }),
-      byokProvider: () => optionsRef.current.byokProvider?.(),
-      ...(initialOptions.initialResumeSnapshot !== undefined && {
-        initialResumeSnapshot: initialOptions.initialResumeSnapshot,
-      }),
-      ...(initialOptions.context !== undefined && {
-        context: initialOptions.context,
-      }),
-      devtools: {
-        ...initialOptions.devtools,
-        framework: 'preact',
-        hookName: 'useChat',
-        outputKind: initialOptions.outputSchema ? 'structured' : 'chat',
+    const instance = new ChatClient<TTools, TContext, TInterrupts, TActivities>(
+      {
+        devtoolsBridgeFactory: createChatDevtoolsBridge,
+        ...transport,
+        initialMessages: messagesToUse,
+        threadId: initialOptions.threadId,
+        ...(initialOptions.outputSchema !== undefined && {
+          outputSchema: initialOptions.outputSchema,
+        }),
+        ...(initialOptions.persistence === true
+          ? {
+              persistence: true,
+              ...(initialOptions.history !== undefined && {
+                history: initialOptions.history,
+              }),
+            }
+          : { persistence: initialOptions.persistence }),
+        ...(initialOptions.forwardedProps !== undefined && {
+          forwardedProps: initialOptions.forwardedProps,
+        }),
+        ...(initialOptions.byok !== undefined && { byok: initialOptions.byok }),
+        byokProvider: () => optionsRef.current.byokProvider?.(),
+        ...(initialOptions.initialResumeSnapshot !== undefined && {
+          initialResumeSnapshot: initialOptions.initialResumeSnapshot,
+        }),
+        ...(initialOptions.context !== undefined && {
+          context: initialOptions.context,
+        }),
+        devtools: {
+          ...initialOptions.devtools,
+          framework: 'preact',
+          hookName: 'useChat',
+          outputKind: initialOptions.outputSchema ? 'structured' : 'chat',
+        },
+        // Wrap every callback so the latest options are read at call time.
+        // Capturing the function reference directly would freeze it to whatever
+        // the parent passed on the first render.
+        onResponse: (response) => {
+          if (!getActiveInstance()) return
+          return optionsRef.current.onResponse?.(response)
+        },
+        onChunk: (chunk) => {
+          runOrQueueForActiveInstance(() => {
+            optionsRef.current.onChunk?.(chunk)
+          })
+        },
+        onFinish: (message) => {
+          runOrQueueForActiveInstance(() => {
+            optionsRef.current.onFinish?.(message)
+          })
+        },
+        onError: (err) => {
+          runOrQueueForActiveInstance(() => {
+            optionsRef.current.onError?.(err)
+          })
+        },
+        onCustomEvent: (eventType, data, context) => {
+          runOrQueueForActiveInstance(() => {
+            optionsRef.current.onCustomEvent?.(eventType, data, context)
+          })
+        },
+        ...(initialOptions.tools !== undefined && {
+          tools: initialOptions.tools,
+        }),
+        ...(initialOptions.interrupts !== undefined && {
+          interrupts: initialOptions.interrupts,
+        }),
+        ...(options.streamProcessor !== undefined && {
+          streamProcessor: options.streamProcessor,
+        }),
+        ...(optionsRef.current.queue !== undefined && {
+          queue: optionsRef.current.queue,
+        }),
+        onInterruptStateChange: (nextInterruptState, context) => {
+          runOrQueueForActiveInstance(() => {
+            optionsRef.current.onInterruptStateChange?.(
+              nextInterruptState,
+              context,
+            )
+          })
+        },
       },
-      // Wrap every callback so the latest options are read at call time.
-      // Capturing the function reference directly would freeze it to whatever
-      // the parent passed on the first render.
-      onResponse: (response) => {
-        if (!getActiveInstance()) return
-        return optionsRef.current.onResponse?.(response)
-      },
-      onChunk: (chunk) => {
-        runOrQueueForActiveInstance(() => {
-          optionsRef.current.onChunk?.(chunk)
-        })
-      },
-      onFinish: (message) => {
-        runOrQueueForActiveInstance(() => {
-          optionsRef.current.onFinish?.(message)
-        })
-      },
-      onError: (err) => {
-        runOrQueueForActiveInstance(() => {
-          optionsRef.current.onError?.(err)
-        })
-      },
-      onCustomEvent: (eventType, data, context) => {
-        runOrQueueForActiveInstance(() => {
-          optionsRef.current.onCustomEvent?.(eventType, data, context)
-        })
-      },
-      ...(initialOptions.tools !== undefined && {
-        tools: initialOptions.tools,
-      }),
-      ...(initialOptions.interrupts !== undefined && {
-        interrupts: initialOptions.interrupts,
-      }),
-      ...(options.streamProcessor !== undefined && {
-        streamProcessor: options.streamProcessor,
-      }),
-      ...(optionsRef.current.queue !== undefined && {
-        queue: optionsRef.current.queue,
-      }),
-      onInterruptStateChange: (nextInterruptState, context) => {
-        runOrQueueForActiveInstance(() => {
-          optionsRef.current.onInterruptStateChange?.(
-            nextInterruptState,
-            context,
-          )
-        })
-      },
-    })
+    )
     instanceHolder.current = instance
     return { client: instance, initialization: initializationState }
   }, [clientId])
@@ -342,6 +352,12 @@ export function useChat<
     [client],
   )
 
+  const respondToSandboxApproval = useCallback(
+    (approvalId: string, granted: boolean) =>
+      client.respondToSandboxApproval(approvalId, granted),
+    [client],
+  )
+
   const resolveInterrupts = useCallback(
     (
       resolution:
@@ -393,6 +409,7 @@ export function useChat<
     setMessages: setMessagesManually,
     clear,
     addToolResult,
+    respondToSandboxApproval,
     queue: snapshot.queue,
     cancelQueued,
     runId: snapshot.runId,

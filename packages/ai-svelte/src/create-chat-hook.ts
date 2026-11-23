@@ -1,5 +1,6 @@
 import { createChat as createUnboundChat } from './create-chat.svelte'
 import type {
+  AnyActivityTypeDefinition,
   AnyClientTool,
   InterruptDefinition,
   SchemaInput,
@@ -33,7 +34,8 @@ type ChatHookOverrides<
  *
  * Pass `threadId` on every call. You can also override `initialMessages`,
  * `live`, and `forwardedProps` per call. Do not change `tools`,
- * `interrupts`, or `outputSchema` here. Those stay on the factory options.
+ * `interrupts`, `activities`, or `outputSchema` here. Those stay on the
+ * factory options.
  *
  * Rename the function at the call site if you already import `createChat` from
  * `@tanstack/ai-svelte`: `const { createChat: createAppChat } = createChatHook(chatOptions)`.
@@ -55,15 +57,18 @@ export function createChatHook<
   const TInterrupts extends ReadonlyArray<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
+  const TActivities extends ReadonlyArray<AnyActivityTypeDefinition> =
+    readonly [],
 >(
   options: DistributedOmit<
-    CreateChatOptions<TTools, TSchema, TContext, TInterrupts>,
+    CreateChatOptions<TTools, TSchema, TContext, TInterrupts, TActivities>,
     'threadId'
   > & {
     // Plain keys so TypeScript can infer the generics through the Omit.
     tools?: TTools
     outputSchema?: TSchema
     interrupts?: TInterrupts
+    activities?: TActivities
   },
 ) {
   function createChat(
@@ -74,7 +79,8 @@ export function createChatHook<
       TTools,
       TSchema,
       TContext,
-      TInterrupts
+      TInterrupts,
+      TActivities
     >)
   }
 
