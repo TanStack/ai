@@ -187,6 +187,7 @@ import { Route as ApiOpenaiShellSkillsWireRouteImport } from './routes/api.opena
 import { Route as ApiOpenaiStrictToolNullWireRouteImport } from './routes/api.openai-strict-tool-null-wire'
 import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
+import { Route as ApiOpenrouterDefaultModelOptionsWireRouteImport } from './routes/api.openrouter-default-model-options-wire'
 import { Route as ApiOpenrouterJsonObjectWireRouteImport } from './routes/api.openrouter-json-object-wire'
 import { Route as ApiOpenrouterReasoningWireRouteImport } from './routes/api.openrouter-reasoning-wire'
 import { Route as ApiOpenrouterResponsesStreamFieldsRouteImport } from './routes/api.openrouter-responses-stream-fields'
@@ -1172,6 +1173,12 @@ const ApiOpenrouterCostRoute = ApiOpenrouterCostRouteImport.update({
   path: '/api/openrouter-cost',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOpenrouterDefaultModelOptionsWireRoute =
+  ApiOpenrouterDefaultModelOptionsWireRouteImport.update({
+    id: '/api/openrouter-default-model-options-wire',
+    path: '/api/openrouter-default-model-options-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOpenrouterJsonObjectWireRoute =
   ApiOpenrouterJsonObjectWireRouteImport.update({
     id: '/api/openrouter-json-object-wire',
@@ -1649,6 +1656,7 @@ export interface FileRoutesByFullPath {
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
+  '/api/openrouter-default-model-options-wire': typeof ApiOpenrouterDefaultModelOptionsWireRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
   '/api/openrouter-responses-stream-fields': typeof ApiOpenrouterResponsesStreamFieldsRoute
@@ -1885,6 +1893,7 @@ export interface FileRoutesByTo {
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
+  '/api/openrouter-default-model-options-wire': typeof ApiOpenrouterDefaultModelOptionsWireRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
   '/api/openrouter-responses-stream-fields': typeof ApiOpenrouterResponsesStreamFieldsRoute
@@ -2122,6 +2131,7 @@ export interface FileRoutesById {
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
+  '/api/openrouter-default-model-options-wire': typeof ApiOpenrouterDefaultModelOptionsWireRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
   '/api/openrouter-responses-stream-fields': typeof ApiOpenrouterResponsesStreamFieldsRoute
@@ -2360,6 +2370,7 @@ export interface FileRouteTypes {
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
+    | '/api/openrouter-default-model-options-wire'
     | '/api/openrouter-json-object-wire'
     | '/api/openrouter-reasoning-wire'
     | '/api/openrouter-responses-stream-fields'
@@ -2596,6 +2607,7 @@ export interface FileRouteTypes {
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
+    | '/api/openrouter-default-model-options-wire'
     | '/api/openrouter-json-object-wire'
     | '/api/openrouter-reasoning-wire'
     | '/api/openrouter-responses-stream-fields'
@@ -2832,6 +2844,7 @@ export interface FileRouteTypes {
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
+    | '/api/openrouter-default-model-options-wire'
     | '/api/openrouter-json-object-wire'
     | '/api/openrouter-reasoning-wire'
     | '/api/openrouter-responses-stream-fields'
@@ -3069,6 +3082,7 @@ export interface RootRouteChildren {
   ApiOpenaiStrictToolNullWireRoute: typeof ApiOpenaiStrictToolNullWireRoute
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
+  ApiOpenrouterDefaultModelOptionsWireRoute: typeof ApiOpenrouterDefaultModelOptionsWireRoute
   ApiOpenrouterJsonObjectWireRoute: typeof ApiOpenrouterJsonObjectWireRoute
   ApiOpenrouterReasoningWireRoute: typeof ApiOpenrouterReasoningWireRoute
   ApiOpenrouterResponsesStreamFieldsRoute: typeof ApiOpenrouterResponsesStreamFieldsRoute
@@ -4371,6 +4385,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpenrouterCostRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/openrouter-default-model-options-wire': {
+      id: '/api/openrouter-default-model-options-wire'
+      path: '/api/openrouter-default-model-options-wire'
+      fullPath: '/api/openrouter-default-model-options-wire'
+      preLoaderRoute: typeof ApiOpenrouterDefaultModelOptionsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/openrouter-json-object-wire': {
       id: '/api/openrouter-json-object-wire'
       path: '/api/openrouter-json-object-wire'
@@ -5007,6 +5028,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenaiStrictToolNullWireRoute: ApiOpenaiStrictToolNullWireRoute,
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
+  ApiOpenrouterDefaultModelOptionsWireRoute:
+    ApiOpenrouterDefaultModelOptionsWireRoute,
   ApiOpenrouterJsonObjectWireRoute: ApiOpenrouterJsonObjectWireRoute,
   ApiOpenrouterReasoningWireRoute: ApiOpenrouterReasoningWireRoute,
   ApiOpenrouterResponsesStreamFieldsRoute:

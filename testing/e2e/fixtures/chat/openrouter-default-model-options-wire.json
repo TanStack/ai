@@ -1,0 +1,10 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[default-model-options-wire] route check" },
+      "response": {
+        "content": "Routed."
+      }
+    }
+  ]
+}
