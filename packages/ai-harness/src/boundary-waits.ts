@@ -274,11 +274,17 @@ export function durableAnswers(ctx: Pick<PluginSetupContext, 'state'>) {
       await state.update((current) => {
         const next = { ...current }
         for (const [key, toolCallId, value] of entries) {
-          next[key] = {
-            toolCallId,
-            occurrence: occurrenceOf(messages, toolCallId),
-            value,
-          } satisfies StoredAnswer
+          // An own property even for a provider id such as `__proto__`.
+          Object.defineProperty(next, key, {
+            value: {
+              toolCallId,
+              occurrence: occurrenceOf(messages, toolCallId),
+              value,
+            } satisfies StoredAnswer,
+            enumerable: true,
+            writable: true,
+            configurable: true,
+          })
         }
         return next
       })

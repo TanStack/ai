@@ -87,4 +87,15 @@ describe('durableAnswers', () => {
 
     expect(await answers.has('call_other')).toBe(true)
   })
+
+  it('stores the answer of a call with the id __proto__', async () => {
+    const answers = durableAnswers(memoryState())
+    const messages = callTurn('__proto__', 'a')
+    await answers.setMany(messages, [['__proto__', '__proto__', true]])
+
+    await answers.retain(messages, ['__proto__'])
+
+    expect(await answers.has('__proto__')).toBe(true)
+    expect((await answers.take(['__proto__'])).values).toEqual([true])
+  })
 })

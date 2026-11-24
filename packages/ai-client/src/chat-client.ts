@@ -2141,7 +2141,10 @@ export class ChatClient<
     const detachGeneration = this.detachGeneration
     this.activeInterruptSubmission = submission
     this.interruptSubmissionFailure = undefined
-    this.committedInterruptIds.clear()
+    // Only this batch's ids: an earlier batch may still read its own.
+    for (const resolution of submission.resolutions) {
+      this.committedInterruptIds.delete(resolution.interruptId)
+    }
     // Snapshot approval parts before mutating them so a failed continuation
     // reverts them to `approval-requested` instead of leaking stale approvals.
     const approvalIdsToUpdate = new Set<string>()
@@ -2190,6 +2193,9 @@ export class ChatClient<
       submission.resolutions.every((resolution) =>
         this.committedInterruptIds.has(resolution.interruptId),
       )
+    for (const resolution of submission.resolutions) {
+      this.committedInterruptIds.delete(resolution.interruptId)
+    }
     if (
       !committed &&
       (failure !== undefined ||
