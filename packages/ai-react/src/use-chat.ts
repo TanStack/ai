@@ -84,23 +84,10 @@ export function useChat<
 
       const initialOptions = optionsRef.current
       const carriedResumeState = sameThreadDisposed?.getResumeState() ?? null
-      const carriedPendingInterrupts = sameThreadDisposed
-        ? sameThreadDisposed.getInterrupts().map((item) => ({
-            id: item.id,
-            reason: item.reason,
-            ...(item.message !== undefined ? { message: item.message } : {}),
-            ...(item.responseSchema !== undefined
-              ? { responseSchema: item.responseSchema }
-              : {}),
-            ...(item.expiresAt !== undefined
-              ? { expiresAt: item.expiresAt }
-              : {}),
-            ...(item.metadata !== undefined ? { metadata: item.metadata } : {}),
-            ...('toolCallId' in item && typeof item.toolCallId === 'string'
-              ? { toolCallId: item.toolCallId }
-              : {}),
-          }))
-        : []
+      // Raw descriptors, so client-tool executions carry over too.
+      const carriedPendingInterrupts = [
+        ...(sameThreadDisposed?.getInterruptDescriptors() ?? []),
+      ]
       const resumeSnapshotToUse = sameThreadDisposed
         ? carriedResumeState
           ? {

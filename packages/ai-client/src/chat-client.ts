@@ -2013,6 +2013,15 @@ export class ChatClient<
     >
   }
 
+  /**
+   * The raw interrupt descriptors the current run waits on. Unlike
+   * `getInterrupts()`, this includes client-tool executions. Pass them as
+   * `pendingInterrupts` in a resume snapshot to hand the run to a new client.
+   */
+  getInterruptDescriptors(): ReadonlyArray<ChatPendingInterrupt> {
+    return this.interruptManager.getDescriptors()
+  }
+
   resolveInterrupts(approved: boolean): void
   resolveInterrupts(
     resolver: (

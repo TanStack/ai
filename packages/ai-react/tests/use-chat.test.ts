@@ -1,4 +1,5 @@
-import { EventType } from '@tanstack/ai'
+import { EventType, toolDefinition } from '@tanstack/ai'
+import { hashSchemaInput } from '@tanstack/ai/client'
 import { ChatClient } from '@tanstack/ai-client'
 import { act, render, renderHook, waitFor } from '@testing-library/react'
 import {
@@ -24,6 +25,7 @@ import type {
   ConnectConnectionAdapter,
   ConnectionAdapter,
   ResumableConnectConnectionAdapter,
+  RunAgentInputContext,
   SubscribeConnectionAdapter,
 } from '@tanstack/ai-client'
 import type { UIMessage, UseChatOptions } from '../src/types'
@@ -3367,6 +3369,124 @@ describe('useChat', () => {
       // thread, not the idle snapshot of the client the teardown disposed.
       expect(loadingInEffects[shownAt]).toBe(true)
       await waitFor(() => expect(result.current.isHydrating).toBe(false))
+    })
+
+    it('runs a pending client tool again after a hide disposes the client', async () => {
+      const outputSchemaHash = hashSchemaInput(undefined)
+      const connectContexts: Array<RunAgentInputContext | undefined> = []
+      let firstRunId = ''
+      const connection: ConnectConnectionAdapter = {
+        async *connect(_messages, _data, _signal, context) {
+          connectContexts.push(context)
+          const runId = context?.runId ?? 'run'
+          if (connectContexts.length === 1) {
+            firstRunId = runId
+            yield {
+              type: EventType.RUN_STARTED,
+              runId,
+              threadId: 't1',
+              timestamp: 1,
+            }
+            yield {
+              type: EventType.TOOL_CALL_START,
+              toolCallId: 'call-1',
+              toolCallName: 'lookup',
+              timestamp: 2,
+            }
+            yield {
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: 'call-1',
+              delta: '{}',
+              timestamp: 3,
+            }
+            yield {
+              type: EventType.RUN_FINISHED,
+              runId,
+              threadId: 't1',
+              timestamp: 4,
+              outcome: {
+                type: 'interrupt',
+                interrupts: [
+                  {
+                    id: 'client-1',
+                    reason: 'tanstack:client_tool_execution',
+                    toolCallId: 'call-1',
+                    metadata: {
+                      kind: 'client_tool',
+                      toolName: 'lookup',
+                      input: {},
+                      'tanstack:interruptBinding': {
+                        kind: 'client-tool-execution',
+                        interruptId: 'client-1',
+                        interruptedRunId: runId,
+                        generation: 0,
+                        toolName: 'lookup',
+                        toolCallId: 'call-1',
+                        outputSchemaHash,
+                        responseSchemaHash: outputSchemaHash,
+                      },
+                    },
+                  },
+                ],
+              },
+            } as StreamChunk
+            return
+          }
+          yield {
+            type: EventType.RUN_STARTED,
+            runId,
+            threadId: 't1',
+            timestamp: 5,
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId: 't1',
+            timestamp: 6,
+            finishReason: 'stop',
+          }
+        },
+      }
+      let calls = 0
+      const lookup = toolDefinition({
+        name: 'lookup',
+        description: 'Look up',
+      }).client(() => {
+        calls++
+        // The first run never ends: the hide disposes the client under it.
+        return calls === 1 ? new Promise(() => {}) : { found: true }
+      })
+      let mode: 'visible' | 'hidden' = 'visible'
+      const { result, rerender } = renderHook(
+        () => useChat({ connection, threadId: 't1', tools: [lookup] }),
+        {
+          wrapper: ({ children }) =>
+            createElement(Activity, { mode, children }),
+        },
+      )
+      act(() => {
+        void result.current.sendMessage('hi')
+      })
+      await waitFor(() => expect(calls).toBe(1))
+
+      mode = 'hidden'
+      rerender()
+      await outlastDisposal()
+      mode = 'visible'
+      rerender()
+
+      await waitFor(() => expect(connectContexts).toHaveLength(2))
+      expect(calls).toBe(2)
+      expect(connectContexts[1]).toMatchObject({
+        parentRunId: firstRunId,
+        resume: [
+          {
+            interruptId: 'client-1',
+            status: 'resolved',
+            payload: { found: true },
+          },
+        ],
+      })
     })
 
     it('keeps the transcript on screen after an idle hide', async () => {
