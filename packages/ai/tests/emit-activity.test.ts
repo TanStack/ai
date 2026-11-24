@@ -138,6 +138,46 @@ describe('emitActivity', () => {
     expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
   })
 
+  it('still ends with RUN_FINISHED when onFinish throws', async () => {
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.textStart('msg-1'),
+          ev.textContent('Done', 'msg-1'),
+          ev.textEnd('msg-1'),
+          ev.runFinished('stop'),
+        ],
+      ],
+    })
+    const chunks: Array<StreamChunk> = []
+    let thrown: unknown
+    try {
+      for await (const chunk of chat({
+        adapter,
+        threadId: 'thread-1',
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [
+          {
+            name: 'fail-finish',
+            onFinish() {
+              throw new Error('messages.append failed')
+            },
+          },
+        ],
+      })) {
+        chunks.push(chunk)
+      }
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toEqual(
+      expect.objectContaining({ message: 'messages.append failed' }),
+    )
+    expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+  })
+
   it('keeps a row emitted in init onConfig in ctx.activities at onFinish', async () => {
     const { chunks, activities } = await runDeploy({
       middleware: [

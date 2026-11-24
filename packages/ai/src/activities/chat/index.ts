@@ -1604,23 +1604,28 @@ class TextEngine<
     // went out, and its emitActivity or emitCustomEvent chunks drain then.
     // Hold RUN_FINISHED, and send those chunks before it.
     let heldFinish: StreamChunk | undefined
-    for await (const chunk of steps) {
-      if (
-        heldFinish &&
-        (isActivityChunk(chunk) || chunk.type === EventType.CUSTOM)
-      ) {
+    try {
+      for await (const chunk of steps) {
+        if (
+          heldFinish &&
+          (isActivityChunk(chunk) || chunk.type === EventType.CUSTOM)
+        ) {
+          yield* this.yieldRunChunk(chunk, steps)
+          continue
+        }
+        if (heldFinish) yield* this.yieldRunChunk(heldFinish, steps)
+        heldFinish = undefined
+        if (chunk.type === EventType.RUN_FINISHED) {
+          heldFinish = chunk
+          continue
+        }
         yield* this.yieldRunChunk(chunk, steps)
-        continue
       }
+    } finally {
+      // onFinish can throw after runTerminalHook sets terminalHookCalled.
+      // runSteps then skips onError and rethrows, so flush here.
       if (heldFinish) yield* this.yieldRunChunk(heldFinish, steps)
-      heldFinish = undefined
-      if (chunk.type === EventType.RUN_FINISHED) {
-        heldFinish = chunk
-        continue
-      }
-      yield* this.yieldRunChunk(chunk, steps)
     }
-    if (heldFinish) yield* this.yieldRunChunk(heldFinish, steps)
   }
 
   /** Yield one public chunk, and finish or abort the run if the consumer stops at it. */
