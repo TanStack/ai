@@ -1552,8 +1552,24 @@ export abstract class SessionTurn<
                 continued: isContinued,
               }),
             )
-            // The resume stays: withPersistence commits it only when a call
-            // succeeds, so its interrupts are still open.
+            // withPersistence commits an answered tool resume before the
+            // follow-up model call, once its tool ran. The retry keeps only
+            // the items that are still pending, and runs from the transcript
+            // when none are left.
+            if (resume) {
+              const records = await Promise.all(
+                resume.map((item) => this.interruptStore.get(item.interruptId)),
+              )
+              const open = resume.filter(
+                (_, index) => records[index]?.status === 'pending',
+              )
+              if (open.length === 0) {
+                resume = undefined
+                parentRunId = undefined
+              } else {
+                resume = open
+              }
+            }
             message = undefined
             // withPersistence failed the run. It runs again, for the retry.
             await this.runStore.update(operation.id, {

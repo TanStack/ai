@@ -757,7 +757,10 @@ export function durableStream(
             (sawControl &&
               (backendOffset !== requestOffset ||
                 streamCursor !== requestCursor))
-          if (madeProgress || !stopWhenUpToDate) {
+          // A live read still at 'now' has no position yet: a retry would
+          // resolve 'now' against a newer tail and skip the records appended
+          // in between, so it fails instead.
+          if (madeProgress || (!stopWhenUpToDate && backendOffset !== 'now')) {
             // Retry from the last valid position (including an idle live window
             // that dropped before its first frame), capped by maxReadFailures.
             consecutiveReadFailures += 1

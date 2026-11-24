@@ -3875,7 +3875,7 @@ class TextEngine<
       const id =
         previousStep === undefined
           ? `mcp_input_${pendingInput.toolCallId}`
-          : `mcp_input_${pendingInput.toolCallId}_${previousStep + 1}`
+          : `mcp_input:${previousStep + 1}:${pendingInput.toolCallId}`
       interrupts.push({
         id,
         reason: pendingInput.reason ?? 'mcp_input',
@@ -6843,18 +6843,22 @@ async function* streamTextChunks(
   yield* runChatEngine(options, engineRef)
 }
 
-/** Step number for an MCP input interrupt id (`1` for base id, `n >= 2` for suffixed ids). */
+/**
+ * Step number for an MCP input interrupt id. Step 1 keeps the legacy
+ * `mcp_input_<toolCallId>` id. Later steps use `mcp_input:<n>:<toolCallId>`:
+ * the step sits before the tool call id, so no two (toolCallId, step) pairs
+ * share an id even when a tool call id ends in `_<digits>`.
+ */
 function mcpInputStepForToolCall(
   interruptId: string,
   toolCallId: string,
 ): number | undefined {
-  const base = `mcp_input_${toolCallId}`
-  if (interruptId === base) return 1
-  const prefix = `${base}_`
-  if (!interruptId.startsWith(prefix)) return undefined
-  const suffix = interruptId.slice(prefix.length)
-  if (!/^[1-9]\d*$/.test(suffix)) return undefined
-  const step = Number(suffix)
+  if (interruptId === `mcp_input_${toolCallId}`) return 1
+  const match = /^mcp_input:([1-9]\d*):/.exec(interruptId)
+  if (!match || interruptId.slice(match[0].length) !== toolCallId) {
+    return undefined
+  }
+  const step = Number(match[1])
   return step >= 2 ? step : undefined
 }
 
@@ -7020,8 +7024,8 @@ async function* runRoutedSubagents(
             ...(abortSignal && { abortSignal }),
             threadId,
             parentRunId: runId,
-            ...(options.parentRunId !== undefined && {
-              interruptedRunId: options.parentRunId,
+            ...(parentRunId !== undefined && {
+              interruptedRunId: parentRunId,
             }),
             ...(options.subagentRunId !== undefined && {
               parentSubagentRunId: options.subagentRunId,

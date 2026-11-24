@@ -341,7 +341,8 @@ function claimPendingInterrupts(
     claimed = new Set<string>()
     claimedByStore.set(store, claimed)
   }
-  const conflicts = interruptIds.filter((id) => claimed.has(id))
+  const keys = interruptIds.map((id) => claimKey(ctx.threadId, id))
+  const conflicts = keys.filter((key) => claimed.has(key))
   if (conflicts.length > 0) {
     throw new InterruptResumeValidationError([
       {
@@ -357,17 +358,23 @@ function claimPendingInterrupts(
       },
     ])
   }
-  for (const id of interruptIds) claimed.add(id)
+  for (const key of keys) claimed.add(key)
+}
+
+/** Interrupt ids are unique per thread only, so a claim names both. */
+function claimKey(threadId: string, interruptId: string): string {
+  return JSON.stringify([threadId, interruptId])
 }
 
 function releasePendingClaims(
   store: InterruptStore | undefined,
+  threadId: string,
   interruptIds: ReadonlyArray<string> | undefined,
 ): void {
   if (!store || !interruptIds?.length) return
   const claimed = claimedByStore.get(store)
   if (!claimed) return
-  for (const id of interruptIds) claimed.delete(id)
+  for (const id of interruptIds) claimed.delete(claimKey(threadId, id))
 }
 
 function toolCallIdOfPendingRecord(
@@ -762,7 +769,10 @@ async function commitPendingResumes(
     interrupts,
     keepPendingIds,
   )
-  releasePendingClaims(interrupts, committedIds)
+  const threadId = pending[0]?.threadId
+  if (threadId !== undefined) {
+    releasePendingClaims(interrupts, threadId, committedIds)
+  }
   if (state.claimedInterruptIds) {
     const committedSet = new Set(committedIds)
     state.claimedInterruptIds = state.claimedInterruptIds.filter(
@@ -2702,7 +2712,11 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
 
         return Object.keys(patch).length > 0 ? patch : undefined
       } catch (error) {
-        releasePendingClaims(persistence.stores.interrupts, claimedIds)
+        releasePendingClaims(
+          persistence.stores.interrupts,
+          ctx.threadId,
+          claimedIds,
+        )
         if (state) state.claimedInterruptIds = undefined
         throw error
       }
@@ -2838,17 +2852,32 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
               payload: clientInterruptPayload(interrupt, state),
             }))
           : []
-      // Commit answered resumes, save the transcript before exposing fresh
-      // interrupts (so a reload never sees pending interrupts without their
-      // assistant tool calls), then create fresh interrupts and pause the run.
+      // Save the transcript, then commit answered resumes, then create fresh
+      // interrupts and pause the run. A reload never sees pending interrupts
+      // without their assistant tool calls, and a failed save consumes no
+      // approval. A failed commit rolls the transcript back, as onFinish does.
       if (wantsInterrupts && persistence.stores.interrupts) {
-        await commitPendingResumes(
-          state,
-          persistence.stores.interrupts,
-          keepPendingIds,
-        )
+        const prevMessages = state.pendingResumes
+          ? threadMessages(await messageStore.loadThread(ctx.threadId))
+          : undefined
+        await messageStore.saveThread(ctx.threadId, runMessages(ctx, state))
+        try {
+          await commitPendingResumes(
+            state,
+            persistence.stores.interrupts,
+            keepPendingIds,
+          )
+        } catch (error) {
+          if (prevMessages !== undefined) {
+            await messageStore
+              .saveThread(ctx.threadId, prevMessages)
+              .catch(() => undefined)
+          }
+          throw error
+        }
+      } else {
+        await messageStore.saveThread(ctx.threadId, runMessages(ctx, state))
       }
-      await messageStore.saveThread(ctx.threadId, runMessages(ctx, state))
       if (wantsInterrupts && persistence.stores.interrupts) {
         for (const { interrupt, payload } of payloads) {
           await persistence.stores.interrupts.create({
@@ -2873,6 +2902,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       await persistActivities(ctx)
       releasePendingClaims(
         persistence.stores.interrupts,
+        ctx.threadId,
         state.claimedInterruptIds,
       )
       state.claimedInterruptIds = undefined
@@ -2890,6 +2920,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       if (state?.interrupted) {
         releasePendingClaims(
           persistence.stores.interrupts,
+          ctx.threadId,
           state.claimedInterruptIds,
         )
         state.claimedInterruptIds = undefined
@@ -2899,10 +2930,15 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // resumes stay pending so a retry can re-apply them. Roll back the saved
       // transcript when committing pending resumes throws so retries do not
       // duplicate the assistant turn.
-      const prevMessages = state?.pendingResumes
-        ? threadMessages(await messageStore.loadThread(ctx.threadId))
-        : undefined
+      let prevMessages: Array<ModelMessage> | undefined
       try {
+        // Inside the try, so a failed read still fails the run and releases
+        // its claims.
+        if (state?.pendingResumes) {
+          prevMessages = threadMessages(
+            await messageStore.loadThread(ctx.threadId),
+          )
+        }
         await messageStore.saveThread(ctx.threadId, runMessages(ctx, state))
         await commitPendingResumes(state, persistence.stores.interrupts)
         await completeRun(runs, ctx.runId, state?.usage ?? info.usage)
@@ -2926,6 +2962,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       } finally {
         releasePendingClaims(
           persistence.stores.interrupts,
+          ctx.threadId,
           state?.claimedInterruptIds,
         )
         if (state) state.claimedInterruptIds = undefined
@@ -2943,6 +2980,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       } finally {
         releasePendingClaims(
           persistence.stores.interrupts,
+          ctx.threadId,
           state?.claimedInterruptIds,
         )
         if (state) state.claimedInterruptIds = undefined
@@ -2986,6 +3024,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       } finally {
         releasePendingClaims(
           persistence.stores.interrupts,
+          ctx.threadId,
           state?.claimedInterruptIds,
         )
         if (state) state.claimedInterruptIds = undefined

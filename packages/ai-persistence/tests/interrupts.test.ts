@@ -1208,6 +1208,73 @@ describe('interrupt persistence', () => {
     ).toBe('resolved')
   })
 
+  it('releases the resume claim when the finish-time thread read fails', async () => {
+    const persistence = memoryPersistence()
+    const first = mockAdapter([[runStarted(), interruptFinished()]])
+    await collect(
+      chat({
+        adapter: first.adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    // The thread read that onFinish makes before its save fails once.
+    const messages = persistence.stores.messages!
+    const loadThread = messages.loadThread.bind(messages)
+    let failNextRead = false
+    vi.spyOn(messages, 'loadThread').mockImplementation(async (threadId) => {
+      if (failNextRead) {
+        failNextRead = false
+        throw new Error('read failed')
+      }
+      return loadThread(threadId)
+    })
+    const armReadFailure = defineChatMiddleware({
+      onFinish() {
+        failNextRead = true
+      },
+    })
+    const resume = [
+      {
+        interruptId: 'interrupt-1',
+        status: 'resolved' as const,
+        payload: { approved: true },
+      },
+    ]
+    await expect(
+      collect(
+        chat({
+          adapter: mockAdapter([[runStarted(), text('one'), runFinished('r1')]])
+            .adapter,
+          messages: [],
+          runId: 'r1',
+          threadId: 't1',
+          resume,
+          middleware: [armReadFailure, withPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      ),
+    ).rejects.toThrow('read failed')
+    expect((await persistence.stores.runs!.get('r1'))?.status).toBe('failed')
+
+    // The claim was released, so a retry is not refused as a conflict.
+    const chunks = await collect(
+      chat({
+        adapter: mockAdapter([[runStarted(), text('two'), runFinished('r1')]])
+          .adapter,
+        messages: [],
+        runId: 'r1',
+        threadId: 't1',
+        resume,
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    expect(chunks).toContainEqual(expect.objectContaining({ delta: 'two' }))
+    expect(await persistence.stores.interrupts!.listPending('t1')).toEqual([])
+  })
+
   it('tolerates malformed persisted interrupt payloads without crashing', async () => {
     const persistence = memoryPersistence()
     // Payload with the wrong shapes for the defensive parsers: metadata is a
@@ -2288,7 +2355,7 @@ describe('interrupt persistence', () => {
       }) as AsyncIterable<StreamChunk>,
     )
     const p2 = await persistence.stores.interrupts!.listPending('t-mcp')
-    expect(p2.map((item) => item.interruptId)).toEqual(['mcp_input_tc-mcp_2'])
+    expect(p2.map((item) => item.interruptId)).toEqual(['mcp_input:2:tc-mcp'])
     expect(
       (await persistence.stores.interrupts!.get('mcp_input_tc-mcp'))?.status,
     ).toBe('resolved')
@@ -2315,7 +2382,7 @@ describe('interrupt persistence', () => {
       [],
     )
     expect(
-      (await persistence.stores.interrupts!.get('mcp_input_tc-mcp_2'))?.status,
+      (await persistence.stores.interrupts!.get('mcp_input:2:tc-mcp'))?.status,
     ).toBe('resolved')
   })
 })

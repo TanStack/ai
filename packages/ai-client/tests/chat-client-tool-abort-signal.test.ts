@@ -60,4 +60,49 @@ describe('client tool abortSignal', () => {
     expect(signals[1]?.aborted).toBe(false)
     client.stop()
   })
+
+  it('aborts the signal of a running client tool on dispose()', async () => {
+    const { client, signals } = setup()
+    void client.sendMessage('go')
+    await vi.waitFor(() => expect(signals).toHaveLength(1))
+    client.dispose()
+    expect(signals[0]?.aborted).toBe(true)
+  })
+
+  it('does not stream again when a client tool finishes after dispose()', async () => {
+    let connects = 0
+    let finish: (value: unknown) => void = () => {}
+    const started = vi.fn()
+    const adapter: ConnectConnectionAdapter = {
+      async *connect() {
+        connects++
+        yield* createToolCallChunks([
+          { id: `tc-${connects}`, name: 'late_tool', arguments: '{}' },
+        ])
+      },
+    }
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection: adapter,
+      tools: [
+        {
+          __toolSide: 'client' as const,
+          name: 'late_tool',
+          description: 'Ignores its abort signal',
+          execute: () => {
+            started()
+            return new Promise((resolve) => {
+              finish = resolve
+            })
+          },
+        },
+      ],
+    })
+    void client.sendMessage('go')
+    await vi.waitFor(() => expect(started).toHaveBeenCalledTimes(1))
+    client.dispose()
+    finish({ ok: true })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(connects).toBe(1)
+  })
 })

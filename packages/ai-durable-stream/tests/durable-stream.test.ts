@@ -739,6 +739,36 @@ describe('durableStream official HTTP protocol', () => {
     expect(fetchStub).toHaveBeenCalledTimes(4)
   })
 
+  it('does not retry a live read that failed before it left the now offset', async () => {
+    const fetchStub = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              controller.error(new TypeError('socket read failed'))
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+        ),
+    )
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-now-fail'),
+      {
+        server: 'https://ds.test',
+        fetch: fetchStub,
+        reconnect: { maxReadFailures: 3, delayMs: 0 },
+      },
+    )
+
+    await expect(async () => {
+      for await (const _entry of durability.read('now')) {
+        // drain
+      }
+    }).rejects.toThrow(/socket read failed/)
+    // A retry at 'now' would skip records appended between the two reads.
+    expect(fetchStub).toHaveBeenCalledTimes(1)
+  })
+
   it('reconnects from the same control after data is read before a body failure', async () => {
     const requests: Array<CapturedRequest> = []
     let readNumber = 0

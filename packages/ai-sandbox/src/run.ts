@@ -307,12 +307,14 @@ export async function pipeToRunLog<TOffset extends string = string>(
 
     for await (const chunk of stream) {
       if (signal?.aborted) return finish(ctx, 'aborted')
-      // Already in the log. Appending it again is the doubled live tail.
-      if (isStoredReplayChunk(chunk)) continue
-      await durability.append([chunk])
+      // Read the outcome before the replay skip: a takeover that sees only
+      // stored chunks must still end an interrupted run as 'interrupted'.
       if (chunk.type === EventType.RUN_FINISHED) {
         interrupted = chunk.outcome?.type === 'interrupt'
       }
+      // Already in the log. Appending it again is the doubled live tail.
+      if (isStoredReplayChunk(chunk)) continue
+      await durability.append([chunk])
       if (isRunErrorChunk(chunk)) {
         return finish(
           ctx,

@@ -3672,6 +3672,8 @@ export class ChatClient<
   ): void {
     const executeFunc = clientTool.execute
     if (!executeFunc) return
+    // Hydration and the live stream can both ask for the same call. Run it once.
+    if (this.pendingToolExecutions.has(args.toolCallId)) return
     const continuationGeneration = this.continuationGeneration
     // Capture the run context at execution-start so a tool whose
     // result lands AFTER the originating run finishes still reports
@@ -4459,6 +4461,11 @@ export class ChatClient<
     // lands mid-teardown must not start new work. In particular a hydration fetch
     // that resolves after this point must not open a tail — see `hydrateFromServer`.
     this.disposed = true
+    // Invalidate late client-tool results and abort running client tools, so
+    // nothing resumes or streams on a disposed client. Unlike `stop()`, keep
+    // the resume state: the pending interrupts must survive a remount.
+    this.continuationGeneration++
+    this.clientToolAbortController.abort()
     // `unsubscribe()` below already aborts the in-flight stream (it calls
     // `cancelInFlightStream({ abortSubscription: true })`), so disposal does drop
     // an open tail. Verified by mutation: removing an extra abort here changes
