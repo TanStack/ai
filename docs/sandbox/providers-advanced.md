@@ -362,6 +362,28 @@ Processes on Railway:
 - Blocking `exec` runs without a durable session. If the connection drops, the command dies.
 - `kill()` and an aborted `exec` send `TERM` to the process group, then `KILL` after 2 s. An aborted `spawn` sends `KILL` at once. All of them finish only on the confirmed remote exit. An aborted `exec` resolves with the exit code of the signal.
 
+## Runta
+
+```ts
+import { runtaSandbox } from '@tanstack/ai-sandbox-runta'
+
+const runta = runtaSandbox({ apiKey: process.env.RUNTA_TOKEN })
+```
+
+- **Isolation:** a managed [Runta](https://runta.com) runtime. It is a remote microVM that you do not run.
+- **Auth and env:** needs `RUNTA_TOKEN` (or `apiKey`). Set `apiUrl` or `RUNTA_ENDPOINT` for another API endpoint. Inject harness credentials as workspace secrets.
+- **Image and size:** the default image is Ubuntu with `bash`, `git`, and `python3`. It has no Node.js. Pass another image id with `image`, and set the size with `vcpus` and `memoryMib`.
+- **Processes:** `spawn()` opens one WebSocket for each process. A background process gets a writable stdin and separate stdout and stderr.
+- **Bridge:** a remote VM, so bridged tools need the tunnel in local dev. See [Tools](./tools).
+
+Lifecycle and limits:
+
+- **Idle:** a runtime runs until you destroy it. Set `idleSuspendAfterSecs` to suspend an idle runtime. A suspended runtime keeps its disk, and resume by id starts it again.
+- **Snapshot and restore:** `snapshot()` creates a Runta checkpoint of the disk, the memory, and the processes. `restoreSnapshot()` creates a new runtime from the checkpoint. So a snapshot survives deletion of the runtime that made it.
+- **Ports:** `ports.connect(port)` publishes the port and returns `https://<port>-<runtime id>.runta.dev`. The URL has no auth. One runtime can publish 16 ports.
+- **Network:** `policy.capabilities.network: 'deny'` sets an empty egress allowlist, so the runtime cannot open an outbound connection. The agent then cannot reach package registries or model hosts. If the agent needs either, leave the capability unset.
+- **Files:** the Runta file API moves 1 MiB in one call. The provider sends a larger file through a command.
+
 ## Cloudflare
 
 ```ts
@@ -383,7 +405,7 @@ The agent coordinator, durable runs, live previews through a quick tunnel, callb
 
 ## `writableStdin` per provider
 
-- `true`: local process, Docker container, Upstash Box, E2B, boxd, and Railway.
+- `true`: local process, Docker container, Upstash Box, E2B, boxd, Railway, and Runta.
 - `false`: Docker Sandboxes (`sbx`), Daytona, Vercel, Sprites, Blaxel, and Cloudflare. Daytona can write to stdin, but it cannot close stdin, so a process that reads to EOF never starts.
 
 When the value is `false`, a harness that reads its prompt from stdin gets the prompt from a file. The shell redirects that file into the process.
@@ -413,6 +435,7 @@ If a provider cannot be measured yet, it stays `false`. A `false` value only mak
 | Cloudflare | `false` | `kill()` does nothing. The `AbortSignal` of the caller reaches neither `exec` nor `spawn`, because Workers RPC cannot serialize one. |
 | boxd | `true` | **Measured.** The spawn wrapper runs under `setsid`, so the recorded pid leads its own process group. `kill()` runs a shell inside the machine that signals that group, then sends `KILL`, then checks with `kill -0`. Closing the stream alone is not a kill: the process survived it. Verified against production: a spawned `sleep 5 && touch <marker>` was killed, and the marker never appeared. Needs `BOXD_API_KEY`. |
 | Railway | `true` | **Measured.** `kill()` and an aborted `exec` send `TERM` to the process group, then `KILL` after 2 s. An aborted `spawn` sends `KILL` at once. Each one finishes only when the remote exit is confirmed. Verified against production: the shared journal conformance kill case passes. Spawned `sleep 5 && touch <marker>` commands (one with a background child) were killed before the marker appeared, for `kill()`, an aborted `exec`, and an aborted `spawn`. Needs `RAILWAY_API_TOKEN` or `RAILWAY_TOKEN` and `RAILWAY_ENVIRONMENT_ID`. |
+| Runta | `true` | **Measured.** `kill()` sends `TERM`, then closes the exec socket after 2 s. Runta ends the process when the socket closes. Verified against production: the shared journal conformance kill case passes, and a spawned shell that ignores `TERM` was gone after `kill()`. Needs `RUNTA_TOKEN`. |
 
 Each remote provider registers the shared journal conformance suite, so you can test each claim:
 
