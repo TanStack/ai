@@ -303,7 +303,7 @@ export class MCPManager {
         )
         if (!result) {
           throw new Error(
-            `MCP resource "${uri}" could not be read (no client implements readResource)`,
+            `Failed to read MCP resource "${uri}": no configured MCP server owns this uri`,
           )
         }
         const before = contentParts.length
@@ -331,16 +331,37 @@ export class MCPManager {
     if ('uris' in attach) return [...attach.uris]
     const max = attach.max ?? 8
     const uris: Array<string> = []
+    const errors: Array<unknown> = []
+    let listAttempts = 0
+    let listFailures = 0
     for (const source of this.#sources) {
       const list = source.listResources ?? source.resources
       if (!list) continue
-      const listed = await list.call(source, {
-        ...(signal && { signal }),
-      })
-      for (const item of listed) {
-        if (uris.length >= max) return uris
-        if (!uris.includes(item.uri)) uris.push(item.uri)
+      listAttempts += 1
+      try {
+        const listed = await list.call(source, {
+          ...(signal && { signal }),
+        })
+        for (const item of listed) {
+          if (uris.length >= max) return uris
+          if (!uris.includes(item.uri)) uris.push(item.uri)
+        }
+      } catch (error) {
+        listFailures += 1
+        errors.push(error)
       }
+    }
+    if (
+      uris.length === 0 &&
+      listAttempts > 0 &&
+      listFailures === listAttempts
+    ) {
+      throw new Error(
+        'Failed to list MCP resources from every mcp.clients source',
+        {
+          cause: new AggregateError(errors),
+        },
+      )
     }
     return uris
   }

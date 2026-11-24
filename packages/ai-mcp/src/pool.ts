@@ -203,15 +203,16 @@ export async function createMCPClients<
     async resources(options?: {
       signal?: AbortSignal
     }): Promise<Array<{ uri: string; name?: string; mimeType?: string }>> {
-      const listed = await Promise.all(
+      const listed = await Promise.allSettled(
         Object.values(clients).map((c) =>
           (c as MCPClient<ServerDescriptor>).resources(options),
         ),
       )
       const uris = new Set<string>()
       const out: Array<{ uri: string; name?: string; mimeType?: string }> = []
-      for (const batch of listed) {
-        for (const item of batch) {
+      for (const result of listed) {
+        if (result.status !== 'fulfilled') continue
+        for (const item of result.value) {
           if (uris.has(item.uri)) continue
           uris.add(item.uri)
           out.push(item)

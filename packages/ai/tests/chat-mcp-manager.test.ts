@@ -536,6 +536,47 @@ describe('MCPManager resolveContext', () => {
     })
   })
 
+  it('continues auto-attach when the first source list throws', async () => {
+    const failing = {
+      tools: async () => [] as Array<AnyServerTool>,
+      close: async () => {},
+      resources: async () => {
+        throw new Error('tools-only')
+      },
+    }
+    const owner = {
+      tools: async () => [] as Array<AnyServerTool>,
+      close: async () => {},
+      resources: async () => [{ uri: 'file:///ok' }],
+      readResource: async (uri: string) => ({
+        contents: [{ uri, text: 'from-second' }],
+      }),
+    }
+    const m = MCPManager.from({
+      clients: [failing, owner],
+      attachResources: { auto: true },
+      connection: 'keep-alive',
+    })
+    const ctx = await m.resolveContext()
+    expect(ctx.contentParts).toEqual([{ type: 'text', content: 'from-second' }])
+  })
+
+  it('says the URI was not found when clients implement readResource but none own it', async () => {
+    const s = {
+      tools: async () => [] as Array<AnyServerTool>,
+      close: async () => {},
+      readResource: async () => ({ contents: [] }),
+    }
+    const m = MCPManager.from({
+      clients: [s],
+      attachResources: { uris: ['file:///missing'] },
+      connection: 'keep-alive',
+    })
+    await expect(m.resolveContext()).rejects.toThrow(
+      /no configured MCP server owns this uri/,
+    )
+  })
+
   it('throws when every attached resource block is omitted', async () => {
     const s = {
       tools: async () => [] as Array<AnyServerTool>,

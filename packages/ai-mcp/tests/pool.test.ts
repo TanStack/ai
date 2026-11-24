@@ -80,6 +80,18 @@ describe('createMCPClients', () => {
     await pool.close()
   })
 
+  it('lists resources from a resource server when a tools-only server is also in the pool', async () => {
+    const toolsOnly = await makeServerWithWeatherTool()
+    const res = await makeServerWithResource()
+    await using pool = await createMCPClients({
+      tools: { transport: toolsOnly.clientTransport },
+      res: { transport: res.clientTransport },
+    })
+    const listed = await pool.resources()
+    expect(listed.map((item) => item.uri)).toEqual(['file:///hello.txt'])
+  })
+
+
   it('readResource routes to the owning client and returns its result', async () => {
     // alpha has no resources; res owns file:///hello.txt. The pool tries each
     // client and returns the first success, so it must reach `res`.

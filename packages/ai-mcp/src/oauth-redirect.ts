@@ -62,6 +62,18 @@ export type MCPClientWithOAuthResult =
   | { status: 'connected'; client: MCPClient }
   | { status: 'redirect'; authorizationUrl: string }
 
+function storedClientFromPending(
+  pendingClient: NonNullable<McpOAuthPending['client']>,
+): StoredOAuthClientInformation {
+  return {
+    client_id: pendingClient.clientId,
+    ...(pendingClient.clientSecret
+      ? { client_secret: pendingClient.clientSecret }
+      : {}),
+    ...(pendingClient.issuer ? { issuer: pendingClient.issuer } : {}),
+  }
+}
+
 async function tokenStoreProvider(
   options: {
     redirectUri: string
@@ -82,16 +94,14 @@ async function tokenStoreProvider(
   // begins authorization. After `saveTokens`, flip this so the new bearer is
   // available for the post-callback connection.
   let allowStoredTokens = options.useSavedTokens
-  const pending = await options.tokenStore.loadPending?.()
-  if (pending?.codeVerifier) verifier = pending.codeVerifier
-  if (pending?.discovery) discovery = pending.discovery
-  if (pending?.client) {
-    client = {
-      client_id: pending.client.clientId,
-      ...(pending.client.clientSecret
-        ? { client_secret: pending.client.clientSecret }
-        : {}),
-      ...(pending.client.issuer ? { issuer: pending.client.issuer } : {}),
+  // Reconnect with saved tokens must ignore leftover PKCE pending data so a
+  // later refresh does not mix the old access token with a different client_id.
+  if (!options.useSavedTokens) {
+    const pending = await options.tokenStore.loadPending?.()
+    if (pending?.codeVerifier) verifier = pending.codeVerifier
+    if (pending?.discovery) discovery = pending.discovery
+    if (pending?.client) {
+      client = storedClientFromPending(pending.client)
     }
   }
   return {
@@ -112,18 +122,12 @@ async function tokenStoreProvider(
     },
     clientInformation: async () => {
       if (client) return client
-      const pendingNow = await options.tokenStore.loadPending?.()
-      if (pendingNow?.client) {
-        client = {
-          client_id: pendingNow.client.clientId,
-          ...(pendingNow.client.clientSecret
-            ? { client_secret: pendingNow.client.clientSecret }
-            : {}),
-          ...(pendingNow.client.issuer
-            ? { issuer: pendingNow.client.issuer }
-            : {}),
+      if (!options.useSavedTokens) {
+        const pendingNow = await options.tokenStore.loadPending?.()
+        if (pendingNow?.client) {
+          client = storedClientFromPending(pendingNow.client)
+          return client
         }
-        return client
       }
       const saved = await options.tokenStore.load()
       if (!saved?.client) return undefined
