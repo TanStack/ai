@@ -1461,7 +1461,12 @@ export abstract class SessionTurn<
               const tanstack = chunk.metadata?.tanstack
               if (tanstack?.toolResultOutcome !== 'cancelled') {
                 if (tanstack?.state === 'output-error') {
-                  errorResultIds.add(chunk.toolCallId)
+                  if (
+                    !operation.abortController.signal.aborted ||
+                    tanstack.toolResultOutcome === 'denied'
+                  ) {
+                    errorResultIds.add(chunk.toolCallId)
+                  }
                 } else {
                   resultIds.add(chunk.toolCallId)
                 }
@@ -1884,51 +1889,47 @@ export abstract class SessionTurn<
             ...(turn.context !== undefined ? { context: turn.context } : {}),
           }
         : undefined
-    // A resume whose tools ran is used up, even when the turn fails after
-    // them. Offering its interrupts again would run the tools a second time.
-    // A resume that failed before its tools ran stays open for a retry.
+    // Each resumed item whose tool ran is used up, even when the turn fails
+    // after it or another item in the batch did not run. Offering it again
+    // would run that tool a second time.
     const resumed = turn.resume ?? []
     const stoppedTurn = turn.answers ?? this.interrupted
     const resumedFrom = stoppedTurn?.interrupts ?? []
-    const didResumedToolsRun =
-      !isResumeRefused &&
-      resumed.length > 0 &&
-      resumed.every((item) => {
-        const interrupt = resumedFrom.find(
-          (candidate) => candidate.id === item.interruptId,
-        )
-        // A wait of an agent tool is used when that tool call got a result.
-        // A sign-in or an app interrupt of the agent names no tool call.
-        const agentCall =
-          interrupt?.subagentRunId === undefined
-            ? undefined
-            : agentCardOf(
-                stoppedTurn?.routed?.messages ?? [],
-                interrupt.subagentRunId,
-              )?.parentToolCallId
-        const toolCallIds = [
-          interrupt ? toolCallOf(interrupt) : undefined,
-          agentCall,
-        ].filter((id) => id !== undefined)
-        // A stopped run gives the calls it did not run an error result.
-        return toolCallIds.some(
-          (toolCallId) =>
-            resultIds.has(toolCallId) ||
-            (!operation.abortController.signal.aborted &&
-              errorResultIds.has(toolCallId)),
-        )
-      })
+    const consumedResumed = isResumeRefused
+      ? []
+      : resumed.filter((item) => {
+          const interrupt = resumedFrom.find(
+            (candidate) => candidate.id === item.interruptId,
+          )
+          // A wait of an agent tool is used when that tool call got a result.
+          // A sign-in or an app interrupt of the agent names no tool call.
+          const agentCall =
+            interrupt?.subagentRunId === undefined
+              ? undefined
+              : agentCardOf(
+                  stoppedTurn?.routed?.messages ?? [],
+                  interrupt.subagentRunId,
+                )?.parentToolCallId
+          const toolCallIds = [
+            interrupt ? toolCallOf(interrupt) : undefined,
+            agentCall,
+          ].filter((id) => id !== undefined)
+          return toolCallIds.some(
+            (toolCallId) =>
+              resultIds.has(toolCallId) || errorResultIds.has(toolCallId),
+          )
+        })
     // On a success, withPersistence committed them already, and this skips
     // them. A failure or a stop can also come after the tools ran.
-    if (didResumedToolsRun) {
-      await this.consumeResume(resumed).catch((error: unknown) =>
+    if (consumedResumed.length > 0) {
+      await this.consumeResume(consumedResumed).catch((error: unknown) =>
         this.warn(operation, 'harness:interrupts', error),
       )
     }
     await this.refreshTurnInterrupts(operation, observedInterrupts)
     // A failed log write can keep their records pending. Here they are used
     // up all the same.
-    if (didResumedToolsRun) this.dropInterrupts(resumed)
+    if (consumedResumed.length > 0) this.dropInterrupts(consumedResumed)
     if (this.logFailure) {
       operation.fail('failed', this.logFailure)
     } else if (timedOut) {

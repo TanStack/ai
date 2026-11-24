@@ -5,6 +5,7 @@ import type {
   StandardJSONSchemaV1,
   StandardSchemaV1,
 } from '@tanstack/ai'
+import type { PluginSetupContext } from './plugins'
 
 /**
  * A plain JSON Schema as a Standard Schema with a JSON Schema export, so a
@@ -209,5 +210,47 @@ export function readApproval(value: unknown): {
   return {
     choice: choice === 'once' || choice === 'always' ? choice : 'reject',
     message: text === '' ? undefined : text,
+  }
+}
+
+/**
+ * @internal Durable answer store for boundary waits (`permissions()`, `question()`).
+ * Keeps resolved answers in plugin state so they survive across multi-pause
+ * tool batches and host restarts before tool execution runs.
+ */
+export function durableAnswers(ctx: Pick<PluginSetupContext, 'state'>) {
+  const state = ctx.state<Record<string, unknown>>({})
+  return {
+    has: async (key: string) => {
+      const stored = await state.get()
+      return Object.hasOwn(stored, key)
+    },
+    setMany: async (entries: ReadonlyArray<readonly [string, unknown]>) => {
+      if (entries.length === 0) return
+      await state.update((current) => {
+        const next = { ...current }
+        for (const [key, value] of entries) {
+          next[key] = value
+        }
+        return next
+      })
+    },
+    take: async (keys: ReadonlyArray<string>) => {
+      const stored = await state.get()
+      const present = keys.filter((key) => Object.hasOwn(stored, key))
+      const values = keys.map((key) =>
+        Object.hasOwn(stored, key) ? stored[key] : undefined,
+      )
+      if (present.length > 0) {
+        await state.update((current) => {
+          const next = { ...current }
+          for (const key of present) {
+            delete next[key]
+          }
+          return next
+        })
+      }
+      return { present, values }
+    },
   }
 }

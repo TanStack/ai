@@ -27,6 +27,7 @@ import {
   notifyListeners,
   offeredInputRecord,
   SHUTDOWN_REASON,
+  signInConnector,
   storedUser,
   tapFeed,
   toolCallOf,
@@ -1047,7 +1048,8 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
           !(
             'message' in input.input ||
             input.input.op === 'continue' ||
-            input.input.op === 'tool'
+            input.input.op === 'tool' ||
+            input.input.op === 'resolve'
           )
         ) {
           this.reject(input.inputId, 'expired_on_restart')
@@ -1064,6 +1066,101 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
         if (decision.action === 'settle') {
           const { action: _action, ...outcome } = decision
           await this.settle({ inputId: input.inputId, ...outcome })
+          continue
+        }
+        if (input.input.op === 'resolve') {
+          const { resume } = input.input
+          // A resolve for background agent waits settles those waits directly.
+          const logged = resume.map((item) => this.loggedWait(item.interruptId))
+          const open = logged.flatMap((state) =>
+            state !== undefined &&
+            state.outcome === undefined &&
+            state.live === undefined
+              ? [state]
+              : [],
+          )
+          const interrupts = writer.state.thread.interrupts
+          if (open.length > 0) {
+            const runId = open[0]?.wait.runId
+            const isValid =
+              open.length === resume.length &&
+              open.every(
+                ({ wait }) =>
+                  wait.runId === runId &&
+                  interrupts.get(wait.waitId)?.status === 'pending',
+              )
+            if (!isValid) {
+              await this.settle({
+                inputId: input.inputId,
+                outcome: 'failed',
+                error: {
+                  message: 'The waits for this resolve are no longer open.',
+                },
+              })
+              continue
+            }
+            await this.settleWith(
+              [{ inputId: input.inputId, outcome: 'completed' }],
+              resume.flatMap((item) =>
+                item.status === 'resolved'
+                  ? this.waitEndRecords(
+                      item.interruptId,
+                      'answered',
+                      item.payload,
+                    )
+                  : this.waitEndRecords(item.interruptId, 'cancelled'),
+              ),
+            )
+            for (const item of resume) await this.afterWaitEnd(item.interruptId)
+            continue
+          }
+          if (!this.interrupted) {
+            const records = await Promise.all(
+              resume.map((item) => this.interruptStore.get(item.interruptId)),
+            )
+            const alreadyConsumed =
+              records.length > 0 &&
+              records.every(
+                (record) =>
+                  record !== null &&
+                  record.threadId === this.threadId &&
+                  record.status !== 'pending',
+              )
+            await this.settle(
+              alreadyConsumed
+                ? { inputId: input.inputId, outcome: 'completed' }
+                : {
+                    inputId: input.inputId,
+                    outcome: 'failed',
+                    error: {
+                      message: 'The interrupted turn is no longer available.',
+                    },
+                  },
+            )
+            continue
+          }
+          for (const entry of resume) {
+            const connector = signInConnector(
+              this.interrupted.interrupts.find(
+                (item) => item.id === entry.interruptId,
+              ),
+            )
+            if (connector && entry.status === 'cancelled') {
+              this.declinedSignIns.add(connector)
+            }
+          }
+          const operation = this.createTurnOperation()
+          this.bindTurn(input.inputId, operation)
+          this.enqueueTurn({
+            operation,
+            inputId: input.inputId,
+            resume,
+            answers: this.interrupted,
+            user: this.interrupted.user ?? input.user,
+            ...(input.user ? { sender: input.user } : {}),
+            context: this.interrupted.context,
+            ...this.recoveredExtras(input.inputId, decision.overrides),
+          })
           continue
         }
         if (input.input.op === 'continue') {
@@ -1277,24 +1374,27 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
         )
         const newPhase =
           this.interrupted && this.interrupted.runId === operationId
-        // The tools of the resume ran, and the log failed before their
-        // resolve records landed. They are used up all the same, so they
+        // The tools of the resume that already ran are used up, so they
         // never run twice.
-        const isRunOut =
-          !newPhase &&
-          resume.length > 0 &&
-          resume.every((item) => {
-            const interrupt = this.interrupted?.interrupts.find(
-              (candidate) => candidate.id === item.interruptId,
-            )
-            const toolCallId = interrupt ? toolCallOf(interrupt) : undefined
-            return toolCallId !== undefined && hasToolResult(writer, toolCallId)
-          })
-        if (isRunOut) {
-          await this.consumeResume(resume)
-          this.dropInterrupts(resume)
+        const consumedItems =
+          !newPhase && resume.length > 0
+            ? resume.filter((item) => {
+                const interrupt = this.interrupted?.interrupts.find(
+                  (candidate) => candidate.id === item.interruptId,
+                )
+                const toolCallId = interrupt ? toolCallOf(interrupt) : undefined
+                return (
+                  toolCallId !== undefined && hasToolResult(writer, toolCallId)
+                )
+              })
+            : []
+        if (consumedItems.length > 0) {
+          await this.consumeResume(consumedItems)
+          this.dropInterrupts(consumedItems)
           await this.saveInterrupted(this.interrupted)
         }
+        const isRunOut =
+          consumedItems.length > 0 && consumedItems.length === resume.length
         const consumed =
           isRunOut ||
           (records.length > 0 &&
@@ -1326,6 +1426,14 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
             })
             continue
           }
+          const remainingResume =
+            consumedItems.length > 0
+              ? resume.filter((item) =>
+                  this.interrupted?.interrupts.some(
+                    (candidate) => candidate.id === item.interruptId,
+                  ),
+                )
+              : resume
           const operation = this.createTurnOperation()
           this.bindTurn(input.inputId, operation)
           this.feed.publish(
@@ -1340,7 +1448,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
           this.enqueueTurn({
             operation,
             inputId: input.inputId,
-            resume: input.input.resume,
+            resume: remainingResume,
             answers: this.interrupted,
             user: this.interrupted.user ?? input.user,
             ...(input.user ? { sender: input.user } : {}),

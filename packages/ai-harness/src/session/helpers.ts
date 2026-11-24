@@ -1,6 +1,7 @@
 import {
   ConsoleLogger,
   EventType,
+  INTERRUPT_PAYLOAD_METADATA_KEY,
   compactForModel,
   genericInterruptContinuationFromDescriptor,
   provideDetachableRun,
@@ -498,10 +499,15 @@ export const scopeOf = (
   ...(user?.tenantId ? { tenantId: user.tenantId } : {}),
 })
 
-/** The tool call an interrupt waits on: an approval or a client tool. */
+/** The tool call an interrupt waits on: an approval, a client tool, or a boundary wait. */
 export const toolCallOf = (interrupt: Interrupt) => {
   const binding = readInterruptBinding(interrupt)
-  return binding && 'toolCallId' in binding ? binding.toolCallId : undefined
+  if (binding && 'toolCallId' in binding) return binding.toolCallId
+  if (typeof interrupt.toolCallId === 'string') return interrupt.toolCallId
+  const payload = interrupt.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY]
+  return isRecord(payload) && typeof payload.toolCallId === 'string'
+    ? payload.toolCallId
+    : undefined
 }
 
 /**
