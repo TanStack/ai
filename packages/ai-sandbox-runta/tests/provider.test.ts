@@ -119,7 +119,13 @@ describe('runtaSandbox', () => {
     await expect(
       handle.fs.rename('/workspace/dir/b.bin', '/workspace/dir/nested'),
     ).rejects.toThrow(/rename failed: destination is a directory/)
+    // Nor inside a directory that the destination links to.
+    await handle.process.exec('ln -s nested dir/link')
+    await expect(
+      handle.fs.rename('/workspace/dir/b.bin', '/workspace/dir/link'),
+    ).rejects.toThrow(/rename failed: destination is a directory/)
     expect(await handle.fs.exists('/workspace/dir/b.bin')).toBe(true)
+    expect(await handle.fs.list('/workspace/dir/nested')).toEqual([])
     await handle.fs.remove('/workspace/dir')
     expect(await handle.fs.exists('/workspace/dir')).toBe(false)
     await expect(handle.fs.list('/workspace/dir')).rejects.toThrow(
@@ -190,17 +196,20 @@ describe('runtaSandbox', () => {
     expect(await provider.resume({ id: 'gone' })).toBeNull()
   })
 
-  it('returns null when the runtime is deleted while it resumes', async () => {
+  it.each([
+    ['is deleted', (id: string) => void fake.runtimes.delete(id)],
+    ['starts to be deleted', (id: string) => fake.setStatus(id, 'deleting')],
+  ])('returns null when the runtime %s while it resumes', async (_, remove) => {
     const created = await provider.create({ id: 'box' })
     const runtimeId = fake.runtime('box')?.id ?? ''
     let reads = 0
-    // The lookup reads the runtime by id once. Delete it right after that.
+    // The lookup reads the runtime by id once. Remove it right after that.
     vi.stubGlobal(
       'fetch',
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const response = await fake.fetch(input, init)
         if (String(input).endsWith(runtimeId) && (reads += 1) === 1) {
-          fake.runtimes.delete(runtimeId)
+          remove(runtimeId)
         }
         return response
       },

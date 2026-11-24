@@ -175,6 +175,7 @@ class RuntaProvider implements SandboxProvider {
       )
     } catch (error) {
       // Deleted between the lookup and the wake: gone, like any missing one.
+      // The client reports a runtime that is being deleted the same way.
       if (error instanceof RuntaApiError && error.status === 404) return null
       throw error
     }

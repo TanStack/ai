@@ -5,6 +5,9 @@ import type { SandboxHandle } from '@tanstack/ai-sandbox'
 // Auto-gate: only run when a Runta API key is present (these tests create real
 // runtimes and are billed).
 const apiKey = process.env.RUNTA_TOKEN
+// The provider reads this itself. A client that a test makes must use it too,
+// or it would send the token to the default API.
+const endpoint = process.env.RUNTA_ENDPOINT
 
 describe.skipIf(!apiKey)('runta provider (gated on RUNTA_TOKEN)', () => {
   it('creates a sandbox, runs exec, fs round-trip + destroy', async () => {
@@ -58,7 +61,10 @@ describe.skipIf(!apiKey)('runta provider (gated on RUNTA_TOKEN)', () => {
       await created.fs.write('/workspace/kept.txt', 'still here')
       await created.process.exec('true')
       const { RuntaClient } = await import('../src/client')
-      const client = new RuntaClient({ apiKey: apiKey ?? '' })
+      const client = new RuntaClient({
+        apiKey: apiKey ?? '',
+        ...(endpoint ? { endpoint } : {}),
+      })
       await client.lifecycle(created.id, 'pause')
 
       const resumed = await provider.resume({ id: created.id })

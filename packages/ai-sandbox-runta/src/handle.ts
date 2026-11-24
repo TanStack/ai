@@ -151,14 +151,18 @@ export class RuntaHandle implements SandboxHandle {
         await run('remove', `rm -rf -- ${q(this.abs(p))}`, o?.signal)
       },
       rename: async (from, to, o) => {
-        // `mv` puts the source INSIDE a destination that is a directory, and
-        // reports success. Refuse, so a rename lands at `to` or fails.
-        // ponytail: this also refuses a directory that replaces an empty one,
-        // which rename(2) allows. Use `mv -T` if a caller needs that.
+        // `mv` puts the source INSIDE a destination that is a directory, or a
+        // link to one, and reports success. Refuse, so a rename lands at `to`
+        // or fails. This also refuses a directory that replaces an empty one,
+        // which rename(2) allows.
+        // GNU `mv -T` then never treats `to` as a directory, also when one
+        // appears after the check.
+        // ponytail: another `mv` (busybox, BSD) has only the check. Probe for
+        // `-T` if such an image needs the same guarantee.
         const target = q(this.abs(to))
         await run(
           'rename',
-          `if [ -d ${target} ] && [ ! -L ${target} ]; then echo 'destination is a directory' >&2; exit 1; fi; mv -- ${q(this.abs(from))} ${target}`,
+          `if [ -d ${target} ]; then echo 'destination is a directory' >&2; exit 1; fi; if mv --version >/dev/null 2>&1; then mv -T -- ${q(this.abs(from))} ${target}; else mv -- ${q(this.abs(from))} ${target}; fi`,
           o?.signal,
         )
       },

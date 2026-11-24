@@ -256,9 +256,16 @@ export class RuntaClient {
     signal?: AbortSignal,
   ): Promise<RuntaRuntime> {
     if (UUID_PATTERN.test(idOrName)) {
-      return parseRuntime(
-        await this.json('GET', runtimePath(idOrName), { signal }),
-      )
+      try {
+        return parseRuntime(
+          await this.json('GET', runtimePath(idOrName), { signal }),
+        )
+      } catch (error) {
+        // A display name can look like a UUID. Without this, a runtime with
+        // such a name would read as missing, and a delete would do nothing.
+        if (!(error instanceof RuntaApiError) || error.status !== 404)
+          throw error
+      }
     }
     // The API rejects a name in the path ("runtime_id must be a UUID"), so
     // find the runtime in the list. Names are unique within an organization.
@@ -273,7 +280,9 @@ export class RuntaClient {
     }
     // The list can still show a runtime that was just deleted. Read it by id,
     // which answers 404 for one that is gone.
-    return this.getRuntime(match.id, signal)
+    return parseRuntime(
+      await this.json('GET', runtimePath(match.id), { signal }),
+    )
   }
 
   /** Every runtime the API key can see. */
@@ -319,13 +328,31 @@ export class RuntaClient {
    */
   async getOrCreateRuntime(
     name: string,
-    options: Omit<RuntaCreateRuntimeOptions, 'name'> = {},
+    {
+      nameTimeoutMs = 120_000,
+      ...options
+    }: Omit<RuntaCreateRuntimeOptions, 'name'> & {
+      /** Max ms to wait for a name that a runtime being deleted still holds. Defaults to 120s. */
+      nameTimeoutMs?: number
+    } = {},
   ): Promise<{ runtime: RuntaRuntime; created: boolean }> {
     // A runtime that is being deleted holds its name until it is gone, so a
     // create can answer "already exists" for a while. Wait for the name.
-    const deadline = Date.now() + 120_000
+    // The limit covers the lookups and the pauses, not a create that started.
+    const deadline = Date.now() + nameTimeoutMs
+    const lookup = <T>(call: (signal: AbortSignal) => Promise<T>): Promise<T> =>
+      withDeadline(
+        Math.max(0, deadline - Date.now()),
+        options.signal,
+        call,
+        () =>
+          new RuntaApiError(
+            `Runta: the name "${name}" was not free after ${nameTimeoutMs}ms. A runtime that is being deleted may still hold it.`,
+            { code: 'deadline_exceeded' },
+          ),
+      )
     for (;;) {
-      const existing = await this.findRuntime(name, options.signal)
+      const existing = await lookup((signal) => this.findRuntime(name, signal))
       if (existing && existing.status !== 'deleting') {
         return {
           runtime: await this.ensureRunning(existing.id, options),
@@ -344,13 +371,7 @@ export class RuntaClient {
             throw error
         }
       }
-      if (Date.now() >= deadline) {
-        throw new RuntaApiError(
-          `Runta: the name "${name}" is still held by a runtime that is being deleted.`,
-          { code: 'deadline_exceeded' },
-        )
-      }
-      await delay(1000, options.signal)
+      await lookup((signal) => delay(1000, signal))
     }
   }
 
@@ -374,12 +395,7 @@ export class RuntaClient {
       return this.lifecycle(runtime.id, 'resume', wait)
     }
     if (status === 'shutdown') return this.lifecycle(runtime.id, 'start', wait)
-    throw new RuntaApiError(
-      `Runta: runtime "${runtime.name}" is ${status} and cannot be used.`,
-      {
-        code: 'failed_precondition',
-      },
-    )
+    throw unusable(runtime, 'and cannot be used')
   }
 
   async waitUntilRunning(
@@ -409,10 +425,7 @@ export class RuntaClient {
       (runtime) => {
         if (runtime.status === target) return true
         if (FAILED_STATUSES.includes(runtime.status)) {
-          throw new RuntaApiError(
-            `Runta: runtime "${runtime.name}" is ${runtime.status} while waiting for it to be ${target}.`,
-            { code: 'failed_precondition' },
-          )
+          throw unusable(runtime, `while waiting for it to be ${target}`)
         }
         return false
       },
@@ -650,7 +663,8 @@ export class RuntaClient {
         argv: [
           'sh',
           '-c',
-          'mkdir -p -- "$(dirname -- "$1")" && cat > "$1"',
+          // Not `dirname`: command substitution drops a trailing newline.
+          'case "$1" in */*) d=${1%/*}; mkdir -p -- "${d:-/}" ;; esac && cat > "$1"',
           'runta-write',
           path,
         ],
@@ -959,6 +973,10 @@ export class RuntaClient {
     })
 
     ws.addEventListener('error', (event: Event) => {
+      // Closing a socket that is still connecting can send another error
+      // event at once. This guard, with finish() before the close below,
+      // stops that from repeating.
+      if (settled) return
       // Typed by hand: `ErrorEvent` exists only in the DOM lib.
       const { message } = event as { message?: string }
       failure ??= new RuntaApiError(
@@ -968,8 +986,8 @@ export class RuntaClient {
         },
       )
       // Do not wait for a close event: not every socket sends one after an error.
-      closeSocket()
       finish()
+      closeSocket()
     })
 
     ws.addEventListener('close', () => finish())
@@ -994,6 +1012,9 @@ export class RuntaClient {
     }
 
     const write = async (data: string | Uint8Array): Promise<void> => {
+      // Wait for the socket, so the backpressure check below also limits a
+      // write that starts early. Rejects when the connection fails.
+      await openedPromise
       const bytes =
         typeof data === 'string' ? new TextEncoder().encode(data) : data
       for (
@@ -1022,16 +1043,22 @@ export class RuntaClient {
       }
     }
 
+    // stdin calls run one after another, so `end()` cannot overtake a write
+    // that is still waiting.
+    let stdinTail: Promise<void> = Promise.resolve()
+    const inOrder = (call: () => Promise<void>): Promise<void> => {
+      const result = stdinTail.then(call)
+      stdinTail = result.catch(() => undefined)
+      return result
+    }
+
     return {
       opened: openedPromise,
       stdout: stdoutQ,
       stderr: stderrQ,
       stdin: {
-        write,
-        end: () => {
-          send({ type: 'close_stdin' })
-          return Promise.resolve()
-        },
+        write: (data) => inOrder(() => write(data)),
+        end: () => inOrder(async () => send({ type: 'close_stdin' })),
       },
       signal: (name) => send({ type: 'signal', signal: name }),
       wait: async (): Promise<number> => {
@@ -1242,6 +1269,19 @@ class AsyncByteQueue implements AsyncIterable<Uint8Array> {
       },
     }
   }
+}
+
+/**
+ * The error for a runtime in a status that nothing can be done with. One that
+ * is being deleted reports as not found, like one that is already gone.
+ */
+function unusable(runtime: RuntaRuntime, context: string): RuntaApiError {
+  return new RuntaApiError(
+    `Runta: runtime "${runtime.name}" is ${runtime.status} ${context}.`,
+    runtime.status === 'deleting'
+      ? { status: 404, code: 'not_found' }
+      : { code: 'failed_precondition' },
+  )
 }
 
 /** Whether the control plane is still moving the runtime to its desired status. */
@@ -1492,8 +1532,22 @@ async function withDeadline<T>(
   onTimeout: () => Error,
 ): Promise<T> {
   const timeout = AbortSignal.timeout(timeoutMs)
+  const either = signal ? AbortSignal.any([signal, timeout]) : timeout
+  // Race the call against the signal, so a request that ignores the signal
+  // cannot hold the wait or return a result after the deadline.
+  const aborted = new Promise<never>((_, reject) => {
+    if (either.aborted) reject(signalReason(either))
+    else
+      either.addEventListener('abort', () => reject(signalReason(either)), {
+        once: true,
+      })
+  })
+  const work = call(either)
+  // The loser of the race settles later, with nobody waiting for it.
+  aborted.catch(() => undefined)
+  work.catch(() => undefined)
   try {
-    return await call(signal ? AbortSignal.any([signal, timeout]) : timeout)
+    return await Promise.race([work, aborted])
   } catch (error) {
     // An API error is the real answer even when the timeout fires beside it.
     if (!timeout.aborted || signal?.aborted || error instanceof RuntaApiError)

@@ -34,12 +34,16 @@ afterEach(async () => {
 })
 
 /**
- * A socket that does only what a test tells it to. `error` fires an error
- * event and no close event; `buffered` is what `bufferedAmount` reports.
+ * A socket that does only what a test tells it to.
+ * - `open: 'error'` fires an error event and no close event.
+ * - `open: 'never'` stays connecting, and each `close()` fires an error event
+ *   at once, as Node 22.4 can. `errors` counts them.
+ * - `buffered` is what `bufferedAmount` reports.
  */
 function stubSocket(behavior: {
-  error?: boolean
+  open?: 'error' | 'never'
   buffered?: number
+  errors?: number
 }): RuntaWebSocketCtor {
   class StubSocket extends EventTarget {
     readyState = 0
@@ -47,10 +51,9 @@ function stubSocket(behavior: {
     constructor() {
       super()
       queueMicrotask(() => {
-        if (behavior.error) {
-          this.dispatchEvent(
-            Object.assign(new Event('error'), { message: 'refused' }),
-          )
+        if (behavior.open === 'never') return
+        if (behavior.open === 'error') {
+          this.fail()
           return
         }
         this.readyState = 1
@@ -59,9 +62,20 @@ function stubSocket(behavior: {
     }
     send(): void {}
     close(): void {
-      if (this.readyState === 3 || behavior.error) return
+      if (behavior.open === 'never') {
+        behavior.errors = (behavior.errors ?? 0) + 1
+        // Stop a client that closes again from each error event.
+        if (behavior.errors <= 50) this.fail()
+        return
+      }
+      if (this.readyState === 3 || behavior.open === 'error') return
       this.readyState = 3
       this.dispatchEvent(new Event('close'))
+    }
+    private fail(): void {
+      this.dispatchEvent(
+        Object.assign(new Event('error'), { message: 'refused' }),
+      )
     }
   }
   return StubSocket as unknown as RuntaWebSocketCtor
@@ -164,6 +178,34 @@ describe('runtimes', () => {
     expect(next.created).toBe(true)
   })
 
+  it('finds and deletes a runtime whose name looks like a UUID', async () => {
+    const name = '22222222-2222-4222-8222-222222222222'
+    const created = await client.createRuntime({ name })
+    expect((await client.getRuntime(name)).id).toBe(created.id)
+    await client.deleteRuntime(name)
+    expect(fake.runtimes.size).toBe(0)
+  })
+
+  it('stops waiting for a name when the lookup never answers', async () => {
+    const stalled = new RuntaClient({
+      apiKey: fake.apiKey,
+      endpoint: fake.endpoint,
+      fetch: () => new Promise(() => undefined),
+    })
+    await expect(
+      stalled.getOrCreateRuntime('box', { nameTimeoutMs: 30 }),
+    ).rejects.toMatchObject({ code: 'deadline_exceeded' })
+  })
+
+  it('reports a runtime that is being deleted as not found', async () => {
+    const { runtime } = await client.getOrCreateRuntime('box')
+    fake.setStatus('box', 'deleting')
+    await expect(client.ensureRunning(runtime.id)).rejects.toMatchObject({
+      status: 404,
+      code: 'not_found',
+    })
+  })
+
   it('returns null from findRuntime for a missing runtime', async () => {
     expect(await client.findRuntime('nope')).toBeNull()
     await expect(client.getRuntime('nope')).rejects.toMatchObject({
@@ -257,6 +299,26 @@ describe('runtimes', () => {
     await expect(
       stalled.createRuntime({ name: 'stuck', readyTimeoutMs: 30 }),
     ).rejects.toMatchObject({ code: 'deadline_exceeded' })
+  })
+
+  it('rejects at the ready timeout when the answer comes late', async () => {
+    fake.statusAfterCreate = 'creating'
+    const late = new RuntaClient({
+      apiKey: fake.apiKey,
+      endpoint: fake.endpoint,
+      // This fetch ignores the signal. Its answer says `running`, but late.
+      fetch: async (input, init) => {
+        if (init?.method !== 'GET') return fake.fetch(input, init)
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        fake.setStatus('slow', 'running')
+        return fake.fetch(input, { ...init, signal: null })
+      },
+    })
+    const started = Date.now()
+    await expect(
+      late.createRuntime({ name: 'slow', readyTimeoutMs: 30 }),
+    ).rejects.toMatchObject({ code: 'deadline_exceeded' })
+    expect(Date.now() - started).toBeLessThan(90)
   })
 
   it('follows a lifecycle target that changes while it waits', async () => {
@@ -416,7 +478,8 @@ describe('files', () => {
     for (let index = 0; index < bytes.length; index += 1)
       bytes[index] = index % 251
     // A new parent directory: the exec path creates it, as the endpoint does.
-    const path = join(root, 'new dir', 'big file.bin')
+    // Its name ends in a newline, which `$(dirname ...)` would drop.
+    const path = join(root, 'new dir\n', 'big file.bin')
     await small.writeFile(runtime.id, path, bytes)
     expect(fake.calls.some((call) => call.method === 'PUT')).toBe(false)
     expect(new Uint8Array(await readFile(path))).toEqual(bytes)
@@ -641,10 +704,44 @@ describe('spawn', () => {
       apiKey: fake.apiKey,
       endpoint: fake.endpoint,
       fetch: fake.fetch,
-      WebSocket: stubSocket({ error: true }),
+      WebSocket: stubSocket({ open: 'error' }),
     })
     const stream = failing.spawn('rid', { argv: ['true'] })
+    // A write that started early rejects too, and does not report success.
+    await expect(stream.stdin.write('never sent')).rejects.toMatchObject({
+      code: 'unavailable',
+    })
     await expect(stream.wait()).rejects.toMatchObject({ code: 'unavailable' })
+  })
+
+  it('closes a connecting socket once when the close sends an error event', async () => {
+    const behavior: Parameters<typeof stubSocket>[0] = { open: 'never' }
+    const connecting = new RuntaClient({
+      apiKey: fake.apiKey,
+      endpoint: fake.endpoint,
+      fetch: fake.fetch,
+      WebSocket: stubSocket(behavior),
+    })
+    const controller = new AbortController()
+    const stream = connecting.spawn('rid', {
+      argv: ['true'],
+      signal: controller.signal,
+    })
+    controller.abort(new Error('stop now'))
+    await expect(stream.wait()).rejects.toThrow('stop now')
+    // The abort closes it, and the error listener closes it once more.
+    expect(behavior.errors).toBe(2)
+  })
+
+  it('sends stdin writes and the end in the order of the calls', async () => {
+    const { runtime } = await client.getOrCreateRuntime('box')
+    const stream = client.spawn(runtime.id, { argv: ['cat'] })
+    // Neither call is awaited before the next, and the socket is not open yet.
+    void stream.stdin.write('one ')
+    void stream.stdin.write('two')
+    void stream.stdin.end()
+    expect(await text(stream.stdout)).toBe('one two')
+    expect(await stream.wait()).toBe(0)
   })
 
   it('rejects a stdin write that the stream dropped during backpressure', async () => {
@@ -674,6 +771,33 @@ describe('spawn', () => {
 })
 
 describe('checkpoints', () => {
+  it('rejects at the ready timeout when the answer comes late', async () => {
+    const { runtime } = await client.getOrCreateRuntime('box')
+    const late = new RuntaClient({
+      apiKey: fake.apiKey,
+      endpoint: fake.endpoint,
+      fetch: async (input, init) => {
+        const path = new URL(String(input)).pathname
+        if (init?.method === 'POST') {
+          // The checkpoint is still being created.
+          const created = (await (await fake.fetch(input, init)).json()) as {
+            data: Record<string, unknown>
+          }
+          return Response.json({ data: { ...created.data, state: 'creating' } })
+        }
+        // This fetch ignores the signal. Its answer says `ready`, but late.
+        if (path.startsWith('/v2/checkpoints/'))
+          await new Promise((resolve) => setTimeout(resolve, 400))
+        return fake.fetch(input, { ...init, signal: null })
+      },
+    })
+    const started = Date.now()
+    await expect(
+      late.createCheckpoint(runtime.id, { readyTimeoutMs: 600 }),
+    ).rejects.toMatchObject({ code: 'deadline_exceeded' })
+    expect(Date.now() - started).toBeLessThan(850)
+  })
+
   it('creates, lists, restores into a new runtime, and deletes', async () => {
     const { runtime } = await client.getOrCreateRuntime('box')
     const checkpoint = await client.createCheckpoint(runtime.id, {
