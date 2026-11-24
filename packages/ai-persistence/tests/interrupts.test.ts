@@ -2140,30 +2140,42 @@ describe('interrupt persistence', () => {
       structuredOutput: async () => ({ data: {}, rawText: '{}' }),
     } as unknown as AnyTextAdapter
 
+    // Every chunk of both runs, also of a run that throws.
+    const seen: Array<StreamChunk> = []
+    const tap = async function* (stream: AsyncIterable<StreamChunk>) {
+      for await (const chunk of stream) {
+        seen.push(chunk)
+        yield chunk
+      }
+    }
     const [a, b] = await Promise.allSettled([
       collect(
-        chat({
-          adapter: failingFollowUp,
-          messages: [],
-          tools: [charge],
-          runId: 'r2a',
-          parentRunId: 'r1',
-          threadId: 't-a2',
-          resume,
-          middleware: [withPersistence(persistence)],
-        }) as AsyncIterable<StreamChunk>,
+        tap(
+          chat({
+            adapter: failingFollowUp,
+            messages: [],
+            tools: [charge],
+            runId: 'r2a',
+            parentRunId: 'r1',
+            threadId: 't-a2',
+            resume,
+            middleware: [withPersistence(persistence)],
+          }) as AsyncIterable<StreamChunk>,
+        ),
       ),
       collect(
-        chat({
-          adapter: failingFollowUp,
-          messages: [],
-          tools: [charge],
-          runId: 'r2b',
-          parentRunId: 'r1',
-          threadId: 't-a2',
-          resume,
-          middleware: [withPersistence(persistence)],
-        }) as AsyncIterable<StreamChunk>,
+        tap(
+          chat({
+            adapter: failingFollowUp,
+            messages: [],
+            tools: [charge],
+            runId: 'r2b',
+            parentRunId: 'r1',
+            threadId: 't-a2',
+            resume,
+            middleware: [withPersistence(persistence)],
+          }) as AsyncIterable<StreamChunk>,
+        ),
       ),
     ])
 
@@ -2181,6 +2193,14 @@ describe('interrupt persistence', () => {
           ),
       ),
     ).toBe(true)
+    // The run that used the approval tells the client before its model fails.
+    expect(
+      seen.filter(
+        (chunk) =>
+          chunk.type === EventType.CUSTOM &&
+          chunk.name === 'interrupts:committed',
+      ),
+    ).toMatchObject([{ value: { interruptIds: [pending[0]!.interruptId] } }])
     expect(await persistence.stores.interrupts!.listPending('t-a2')).toEqual([])
   })
 

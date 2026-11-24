@@ -757,8 +757,8 @@ async function commitPendingResumes(
   state: RunStateEntry | undefined,
   interrupts: AIPersistence['stores']['interrupts'],
   keepPendingIds?: ReadonlySet<string>,
-): Promise<void> {
-  if (!state?.pendingResumes || !interrupts) return
+): Promise<ReadonlyArray<string>> {
+  if (!state?.pendingResumes || !interrupts) return []
   const { pending, resumeByInterruptId } = state.pendingResumes
   // Apply first; only clear the in-memory stash after every resolve/cancel
   // succeeds so a mid-loop store failure can still re-drive remaining ids
@@ -780,6 +780,7 @@ async function commitPendingResumes(
     )
   }
   state.pendingResumes = undefined
+  return committedIds
 }
 
 function objectValue(value: unknown): Record<string, unknown> | null {
@@ -2565,13 +2566,24 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
               ctx.threadId,
               runMessages(ctx, current),
             )
+            let committedIds: ReadonlyArray<string>
             try {
-              await commitPendingResumes(current, persistence.stores.interrupts)
+              committedIds = await commitPendingResumes(
+                current,
+                persistence.stores.interrupts,
+              )
             } catch (error) {
               await messageStore
                 .saveThread(ctx.threadId, prevMessages)
                 .catch(() => undefined)
               throw error
+            }
+            // The model call below can still fail. This tells the client
+            // that the answers are used, so it does not show them again.
+            if (committedIds.length > 0) {
+              ctx.emitCustomEvent('interrupts:committed', {
+                interruptIds: [...committedIds],
+              })
             }
           }
         }

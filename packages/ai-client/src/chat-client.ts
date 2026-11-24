@@ -840,6 +840,9 @@ export class ChatClient<
   private interruptSubmissionFailure:
     | { errors: ReadonlyArray<InterruptSubmissionError> }
     | undefined
+  // Interrupt ids that the server says it committed in this submission (the
+  // `interrupts:committed` CUSTOM event). A committed answer is not reverted.
+  private readonly committedInterruptIds = new Set<string>()
   private readonly joinedRunWaiters = new Map<string, () => void>()
   // When set, the next streamResponse() continues this interrupted run instead
   // of starting a fresh run (consumed once).
@@ -1299,6 +1302,19 @@ export class ChatClient<
           }
           if (eventType === 'skills:state') {
             this.devtoolsBridge.recordSkillsState(data)
+          }
+          // `@tanstack/ai-persistence` sends it once the answers of a resume
+          // are committed, before the follow-up model call.
+          if (eventType === 'interrupts:committed') {
+            const ids =
+              typeof data === 'object' && data !== null
+                ? (data as { interruptIds?: unknown }).interruptIds
+                : undefined
+            if (Array.isArray(ids)) {
+              for (const id of ids) {
+                if (typeof id === 'string') this.committedInterruptIds.add(id)
+              }
+            }
           }
           this.callbacksRef.current.onCustomEvent(eventType, data, context)
         },
@@ -2125,6 +2141,7 @@ export class ChatClient<
     const detachGeneration = this.detachGeneration
     this.activeInterruptSubmission = submission
     this.interruptSubmissionFailure = undefined
+    this.committedInterruptIds.clear()
     // Snapshot approval parts before mutating them so a failed continuation
     // reverts them to `approval-requested` instead of leaking stale approvals.
     const approvalIdsToUpdate = new Set<string>()
@@ -2164,10 +2181,20 @@ export class ChatClient<
       return
     }
     const failure = this.takeInterruptSubmissionFailure()
+    // The server used every answer before the continuation failed (or the view
+    // detached). Reverting would show answered interrupts again, so clean up
+    // as on success instead.
+    const committed =
+      failure === undefined &&
+      submission.resolutions.length > 0 &&
+      submission.resolutions.every((resolution) =>
+        this.committedInterruptIds.has(resolution.interruptId),
+      )
     if (
-      failure !== undefined ||
-      !resumed ||
-      detachGeneration !== this.detachGeneration
+      !committed &&
+      (failure !== undefined ||
+        !resumed ||
+        detachGeneration !== this.detachGeneration)
     ) {
       if (approvalSnapshots.length > 0) {
         const reverted = revertApprovalParts(
@@ -2185,6 +2212,9 @@ export class ChatClient<
       if (failure !== undefined) {
         throw { errors: failure.errors }
       }
+      // The server may have used the answers and lost the signal. With
+      // server persistence, ask the server instead of trusting the revert.
+      if (!this.cachesMessages && this.tailing) this.hydrateFromServer()
       throw new Error('Interrupt continuation could not be started.')
     }
     // Belt-and-suspenders: if the continuation stream finished successfully
