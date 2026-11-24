@@ -1852,65 +1852,75 @@ describe('withPersistence (state-only)', () => {
       )
     })
 
-    it('puts the setup row of each run after its user message after a reload', async () => {
-      const persistence = memoryPersistence()
-      for (const run of [1, 2, 3]) {
-        const { adapter } = mockAdapter([
-          [
-            ev.runStarted(`r${run}`),
-            ev.text('hello'),
-            ev.runFinished(`r${run}`),
-          ],
+    it.each(['persistence first', 'sandbox first'] as const)(
+      'puts the setup row of each run after its user message after a reload (%s)',
+      async (order) => {
+        const persistence = memoryPersistence()
+        for (const run of [1, 2, 3]) {
+          const { adapter } = mockAdapter([
+            [
+              ev.runStarted(`r${run}`),
+              ev.text('hello'),
+              ev.runFinished(`r${run}`),
+            ],
+          ])
+          await collect(
+            chat({
+              adapter,
+              // Like `ChatClient`: the whole thread, but no activity rows.
+              messages: [
+                ...(await loadedThread(persistence)),
+                { id: `u${run}`, role: 'user', content: `question ${run}` },
+              ],
+              runId: `r${run}`,
+              threadId: 't1',
+              middleware: (() => {
+                const sandbox: ChatMiddleware = {
+                  name: 'sandbox',
+                  // Like a sandbox boot: the row drains while setup still
+                  // waits, so with this order first it reaches persistence
+                  // before the persistence setup runs.
+                  async setup(ctx) {
+                    ctx.emitActivity(
+                      sandboxStatusActivity,
+                      `sandbox-r${run}`,
+                      sandboxStarting,
+                    )
+                    await new Promise((resolve) => setTimeout(resolve, 0))
+                  },
+                }
+                const persisted = withPersistence(persistence)
+                return order === 'sandbox first'
+                  ? [sandbox, persisted]
+                  : [persisted, sandbox]
+              })(),
+            }) as AsyncIterable<StreamChunk>,
+          )
+        }
+        const reloaded = (await (
+          await reconstructChat(
+            persistence,
+            new Request('http://example.test/api/chat?threadId=t1'),
+          )
+        ).json()) as { messages: Array<{ id: string; role: string }> }
+        // chat() gives each answer its id, so the check shows it as `answer`.
+        expect(
+          reloaded.messages.map((message) =>
+            message.role === 'assistant' ? 'answer' : message.id,
+          ),
+        ).toEqual([
+          'u1',
+          'sandbox-r1',
+          'answer',
+          'u2',
+          'sandbox-r2',
+          'answer',
+          'u3',
+          'sandbox-r3',
+          'answer',
         ])
-        await collect(
-          chat({
-            adapter,
-            // Like `ChatClient`: the whole thread, but no activity rows.
-            messages: [
-              ...(await loadedThread(persistence)),
-              { id: `u${run}`, role: 'user', content: `question ${run}` },
-            ],
-            runId: `r${run}`,
-            threadId: 't1',
-            middleware: [
-              withPersistence(persistence),
-              {
-                name: 'sandbox',
-                setup: (ctx) => {
-                  ctx.emitActivity(
-                    sandboxStatusActivity,
-                    `sandbox-r${run}`,
-                    sandboxStarting,
-                  )
-                },
-              },
-            ],
-          }) as AsyncIterable<StreamChunk>,
-        )
-      }
-      const reloaded = (await (
-        await reconstructChat(
-          persistence,
-          new Request('http://example.test/api/chat?threadId=t1'),
-        )
-      ).json()) as { messages: Array<{ id: string; role: string }> }
-      // chat() gives each answer its id, so the check shows it as `answer`.
-      expect(
-        reloaded.messages.map((message) =>
-          message.role === 'assistant' ? 'answer' : message.id,
-        ),
-      ).toEqual([
-        'u1',
-        'sandbox-r1',
-        'answer',
-        'u2',
-        'sandbox-r2',
-        'answer',
-        'u3',
-        'sandbox-r3',
-        'answer',
-      ])
-    })
+      },
+    )
 
     // A harness adapter sends a tool call with no text. The store keeps that
     // assistant message with no id, and the client gives it its own id. The
