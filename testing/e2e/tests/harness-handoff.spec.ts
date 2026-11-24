@@ -445,7 +445,7 @@ test.describe('harness: handoffs inside one session', () => {
         {
           from: null,
           to: 'billing',
-          note: 'from main: Refund for order 42.',
+          note: 'from main #1: Refund for order 42.',
           by: 'tool',
           runId: expect.any(String),
         },
@@ -464,7 +464,7 @@ test.describe('harness: handoffs inside one session', () => {
       expect(read.billingCalls).toBe(1)
       // billing gets the note once: from the tool call, with no extra note.
       const sent = JSON.stringify(read.billingRequests[0])
-      expect(sent.split('from main: Refund for order 42.')).toHaveLength(2)
+      expect(sent.split('from main #1: Refund for order 42.')).toHaveLength(2)
     } finally {
       await stop(request, started.runId)
     }

@@ -112,6 +112,7 @@ export const support = defineHarness({
 - `targets` holds the names that this speaker can hand off to. `allowHuman` is the value of `routing.allowHandoffToHuman`.
 - `handoff({ to, note })` hands off. For the main model, the tool call is already in the transcript. The harness adds no note messages.
 - A tool handoff from a root agent still adds the two note messages.
+- `state` is the same function as `ctx.harness.state`. Use it to read the work that your agents keep there, for example `await state({ key: 'order', initial: '' }).get()`. Then put that work in the note. See [Share state between agents](./subagents#share-state-between-agents).
 - The tool can have any name. With `giveModelsHandoffTool: false`, the harness does not call `handoffTool`.
 
 Give one speaker an app tool with the same name as the tool that `handoffTool` returns. It replaces the harness tool. Its code hands off with `ctx.context.run.handoff` (main model) or `ctx.harness.handoff` (root agent), as in [Hand off from code](#2-hand-off-from-code).

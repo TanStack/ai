@@ -15,7 +15,7 @@ import type {
   SubagentsBag,
   SystemPrompt,
 } from '@tanstack/ai'
-import type { AnyAgent } from './agents'
+import type { AnyAgent, HarnessAgentContext } from './agents'
 import type { HandoffOptions } from './handoff'
 import type { ProjectOptions, ReduceOptions } from './log'
 import type { MediaOptions } from './media'
@@ -146,6 +146,12 @@ export interface HandoffToolContext {
    * A root-agent tool handoff still adds the two note messages.
    */
   handoff: (options: HandoffOptions) => Promise<void>
+  /**
+   * The same function as `ctx.harness.state`: state that the agents of the
+   * session share, by key. The log keeps it. `get()` reads the latest value
+   * when the tool runs.
+   */
+  state: HarnessAgentContext['state']
 }
 
 /**

@@ -816,6 +816,7 @@ export abstract class SessionTurn<
               ...(this.harness.routing.handoffTool
                 ? { handoffTool: this.harness.routing.handoffTool }
                 : {}),
+              state: (stateOptions) => this.sharedState(stateOptions),
               append: (record) =>
                 this.appendHandoff(record, storedUser(sender).user),
               publish: (record) =>
