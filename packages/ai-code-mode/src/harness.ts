@@ -68,8 +68,10 @@ export interface CodeModePluginOptions extends Omit<
   /**
    * Make each tool that moves into code mode lazy. The prompt then lists only
    * the tool names, and `lazyToolsConfig.includeDescription` adds part of
-   * each description. The model calls `discover_tools` for the signatures of
-   * the tools it needs, then calls them in `execute_typescript`. This saves
+   * each description. With `lazyToolsConfig.catalog: 'search'` the prompt
+   * lists no tools, and the model finds them with a query. The model calls
+   * `discover_tools` for the signatures of the tools it needs, then calls
+   * them in `execute_typescript`. This saves
    * tokens on each turn when there are many tools. Default `false`.
    */
   lazy?: boolean

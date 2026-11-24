@@ -448,7 +448,7 @@
           "label": "Lazy Tool Discovery",
           "to": "tools/lazy-tool-discovery",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-17"
+          "updatedAt": "2026-11-24"
         },
         {
           "label": "Tool Architecture",
@@ -1113,7 +1113,7 @@
           "label": "Lazy Tools",
           "to": "code-mode/lazy-tools",
           "addedAt": "2026-06-08",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-24"
         }
       ],
       "tab": "guides"
@@ -1376,7 +1376,7 @@
           "label": "Code mode in a harness",
           "to": "harness/code-mode",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-21"
+          "updatedAt": "2026-11-24"
         },
         {
           "label": "Work until a goal is met",
@@ -2178,7 +2178,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-05"
+          "updatedAt": "2026-11-24"
         },
         {
           "label": "@tanstack/ai-client",

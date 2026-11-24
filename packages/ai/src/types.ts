@@ -1228,6 +1228,16 @@ export interface LazyToolsConfig {
    * @default 'none'
    */
   includeDescription?: 'full' | 'first-sentence' | 'none'
+  /**
+   * How the model finds lazy tools.
+   * - 'names' (default): the catalog lists every lazy tool.
+   * - 'search': the catalog lists no tools. The model passes a `query` to the
+   *   discovery tool and gets the best matches back. Use it when there are
+   *   many lazy tools, because each listed name costs prompt tokens on every
+   *   request. `includeDescription` has no effect in this mode.
+   * @default 'names'
+   */
+  catalog?: 'names' | 'search'
 }
 
 export type AnyTool = Omit<Tool<any, any, any, any>, 'execute'> & {

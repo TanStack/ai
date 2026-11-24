@@ -61,3 +61,43 @@ describe('createDiscoveryTool', () => {
     )
   })
 })
+
+describe("createDiscoveryTool — catalog 'search'", () => {
+  const lazyB = toolDefinition({
+    name: 'sendEmail',
+    description: 'Send an email.',
+    inputSchema: z.object({ to: z.string() }),
+    lazy: true,
+  }).server(async () => ({}))
+
+  it('lists no names', () => {
+    const tool = createDiscoveryTool([lazyA, lazyB], { catalog: 'search' })
+    expect(tool.description).not.toContain('fetchStocks')
+    expect(tool.description).not.toContain('sendEmail')
+  })
+
+  it('returns type stubs for the functions that match a query', async () => {
+    const tool = createDiscoveryTool([lazyA, lazyB], { catalog: 'search' })
+    const result = await tool.execute!({ query: 'stock prices' })
+    expect(result.tools.map((t) => t.name)).toEqual(['external_fetchStocks'])
+    expect(result.tools[0]!.typeStub).toContain(
+      'declare function external_fetchStocks',
+    )
+    expect(result.errors).toBeUndefined()
+  })
+
+  it('says when nothing matches, without listing the functions', async () => {
+    const tool = createDiscoveryTool([lazyA, lazyB], { catalog: 'search' })
+    const result = await tool.execute!({ query: 'weather' })
+    expect(result.tools).toEqual([])
+    expect(result.errors?.[0]).toContain("No functions match 'weather'")
+    const unknown = await tool.execute!({ toolNames: ['nope'] })
+    expect(unknown.errors?.[0]).not.toContain('fetchStocks')
+  })
+
+  it('still resolves exact names', async () => {
+    const tool = createDiscoveryTool([lazyA, lazyB], { catalog: 'search' })
+    const result = await tool.execute!({ toolNames: ['external_sendEmail'] })
+    expect(result.tools.map((t) => t.name)).toEqual(['external_sendEmail'])
+  })
+})

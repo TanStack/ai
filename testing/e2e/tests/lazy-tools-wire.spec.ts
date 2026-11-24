@@ -133,4 +133,34 @@ test.describe('lazy tools — discovery catalog wire format', () => {
       'check_stock — Check stock level for a guitar. Returns quantity on hand.',
     )
   })
+
+  test("catalog: 'search' lists no names, and a query discovers a tool", async ({
+    request,
+    aimockPort,
+    testId,
+  }) => {
+    const res = await request.post(
+      `/api/lazy-tools-wire?catalog=search&testId=${encodeURIComponent(testId)}`,
+    )
+    expect(res.ok()).toBe(true)
+    expect(((await res.json()) as { ok: boolean }).ok).toBe(true)
+
+    const description = await discoveryDescription(request, aimockPort, testId)
+    expect(description).toBeDefined()
+    expect(description).toContain('query')
+    expect(description).not.toContain('search_inventory')
+    expect(description).not.toContain('check_stock')
+
+    // After the query, the next request offers the tool it found.
+    const journalRes = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const offered = ((await journalRes.json()) as Array<JournalEntry>)
+      .filter((entry) => entry.headers?.['x-test-id'] === testId)
+      .map((entry) => (entry.body?.tools ?? []).map((t) => t.function?.name))
+    expect(offered.length).toBeGreaterThanOrEqual(2)
+    expect(offered[0]).not.toContain('check_stock')
+    expect(offered[1]).toContain('check_stock')
+    expect(offered[1]).not.toContain('search_inventory')
+  })
 })

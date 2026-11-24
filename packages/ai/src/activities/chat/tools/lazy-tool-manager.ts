@@ -1,5 +1,5 @@
 import { convertSchemaToJsonSchema } from './schema-converter'
-import { renderLazyCatalogEntry } from './lazy-tools'
+import { renderLazyCatalogEntry, searchLazyTools } from './lazy-tools'
 import type { AnyTool, LazyToolsConfig, Tool } from '../../../types'
 
 /**
@@ -243,7 +243,11 @@ export class LazyToolManager {
     const allLazyEntries = Array.from(this.lazyToolMap.values()).map((t) =>
       renderLazyCatalogEntry(t.name, t.description, include),
     )
-    const description = `You have access to additional tools that can be discovered. Available tools: [${allLazyEntries.join(', ')}]. Call this tool with a list of tool names to discover their full descriptions and argument schemas before using them.`
+    // With catalog 'search', no tool is listed: the model finds them by query.
+    const search = this.lazyToolsConfig.catalog === 'search'
+    const description = search
+      ? `You have access to additional tools that are not listed here. Call this tool with a query that says what you need to do. It returns the best matching tools with their full descriptions and argument schemas, and you can use them after that. You can also pass exact tool names.`
+      : `You have access to additional tools that can be discovered. Available tools: [${allLazyEntries.join(', ')}]. Call this tool with a list of tool names to discover their full descriptions and argument schemas before using them.`
 
     // Use the arrow function to capture `this` context
     const manager = this
@@ -251,19 +255,35 @@ export class LazyToolManager {
     return {
       name: DISCOVERY_TOOL_NAME,
       description,
-      inputSchema: {
-        type: 'object',
-        properties: {
-          toolNames: {
-            type: 'array',
-            items: { type: 'string' },
-            description:
-              'List of tool names to discover. Each name must match one of the available tools.',
+      inputSchema: search
+        ? {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description:
+                  'What you need to do, in a few words. Returns the best matching tools.',
+              },
+              toolNames: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Exact names of tools to discover.',
+              },
+            },
+          }
+        : {
+            type: 'object',
+            properties: {
+              toolNames: {
+                type: 'array',
+                items: { type: 'string' },
+                description:
+                  'List of tool names to discover. Each name must match one of the available tools.',
+              },
+            },
+            required: ['toolNames'],
           },
-        },
-        required: ['toolNames'],
-      },
-      execute: (args: { toolNames: Array<string> }) => {
+      execute: (args: { toolNames?: Array<string>; query?: string }) => {
         const tools: Array<{
           name: string
           description: string
@@ -271,7 +291,16 @@ export class LazyToolManager {
         }> = []
         const errors: Array<string> = []
 
-        for (const name of args.toolNames) {
+        const names = new Set(args.toolNames ?? [])
+        if (args.query) {
+          const found = searchLazyTools(lazyToolMap.values(), args.query)
+          if (found.length === 0) {
+            errors.push(`No tools match '${args.query}'. Try other words.`)
+          }
+          for (const tool of found) names.add(tool.name)
+        }
+
+        for (const name of names) {
           const lazyTool = lazyToolMap.get(name)
           // A tool already offered this turn (eager, discovered, or added by
           // middleware) returns its schema like a re-discovered lazy tool.
@@ -295,7 +324,9 @@ export class LazyToolManager {
             })
           } else {
             errors.push(
-              `Unknown tool: '${name}'. Available tools: [${undiscoveredNames().join(', ')}]`,
+              search
+                ? `Unknown tool: '${name}'. Call this tool with a query to find tools.`
+                : `Unknown tool: '${name}'. Available tools: [${undiscoveredNames().join(', ')}]`,
             )
           }
         }

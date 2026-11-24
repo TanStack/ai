@@ -141,6 +141,18 @@ describe('createCodeModeSystemPrompt — lazy tools', () => {
     expect(prompt).toContain('external_fetchStocks — Get stock prices.')
   })
 
+  it("lists no lazy tools with catalog 'search', and says to search", () => {
+    const prompt = createCodeModeSystemPrompt({
+      driver: driverStub,
+      tools: [eagerTool, lazyTool],
+      lazyToolsConfig: { catalog: 'search' },
+    })
+    expect(prompt).toContain('Discoverable APIs')
+    expect(prompt).toContain('`query`')
+    expect(prompt).not.toContain('external_fetchStocks')
+    expect(prompt).toContain('declare function external_fetchWeather')
+  })
+
   it('omits the Discoverable APIs section when there are no lazy tools', () => {
     const prompt = createCodeModeSystemPrompt({
       driver: driverStub,

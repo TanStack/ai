@@ -129,6 +129,8 @@ The model then works in three steps:
 
 `includeDescription` sets what the prompt shows with each name: `'none'` (the default, the name only), `'first-sentence'`, or `'full'`. Tools that stay outside code mode keep their full schema.
 
+With hundreds of tools, set `lazyToolsConfig: { catalog: 'search' }`. The prompt then lists no names, and the model calls `discover_tools` with a query. See [Find tools by search](../code-mode/lazy-tools#find-tools-by-search).
+
 ## Run the coding tools in a program
 
 To fix a bug, the model reads a file, edits it, and runs the tests. Each step is a tool call and a model round trip. Move the [coding tools](./coding-tools) into code mode, and one program does all the steps. Each call in the program still gets the [permission rules](./permissions) of its tool.

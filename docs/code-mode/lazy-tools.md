@@ -135,6 +135,23 @@ const { tools, systemPrompt } = createCodeMode({
 
 `includeDescription` changes only the catalog. A `discover_tools` call always returns the full type stub.
 
+## Find tools by search
+
+With hundreds of lazy tools, the list of names is long, and the prompt pays for it on every request. Set `lazyToolsConfig.catalog` to `'search'` to list no names:
+
+```typescript ignore
+const { tools, systemPrompt } = createCodeMode({
+  driver: createNodeIsolateDriver(),
+  tools: [fetchWeather, fetchArchive],
+  lazyToolsConfig: { catalog: "search" },
+});
+```
+
+- The "Discoverable APIs" section of the prompt and the description of `discover_tools` tell the model to search. They list no tools.
+- The model calls `discover_tools` with a `query`, for example `{ query: "weather archive for a date range" }`.
+- The result has the type stubs of the 10 best matching tools. A tool scores one point for each query word in its name or description.
+- The model can still pass `toolNames` when it knows a name.
+
 ## Lazy tools with no Code Mode
 
 `chat()` also takes `lazyToolsConfig`, for lazy tools that you give to `chat()` directly. The `includeDescription` values work the same way:
@@ -166,8 +183,8 @@ If no tool is lazy, `tools` holds only `execute_typescript`. So you can always p
 
 ### `discover_tools` input and output
 
-- **Input:** `{ toolNames: Array<string> }`. Each name can be `fetchArchive` or `external_fetchArchive`.
-- **Output:** `{ tools: Array<{ name, description, typeStub }>, errors? }`. An unknown name adds an entry to `errors` that lists the tools that the model can discover.
+- **Input:** `{ toolNames: Array<string> }`. Each name can be `fetchArchive` or `external_fetchArchive`. With `catalog: 'search'`, the input is `{ query?: string, toolNames?: Array<string> }`.
+- **Output:** `{ tools: Array<{ name, description, typeStub }>, errors? }`. An unknown name adds an entry to `errors` that lists the tools that the model can discover. With `catalog: 'search'`, the entry lists no tools, and a query with no match adds an entry too.
 
 `discover_tools` is a separate tool call. It is not a function inside `execute_typescript`.
 

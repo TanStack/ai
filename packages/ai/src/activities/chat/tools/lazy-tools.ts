@@ -31,3 +31,37 @@ export function renderLazyCatalogEntry(
       : description.trim()
   return desc ? `${name} — ${desc}` : name
 }
+
+/** Lowercase words of a text, split at non-alphanumerics and camelCase. */
+function words(text: string): Set<string> {
+  return new Set(
+    text
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter(Boolean),
+  )
+}
+
+/**
+ * Lazy tools that match a search query, best match first. A tool scores one
+ * point for each query word in its name or description.
+ */
+// ponytail: keyword overlap, no stemming or synonyms. Swap in BM25 or
+// embeddings here if recall on large catalogs is not good enough.
+export function searchLazyTools<
+  TTool extends { name: string; description: string },
+>(tools: Iterable<TTool>, query: string, limit = 10): Array<TTool> {
+  const asked = words(query)
+  return Array.from(tools)
+    .map((tool) => {
+      const own = words(`${tool.name} ${tool.description}`)
+      let score = 0
+      for (const word of asked) if (own.has(word)) score++
+      return { tool, score }
+    })
+    .filter((match) => match.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((match) => match.tool)
+}
