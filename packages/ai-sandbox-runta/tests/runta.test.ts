@@ -49,6 +49,28 @@ describe.skipIf(!apiKey)('runta provider (gated on RUNTA_TOKEN)', () => {
     }
   }, 180_000)
 
+  // Runta addresses a runtime by UUID only, so resume and destroy by the
+  // handle id (the runtime name) must find the runtime first.
+  it('resumes a paused sandbox by id, then destroys it by id', async () => {
+    const provider = runtaSandbox({ apiKey })
+    const created = await provider.create({})
+    try {
+      await created.fs.write('/workspace/kept.txt', 'still here')
+      await created.process.exec('true')
+      const { RuntaClient } = await import('../src/client')
+      const client = new RuntaClient({ apiKey: apiKey ?? '' })
+      await client.lifecycle(created.id, 'pause')
+
+      const resumed = await provider.resume({ id: created.id })
+      expect(resumed?.id).toBe(created.id)
+      expect(await resumed?.fs.read('/workspace/kept.txt')).toBe('still here')
+      expect(await provider.resume({ id: 'tanstack-ai-no-such-id' })).toBeNull()
+    } finally {
+      await provider.destroy({ id: created.id })
+    }
+    expect(await provider.resume({ id: created.id })).toBeNull()
+  }, 180_000)
+
   it('streams a spawned process and takes stdin', async () => {
     const provider = runtaSandbox({ apiKey })
     let sbx: SandboxHandle | undefined
@@ -80,9 +102,17 @@ describe.skipIf(!apiKey)('runta provider (gated on RUNTA_TOKEN)', () => {
       expect(restored?.id).not.toBe(sbx.id)
       expect(await restored?.fs.read('/workspace/state.txt')).toBe('original')
     } finally {
-      await sbx.destroy()
-      await restored?.destroy()
-      if (snapshotId) await provider.deleteSnapshot?.({ snapshotId })
+      // Each cleanup runs even when an earlier one fails, so a failed destroy
+      // does not leave the restored runtime or the checkpoint behind.
+      try {
+        await sbx.destroy()
+      } finally {
+        try {
+          await restored?.destroy()
+        } finally {
+          if (snapshotId) await provider.deleteSnapshot?.({ snapshotId })
+        }
+      }
     }
   }, 300_000)
 

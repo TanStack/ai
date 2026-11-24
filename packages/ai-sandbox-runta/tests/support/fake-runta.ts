@@ -15,11 +15,10 @@
  */
 
 import { spawn } from 'node:child_process'
+import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve, sep } from 'node:path'
-
-import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 
 export interface FakeRuntaOptions {
   /** Directory that plays the runtime filesystem. Exec starts here. */
@@ -30,6 +29,8 @@ export interface FakeRuntaOptions {
   endpoint?: string
   /** Largest file PUT body, as on the real API. Defaults to 1 MiB. */
   maxFilePutBytes?: number
+  /** Largest page the list endpoints return. Defaults to 100. */
+  pageSize?: number
   /** Whether closing the exec socket kills the process. Defaults to true, as on the real API. */
   killOnSocketClose?: boolean
   /**
@@ -88,6 +89,11 @@ export class FakeRunta {
   }> = []
   /** Live exec child processes. */
   readonly processes = new Set<ChildProcessWithoutNullStreams>()
+  /**
+   * Ids of runtimes that were just deleted: still listed, and still holding
+   * their name, but 404 when read by id. Production does this for a moment.
+   */
+  readonly ghosts = new Set<string>()
   /** Set to make the next mutation fail once with a stale-revision 409. */
   failNextMutationWithConflict = false
   /** Status a runtime gets right after creation. Set to `creating` to test waiting. */
@@ -95,6 +101,7 @@ export class FakeRunta {
 
   private readonly maxFilePutBytes: number
   private readonly killOnSocketClose: boolean
+  private readonly pageSize: number
   private readonly transitionDelayMs: number
   private readonly idempotency = new Map<string, string>()
 
@@ -107,6 +114,7 @@ export class FakeRunta {
     )
     this.maxFilePutBytes = options.maxFilePutBytes ?? 1024 * 1024
     this.killOnSocketClose = options.killOnSocketClose ?? true
+    this.pageSize = options.pageSize ?? 100
     this.transitionDelayMs = options.transitionDelayMs ?? 0
   }
 
@@ -188,14 +196,19 @@ export class FakeRunta {
   ): Promise<Response> {
     const method = request.method
     if (rest.length === 0) {
-      if (method === 'GET')
-        return data([...this.runtimes.values()].map(publicRuntime))
+      if (method === 'GET') return this.listRuntimes(query)
       if (method === 'POST')
         return this.createRuntime(body, request.headers.get('idempotency-key'))
       return error(405, 'unimplemented', 'method not allowed')
     }
 
-    const runtime = this.runtime(rest[0] ?? '')
+    // Production addresses a runtime by UUID only; a name in the path is a 422.
+    if (!UUID_PATTERN.test(rest[0] ?? '')) {
+      return error(422, 'invalid_argument', 'runtime_id must be a UUID')
+    }
+    const runtime = this.ghosts.has(rest[0] ?? '')
+      ? undefined
+      : this.runtimes.get(rest[0] ?? '')
     if (!runtime) return error(404, 'not_found', `runtime ${rest[0]} not found`)
 
     if (rest.length === 1) {
@@ -272,6 +285,22 @@ export class FakeRunta {
       return data(publicRuntime(runtime))
     }
     return error(404, 'not_found', 'unknown path')
+  }
+
+  private listRuntimes(query: Record<string, string>): Response {
+    const all = [...this.runtimes.values()].map(publicRuntime)
+    const start = Number(query.after ?? 0)
+    const end = start + Math.min(Number(query.limit ?? 50), this.pageSize)
+    return new Response(
+      JSON.stringify({
+        data: all.slice(start, end),
+        pagination: {
+          has_more: end < all.length,
+          next_cursor: end < all.length ? String(end) : null,
+        },
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    )
   }
 
   private createRuntime(
@@ -378,7 +407,10 @@ export class FakeRunta {
           status: 200,
           headers: { 'content-type': 'application/octet-stream' },
         })
-      } catch {
+      } catch (cause) {
+        if (asRecord(cause).code === 'EISDIR') {
+          return error(422, 'invalid_argument', `${path} is not a regular file`)
+        }
         return error(404, 'not_found', `${path} not found`)
       }
     }
@@ -451,9 +483,11 @@ export class FakeRunta {
           new URL(url).pathname,
         )
         this.runtime = match
-          ? fake.runtime(decodeURIComponent(match[1] ?? ''))
+          ? fake.runtimes.get(decodeURIComponent(match[1] ?? ''))
           : undefined
         queueMicrotask(() => {
+          // The client closed the socket before the handshake: it never opens.
+          if (this.readyState !== 0) return
           if (
             headers.authorization !== `Bearer ${fake.apiKey}` ||
             !this.runtime ||
@@ -620,3 +654,6 @@ function lowerCaseKeys(
     Object.entries(headers).map(([key, value]) => [key.toLowerCase(), value]),
   )
 }
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

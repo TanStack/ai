@@ -115,11 +115,40 @@ describe('runtaSandbox', () => {
     await handle.fs.rename('/workspace/dir/a.txt', "/workspace/dir/it's here")
     expect(await handle.fs.exists('/workspace/dir/a.txt')).toBe(false)
     expect(await handle.fs.exists("/workspace/dir/it's here")).toBe(true)
+    // A rename never lands inside a destination that is a directory.
+    await expect(
+      handle.fs.rename('/workspace/dir/b.bin', '/workspace/dir/nested'),
+    ).rejects.toThrow(/rename failed: destination is a directory/)
+    expect(await handle.fs.exists('/workspace/dir/b.bin')).toBe(true)
     await handle.fs.remove('/workspace/dir')
     expect(await handle.fs.exists('/workspace/dir')).toBe(false)
     await expect(handle.fs.list('/workspace/dir')).rejects.toThrow(
       /list failed/,
     )
+  })
+
+  it('lists hidden entries, and a name with a newline as one entry', async () => {
+    const handle = await provider.create({})
+    await handle.fs.write('/workspace/part\ntwo', 'x')
+    await handle.fs.write('/workspace/.hidden', 'x')
+    expect(await handle.fs.list('/workspace')).toEqual([
+      { name: '.hidden', path: '/workspace/.hidden', type: 'file' },
+      { name: 'part\ntwo', path: '/workspace/part\ntwo', type: 'file' },
+    ])
+    await handle.fs.mkdir('/workspace/empty')
+    expect(await handle.fs.list('/workspace/empty')).toEqual([])
+  })
+
+  it('rejects a git command that fails', async () => {
+    const handle = await provider.create({})
+    await expect(
+      handle.git.clone({
+        url: join(root, 'no-such-repo'),
+        dir: join(root, 'ws', 'clone'),
+      }),
+    ).rejects.toThrow(/git command failed with exit code/)
+    // process.exec still returns the exit code.
+    expect((await handle.process.exec('exit 3')).exitCode).toBe(3)
   })
 
   it('stops an fs call when its signal is already aborted', async () => {
@@ -159,6 +188,38 @@ describe('runtaSandbox', () => {
     expect(await resumed?.fs.read('/workspace/kept.txt')).toBe('still here')
 
     expect(await provider.resume({ id: 'gone' })).toBeNull()
+  })
+
+  it('returns null when the runtime is deleted while it resumes', async () => {
+    const created = await provider.create({ id: 'box' })
+    const runtimeId = fake.runtime('box')?.id ?? ''
+    let reads = 0
+    // The lookup reads the runtime by id once. Delete it right after that.
+    vi.stubGlobal(
+      'fetch',
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const response = await fake.fetch(input, init)
+        if (String(input).endsWith(runtimeId) && (reads += 1) === 1) {
+          fake.runtimes.delete(runtimeId)
+        }
+        return response
+      },
+    )
+    provider = runtaSandbox({
+      apiKey: fake.apiKey,
+      apiUrl: fake.endpoint,
+      workdir: join(root, 'ws'),
+    })
+    expect(await provider.resume({ id: created.id })).toBeNull()
+  })
+
+  it('deletes the runtime when a create is aborted before it is ready', async () => {
+    fake.statusAfterCreate = 'creating'
+    const controller = new AbortController()
+    const pending = provider.create({ id: 'box', signal: controller.signal })
+    setTimeout(() => controller.abort(new Error('stop')), 20)
+    await expect(pending).rejects.toThrow('stop')
+    expect(fake.runtimes.size).toBe(0)
   })
 
   it('publishes a port and returns its public URL', async () => {

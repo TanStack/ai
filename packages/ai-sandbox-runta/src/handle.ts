@@ -109,20 +109,25 @@ export class RuntaHandle implements SandboxHandle {
       write: (p, data, o) =>
         this.client.writeFile(this.runtimeId, this.abs(p), data, o?.signal),
       list: async (p, o) => {
-        // ponytail: `ls` output, so a file name with a newline lists as two
-        // entries. Switch to `find -print0` if that matters.
-        const r = await run('list', `ls -1Ap -- ${q(this.abs(p))}`, o?.signal)
+        // One record per entry: `d` or `f`, the name, then NUL. A name can
+        // hold a newline, so lines of `ls` output would split it in two.
+        const r = await run(
+          'list',
+          `cd -- ${q(this.abs(p))} && shopt -s nullglob dotglob && for f in *; do if [ -d "$f" ] && [ ! -L "$f" ]; then printf 'd%s\\0' "$f"; else printf 'f%s\\0' "$f"; fi; done`,
+          o?.signal,
+        )
         const base = p.replace(/\/$/, '')
         return r.stdout
-          .split('\n')
-          .filter((line) => line !== '')
-          .map((line) => {
-            const isDir = line.endsWith('/')
-            const name = isDir ? line.slice(0, -1) : line
+          .split('\0')
+          .filter((record) => record !== '')
+          .map((record) => {
+            const name = record.slice(1)
             return {
               name,
               path: `${base}/${name}`,
-              type: isDir ? ('dir' as const) : ('file' as const),
+              type: record.startsWith('d')
+                ? ('dir' as const)
+                : ('file' as const),
             }
           })
       },
@@ -146,9 +151,14 @@ export class RuntaHandle implements SandboxHandle {
         await run('remove', `rm -rf -- ${q(this.abs(p))}`, o?.signal)
       },
       rename: async (from, to, o) => {
+        // `mv` puts the source INSIDE a destination that is a directory, and
+        // reports success. Refuse, so a rename lands at `to` or fails.
+        // ponytail: this also refuses a directory that replaces an empty one,
+        // which rename(2) allows. Use `mv -T` if a caller needs that.
+        const target = q(this.abs(to))
         await run(
           'rename',
-          `mv -- ${q(this.abs(from))} ${q(this.abs(to))}`,
+          `if [ -d ${target} ] && [ ! -L ${target} ]; then echo 'destination is a directory' >&2; exit 1; fi; mv -- ${q(this.abs(from))} ${target}`,
           o?.signal,
         )
       },
@@ -161,7 +171,23 @@ export class RuntaHandle implements SandboxHandle {
       },
     }
 
-    this.git = createExecBackedGit(this.process, this.workdir)
+    // The shared git helper does not read exit codes, so a failed clone would
+    // resolve. `process.exec` itself keeps returning the code to its callers.
+    this.git = createExecBackedGit(
+      {
+        ...this.process,
+        exec: async (command, opts) => {
+          const r = await this.exec(command, opts)
+          if (r.exitCode !== 0) {
+            throw new Error(
+              `git command failed with exit code ${r.exitCode}: ${r.stderr.trim() || '(no output)'}`,
+            )
+          }
+          return r
+        },
+      },
+      this.workdir,
+    )
 
     this.ports = {
       // A published Runta URL carries no auth: anyone with the URL can reach it.

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { RuntaClient } from './client'
+import { RuntaApiError, RuntaClient } from './client'
 import { RUNTA_CAPS, RuntaHandle } from './handle'
 import type { RuntaCreateRuntimeOptions, RuntaRuntime } from './client'
 import type {
@@ -89,6 +89,30 @@ class RuntaProvider implements SandboxProvider {
     }
   }
 
+  /**
+   * Wait for a runtime that was just created, then set it up. If either step
+   * fails, delete the runtime: no handle reaches the caller, so nothing else
+   * would, and it would keep running and billing.
+   */
+  private async adopt(
+    created: RuntaRuntime,
+    input: { env?: Record<string, string>; signal?: AbortSignal },
+  ): Promise<RuntaHandle> {
+    try {
+      const runtime = await this.client.waitUntilRunning(created.id, {
+        signal: input.signal,
+      })
+      return await this.ready(runtime, input)
+    } catch (error) {
+      // The caller's signal may be the reason for the failure, so the delete
+      // gets its own, with a limit.
+      await this.client
+        .deleteRuntime(created.id, AbortSignal.timeout(30_000))
+        .catch(() => undefined)
+      throw error
+    }
+  }
+
   private async ready(
     runtime: RuntaRuntime,
     input: { env?: Record<string, string>; signal?: AbortSignal },
@@ -132,20 +156,28 @@ class RuntaProvider implements SandboxProvider {
         ? { memoryMib: this.config.memoryMib }
         : {}),
       ...this.runtimeOptions(input),
+      wait: false,
     })
-    return this.ready(runtime, input)
+    return this.adopt(runtime, input)
   }
 
   async resume(input: SandboxResumeInput): Promise<SandboxHandle | null> {
     const runtime = await this.client.findRuntime(input.id, input.signal)
-    if (!runtime) return null
-    // Exec does not wake a paused or suspended runtime, so do it here.
-    return this.handle(
-      await this.client.ensureRunning(
-        runtime.id,
-        input.signal ? { signal: input.signal } : {},
-      ),
-    )
+    // A runtime that is being deleted is gone as far as a resume is concerned.
+    if (!runtime || runtime.status === 'deleting') return null
+    try {
+      // Exec does not wake a paused or suspended runtime, so do it here.
+      return this.handle(
+        await this.client.ensureRunning(
+          runtime.id,
+          input.signal ? { signal: input.signal } : {},
+        ),
+      )
+    } catch (error) {
+      // Deleted between the lookup and the wake: gone, like any missing one.
+      if (error instanceof RuntaApiError && error.status === 404) return null
+      throw error
+    }
   }
 
   /** A checkpoint restores into a NEW runtime, so this works after the source is gone. */
@@ -154,8 +186,9 @@ class RuntaProvider implements SandboxProvider {
       name: this.randomName(),
       checkpointId: input.snapshotId,
       ...this.runtimeOptions(input),
+      wait: false,
     })
-    return this.ready(runtime, input)
+    return this.adopt(runtime, input)
   }
 
   async deleteSnapshot(input: SandboxDeleteSnapshotInput): Promise<void> {

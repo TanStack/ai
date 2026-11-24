@@ -49,7 +49,10 @@ export type RuntaIdlePolicy =
 export interface RuntaRuntime {
   /** Stable UUID. */
   id: string
-  /** Unique display name. Also accepted wherever an id is. */
+  /**
+   * Unique display name. The API addresses a runtime by UUID only; this
+   * client resolves a name through the runtime list.
+   */
   name: string
   status: RuntaRuntimeStatus
   /**
@@ -127,6 +130,12 @@ export interface RuntaSpawnOptions {
 
 /** A live process on the exec WebSocket. */
 export interface RuntaExecStream {
+  /**
+   * Resolves when the socket is open and the command was sent. Rejects when
+   * the connection fails first, for example with code `unavailable` when the
+   * runtime is paused or suspended.
+   */
+  opened: Promise<void>
   stdout: AsyncIterable<Uint8Array>
   stderr: AsyncIterable<Uint8Array>
   stdin: {
@@ -203,6 +212,8 @@ const STDIN_CHUNK_BYTES = 64 * 1024
 const SEND_HIGH_WATER_BYTES = 1024 * 1024
 const MAX_INGRESS_SPECS = 16
 const REVISION_RETRIES = 3
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const SETTLED_STATUSES = ['running', 'paused', 'suspended', 'shutdown']
 const FAILED_STATUSES = ['error', 'crashed', 'deleting']
 const LIFECYCLE_TARGETS = {
@@ -244,9 +255,30 @@ export class RuntaClient {
     idOrName: string,
     signal?: AbortSignal,
   ): Promise<RuntaRuntime> {
-    return parseRuntime(
-      await this.json('GET', runtimePath(idOrName), { signal }),
+    if (UUID_PATTERN.test(idOrName)) {
+      return parseRuntime(
+        await this.json('GET', runtimePath(idOrName), { signal }),
+      )
+    }
+    // The API rejects a name in the path ("runtime_id must be a UUID"), so
+    // find the runtime in the list. Names are unique within an organization.
+    const match = (await this.listRuntimes(signal)).find(
+      (runtime) => runtime.name === idOrName,
     )
+    if (!match) {
+      throw new RuntaApiError(`Runta: no runtime is named "${idOrName}".`, {
+        status: 404,
+        code: 'not_found',
+      })
+    }
+    // The list can still show a runtime that was just deleted. Read it by id,
+    // which answers 404 for one that is gone.
+    return this.getRuntime(match.id, signal)
+  }
+
+  /** Every runtime the API key can see. */
+  async listRuntimes(signal?: AbortSignal): Promise<Array<RuntaRuntime>> {
+    return this.listAll('/v2/runtimes', parseRuntime, signal)
   }
 
   /** Like {@link getRuntime}, but resolves `null` when the runtime does not exist. */
@@ -289,25 +321,36 @@ export class RuntaClient {
     name: string,
     options: Omit<RuntaCreateRuntimeOptions, 'name'> = {},
   ): Promise<{ runtime: RuntaRuntime; created: boolean }> {
-    const existing = await this.findRuntime(name, options.signal)
-    if (existing)
-      return {
-        runtime: await this.ensureRunning(existing.id, options),
-        created: false,
+    // A runtime that is being deleted holds its name until it is gone, so a
+    // create can answer "already exists" for a while. Wait for the name.
+    const deadline = Date.now() + 120_000
+    for (;;) {
+      const existing = await this.findRuntime(name, options.signal)
+      if (existing && existing.status !== 'deleting') {
+        return {
+          runtime: await this.ensureRunning(existing.id, options),
+          created: false,
+        }
       }
-    try {
-      return {
-        runtime: await this.createRuntime({ ...options, name }),
-        created: true,
+      if (!existing) {
+        try {
+          return {
+            runtime: await this.createRuntime({ ...options, name }),
+            created: true,
+          }
+        } catch (error) {
+          // Lost a race with another create, or the name is not free yet.
+          if (!(error instanceof RuntaApiError) || !isAlreadyExists(error))
+            throw error
+        }
       }
-    } catch (error) {
-      if (!(error instanceof RuntaApiError) || !isAlreadyExists(error))
-        throw error
-      const winner = await this.getRuntime(name, options.signal)
-      return {
-        runtime: await this.ensureRunning(winner.id, options),
-        created: false,
+      if (Date.now() >= deadline) {
+        throw new RuntaApiError(
+          `Runta: the name "${name}" is still held by a runtime that is being deleted.`,
+          { code: 'deadline_exceeded' },
+        )
       }
+      await delay(1000, options.signal)
     }
   }
 
@@ -360,25 +403,55 @@ export class RuntaClient {
       signal?: AbortSignal | undefined
     } = {},
   ): Promise<RuntaRuntime> {
+    return this.poll(
+      idOrName,
+      target,
+      (runtime) => {
+        if (runtime.status === target) return true
+        if (FAILED_STATUSES.includes(runtime.status)) {
+          throw new RuntaApiError(
+            `Runta: runtime "${runtime.name}" is ${runtime.status} while waiting for it to be ${target}.`,
+            { code: 'failed_precondition' },
+          )
+        }
+        return false
+      },
+      options,
+    )
+  }
+
+  /**
+   * Read the runtime until `done` accepts it. The timeout covers the requests
+   * as well as the pauses between them, so a stalled request cannot outlast it.
+   */
+  private async poll(
+    idOrName: string,
+    waitingFor: string,
+    done: (runtime: RuntaRuntime) => boolean,
+    options: {
+      timeoutMs?: number | undefined
+      pollMs?: number
+      signal?: AbortSignal | undefined
+    },
+  ): Promise<RuntaRuntime> {
     const timeoutMs = options.timeoutMs ?? 240_000
-    const deadline = Date.now() + timeoutMs
-    for (;;) {
-      const runtime = await this.getRuntime(idOrName, options.signal)
-      if (runtime.status === target) return runtime
-      if (FAILED_STATUSES.includes(runtime.status)) {
-        throw new RuntaApiError(
-          `Runta: runtime "${runtime.name}" is ${runtime.status} while waiting for it to be ${target}.`,
-          { code: 'failed_precondition' },
-        )
-      }
-      if (Date.now() >= deadline) {
-        throw new RuntaApiError(
-          `Runta: runtime "${runtime.name}" was still ${runtime.status} after ${timeoutMs}ms, not ${target}.`,
+    let last: RuntaRuntime | undefined
+    return withDeadline(
+      timeoutMs,
+      options.signal,
+      async (signal) => {
+        for (;;) {
+          last = await this.getRuntime(idOrName, signal)
+          if (done(last)) return last
+          await delay(options.pollMs ?? 500, signal)
+        }
+      },
+      () =>
+        new RuntaApiError(
+          `Runta: runtime "${last?.name ?? idOrName}" was still ${last?.status ?? 'unreachable'} after ${timeoutMs}ms, not ${waitingFor}.`,
           { code: 'deadline_exceeded' },
-        )
-      }
-      await delay(options.pollMs ?? 500, options.signal)
-    }
+        ),
+    )
   }
 
   /**
@@ -390,14 +463,15 @@ export class RuntaClient {
     runtime: RuntaRuntime,
     wait: { timeoutMs?: number | undefined; signal?: AbortSignal | undefined },
   ): Promise<RuntaRuntime> {
-    if (
-      runtime.status === runtime.desiredStatus ||
-      !SETTLED_STATUSES.includes(runtime.desiredStatus) ||
-      !['creating', ...SETTLED_STATUSES].includes(runtime.status)
-    ) {
-      return runtime
-    }
-    return this.waitForStatus(runtime.id, runtime.desiredStatus, wait)
+    if (!inFlight(runtime)) return runtime
+    // Check the target on every read: another caller can change it meanwhile,
+    // and the status then never reaches the one recorded here.
+    return this.poll(
+      runtime.id,
+      runtime.desiredStatus,
+      (current) => !inFlight(current),
+      wait,
+    )
   }
 
   /**
@@ -473,6 +547,15 @@ export class RuntaClient {
     port: number,
     options: { protocol?: 'http' | 'https'; signal?: AbortSignal } = {},
   ): Promise<string> {
+    const noUrl = (): RuntaApiError =>
+      new RuntaApiError(
+        `Runta: cannot derive a public URL for port ${port} from the endpoint ${this.endpoint}.`,
+        { code: 'unimplemented' },
+      )
+    // Check before publishing: a port with no URL to return would stay public,
+    // with no auth, and the caller would not know.
+    if (runtimeIngressUrl(this.endpoint, 'id', port) === undefined)
+      throw noUrl()
     let runtime = await this.getRuntime(idOrName, options.signal)
     let spec = runtime.ingressSpecs.find((entry) => entry.runtimePort === port)
     if (!spec) {
@@ -507,12 +590,7 @@ export class RuntaClient {
       port,
       spec?.hostnameLabel,
     )
-    if (url === undefined) {
-      throw new RuntaApiError(
-        `Runta: cannot derive a public URL for port ${port} from the endpoint ${this.endpoint}.`,
-        { code: 'unimplemented' },
-      )
-    }
+    if (url === undefined) throw noUrl()
     return url
   }
 
@@ -556,7 +634,8 @@ export class RuntaClient {
 
   /**
    * Write a file by absolute path. Bodies above the file endpoint's limit are
-   * streamed through the exec WebSocket into `cat`.
+   * streamed through the exec WebSocket into `cat`. Both paths create missing
+   * parent directories.
    */
   async writeFile(
     runtimeId: string,
@@ -568,7 +647,13 @@ export class RuntaClient {
       typeof data === 'string' ? new TextEncoder().encode(data) : data
     if (bytes.byteLength > this.maxFilePutBytes) {
       const result = await this.exec(runtimeId, {
-        argv: ['sh', '-c', 'cat > "$1"', 'runta-write', path],
+        argv: [
+          'sh',
+          '-c',
+          'mkdir -p -- "$(dirname -- "$1")" && cat > "$1"',
+          'runta-write',
+          path,
+        ],
         stdin: bytes,
         ...(signal ? { signal } : {}),
       })
@@ -585,7 +670,7 @@ export class RuntaClient {
       `${runtimePath(runtimeId)}/files`,
       {
         params: { path },
-        // Copy into a fresh ArrayBuffer-backed view so the body is a plain BodyInit.
+        // Copy into a fresh ArrayBuffer-backed view, which every fetch typing accepts as a body.
         rawBody: bytes.slice(),
         headers: { 'content-type': 'application/octet-stream' },
         signal,
@@ -616,18 +701,23 @@ export class RuntaClient {
       }),
     )
     const timeoutMs = options.readyTimeoutMs ?? 240_000
-    const deadline = Date.now() + timeoutMs
-    let checkpoint = created
-    while (checkpoint.state === 'creating') {
-      if (Date.now() >= deadline) {
-        throw new RuntaApiError(
-          `Runta: checkpoint ${checkpoint.id} was not ready after ${timeoutMs}ms.`,
+    const checkpoint = await withDeadline(
+      timeoutMs,
+      options.signal,
+      async (signal) => {
+        let current = created
+        while (current.state === 'creating') {
+          await delay(500, signal)
+          current = await this.getCheckpoint(current.id, signal)
+        }
+        return current
+      },
+      () =>
+        new RuntaApiError(
+          `Runta: checkpoint ${created.id} was not ready after ${timeoutMs}ms.`,
           { code: 'deadline_exceeded' },
-        )
-      }
-      await delay(500, options.signal)
-      checkpoint = await this.getCheckpoint(checkpoint.id, options.signal)
-    }
+        ),
+    )
     if (checkpoint.state === 'failed') {
       throw new RuntaApiError(`Runta: checkpoint ${checkpoint.id} failed.`, {
         code: 'internal',
@@ -650,21 +740,7 @@ export class RuntaClient {
   }
 
   async listCheckpoints(signal?: AbortSignal): Promise<Array<RuntaCheckpoint>> {
-    const items: Array<RuntaCheckpoint> = []
-    let after: string | undefined
-    do {
-      const page = await this.envelope('GET', '/v2/checkpoints', {
-        params: { limit: 100, ...(after ? { after } : {}) },
-        signal,
-      })
-      const data = Array.isArray(page.data) ? page.data : []
-      items.push(...data.map(parseCheckpoint))
-      const pagination = asRecord(page.pagination)
-      const next =
-        pagination.has_more === true ? pagination.next_cursor : undefined
-      after = typeof next === 'string' && next !== after ? next : undefined
-    } while (after)
-    return items
+    return this.listAll('/v2/checkpoints', parseCheckpoint, signal)
   }
 
   /** Delete a checkpoint. One that is already gone counts as deleted. */
@@ -754,6 +830,8 @@ export class RuntaClient {
     const url = `${wsBase}${runtimePath(runtimeId)}/exec/stream`
     const connectTimeoutMs = options.connectTimeoutMs ?? 30_000
     const killGraceMs = options.killGraceMs ?? 2000
+    // Throws for an empty argv, before a socket exists.
+    const command = withCwd(options.argv, options.cwd)
 
     const stdoutQ = new AsyncByteQueue()
     const stderrQ = new AsyncByteQueue()
@@ -770,6 +848,14 @@ export class RuntaClient {
     const closed = new Promise<void>((resolve) => {
       resolveClosed = resolve
     })
+    let resolveOpened!: () => void
+    let rejectOpened!: (error: Error) => void
+    const openedPromise = new Promise<void>((resolve, reject) => {
+      resolveOpened = resolve
+      rejectOpened = reject
+    })
+    // A caller that only uses wait() never reads this promise.
+    openedPromise.catch(() => undefined)
 
     // The global (undici) WebSocket accepts a `headers` constructor option at
     // runtime, but the WHATWG type only declares `(url, protocols?)`, so the two
@@ -798,6 +884,17 @@ export class RuntaClient {
         options.signal.removeEventListener('abort', onAbort)
       stdoutQ.end()
       stderrQ.end()
+      if (!opened) {
+        rejectOpened(
+          options.signal?.aborted
+            ? signalReason(options.signal)
+            : (failure ??
+                new RuntaApiError(
+                  `Runta: exec connection closed before it opened (${url}).`,
+                  { code: 'unavailable' },
+                )),
+        )
+      }
       resolveClosed()
     }
 
@@ -821,8 +918,8 @@ export class RuntaClient {
 
     ws.addEventListener('open', () => {
       opened = true
+      resolveOpened()
       clearTimeout(connectTimer)
-      const command = withCwd(options.argv, options.cwd)
       ws.send(
         JSON.stringify({
           type: 'start',
@@ -862,13 +959,17 @@ export class RuntaClient {
     })
 
     ws.addEventListener('error', (event: Event) => {
-      const message = (event as Partial<ErrorEvent>).message
+      // Typed by hand: `ErrorEvent` exists only in the DOM lib.
+      const { message } = event as { message?: string }
       failure ??= new RuntaApiError(
         `Runta: exec socket error for ${url}: ${message || 'connection failed'}`,
         {
           code: 'unavailable',
         },
       )
+      // Do not wait for a close event: not every socket sends one after an error.
+      closeSocket()
+      finish()
     })
 
     ws.addEventListener('close', () => finish())
@@ -900,6 +1001,10 @@ export class RuntaClient {
         offset < bytes.byteLength;
         offset += STDIN_CHUNK_BYTES
       ) {
+        while (opened && !settled && ws.bufferedAmount > SEND_HIGH_WATER_BYTES)
+          await delay(5)
+        // After the wait, so a stream that closed during it rejects too:
+        // send() drops the frame once the stream has settled.
         if (settled) {
           throw (
             failure ??
@@ -908,8 +1013,6 @@ export class RuntaClient {
             })
           )
         }
-        while (opened && !settled && ws.bufferedAmount > SEND_HIGH_WATER_BYTES)
-          await delay(5)
         send({
           type: 'stdin',
           data_base64: toBase64(
@@ -920,6 +1023,7 @@ export class RuntaClient {
     }
 
     return {
+      opened: openedPromise,
       stdout: stdoutQ,
       stderr: stderrQ,
       stdin: {
@@ -950,6 +1054,29 @@ export class RuntaClient {
   }
 
   // --------------------------------------------------------------- transport
+
+  /** Read every page of a list endpoint. */
+  private async listAll<T>(
+    path: string,
+    parse: (value: unknown) => T,
+    signal?: AbortSignal,
+  ): Promise<Array<T>> {
+    const items: Array<T> = []
+    let after: string | undefined
+    do {
+      const page = await this.envelope('GET', path, {
+        params: { limit: 100, ...(after ? { after } : {}) },
+        signal,
+      })
+      const data = Array.isArray(page.data) ? page.data : []
+      items.push(...data.map(parse))
+      const pagination = asRecord(page.pagination)
+      const next =
+        pagination.has_more === true ? pagination.next_cursor : undefined
+      after = typeof next === 'string' && next !== after ? next : undefined
+    } while (after)
+    return items
+  }
 
   /** Run `call` with a fresh runtime revision, retrying when the revision is stale. */
   private async withRevision<T>(
@@ -1016,7 +1143,7 @@ export class RuntaClient {
       'user-agent': this.userAgent,
       ...options.headers,
     }
-    let body: BodyInit | undefined
+    let body: string | Uint8Array<ArrayBuffer> | undefined
     if (options.rawBody !== undefined) {
       body = options.rawBody
     } else if (options.body !== undefined) {
@@ -1068,7 +1195,7 @@ export function shellQuote(value: string): string {
 interface RequestOptions {
   params?: Record<string, string | number>
   body?: unknown
-  rawBody?: BodyInit
+  rawBody?: Uint8Array<ArrayBuffer>
   headers?: Record<string, string>
   signal?: AbortSignal | undefined
 }
@@ -1115,6 +1242,15 @@ class AsyncByteQueue implements AsyncIterable<Uint8Array> {
       },
     }
   }
+}
+
+/** Whether the control plane is still moving the runtime to its desired status. */
+function inFlight(runtime: RuntaRuntime): boolean {
+  return (
+    runtime.status !== runtime.desiredStatus &&
+    SETTLED_STATUSES.includes(runtime.desiredStatus) &&
+    ['creating', ...SETTLED_STATUSES].includes(runtime.status)
+  )
 }
 
 function runtimePath(idOrName: string): string {
@@ -1261,7 +1397,10 @@ function parseFrame(data: unknown): ExecServerFrame | undefined {
   let text: string
   if (typeof data === 'string') text = data
   else if (data instanceof ArrayBuffer) text = new TextDecoder().decode(data)
-  else if (ArrayBuffer.isView(data)) text = new TextDecoder().decode(data)
+  else if (ArrayBuffer.isView(data))
+    text = new TextDecoder().decode(
+      new Uint8Array(data.buffer, data.byteOffset, data.byteLength),
+    )
   else return undefined
   try {
     return asRecord(JSON.parse(text))
@@ -1340,6 +1479,27 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
     }, ms)
     signal?.addEventListener('abort', onAbort, { once: true })
   })
+}
+
+/**
+ * Run `call` with one signal that aborts at the timeout or when the caller
+ * aborts. A timeout rejects with `onTimeout()`; a caller abort keeps its reason.
+ */
+async function withDeadline<T>(
+  timeoutMs: number,
+  signal: AbortSignal | undefined,
+  call: (signal: AbortSignal) => Promise<T>,
+  onTimeout: () => Error,
+): Promise<T> {
+  const timeout = AbortSignal.timeout(timeoutMs)
+  try {
+    return await call(signal ? AbortSignal.any([signal, timeout]) : timeout)
+  } catch (error) {
+    // An API error is the real answer even when the timeout fires beside it.
+    if (!timeout.aborted || signal?.aborted || error instanceof RuntaApiError)
+      throw error
+    throw onTimeout()
+  }
 }
 
 function signalReason(signal: AbortSignal | undefined): Error {
