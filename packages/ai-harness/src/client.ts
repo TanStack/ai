@@ -875,16 +875,20 @@ export function createHarnessClient<THarness extends AnyHarness>(
     // The tries since the last read from the server, for the next wait.
     let attempt = 0
     // An input of this client ends the wait, and the waits start short again.
+    // An input sent while a request is out marks it, so a 404 that the
+    // request gets after the input connects again at once.
+    let sentDuringRequest = false
     const onSent = () => {
-      if (!wake) return
       attempt = 0
-      wake()
+      if (wake) wake()
+      else sentDuringRequest = true
     }
     sent.add(onSent)
     // The error of a /snapshot answer with the wrong shape. It is not retried.
     let badSnapshot: Error | undefined
     try {
       while (!signal?.aborted) {
+        sentDuringRequest = false
         try {
           const query = new URLSearchParams({ threadId: options.threadId })
           // No `from`: start at the head, so the stream does not send the
@@ -963,6 +967,9 @@ export function createHarnessClient<THarness extends AnyHarness>(
         }
         if (signal?.aborted) return
         eventOptions.onConnection?.('reconnecting')
+        // The input came after this request started, so the next one can
+        // find what it made.
+        if (sentDuringRequest) continue
         const wait = reconnectDelay(options.reconnectDelayMs ?? 1000, attempt)
         attempt += 1
         await new Promise<void>((resolve) => {

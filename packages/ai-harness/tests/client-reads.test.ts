@@ -315,6 +315,43 @@ describe('client reads and actions', () => {
     await host.close()
   })
 
+  it('streams the first turn when the input is sent while the 404 is on its way', async () => {
+    const statuses: Array<number> = []
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    const { host, client } = setup(
+      (fetch) => async (input, init) => {
+        const response = await fetch(input, init)
+        const url = String(input instanceof Request ? input.url : input)
+        if (url.includes('/events')) {
+          statuses.push(response.status)
+          // The host answered the first request before the input: hold
+          // its 404 until the input is sent.
+          if (statuses.length === 1) await held
+        }
+        return response
+      },
+      60_000,
+    )
+    const reader = new AbortController()
+    const deltas: Array<string> = []
+    const reading = (async () => {
+      for await (const { event } of client.events({ signal: reader.signal })) {
+        if (event.type === 'TEXT_MESSAGE_CONTENT') deltas.push(event.delta)
+      }
+    })()
+    await vi.waitFor(() => expect(statuses).toEqual([404]))
+
+    await client.send('hi')
+    release()
+
+    await vi.waitFor(() => expect(deltas.join('')).toBe('hello from the host'))
+    expect(statuses).toEqual([404, 200])
+    reader.abort()
+    await reading
+    await host.close()
+  })
+
   it('reports the connection state of the event stream', async () => {
     let calls = 0
     const { host, harness, client } = setup((fetch) => async (input, init) => {
