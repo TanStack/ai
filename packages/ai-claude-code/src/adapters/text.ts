@@ -546,6 +546,10 @@ export class ClaudeCodeTextAdapter<
       // id spells. Computed once so the two filenames cannot drift apart.
       const runIdSegment = encodeRunId(runId)
 
+      // The files below are independent, so write them in parallel: on a remote
+      // sandbox each write is a round trip.
+      const pendingWrites: Array<Promise<void>> = []
+
       // The bridge MCP config carries the per-run bearer token. Write it to a
       // file and pass claude the PATH, so the token never appears in argv (where
       // any process in the sandbox could read it via `ps` / `/proc/<pid>/cmdline`).
@@ -559,7 +563,9 @@ export class ClaudeCodeTextAdapter<
         // found". The bare filename resolves correctly on every provider.
         const mcpConfigFile = `.tanstack-mcp-bridge-${runIdSegment}.json`
         const mcpConfigPath = `${cwd}/${mcpConfigFile}`
-        await sandbox.fs.write(mcpConfigPath, bridgeToMcpConfig(bridge))
+        pendingWrites.push(
+          sandbox.fs.write(mcpConfigPath, bridgeToMcpConfig(bridge)),
+        )
         tempFiles.push(mcpConfigPath)
         mcpConfigArg = mcpConfigFile
       }
@@ -567,11 +573,15 @@ export class ClaudeCodeTextAdapter<
       if (options.outputSchema !== undefined) {
         jsonSchemaFile = `tanstack-output-schema-${runIdSegment}.json`
         const schemaPath = `${cwd}/${jsonSchemaFile}`
-        await sandbox.fs.write(schemaPath, JSON.stringify(options.outputSchema))
+        pendingWrites.push(
+          sandbox.fs.write(schemaPath, JSON.stringify(options.outputSchema)),
+        )
         tempFiles.push(schemaPath)
       }
       const runnerFile = `tanstack-claude-run-${runIdSegment}.mjs`
-      await sandbox.fs.write(`${cwd}/${runnerFile}`, CLAUDE_RUNNER_SOURCE)
+      pendingWrites.push(
+        sandbox.fs.write(`${cwd}/${runnerFile}`, CLAUDE_RUNNER_SOURCE),
+      )
       tempFiles.push(`${cwd}/${runnerFile}`)
       const argv = this.buildArgv(
         options,
@@ -586,7 +596,9 @@ export class ClaudeCodeTextAdapter<
       // Filenames only on the shell line. JSON (schema, system prompt, MCP
       // config path) lives in the argv file so git-bash cannot retokenize it.
       const argvFile = `tanstack-claude-argv-${runIdSegment}.json`
-      await sandbox.fs.write(`${cwd}/${argvFile}`, JSON.stringify(argv))
+      pendingWrites.push(
+        sandbox.fs.write(`${cwd}/${argvFile}`, JSON.stringify(argv)),
+      )
       tempFiles.push(`${cwd}/${argvFile}`)
       const command =
         jsonSchemaFile === undefined
@@ -601,11 +613,17 @@ export class ClaudeCodeTextAdapter<
       let stdinInput: string | undefined = prompt
       if (sandbox.capabilities.writableStdin === false) {
         const promptPath = `/tmp/tanstack-claude-prompt-${runIdSegment}`
-        await sandbox.fs.write(promptPath, prompt)
+        pendingWrites.push(sandbox.fs.write(promptPath, prompt))
         tempFiles.push(promptPath)
         runCommand = `${command} < ${q(promptPath)}`
         stdinInput = undefined
       }
+      // Settle every write before a failure reaches `finally`, so no write can
+      // land after its file was removed.
+      const failedWrite = (await Promise.allSettled(pendingWrites)).find(
+        (result) => result.status === 'rejected',
+      )
+      if (failedWrite) throw failedWrite.reason
 
       logger.request(
         `activity=chat provider=claude-code model=${this.model} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${resume ?? 'none'}`,
@@ -747,13 +765,10 @@ export class ClaudeCodeTextAdapter<
       // Remove the per-run token/prompt files. Best-effort: a cleanup failure
       // must not mask the run's own outcome.
       if (cleanupSandbox) {
-        for (const path of tempFiles) {
-          try {
-            await cleanupSandbox.fs.remove(path)
-          } catch {
-            // file already gone / sandbox torn down — nothing to clean up
-          }
-        }
+        const sandbox = cleanupSandbox
+        await Promise.allSettled(
+          tempFiles.map((path) => sandbox.fs.remove(path)),
+        )
       }
     }
   }
