@@ -989,6 +989,49 @@ describe('subagent run recorder', () => {
       await recorder.loadChild('missing', { threadId: 'desk' }),
     ).toBeUndefined()
   })
+
+  it('does not reopen a completed parent run or child run', async () => {
+    const persistence = memoryPersistence()
+    const { messages, runs } = persistence.stores
+    if (!messages || !runs) throw new Error('memory store has messages')
+    await runs.createOrResume({
+      runId: 'parent-run',
+      threadId: 'desk',
+      startedAt: 1,
+    })
+    await runs.update('parent-run', { status: 'completed', finishedAt: 2 })
+    await runs.createOrResume({
+      runId: 'child-run',
+      threadId: 'subagent:child-run',
+      startedAt: 1,
+      parentRunId: 'parent-run',
+      subagentRunId: 'child-run',
+      name: 'writer',
+    })
+    await runs.update('child-run', { status: 'completed', finishedAt: 2 })
+    const recorder = createSubagentRunRecorder({
+      messages,
+      runs,
+      intervalMs: 0,
+    })
+    await recorder.start({
+      threadId: 'desk',
+      runId: 'parent-run',
+      messages: [{ role: 'user', content: 'hi' }],
+    })
+    await recorder.chunk({
+      threadId: 'desk',
+      runId: 'parent-run',
+      chunk: {
+        type: EventType.SUBAGENT_STARTED,
+        subagentRunId: 'child-run',
+        name: 'writer',
+        timestamp: t,
+      },
+    })
+    expect((await runs.get('parent-run'))?.status).toBe('completed')
+    expect((await runs.get('child-run'))?.status).toBe('completed')
+  })
 })
 
 describe('agent tools with persistence', () => {

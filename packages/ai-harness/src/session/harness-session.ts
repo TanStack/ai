@@ -35,6 +35,7 @@ import {
 import { SessionTurn } from './turn'
 import { commandStepScope, stepWaitPrefix } from './turn-parts'
 import { MAX_TIMER_MS } from '../utils'
+import { agentCardOf } from '../waits'
 import type { ModelMessage } from '@tanstack/ai'
 import type { AccessRun } from '../access'
 import type { InputState, LogWriter } from '../log'
@@ -1383,9 +1384,17 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
                   (candidate) => candidate.id === item.interruptId,
                 )
                 const toolCallId = interrupt ? toolCallOf(interrupt) : undefined
-                return (
-                  toolCallId !== undefined && hasToolResult(writer, toolCallId)
+                const agentCall =
+                  interrupt?.subagentRunId === undefined
+                    ? undefined
+                    : agentCardOf(
+                        this.interrupted?.routed?.messages ?? [],
+                        interrupt.subagentRunId,
+                      )?.parentToolCallId
+                const toolCallIds = [toolCallId, agentCall].filter(
+                  (id) => id !== undefined,
                 )
+                return toolCallIds.some((id) => hasToolResult(writer, id))
               })
             : []
         if (consumedItems.length > 0) {
@@ -1426,14 +1435,11 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
             })
             continue
           }
-          const remainingResume =
-            consumedItems.length > 0
-              ? resume.filter((item) =>
-                  this.interrupted?.interrupts.some(
-                    (candidate) => candidate.id === item.interruptId,
-                  ),
-                )
-              : resume
+          const remainingResume = resume.filter((item) =>
+            this.interrupted?.interrupts.some(
+              (candidate) => candidate.id === item.interruptId,
+            ),
+          )
           const operation = this.createTurnOperation()
           this.bindTurn(input.inputId, operation)
           this.feed.publish(

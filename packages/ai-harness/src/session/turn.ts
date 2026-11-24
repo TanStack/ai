@@ -74,6 +74,7 @@ import type {
   ModelMessage,
   StreamChunk,
   SubagentRouterPick,
+  UIMessage,
 } from '@tanstack/ai'
 import type { AnyHarness } from '../define'
 import type { AnyCommand } from '../commands'
@@ -1068,7 +1069,10 @@ export abstract class SessionTurn<
             agents: rootAgents,
             router: () => {
               // A resolve has no pick. chat() continues its saved plan.
+              // A retry after an early commit has no resume, so this runs.
               if (pick === undefined) {
+                const saved = savedRouterPick(turn.answers?.routed?.messages)
+                if (saved !== undefined) return saved
                 throw new Error('The routed turn has no saved plan.')
               }
               return pick
@@ -1557,6 +1561,31 @@ export abstract class SessionTurn<
             // the items that are still pending, and runs from the transcript
             // when none are left.
             if (resume) {
+              const ran = resume.filter((item) => {
+                const interrupt = turn.answers?.interrupts.find(
+                  (candidate) => candidate.id === item.interruptId,
+                )
+                const toolCallId = interrupt ? toolCallOf(interrupt) : undefined
+                const agentCall =
+                  interrupt?.subagentRunId === undefined
+                    ? undefined
+                    : agentCardOf(
+                        turn.answers?.routed?.messages ?? [],
+                        interrupt.subagentRunId,
+                      )?.parentToolCallId
+                const ids = [toolCallId, agentCall].filter(
+                  (id) => id !== undefined,
+                )
+                return ids.some(
+                  (id) => resultIds.has(id) || errorResultIds.has(id),
+                )
+              })
+              if (ran.length > 0) {
+                await this.consumeResume(ran).catch((error: unknown) =>
+                  this.warn(operation, 'harness:interrupts', error),
+                )
+                this.dropInterrupts(ran)
+              }
               const records = await Promise.all(
                 resume.map((item) => this.interruptStore.get(item.interruptId)),
               )
@@ -1571,6 +1600,11 @@ export abstract class SessionTurn<
               }
             }
             message = undefined
+            // The first stream consumed routedFrom. A retry still needs the
+            // saved cards so chat() can keep the plan and skip finished tools.
+            if (turn.answers?.routed?.messages) {
+              routedFrom = turn.answers.routed.messages
+            }
             // withPersistence failed the run. It runs again, for the retry.
             await this.runStore.update(operation.id, {
               status: 'running',
@@ -2024,6 +2058,31 @@ function publishText(
 
 /** The id of the note with the files of the operator reply `id`. */
 const attachmentId = (id: string) => `${id}:media`
+
+/**
+ * The router plan saved on a routed child's card. A resolve retry uses it
+ * after the early commit clears `resume`.
+ */
+function savedRouterPick(
+  messages: ReadonlyArray<UIMessage> | undefined,
+): SubagentRouterPick | undefined {
+  if (!messages) return undefined
+  for (const message of messages) {
+    for (const part of message.parts) {
+      if (part.type !== 'subagent') continue
+      const metadata = part.subagent.metadata
+      if (metadata == null || typeof metadata !== 'object') continue
+      const tanstack = (metadata as { tanstack?: unknown }).tanstack
+      if (tanstack == null || typeof tanstack !== 'object') continue
+      const plan = (tanstack as { subagentPlan?: unknown }).subagentPlan
+      if (plan == null || typeof plan !== 'object' || !('steps' in plan)) {
+        continue
+      }
+      return plan as SubagentRouterPick
+    }
+  }
+  return undefined
+}
 
 /**
  * The answer message of a routed run, kept under the id `${id}:${index}`.

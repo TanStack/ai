@@ -680,7 +680,10 @@ export function createSubagentRunRecorder(stores: {
         ...(prompt !== undefined && { prompt }),
       })
     }
-    if (record && record.status !== 'running') {
+    if (
+      record &&
+      (record.status === 'interrupted' || record.status === 'failed')
+    ) {
       await stores.runs?.update(id, { status: 'running' })
     }
     // The parent child shows this one as a nested card.
@@ -962,7 +965,7 @@ export function createSubagentRunRecorder(stores: {
         threadId: input.threadId,
         startedAt: Date.now(),
       })
-      if (run && run.status !== 'running') {
+      if (run && (run.status === 'interrupted' || run.status === 'failed')) {
         await stores.runs?.update(input.runId, { status: 'running' })
       }
       if (input.resume?.length) answered.set(input.runId, [...input.resume])

@@ -2103,9 +2103,10 @@ async function createOrResumeRun(
     threadId,
     startedAt: Date.now(),
   })
-  // Reset a same-runId continuation from 'interrupted' back to 'running' so
-  // readers and findActiveRun observe the live resumed run.
-  if (run && run.status !== 'running') {
+  // Reset an interrupted or failed continuation back to running so readers
+  // and findActiveRun observe the live resumed run. Leave completed and
+  // aborted records terminal.
+  if (run && (run.status === 'interrupted' || run.status === 'failed')) {
     await runs?.update(runId, { status: 'running' })
   }
   return run?.usage

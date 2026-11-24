@@ -2283,6 +2283,97 @@ describe('interrupt persistence', () => {
     )
   })
 
+  it('does not set a completed or aborted run back to running when its id is reused', async () => {
+    for (const status of ['completed', 'aborted'] as const) {
+      const persistence = memoryPersistence()
+      const runId = `r-${status}`
+      const threadId = `t-${status}`
+      await persistence.stores.runs!.createOrResume({
+        runId,
+        threadId,
+        startedAt: 1,
+      })
+      await persistence.stores.runs!.update(runId, {
+        status,
+        finishedAt: 99,
+      })
+      let statusDuringTool: string | undefined
+      let activeDuringTool: string | null | undefined
+      const action: Tool = {
+        name: 'action',
+        description: 'Run action',
+        execute: async () => {
+          statusDuringTool = (await persistence.stores.runs!.get(runId))?.status
+          activeDuringTool =
+            (await persistence.stores.runs!.findActiveRun(threadId))?.runId ??
+            null
+          return { ok: true }
+        },
+      }
+      const { adapter } = mockAdapter([
+        [
+          {
+            type: EventType.RUN_STARTED,
+            runId,
+            threadId,
+            timestamp: 1,
+          },
+          {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: `tc-${status}`,
+            toolCallName: 'action',
+            timestamp: 1,
+          },
+          {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: `tc-${status}`,
+            delta: '{}',
+            timestamp: 1,
+          },
+          {
+            type: EventType.TOOL_CALL_END,
+            toolCallId: `tc-${status}`,
+            timestamp: 1,
+          },
+          {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            finishReason: 'tool_calls',
+            timestamp: 1,
+          },
+        ],
+        [
+          {
+            type: EventType.RUN_STARTED,
+            runId,
+            threadId,
+            timestamp: 2,
+          },
+          text('done'),
+          {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            timestamp: 2,
+          },
+        ],
+      ])
+      await collect(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'run' }],
+          tools: [action],
+          runId,
+          threadId,
+          middleware: [withPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      expect(statusDuringTool).toBe(status)
+      expect(activeDuringTool).toBeNull()
+    }
+  })
+
   it('persists a second MCP input elicitation under a fresh id and completes on step 3', async () => {
     const persistence = memoryPersistence()
     const mcpWizard: Tool = {
