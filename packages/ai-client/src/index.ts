@@ -110,7 +110,7 @@ export type {
   TranscriptionGenerateInput,
   SummarizeGenerateInput,
   VideoGenerateInput,
-  Model3DGenerateInput,
+  Model3dGenerateInput,
   GenerationRestoredResult,
 } from './generation-types'
 export { GENERATION_EVENTS } from './generation-types'

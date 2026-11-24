@@ -1,6 +1,6 @@
-import { BaseMotionAdapter } from '@tanstack/ai/adapters'
+import { BaseMotion3dAdapter } from '@tanstack/ai/adapters'
 import { cancelMeshyTask, createMeshyClient, mapMeshyStatus } from '../client'
-import type { MotionGenerationOptions } from '@tanstack/ai'
+import type { Motion3dGenerationOptions } from '@tanstack/ai'
 import type { MeshyClient, MeshyClientConfig, MeshyTask } from '../client'
 
 /**
@@ -9,12 +9,12 @@ import type { MeshyClient, MeshyClientConfig, MeshyTask } from '../client'
  *
  * @experimental Motion generation is an experimental feature and may change.
  */
-export type MeshyMotionMode = 'prime' | 'swift'
+export type MeshyMotion3dMode = 'prime' | 'swift'
 
 const MOTION_PATH = '/v1/text-to-motion'
 
 // Meshy sends empty strings and 0 in `result` until the task succeeds.
-interface MeshyMotionTask extends MeshyTask {
+interface MeshyMotion3dTask extends MeshyTask {
   result?: {
     motion_url: string
     motion_format: string
@@ -30,15 +30,15 @@ interface MeshyMotionTask extends MeshyTask {
  *
  * Meshy needs `duration`: 2 to 10 seconds, in steps of 0.5.
  *
- * `cancelMotionJob` cancels and refunds only a `PENDING` task. A running
+ * `cancel3dMotionJob` cancels and refunds only a `PENDING` task. A running
  * task cannot be canceled. A finished task is kept, unless it finishes in
  * the short time between the status read and the cancel request.
  *
  * @experimental Motion generation is an experimental feature and may change.
  */
-export class MeshyMotionAdapter<
-  TMode extends MeshyMotionMode,
-> extends BaseMotionAdapter<TMode, Record<string, never>> {
+export class MeshyMotion3dAdapter<
+  TMode extends MeshyMotion3dMode,
+> extends BaseMotion3dAdapter<TMode, Record<string, never>> {
   readonly name = 'meshy' as const
   private readonly client: MeshyClient
 
@@ -47,8 +47,8 @@ export class MeshyMotionAdapter<
     this.client = createMeshyClient(config)
   }
 
-  async createMotionJob(
-    options: MotionGenerationOptions<Record<string, never>>,
+  async create3dMotionJob(
+    options: Motion3dGenerationOptions<Record<string, never>>,
   ) {
     const { logger, duration } = options
     if (duration === undefined) {
@@ -57,7 +57,7 @@ export class MeshyMotionAdapter<
       )
     }
     logger.request(
-      `activity=generateMotion provider=meshy model=${this.model}`,
+      `activity=generate3dMotion provider=meshy model=${this.model}`,
       { provider: 'meshy', model: this.model },
     )
     try {
@@ -68,22 +68,22 @@ export class MeshyMotionAdapter<
       )
       return { jobId: result, model: this.model }
     } catch (error) {
-      logger.errors('meshy.createMotionJob fatal', {
+      logger.errors('meshy.create3dMotionJob fatal', {
         error,
-        source: 'meshy.createMotionJob',
+        source: 'meshy.create3dMotionJob',
       })
       throw error
     }
   }
 
   private readTask(jobId: string, signal?: AbortSignal) {
-    return this.client.get<MeshyMotionTask>(
+    return this.client.get<MeshyMotion3dTask>(
       `${MOTION_PATH}/${encodeURIComponent(jobId)}`,
       { signal },
     )
   }
 
-  async getMotionStatus(
+  async get3dMotionStatus(
     jobId: string,
     options?: { abortSignal?: AbortSignal },
   ) {
@@ -91,7 +91,7 @@ export class MeshyMotionAdapter<
     return { jobId, ...mapMeshyStatus(task) }
   }
 
-  async getMotion(jobId: string, options?: { abortSignal?: AbortSignal }) {
+  async get3dMotion(jobId: string, options?: { abortSignal?: AbortSignal }) {
     const task = await this.readTask(jobId, options?.abortSignal)
     if (task.status !== 'SUCCEEDED') {
       const { error } = mapMeshyStatus(task)
@@ -125,7 +125,7 @@ export class MeshyMotionAdapter<
    * @throws {Error} When the task is already running.
    * @throws {MeshyApiError} For any other response that is not 2xx.
    */
-  async cancelMotionJob(
+  async cancel3dMotionJob(
     jobId: string,
     options?: { abortSignal?: AbortSignal },
   ) {
@@ -139,7 +139,7 @@ export class MeshyMotionAdapter<
 }
 
 /**
- * Creates a Meshy motion adapter for `generateMotion()`. Reads
+ * Creates a Meshy motion adapter for `generate3dMotion()`. Reads
  * `config.apiKey`, or `MESHY_API_KEY` from the environment.
  *
  * @param mode - `'prime'` (FBX clip) or `'swift'` (BVH clip).
@@ -147,8 +147,8 @@ export class MeshyMotionAdapter<
  *
  * @example
  * ```ts
- * const job = await generateMotion({
- *   adapter: meshyMotion('prime'),
+ * const job = await generate3dMotion({
+ *   adapter: meshy3dMotion('prime'),
  *   prompt: 'a person jumps over a fence',
  *   duration: 4,
  *   threadId,
@@ -157,9 +157,9 @@ export class MeshyMotionAdapter<
  *
  * @experimental Motion generation is an experimental feature and may change.
  */
-export function meshyMotion<TMode extends MeshyMotionMode>(
+export function meshy3dMotion<TMode extends MeshyMotion3dMode>(
   mode: TMode,
   config?: MeshyClientConfig,
 ) {
-  return new MeshyMotionAdapter(mode, config)
+  return new MeshyMotion3dAdapter(mode, config)
 }

@@ -7,10 +7,10 @@ import { useGenerateSpeech } from '../../src/use-generate-speech.tsrx'
 import { useTranscription } from '../../src/use-transcription.tsrx'
 import { useSummarize } from '../../src/use-summarize.tsrx'
 import { useGenerateVideo } from '../../src/use-generate-video.tsrx'
-import { useGenerate3DModel } from '../../src/use-generate-3d-model.tsrx'
+import { useGenerate3dModel } from '../../src/use-generate-3d-model.tsrx'
 import { createMockConnectionAdapter } from './test-utils'
 import type {
-  Model3DResult,
+  Model3dResult,
   StreamChunk,
   TTSResult,
   TranscriptionResult,
@@ -394,8 +394,8 @@ describe('useGenerateImage', () => {
   })
 })
 
-describe('useGenerate3DModel', () => {
-  const mockModel: Model3DResult = {
+describe('useGenerate3dModel', () => {
+  const mockModel: Model3dResult = {
     jobId: 'job-3d',
     url: 'https://example.com/fox.glb',
     format: 'glb',
@@ -412,7 +412,7 @@ describe('useGenerate3DModel', () => {
     const onProgress = vi.fn()
 
     const { result } = renderHook(() =>
-      useGenerate3DModel({
+      useGenerate3dModel({
         threadId: 'thread-1',
         connection: adapter,
         onProgress,
@@ -444,7 +444,7 @@ describe('useGenerate3DModel', () => {
     const onError = vi.fn()
 
     const { result } = renderHook(() =>
-      useGenerate3DModel({
+      useGenerate3dModel({
         threadId: 'thread-1',
         connection: adapter,
         onError,

@@ -1,14 +1,14 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
-import { meshy3DModel } from '../src/adapters/model3d'
+import { meshy3dModel } from '../src/adapters/model3d'
 import type { MediaPrompt } from '@tanstack/ai'
-import type { MeshyModel3DAdapter } from '../src/adapters/model3d'
+import type { MeshyModel3dAdapter } from '../src/adapters/model3d'
 import type { MeshyClientConfig } from '../src/client'
 import type {
   MeshyAiModelFor,
-  MeshyModel3DEndpoint,
-  MeshyModel3DInputModalities,
-  MeshyModel3DProviderOptions,
+  MeshyModel3dEndpoint,
+  MeshyModel3dInputModalities,
+  MeshyModel3dProviderOptions,
 } from '../src/model-meta'
 
 const logger = resolveDebugOption(false)
@@ -50,19 +50,19 @@ function fakeMeshy(
   return { fetch, requests }
 }
 
-type AdapterFactory<E extends MeshyModel3DEndpoint> = (
+type AdapterFactory<E extends MeshyModel3dEndpoint> = (
   config: MeshyClientConfig,
-) => MeshyModel3DAdapter<E>
+) => MeshyModel3dAdapter<E>
 
 /** Creates a job and returns the requests that reached Meshy. */
-async function submit<E extends MeshyModel3DEndpoint>(
+async function submit<E extends MeshyModel3dEndpoint>(
   makeAdapter: AdapterFactory<E>,
   prompt: MediaPrompt,
-  modelOptions?: MeshyModel3DProviderOptions<E>,
+  modelOptions?: MeshyModel3dProviderOptions<E>,
 ) {
   const meshy = fakeMeshy()
   const adapter = makeAdapter({ apiKey: 'key', fetch: meshy.fetch })
-  const job = await adapter.create3DModelJob({
+  const job = await adapter.create3dModelJob({
     model: adapter.model,
     prompt,
     modelOptions,
@@ -73,15 +73,15 @@ async function submit<E extends MeshyModel3DEndpoint>(
 }
 
 /** Creates a job that must fail, and returns the error and the requests. */
-async function submitError<E extends MeshyModel3DEndpoint>(
+async function submitError<E extends MeshyModel3dEndpoint>(
   endpoint: E,
   prompt: MediaPrompt,
-  modelOptions?: MeshyModel3DProviderOptions<E>,
+  modelOptions?: MeshyModel3dProviderOptions<E>,
 ) {
   const meshy = fakeMeshy()
-  const adapter = meshy3DModel(endpoint, { apiKey: 'key', fetch: meshy.fetch })
+  const adapter = meshy3dModel(endpoint, { apiKey: 'key', fetch: meshy.fetch })
   const error = await adapter
-    .create3DModelJob({
+    .create3dModelJob({
       model: adapter.model,
       prompt,
       modelOptions,
@@ -92,12 +92,12 @@ async function submitError<E extends MeshyModel3DEndpoint>(
 }
 
 /** Reads a finished task whose GET body is `task`. */
-function resultFor<E extends MeshyModel3DEndpoint>(
+function resultFor<E extends MeshyModel3dEndpoint>(
   makeAdapter: AdapterFactory<E>,
   task: object,
 ) {
   const meshy = fakeMeshy(() => json(task))
-  return makeAdapter({ apiKey: 'key', fetch: meshy.fetch }).get3DModel('task-9')
+  return makeAdapter({ apiKey: 'key', fetch: meshy.fetch }).get3dModel('task-9')
 }
 
 const text = (content: string) => ({ type: 'text', content }) as const
@@ -115,7 +115,7 @@ const post = (path: string, body: object) => [
   { method: 'POST', url: `${BASE}${path}`, body },
 ]
 
-describe('meshy3DModel types', () => {
+describe('meshy3dModel types', () => {
   it('types ai_model per endpoint', () => {
     expectTypeOf<MeshyAiModelFor<'rigging'>>().toBeNever()
     expectTypeOf<MeshyAiModelFor<'retexture'>>().toEqualTypeOf<
@@ -123,29 +123,29 @@ describe('meshy3DModel types', () => {
     >()
     const config = { apiKey: 'key' }
     // @ts-expect-error rigging takes no ai_model
-    meshy3DModel('rigging', 'meshy-7.1', config)
+    meshy3dModel('rigging', 'meshy-7.1', config)
     // @ts-expect-error retexture does not take meshy-7.1
-    meshy3DModel('retexture', 'meshy-7.1', config)
-    expect(meshy3DModel('rigging', config).model).toBe('rigging')
+    meshy3dModel('retexture', 'meshy-7.1', config)
+    expect(meshy3dModel('rigging', config).model).toBe('rigging')
   })
 
   it('derives the prompt modalities from the endpoint routes', () => {
     expectTypeOf<
-      MeshyModel3DInputModalities<'text-to-3d-preview'>
+      MeshyModel3dInputModalities<'text-to-3d-preview'>
     >().toEqualTypeOf<ReadonlyArray<never>>()
-    expectTypeOf<MeshyModel3DInputModalities<'remesh'>>().toEqualTypeOf<
+    expectTypeOf<MeshyModel3dInputModalities<'remesh'>>().toEqualTypeOf<
       ReadonlyArray<'model3d'>
     >()
-    expectTypeOf<MeshyModel3DInputModalities<'retexture'>>().toEqualTypeOf<
+    expectTypeOf<MeshyModel3dInputModalities<'retexture'>>().toEqualTypeOf<
       ReadonlyArray<'image' | 'model3d'>
     >()
   })
 })
 
-describe('meshy3DModel create3DModelJob', () => {
+describe('meshy3dModel create3dModelJob', () => {
   it('text-to-3d-preview sends prompt, mode preview and ai_model', async () => {
     const requests = await submit(
-      (config) => meshy3DModel('text-to-3d-preview', 'meshy-7.1', config),
+      (config) => meshy3dModel('text-to-3d-preview', 'meshy-7.1', config),
       'a wooden chest',
       { target_polycount: 20000 },
     )
@@ -161,7 +161,7 @@ describe('meshy3DModel create3DModelJob', () => {
 
   it('text-to-3d-refine maps a meshy file source to preview_task_id and text to texture_prompt', async () => {
     const requests = await submit(
-      (config) => meshy3DModel('text-to-3d-refine', config),
+      (config) => meshy3dModel('text-to-3d-refine', config),
       [meshyTask('preview-1'), text('old oak, iron bands')],
       { enable_pbr: true },
     )
@@ -187,7 +187,7 @@ describe('meshy3DModel create3DModelJob', () => {
     ],
   ] as const)('image-to-3d sends %s as image_url', async (_name, part, url) => {
     const requests = await submit(
-      (config) => meshy3DModel('image-to-3d', config),
+      (config) => meshy3dModel('image-to-3d', config),
       [part, text('painted steel')],
     )
     expect(requests).toEqual(
@@ -200,7 +200,7 @@ describe('meshy3DModel create3DModelJob', () => {
 
   it('multi-image-to-3d sends 3 images as image_urls', async () => {
     const requests = await submit(
-      (config) => meshy3DModel('multi-image-to-3d', 'meshy-6', config),
+      (config) => meshy3dModel('multi-image-to-3d', 'meshy-6', config),
       [
         image('https://x/front.png'),
         image('https://x/side.png'),
@@ -232,7 +232,7 @@ describe('meshy3DModel create3DModelJob', () => {
     ],
   ] as const)('retexture maps %s', async (_name, images, fields) => {
     const requests = await submit(
-      (config) => meshy3DModel('retexture', 'meshy-n1', config),
+      (config) => meshy3dModel('retexture', 'meshy-n1', config),
       [mesh(MESH_URL), ...images],
     )
     expect(requests).toEqual(
@@ -253,7 +253,7 @@ describe('meshy3DModel create3DModelJob', () => {
     ],
   ] as const)('rigging maps %s', async (_name, part, fields) => {
     const requests = await submit(
-      (config) => meshy3DModel('rigging', config),
+      (config) => meshy3dModel('rigging', config),
       [part],
       { height_meters: 1.8 },
     )
@@ -264,7 +264,7 @@ describe('meshy3DModel create3DModelJob', () => {
 
   it('animation maps a file source to rig_task_id and keeps action_ids', async () => {
     const requests = await submit(
-      (config) => meshy3DModel('animation', config),
+      (config) => meshy3dModel('animation', config),
       [meshyTask('rig-1')],
       { action_ids: [1, 4] },
     )
@@ -275,7 +275,7 @@ describe('meshy3DModel create3DModelJob', () => {
 
   it('sends a data mesh as application/octet-stream data URI', async () => {
     const requests = await submit(
-      (config) => meshy3DModel('remesh', config),
+      (config) => meshy3dModel('remesh', config),
       [
         {
           type: 'model3d',
@@ -307,7 +307,7 @@ describe('meshy3DModel create3DModelJob', () => {
   })
 
   const rejectedPrompts: Array<
-    [string, MeshyModel3DEndpoint, MediaPrompt, RegExp]
+    [string, MeshyModel3dEndpoint, MediaPrompt, RegExp]
   > = [
     [
       'an image on remesh',
@@ -366,7 +366,7 @@ describe('meshy3DModel create3DModelJob', () => {
 
   it('sends print-split with target_formats blend, because Meshy always adds a GLB', async () => {
     const requests = await submit(
-      (config) => meshy3DModel('print-split', config),
+      (config) => meshy3dModel('print-split', config),
       [meshyTask('mesh-1'), text('head, body, base')],
       { target_formats: ['blend'] },
     )
@@ -381,7 +381,7 @@ describe('meshy3DModel create3DModelJob', () => {
 
   it('refine maps an image part to texture_image_url', async () => {
     const requests = await submit(
-      (config) => meshy3DModel('text-to-3d-refine', config),
+      (config) => meshy3dModel('text-to-3d-refine', config),
       [meshyTask('preview-1'), image(IMAGE_URL)],
     )
     expect(requests).toEqual(
@@ -395,7 +395,7 @@ describe('meshy3DModel create3DModelJob', () => {
 
   it('relief maps one image part to image_url', async () => {
     const requests = await submit(
-      (config) => meshy3DModel('relief', config),
+      (config) => meshy3dModel('relief', config),
       [image(IMAGE_URL)],
       { size_mm: 80 },
     )
@@ -406,7 +406,7 @@ describe('meshy3DModel create3DModelJob', () => {
 
   it('sends model_type smart-topology for meshy-t2.5, and modelOptions wins', async () => {
     const requests = await submit(
-      (config) => meshy3DModel('image-to-3d', 'meshy-t2.5', config),
+      (config) => meshy3dModel('image-to-3d', 'meshy-t2.5', config),
       [image(IMAGE_URL)],
     )
     expect(requests).toEqual(
@@ -418,7 +418,7 @@ describe('meshy3DModel create3DModelJob', () => {
     )
 
     const standard = await submit(
-      (config) => meshy3DModel('image-to-3d', 'meshy-t2.5', config),
+      (config) => meshy3dModel('image-to-3d', 'meshy-t2.5', config),
       [image(IMAGE_URL)],
       { model_type: 'standard' },
     )
@@ -437,11 +437,11 @@ describe('meshy3DModel create3DModelJob', () => {
 
   it('throws before POST for retexture views with a text style', async () => {
     const meshy = fakeMeshy()
-    const adapter = meshy3DModel('retexture', 'meshy-7', {
+    const adapter = meshy3dModel('retexture', 'meshy-7', {
       apiKey: 'key',
       fetch: meshy.fetch,
     })
-    const create = adapter.create3DModelJob({
+    const create = adapter.create3dModelJob({
       model: adapter.model,
       prompt: [
         mesh(MESH_URL),
@@ -474,7 +474,7 @@ describe('meshy3DModel create3DModelJob', () => {
     '%s keeps a %s data mesh as %s',
     async (endpoint, mimeType, sentMimeType) => {
       const requests = await submit(
-        (config) => meshy3DModel(endpoint, config),
+        (config) => meshy3dModel(endpoint, config),
         [
           {
             type: 'model3d',
@@ -504,12 +504,12 @@ describe('meshy3DModel create3DModelJob', () => {
 
   it('passes the abort signal to the create request', async () => {
     const meshy = fakeMeshy()
-    const adapter = meshy3DModel('rigging', {
+    const adapter = meshy3dModel('rigging', {
       apiKey: 'key',
       fetch: meshy.fetch,
     })
     const controller = new AbortController()
-    await adapter.create3DModelJob({
+    await adapter.create3dModelJob({
       model: adapter.model,
       prompt: [mesh(MESH_URL)],
       logger,
@@ -535,7 +535,7 @@ describe('meshy3DModel create3DModelJob', () => {
   })
 })
 
-describe('meshy3DModel get3DModelStatus', () => {
+describe('meshy3dModel get3dModelStatus', () => {
   it.each([
     [
       { status: 'PENDING', progress: 0 },
@@ -555,12 +555,12 @@ describe('meshy3DModel get3DModelStatus', () => {
     ],
   ] as const)('maps status %o', async (task, expected) => {
     const meshy = fakeMeshy(() => json({ id: 'task-9', ...task }))
-    const adapter = meshy3DModel('animation', {
+    const adapter = meshy3dModel('animation', {
       apiKey: 'key',
       fetch: meshy.fetch,
     })
 
-    const status = await adapter.get3DModelStatus('task-9')
+    const status = await adapter.get3dModelStatus('task-9')
 
     expect(status).toEqual({ jobId: 'task-9', ...expected })
     expect(meshy.requests).toEqual([
@@ -569,10 +569,10 @@ describe('meshy3DModel get3DModelStatus', () => {
   })
 })
 
-describe('meshy3DModel get3DModel', () => {
-  it('get3DModel picks the GLB and lists every format and texture', async () => {
+describe('meshy3dModel get3dModel', () => {
+  it('get3dModel picks the GLB and lists every format and texture', async () => {
     const result = await resultFor(
-      (config) => meshy3DModel('image-to-3d', config),
+      (config) => meshy3dModel('image-to-3d', config),
       {
         id: 'task-9',
         status: 'SUCCEEDED',
@@ -612,9 +612,9 @@ describe('meshy3DModel get3DModel', () => {
     })
   })
 
-  it('get3DModel maps rigging result with roles and skips empty quadruped URLs', async () => {
+  it('get3dModel maps rigging result with roles and skips empty quadruped URLs', async () => {
     const result = await resultFor(
-      (config) => meshy3DModel('rigging', config),
+      (config) => meshy3dModel('rigging', config),
       {
         id: 'task-9',
         status: 'SUCCEEDED',
@@ -645,9 +645,9 @@ describe('meshy3DModel get3DModel', () => {
     })
   })
 
-  it('get3DModel maps the animation and post-process files', async () => {
+  it('get3dModel maps the animation and post-process files', async () => {
     const result = await resultFor(
-      (config) => meshy3DModel('animation', config),
+      (config) => meshy3dModel('animation', config),
       {
         id: 'task-9',
         status: 'SUCCEEDED',
@@ -671,9 +671,9 @@ describe('meshy3DModel get3DModel', () => {
     })
   })
 
-  it('get3DModel returns 3mf for print-multi-color', async () => {
+  it('get3dModel returns 3mf for print-multi-color', async () => {
     const result = await resultFor(
-      (config) => meshy3DModel('print-multi-color', config),
+      (config) => meshy3dModel('print-multi-color', config),
       {
         id: 'task-9',
         status: 'SUCCEEDED',
@@ -689,8 +689,8 @@ describe('meshy3DModel get3DModel', () => {
     })
   })
 
-  it('get3DModel throws the task_error message for a FAILED task', async () => {
-    const result = resultFor((config) => meshy3DModel('remesh', config), {
+  it('get3dModel throws the task_error message for a FAILED task', async () => {
+    const result = resultFor((config) => meshy3dModel('remesh', config), {
       id: 'task-9',
       status: 'FAILED',
       task_error: { message: 'Mesh has no faces' },
@@ -701,8 +701,8 @@ describe('meshy3DModel get3DModel', () => {
     )
   })
 
-  it('get3DModel throws when a SUCCEEDED task has no model file', async () => {
-    const result = resultFor((config) => meshy3DModel('remesh', config), {
+  it('get3dModel throws when a SUCCEEDED task has no model file', async () => {
+    const result = resultFor((config) => meshy3dModel('remesh', config), {
       id: 'task-9',
       status: 'SUCCEEDED',
       model_urls: { glb: '' },
@@ -714,7 +714,7 @@ describe('meshy3DModel get3DModel', () => {
   })
 })
 
-describe('meshy3DModel cancel3DModelJob', () => {
+describe('meshy3dModel cancel3dModelJob', () => {
   const TASK_URL = `${BASE}/v1/rigging/task-9`
   const RUNNING = 'Meshy task task-9 is already running and cannot be canceled'
 
@@ -723,10 +723,10 @@ describe('meshy3DModel cancel3DModelJob', () => {
     const meshy = fakeMeshy((request) =>
       request.method === 'DELETE' ? onDelete() : json({ id: 'task-9', status }),
     )
-    const cancel = meshy3DModel('rigging', {
+    const cancel = meshy3dModel('rigging', {
       apiKey: 'key',
       fetch: meshy.fetch,
-    }).cancel3DModelJob('task-9')
+    }).cancel3dModelJob('task-9')
     return { cancel, requests: meshy.requests }
   }
 

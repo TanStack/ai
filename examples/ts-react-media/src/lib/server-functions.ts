@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import {
-  fal3DModel,
+  fal3dModel,
   falFiles,
   falImage,
   falLiveVideo,
@@ -26,7 +26,7 @@ import {
 } from '@tanstack/ai-byteplus'
 import {
   fileSourceFromHandle,
-  generate3DModel,
+  generate3dModel,
   generateImage,
   generateLiveVideo,
   generateVideo,
@@ -61,7 +61,7 @@ import type {
 import {
   isLiveVideoModelId,
   isMeshToolModelId,
-  isModel3DModelId,
+  isModel3dModelId,
   liveVideoProvider,
   WORLD_RESOLUTIONS,
 } from './models'
@@ -210,8 +210,8 @@ function falV(model: Parameters<typeof falVideo>[0]) {
   return falVideo(model, { apiKey: requireByok(falByok) })
 }
 
-function fal3D(model: Parameters<typeof fal3DModel>[0]) {
-  return fal3DModel(model, { apiKey: requireByok(falByok) })
+function fal3d(model: Parameters<typeof fal3dModel>[0]) {
+  return fal3dModel(model, { apiKey: requireByok(falByok) })
 }
 
 function falL(model: Parameters<typeof falLiveVideo>[0]) {
@@ -718,7 +718,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
 // 3D models — fal image-to-3D and retexture (experimental)
 // ============================================================================
 
-interface Model3DRequest {
+interface Model3dRequest {
   /** One of `MODEL3D_MODELS` or `MESH_TOOL_MODELS` in `./models`. */
   model: string
   /**
@@ -731,14 +731,14 @@ interface Model3DRequest {
 }
 
 /**
- * Streams one fal 3D job as Server-Sent Events. `useGenerate3DModel` takes
+ * Streams one fal 3D job as Server-Sent Events. `useGenerate3dModel` takes
  * this as its `fetcher`: progress events and the finished model arrive on
  * the one request, so the browser runs no polling loop.
  */
-export const generate3DModelFn = createServerFn({ method: 'POST' })
-  .validator((data: Model3DRequest) => {
+export const generate3dModelFn = createServerFn({ method: 'POST' })
+  .validator((data: Model3dRequest) => {
     if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
-    if (!isModel3DModelId(data.model)) {
+    if (!isModel3dModelId(data.model)) {
       throw new Error(`Unknown 3D model: ${data.model}`)
     }
     return data
@@ -765,8 +765,8 @@ export const generate3DModelFn = createServerFn({ method: 'POST' })
     abortSignal.throwIfAborted()
     const prompt = typeof others === 'string' ? others : [...meshes, ...others]
     return toServerSentEventsResponse(
-      generate3DModel({
-        adapter: fal3D(data.model),
+      generate3dModel({
+        adapter: fal3d(data.model),
         prompt,
         modelOptions: data.modelOptions,
         threadId: 'media-3d',

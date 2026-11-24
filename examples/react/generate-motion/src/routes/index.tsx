@@ -2,7 +2,10 @@ import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useGeneration } from '@tanstack/ai-react'
 import { falByok } from '@tanstack/ai-fal/byok'
-import type { MotionGenerationResult, MotionStatusResult } from '@tanstack/ai'
+import type {
+  Motion3dGenerationResult,
+  Motion3dStatusResult,
+} from '@tanstack/ai'
 import { FalKeyForm } from '@/components/fal-key-form'
 import { byok } from '@/lib/byok'
 
@@ -17,7 +20,7 @@ const REACTION_PROMPT =
 // return contact timing, so the game owns this number, not the provider.
 const IMPACT_TIME_SECONDS = 1.6
 
-type MotionInput = { prompt: string; duration: number }
+type Motion3dInput = { prompt: string; duration: number }
 
 function hasJobId(value: unknown): value is { jobId: string } {
   return (
@@ -28,7 +31,7 @@ function hasJobId(value: unknown): value is { jobId: string } {
   )
 }
 
-function isMotionStatus(value: unknown): value is MotionStatusResult {
+function isMotionStatus(value: unknown): value is Motion3dStatusResult {
   return (
     hasJobId(value) && 'status' in value && typeof value.status === 'string'
   )
@@ -38,18 +41,18 @@ function isMotionStatus(value: unknown): value is MotionStatusResult {
 // onChunk reads the fal job id and the queue status from CUSTOM events.
 function useMotionClip(threadId: string) {
   const [jobId, setJobId] = useState<string | null>(null)
-  const [jobStatus, setJobStatus] = useState<MotionStatusResult | null>(null)
+  const [jobStatus, setJobStatus] = useState<Motion3dStatusResult | null>(null)
   const [stopped, setStopped] = useState(false)
-  const generation = useGeneration<MotionInput, MotionGenerationResult>({
+  const generation = useGeneration<Motion3dInput, Motion3dGenerationResult>({
     connection: fetchServerSentEvents('/api/generate/motion'),
     threadId,
     byok,
     onChunk: (chunk) => {
       if (chunk.type !== 'CUSTOM') return
-      if (chunk.name === 'motion:job:created' && hasJobId(chunk.value)) {
+      if (chunk.name === 'motion3d:job:created' && hasJobId(chunk.value)) {
         setJobId(chunk.value.jobId)
       }
-      if (chunk.name === 'motion:status' && isMotionStatus(chunk.value)) {
+      if (chunk.name === 'motion3d:status' && isMotionStatus(chunk.value)) {
         setJobStatus(chunk.value)
       }
     },
@@ -60,7 +63,7 @@ function useMotionClip(threadId: string) {
     jobId,
     jobStatus,
     stopped,
-    generate: (input: MotionInput) => {
+    generate: (input: Motion3dInput) => {
       generation.reset()
       setJobId(null)
       setJobStatus(null)
@@ -77,7 +80,7 @@ function useMotionClip(threadId: string) {
 
 type MotionClip = ReturnType<typeof useMotionClip>
 
-function describeJob(status: MotionStatusResult) {
+function describeJob(status: Motion3dStatusResult) {
   switch (status.status) {
     case 'pending':
       return status.queuePosition === undefined
@@ -101,14 +104,14 @@ function describeClip(clip: MotionClip) {
   return 'Not started'
 }
 
-function fbxUrl(motion: MotionGenerationResult) {
+function fbxUrl(motion: Motion3dGenerationResult) {
   return motion.assets.find((asset) => asset.format === 'fbx')?.url ?? null
 }
 
 // The JSON a game imports. Clips come from fal. Timing and effects are yours.
 function buildManifest(
-  attacker: MotionGenerationResult,
-  reaction: MotionGenerationResult,
+  attacker: Motion3dGenerationResult,
+  reaction: Motion3dGenerationResult,
 ) {
   return {
     ability: 'orc-leap-slam',

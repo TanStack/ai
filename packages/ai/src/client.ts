@@ -5,9 +5,9 @@ import type {
   TranscriptionOptions,
   VoiceGenerationOptions,
   VideoGenerationOptions,
-  Model3DGenerationOptions,
+  Model3dGenerationOptions,
   WorldGenerationOptions,
-  MotionGenerationOptions,
+  Motion3dGenerationOptions,
   LiveVideoGenerationOptions,
 } from './types'
 
@@ -20,7 +20,7 @@ export type GenerationKind =
   | '3dModel'
   | 'transcription'
   | 'world'
-  | 'motion'
+  | 'motion3d'
   | 'liveVideo'
 
 type GenerationInputByKind = {
@@ -29,10 +29,10 @@ type GenerationInputByKind = {
   tts: Omit<TTSOptions, 'logger' | 'model'>
   voice: Omit<VoiceGenerationOptions, 'logger' | 'model'>
   video: Omit<VideoGenerationOptions, 'logger' | 'model'>
-  '3dModel': Omit<Model3DGenerationOptions, 'logger' | 'model'>
+  '3dModel': Omit<Model3dGenerationOptions, 'logger' | 'model'>
   transcription: Omit<TranscriptionOptions, 'logger' | 'model'>
   world: Omit<WorldGenerationOptions, 'logger' | 'model'>
-  motion: Omit<MotionGenerationOptions, 'logger' | 'model'>
+  motion3d: Omit<Motion3dGenerationOptions, 'logger' | 'model'>
   liveVideo: Omit<LiveVideoGenerationOptions, 'logger' | 'model'>
 }
 
@@ -52,7 +52,7 @@ const generationKinds = [
   '3dModel',
   'transcription',
   'world',
-  'motion',
+  'motion3d',
   'liveVideo',
 ] as const satisfies ReadonlyArray<GenerationKind>
 
@@ -95,7 +95,7 @@ function requiredKeysForKind(kind: GenerationKind): Array<string> {
     case 'video':
     case '3dModel':
     case 'world':
-    case 'motion':
+    case 'motion3d':
     case 'liveVideo':
       return ['prompt']
   }

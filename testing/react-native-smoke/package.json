@@ -17,9 +17,8 @@
     "test:types": "tsc --noEmit",
     "smoke:imports": "tsx scripts/assert-import-surface.ts",
     "smoke:expo": "expo export --platform ios --no-bytecode --output-dir .expo-smoke-dist --max-workers 0 && tsx scripts/assert-bundle-output.ts .expo-smoke-dist",
-    "smoke:metro": "pnpm smoke:expo",
     "smoke:esbuild": "tsx scripts/esbuild-smoke.ts && tsx scripts/assert-bundle-output.ts .esbuild-smoke-dist",
-    "smoke:bundle": "pnpm smoke:esbuild",
+    "test:smoke": "pnpm smoke:imports && pnpm smoke:expo && pnpm smoke:esbuild",
     "smoke": "pnpm typecheck && pnpm smoke:imports && pnpm smoke:expo && pnpm smoke:esbuild"
   },
   "dependencies": {

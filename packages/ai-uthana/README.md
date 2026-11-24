@@ -33,19 +33,19 @@ npm install @tanstack/ai-uthana @tanstack/ai
 ### Generate a clip
 
 ```typescript
-import { generateMotion, getMotionJobStatus } from '@tanstack/ai'
-import { uthanaMotion } from '@tanstack/ai-uthana'
+import { generate3dMotion, get3dMotionJobStatus } from '@tanstack/ai'
+import { uthana3dMotion } from '@tanstack/ai-uthana'
 
-const adapter = uthanaMotion('text-to-motion-3.0')
+const adapter = uthana3dMotion('text-to-motion-3.0')
 
-const { jobId } = await generateMotion({
+const { jobId } = await generate3dMotion({
   adapter,
   threadId: 'thread-1',
   prompt: 'A heavy warrior swings a two-handed axe overhead',
   duration: 4,
 })
 
-const status = await getMotionJobStatus({ adapter, jobId })
+const status = await get3dMotionJobStatus({ adapter, jobId })
 // When status.status is 'completed', status.motion.assets holds the files.
 ```
 
@@ -63,7 +63,7 @@ const character = await createUthanaCharacter({
   name: 'Orc',
 })
 
-// Pass character.characterId as modelOptions.character_id to generateMotion().
+// Pass character.characterId as modelOptions.character_id to generate3dMotion().
 ```
 
 Set `UTHANA_API_KEY`, or pass `apiKey` in the adapter config. See the [Uthana adapter docs](https://tanstack.com/ai/latest/docs/adapters/uthana).

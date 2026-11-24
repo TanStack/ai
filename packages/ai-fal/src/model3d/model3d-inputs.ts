@@ -9,14 +9,14 @@ import type {
   ImagePart,
   MediaInputMetadata,
   MediaPrompt,
-  Model3DPart,
+  Model3dPart,
 } from '@tanstack/ai'
 import type { EndpointTypeMap } from '@fal-ai/client/endpoints'
 import type { FalMeshFieldName } from './generated/mesh-field-overrides'
 import type {
-  Fal3DKnownModel,
-  Fal3DModel,
-  Fal3DTextFieldName,
+  Fal3dKnownModel,
+  Fal3dModel,
+  Fal3dTextFieldName,
 } from '../model-meta'
 
 /**
@@ -30,10 +30,10 @@ import type {
  *   when the endpoint takes no image parts (for example multi-view
  *   endpoints, which take their views through `modelOptions`).
  */
-type Fal3DPromptFields<TInput> = {
-  text: Extract<keyof TInput, Fal3DTextFieldName> extends never
+type Fal3dPromptFields<TInput> = {
+  text: Extract<keyof TInput, Fal3dTextFieldName> extends never
     ? null
-    : Extract<keyof TInput, Fal3DTextFieldName>
+    : Extract<keyof TInput, Fal3dTextFieldName>
   image: Extract<keyof TInput, FalImageFieldName> extends never
     ? Extract<keyof TInput, 'image_style_url'> extends never
       ? null
@@ -41,7 +41,7 @@ type Fal3DPromptFields<TInput> = {
     : ReadonlyArray<Extract<keyof TInput, FalImageFieldName>>
 }
 
-type Fal3DImageRouting =
+type Fal3dImageRouting =
   | ReadonlyArray<FalImageFieldName>
   | 'image_style_url'
   | null
@@ -92,7 +92,7 @@ const FAL_3D_PROMPT_FIELDS = {
   'fal-ai/sam-3/3d-objects': { text: 'prompt', image: ['image_url'] },
   'fal-ai/sam-3/3d-body': { text: null, image: ['image_url', 'mask_url'] },
 } as const satisfies {
-  [K in Fal3DKnownModel]: Fal3DPromptFields<EndpointTypeMap[K]['input']>
+  [K in Fal3dKnownModel]: Fal3dPromptFields<EndpointTypeMap[K]['input']>
 }
 
 /** The same tables, readable with any endpoint id. */
@@ -100,8 +100,8 @@ const PROMPT_FIELDS_BY_ENDPOINT: Partial<
   Record<
     string,
     {
-      text: Fal3DTextFieldName | null
-      image: Fal3DImageRouting
+      text: Fal3dTextFieldName | null
+      image: Fal3dImageRouting
     }
   >
 > = FAL_3D_PROMPT_FIELDS
@@ -171,7 +171,7 @@ function mapImagesToFalFields(
   return fields
 }
 
-function mapMeshToFalField(model: string, meshes: ReadonlyArray<Model3DPart>) {
+function mapMeshToFalField(model: string, meshes: ReadonlyArray<Model3dPart>) {
   if (meshes.length === 0) return {}
   const [mesh, ...rest] = meshes
   if (!mesh || rest.length > 0) {
@@ -207,13 +207,13 @@ function mapMeshToFalField(model: string, meshes: ReadonlyArray<Model3DPart>) {
  * `data:`, and fal file sources all work.
  *
  * @example
- * mapModel3DPromptToFalFields('fal-ai/trellis-2/retexture', [
+ * mapModel3dPromptToFalFields('fal-ai/trellis-2/retexture', [
  *   { type: 'model3d', source: { type: 'url', value: 'https://x/chair.glb' } },
  * ])
  * // { mesh_url: 'https://x/chair.glb' }
  */
-export function mapModel3DPromptToFalFields(
-  model: Fal3DModel,
+export function mapModel3dPromptToFalFields(
+  model: Fal3dModel,
   prompt: MediaPrompt,
 ) {
   const resolved = resolveMediaPrompt(prompt)

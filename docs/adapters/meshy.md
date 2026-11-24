@@ -6,19 +6,19 @@ keywords:
   - tanstack ai
   - meshy
   - 3d model generation
-  - generate3DModel
+  - generate3dModel
   - text-to-3d
   - image-to-3d
   - rigging
   - animation
   - motion generation
-  - generateMotion
+  - generate3dMotion
   - glb
   - game assets
   - adapter
 ---
 
-`meshy3DModel()` with `generate3DModel()` turns a text prompt or a concept image into a textured GLB. The `jobId` of one job is the input of the next job, so you can rig and animate a character with no upload. `meshyMotion()` makes text-to-motion clips. The adapter has no chat.
+`meshy3dModel()` with `generate3dModel()` turns a text prompt or a concept image into a textured GLB. The `jobId` of one job is the input of the next job, so you can rig and animate a character with no upload. `meshy3dMotion()` makes text-to-motion clips. The adapter has no chat.
 
 > [!WARNING]
 > 3D model generation and motion generation are experimental. The API can change. Meshy charges credits when it creates a task, and gives them back when the task fails.
@@ -46,19 +46,19 @@ Create an API key in your [Meshy](https://www.meshy.ai) account settings. Put it
 MESHY_API_KEY=your-meshy-key
 ```
 
-`meshy3DModel` and `meshyMotion` read `MESHY_API_KEY`. To pass the key in code, set `apiKey` in the last argument:
+`meshy3dModel` and `meshy3dMotion` read `MESHY_API_KEY`. To pass the key in code, set `apiKey` in the last argument:
 
 ```ts
-import { meshy3DModel, meshyMotion } from '@tanstack/ai-meshy'
+import { meshy3dModel, meshy3dMotion } from '@tanstack/ai-meshy'
 
 const apiKey = process.env.MESHY_API_KEY
 
-const imageTo3D = meshy3DModel('image-to-3d', 'meshy-7.1', { apiKey })
-const rigging = meshy3DModel('rigging', { apiKey })
-const motion = meshyMotion('prime', { apiKey })
+const imageTo3d = meshy3dModel('image-to-3d', 'meshy-7.1', { apiKey })
+const rigging = meshy3dModel('rigging', { apiKey })
+const motion = meshy3dMotion('prime', { apiKey })
 ```
 
-The first argument of `meshy3DModel` is the Meshy endpoint. The second argument is the Meshy `ai_model`. Only five endpoints take an `ai_model`. The others take the config as the second argument. See [Endpoints](#endpoints).
+The first argument of `meshy3dModel` is the Meshy endpoint. The second argument is the Meshy `ai_model`. Only five endpoints take an `ai_model`. The others take the config as the second argument. See [Endpoints](#endpoints).
 
 ## 3. Make your first model
 
@@ -71,19 +71,19 @@ This script makes a treasure chest and saves the GLB next to the script:
 
 ```ts
 import { writeFile } from 'node:fs/promises'
-import { generate3DModel } from '@tanstack/ai'
-import { meshy3DModel } from '@tanstack/ai-meshy'
+import { generate3dModel } from '@tanstack/ai'
+import { meshy3dModel } from '@tanstack/ai-meshy'
 
-const preview = await generate3DModel({
-  adapter: meshy3DModel('text-to-3d-preview', 'meshy-7.1'),
+const preview = await generate3dModel({
+  adapter: meshy3dModel('text-to-3d-preview', 'meshy-7.1'),
   prompt: 'A wooden treasure chest with iron bands, game asset',
   threadId: 'treasure-chest',
   wait: true,
   modelOptions: { topology: 'quad', target_polycount: 10_000 },
 })
 
-const chest = await generate3DModel({
-  adapter: meshy3DModel('text-to-3d-refine', 'meshy-7'),
+const chest = await generate3dModel({
+  adapter: meshy3dModel('text-to-3d-refine', 'meshy-7'),
   prompt: [
     {
       type: 'model3d',
@@ -120,11 +120,11 @@ Server route at `/api/generate/3d-model`:
 
 ```ts
 import {
-  generate3DModel,
+  generate3dModel,
   generationParamsFromRequest,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { meshy3DModel } from '@tanstack/ai-meshy'
+import { meshy3dModel } from '@tanstack/ai-meshy'
 
 export async function POST(request: Request) {
   const { input, threadId } = await generationParamsFromRequest(
@@ -138,8 +138,8 @@ export async function POST(request: Request) {
     return new Response('Send one image.', { status: 400 })
   }
 
-  const stream = generate3DModel({
-    adapter: meshy3DModel('image-to-3d', 'meshy-7.1'),
+  const stream = generate3dModel({
+    adapter: meshy3dModel('image-to-3d', 'meshy-7.1'),
     prompt: images,
     threadId,
     stream: true,
@@ -158,13 +158,13 @@ React component:
 
 ```tsx
 import { useState } from 'react'
-import { fetchServerSentEvents, useGenerate3DModel } from '@tanstack/ai-react'
+import { fetchServerSentEvents, useGenerate3dModel } from '@tanstack/ai-react'
 
 const conceptUrl = 'https://example.com/concept/treasure-chest.png'
 
 export function MeshyModel() {
   const [progress, setProgress] = useState(0)
-  const { generate, result, isLoading, error } = useGenerate3DModel({
+  const { generate, result, isLoading, error } = useGenerate3dModel({
     connection: fetchServerSentEvents('/api/generate/3d-model'),
     threadId: 'treasure-chest',
     onProgress: (value) => setProgress(value),
@@ -194,7 +194,7 @@ export function MeshyModel() {
 
 Click **Generate model**. The progress goes up to 100%, then the download link shows. To show the model in the page, use the three.js viewer from [3D Model Generation](../media/3d-model-generation#make-your-first-model).
 
-If the browser closes the request, `generate3DModel()` asks Meshy to cancel the task. Meshy cancels only a task that waits in the queue. A running task finishes, and Meshy charges for it. The adapter reads the task before it cancels, so it almost never deletes a finished model. A task that finishes between that read and the cancel request can still be deleted.
+If the browser closes the request, `generate3dModel()` asks Meshy to cancel the task. Meshy cancels only a task that waits in the queue. A running task finishes, and Meshy charges for it. The adapter reads the task before it cancels, so it almost never deletes a finished model. A task that finishes between that read and the cancel request can still be deleted.
 
 A Meshy job can take longer than the default `timeout` of 10 minutes when Meshy is busy. Meshy says to wait up to 60 minutes. For long jobs, set a larger `timeout`, for example `timeout: 30 * 60_000`. A timeout does not stop a running task, so Meshy still charges for it.
 
@@ -207,13 +207,13 @@ Chain three jobs. Each job reads the result of the job before it from its task i
 3. `animation` puts an action from the Meshy animation library on the rig.
 
 ```ts
-import { generate3DModel } from '@tanstack/ai'
-import { listMeshyAnimations, meshy3DModel } from '@tanstack/ai-meshy'
+import { generate3dModel } from '@tanstack/ai'
+import { listMeshyAnimations, meshy3dModel } from '@tanstack/ai-meshy'
 
 const threadId = 'knight'
 
-const mesh = await generate3DModel({
-  adapter: meshy3DModel('image-to-3d', 'meshy-7.1'),
+const mesh = await generate3dModel({
+  adapter: meshy3dModel('image-to-3d', 'meshy-7.1'),
   prompt: [
     {
       type: 'image',
@@ -225,8 +225,8 @@ const mesh = await generate3DModel({
   modelOptions: { pose_mode: 't-pose', topology: 'quad', target_polycount: 20_000 },
 })
 
-const rig = await generate3DModel({
-  adapter: meshy3DModel('rigging'),
+const rig = await generate3dModel({
+  adapter: meshy3dModel('rigging'),
   prompt: [
     {
       type: 'model3d',
@@ -242,8 +242,8 @@ const actions = await listMeshyAnimations({ category: 'WalkAndRun' })
 const action = actions.find((item) => item.rigType === 'biped')
 if (!action) throw new Error('No biped action in this category.')
 
-const clip = await generate3DModel({
-  adapter: meshy3DModel('animation'),
+const clip = await generate3dModel({
+  adapter: meshy3dModel('animation'),
   prompt: [
     {
       type: 'model3d',
@@ -275,26 +275,26 @@ More options:
 
 ## Make a motion clip
 
-`meshyMotion()` with `generateMotion()` turns a prompt into a skeletal animation clip. The clip is not on a character. `duration` is required: 2 to 10 seconds, in steps of 0.5.
+`meshy3dMotion()` with `generate3dMotion()` turns a prompt into a skeletal animation clip. The clip is not on a character. `duration` is required: 2 to 10 seconds, in steps of 0.5.
 
 ```ts
 import { writeFile } from 'node:fs/promises'
-import { generateMotion, getMotionJobStatus } from '@tanstack/ai'
-import { meshyMotion } from '@tanstack/ai-meshy'
+import { generate3dMotion, get3dMotionJobStatus } from '@tanstack/ai'
+import { meshy3dMotion } from '@tanstack/ai-meshy'
 
-const adapter = meshyMotion('prime')
+const adapter = meshy3dMotion('prime')
 
-const { jobId } = await generateMotion({
+const { jobId } = await generate3dMotion({
   adapter,
   threadId: 'knight-attacks',
   prompt: 'A knight raises a sword overhead with both hands and slams it down',
   duration: 4,
 })
 
-let status = await getMotionJobStatus({ adapter, jobId })
+let status = await get3dMotionJobStatus({ adapter, jobId })
 while (status.status === 'pending' || status.status === 'processing') {
   await new Promise((resolve) => setTimeout(resolve, 5000))
-  status = await getMotionJobStatus({ adapter, jobId })
+  status = await get3dMotionJobStatus({ adapter, jobId })
 }
 
 if (!status.motion) {
@@ -323,18 +323,18 @@ To stream the job to a browser, use the same route and component as the other mo
 
 ### Put the clip on your rig
 
-Pass the motion `jobId` as `modelOptions.motion_task_id` to `meshy3DModel('animation')`. The rig is the `rigging` job from [Rig and animate a character](#rig-and-animate-a-character):
+Pass the motion `jobId` as `modelOptions.motion_task_id` to `meshy3dModel('animation')`. The rig is the `rigging` job from [Rig and animate a character](#rig-and-animate-a-character):
 
 ```ts
-import { generate3DModel } from '@tanstack/ai'
-import { meshy3DModel } from '@tanstack/ai-meshy'
+import { generate3dModel } from '@tanstack/ai'
+import { meshy3dModel } from '@tanstack/ai-meshy'
 
 // The ids from the rigging job and the motion job.
 const rigJobId = 'your-rigging-task-id'
 const motionJobId = 'your-motion-task-id'
 
-const attack = await generate3DModel({
-  adapter: meshy3DModel('animation'),
+const attack = await generate3dModel({
+  adapter: meshy3dModel('animation'),
   prompt: [
     {
       type: 'model3d',
@@ -353,7 +353,7 @@ Your knight now plays the attack from your prompt. The motion task must be compl
 
 ## Endpoints
 
-The first argument of `meshy3DModel()` picks the endpoint. TypeScript types the prompt parts and `modelOptions` for each endpoint.
+The first argument of `meshy3dModel()` picks the endpoint. TypeScript types the prompt parts and `modelOptions` for each endpoint.
 
 | Endpoint | Prompt | `ai_model` |
 | --- | --- | --- |

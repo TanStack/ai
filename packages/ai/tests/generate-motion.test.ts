@@ -1,21 +1,21 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  cancelMotionJob,
-  generateMotion,
-  getMotionJobStatus,
+  cancel3dMotionJob,
+  generate3dMotion,
+  get3dMotionJobStatus,
 } from '../src/index'
 import { collectChunks } from './test-utils'
-import type { MotionAdapter } from '../src/activities/generateMotion/adapter'
+import type { Motion3dAdapter } from '../src/activities/generate3dMotion/adapter'
 import type { GenerationMiddleware } from '../src/activities/middleware/types'
 import type {
-  MotionGenerationResult,
-  MotionStatusResult,
+  Motion3dGenerationResult,
+  Motion3dStatusResult,
   StreamChunk,
 } from '../src/types'
 
 const FBX_URL = 'https://cdn.example.com/orc-swing.fbx'
 
-const finishedMotion: MotionGenerationResult = {
+const finishedMotion: Motion3dGenerationResult = {
   jobId: 'job-1',
   model: 'motion-model',
   assets: [{ url: FBX_URL, format: 'fbx' }],
@@ -27,29 +27,29 @@ const finishedMotion: MotionGenerationResult = {
  * repeating. This is the provider boundary, not code under test.
  */
 function fakeMotionAdapter(options: {
-  statuses: Array<Omit<MotionStatusResult, 'jobId'>>
-  createMotionJob?: MotionAdapter['createMotionJob']
-  getMotion?: MotionAdapter['getMotion']
-  cancelMotionJob?: MotionAdapter['cancelMotionJob']
-}): MotionAdapter {
+  statuses: Array<Omit<Motion3dStatusResult, 'jobId'>>
+  create3dMotionJob?: Motion3dAdapter['create3dMotionJob']
+  get3dMotion?: Motion3dAdapter['get3dMotion']
+  cancel3dMotionJob?: Motion3dAdapter['cancel3dMotionJob']
+}): Motion3dAdapter {
   let poll = 0
   return {
-    kind: 'motion',
+    kind: 'motion3d',
     name: 'fake',
     model: 'motion-model',
     '~types': { providerOptions: {} },
-    createMotionJob:
-      options.createMotionJob ??
+    create3dMotionJob:
+      options.create3dMotionJob ??
       (async () => ({ jobId: 'job-1', model: 'motion-model' })),
-    getMotionStatus: async (jobId) => {
+    get3dMotionStatus: async (jobId) => {
       const status =
         options.statuses[Math.min(poll, options.statuses.length - 1)]!
       poll += 1
       return { jobId, ...status }
     },
-    getMotion: options.getMotion ?? (async () => finishedMotion),
-    ...(options.cancelMotionJob
-      ? { cancelMotionJob: options.cancelMotionJob }
+    get3dMotion: options.get3dMotion ?? (async () => finishedMotion),
+    ...(options.cancel3dMotionJob
+      ? { cancel3dMotionJob: options.cancel3dMotionJob }
       : {}),
   }
 }
@@ -71,7 +71,7 @@ function recordingMiddleware() {
   return { calls, middleware }
 }
 
-describe('generateMotion stream', () => {
+describe('generate3dMotion stream', () => {
   it('streams job, statuses, and the finished assets', async () => {
     const adapter = fakeMotionAdapter({
       statuses: [
@@ -82,7 +82,7 @@ describe('generateMotion stream', () => {
     })
 
     const chunks = await collectChunks(
-      generateMotion({
+      generate3dMotion({
         adapter,
         threadId: 'orc',
         prompt: 'overhead axe swing',
@@ -95,15 +95,15 @@ describe('generateMotion stream', () => {
     expect(chunks.at(-1)?.type).toBe('RUN_FINISHED')
     expect(customChunks(chunks)).toEqual([
       {
-        name: 'motion:job:created',
+        name: 'motion3d:job:created',
         value: { jobId: 'job-1', model: 'motion-model' },
       },
       {
-        name: 'motion:status',
+        name: 'motion3d:status',
         value: { jobId: 'job-1', status: 'pending', queuePosition: 2 },
       },
       {
-        name: 'motion:status',
+        name: 'motion3d:status',
         value: { jobId: 'job-1', status: 'processing', progress: 50 },
       },
       // Only the poll with a real provider number becomes progress.
@@ -111,7 +111,10 @@ describe('generateMotion stream', () => {
         name: 'generation:progress',
         value: { progress: 50, message: 'processing' },
       },
-      { name: 'motion:status', value: { jobId: 'job-1', status: 'completed' } },
+      {
+        name: 'motion3d:status',
+        value: { jobId: 'job-1', status: 'completed' },
+      },
       { name: 'generation:result', value: finishedMotion },
     ])
   })
@@ -122,7 +125,7 @@ describe('generateMotion stream', () => {
     })
 
     const chunks = await collectChunks(
-      generateMotion({
+      generate3dMotion({
         adapter,
         threadId: 'orc',
         prompt: 'overhead axe swing',
@@ -140,13 +143,13 @@ describe('generateMotion stream', () => {
     const cancel = vi.fn(async () => {})
     const adapter = fakeMotionAdapter({
       statuses: [{ status: 'processing' }],
-      cancelMotionJob: cancel,
+      cancel3dMotionJob: cancel,
     })
     const controller = new AbortController()
     const { calls, middleware } = recordingMiddleware()
 
     const chunks: Array<StreamChunk> = []
-    for await (const c of generateMotion({
+    for await (const c of generate3dMotion({
       adapter,
       threadId: 'orc',
       prompt: 'overhead axe swing',
@@ -156,7 +159,8 @@ describe('generateMotion stream', () => {
       abortSignal: controller.signal,
     })) {
       chunks.push(c)
-      if (c.type === 'CUSTOM' && c.name === 'motion:status') controller.abort()
+      if (c.type === 'CUSTOM' && c.name === 'motion3d:status')
+        controller.abort()
     }
 
     expect(chunks.at(-1)?.type).toBe('RUN_ERROR')
@@ -167,11 +171,11 @@ describe('generateMotion stream', () => {
     const cancel = vi.fn(async () => {})
     const adapter = fakeMotionAdapter({
       statuses: [{ status: 'processing' }],
-      cancelMotionJob: cancel,
+      cancel3dMotionJob: cancel,
     })
     const { calls, middleware } = recordingMiddleware()
 
-    for await (const c of generateMotion({
+    for await (const c of generate3dMotion({
       adapter,
       threadId: 'orc',
       prompt: 'overhead axe swing',
@@ -179,7 +183,7 @@ describe('generateMotion stream', () => {
       pollingInterval: 0,
       middleware: [middleware],
     })) {
-      if (c.type === 'CUSTOM' && c.name === 'motion:status') break
+      if (c.type === 'CUSTOM' && c.name === 'motion3d:status') break
     }
 
     expect(calls.map((c) => c.hook)).toEqual(['start', 'abort'])
@@ -191,7 +195,7 @@ describe('generateMotion stream', () => {
     const { calls, middleware } = recordingMiddleware()
 
     const chunks = await collectChunks(
-      generateMotion({
+      generate3dMotion({
         adapter,
         threadId: 'orc',
         prompt: 'overhead axe swing',
@@ -213,7 +217,7 @@ describe('generateMotion stream', () => {
     const { calls, middleware } = recordingMiddleware()
 
     const chunks = await collectChunks(
-      generateMotion({
+      generate3dMotion({
         adapter,
         threadId: 'orc',
         prompt: 'overhead axe swing',
@@ -229,18 +233,18 @@ describe('generateMotion stream', () => {
   })
 })
 
-describe('generateMotion submit and getMotionJobStatus', () => {
+describe('generate3dMotion submit and get3dMotionJobStatus', () => {
   it('returns the job id, and a later poll closes the same middleware run', async () => {
     const adapter = fakeMotionAdapter({ statuses: [{ status: 'completed' }] })
     const { calls, middleware } = recordingMiddleware()
 
-    const job = await generateMotion({
+    const job = await generate3dMotion({
       adapter,
       threadId: 'orc',
       prompt: 'overhead axe swing',
       middleware: [middleware],
     })
-    const status = await getMotionJobStatus({
+    const status = await get3dMotionJobStatus({
       adapter,
       jobId: job.jobId,
       threadId: 'orc',
@@ -263,14 +267,14 @@ describe('generateMotion submit and getMotionJobStatus', () => {
   it('opens and fails a run with no job id when the submit fails', async () => {
     const adapter = fakeMotionAdapter({
       statuses: [{ status: 'pending' }],
-      createMotionJob: async () => {
+      create3dMotionJob: async () => {
         throw new Error('Insufficient balance')
       },
     })
     const { calls, middleware } = recordingMiddleware()
 
     await expect(
-      generateMotion({
+      generate3dMotion({
         adapter,
         threadId: 'orc',
         prompt: 'overhead axe swing',
@@ -289,7 +293,7 @@ describe('generateMotion submit and getMotionJobStatus', () => {
     })
     const { calls, middleware } = recordingMiddleware()
 
-    const status = await getMotionJobStatus({
+    const status = await get3dMotionJobStatus({
       adapter,
       jobId: 'job-1',
       middleware: [middleware],
@@ -306,12 +310,12 @@ describe('generateMotion submit and getMotionJobStatus', () => {
   it('reports failed when the job completed but its result cannot be read', async () => {
     const adapter = fakeMotionAdapter({
       statuses: [{ status: 'completed' }],
-      getMotion: async () => {
+      get3dMotion: async () => {
         throw new Error('result expired')
       },
     })
 
-    const status = await getMotionJobStatus({ adapter, jobId: 'job-1' })
+    const status = await get3dMotionJobStatus({ adapter, jobId: 'job-1' })
 
     expect(status).toEqual({
       jobId: 'job-1',
@@ -321,15 +325,15 @@ describe('generateMotion submit and getMotionJobStatus', () => {
   })
 })
 
-describe('cancelMotionJob', () => {
+describe('cancel3dMotionJob', () => {
   it('asks the provider to cancel the job', async () => {
     const cancel = vi.fn(async () => {})
     const adapter = fakeMotionAdapter({
       statuses: [{ status: 'processing' }],
-      cancelMotionJob: cancel,
+      cancel3dMotionJob: cancel,
     })
 
-    await cancelMotionJob({ adapter, jobId: 'job-9' })
+    await cancel3dMotionJob({ adapter, jobId: 'job-9' })
 
     expect(cancel).toHaveBeenCalledWith('job-9', undefined)
   })
@@ -337,7 +341,9 @@ describe('cancelMotionJob', () => {
   it('throws when the provider has no cancel API', async () => {
     const adapter = fakeMotionAdapter({ statuses: [{ status: 'processing' }] })
 
-    await expect(cancelMotionJob({ adapter, jobId: 'job-9' })).rejects.toThrow(
+    await expect(
+      cancel3dMotionJob({ adapter, jobId: 'job-9' }),
+    ).rejects.toThrow(
       'The fake motion adapter cannot cancel jobs: the provider has no cancel API.',
     )
   })

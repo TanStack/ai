@@ -1,43 +1,43 @@
 import { createGeneration } from './create-generation.ts'
 import type { Handle } from 'remix/ui'
-import type { Model3DResult } from '@tanstack/ai'
-import type { Model3DGenerateInput } from '@tanstack/ai-client'
+import type { Model3dResult } from '@tanstack/ai'
+import type { Model3dGenerateInput } from '@tanstack/ai-client'
 import type {
   CreateGenerationOptions,
   CreateGenerationReturn,
 } from './create-generation.ts'
 
 /**
- * Options for the createGenerate3DModel helper.
+ * Options for the createGenerate3dModel helper.
  *
  * Handle is the first argument of the helper. It is not part of this type.
  *
  * @experimental 3D model generation is experimental. The shape can change in
  * a minor release.
  *
- * @template TOutput - The output type after optional transform (defaults to Model3DResult)
+ * @template TOutput - The output type after optional transform (defaults to Model3dResult)
  */
-export type CreateGenerate3DModelOptions<TOutput = Model3DResult> = Omit<
-  CreateGenerationOptions<Model3DGenerateInput, Model3DResult, TOutput>,
+export type CreateGenerate3dModelOptions<TOutput = Model3dResult> = Omit<
+  CreateGenerationOptions<Model3dGenerateInput, Model3dResult, TOutput>,
   | 'onResult'
   | 'reconstructResult'
   | 'persistence'
   | 'hydrateGeneration'
   | 'joinRun'
 > & {
-  onResult?: (result: Model3DResult) => TOutput | null | void
+  onResult?: (result: Model3dResult) => TOutput | null | void
 }
 
 /**
- * Return type for the createGenerate3DModel helper.
+ * Return type for the createGenerate3dModel helper.
  *
  * @experimental 3D model generation is experimental. The shape can change in
  * a minor release.
  *
  * @template TOutput - The output type (after optional transform)
  */
-export type CreateGenerate3DModelReturn<TOutput = Model3DResult> =
-  CreateGenerationReturn<TOutput, Model3DGenerateInput>
+export type CreateGenerate3dModelReturn<TOutput = Model3dResult> =
+  CreateGenerationReturn<TOutput, Model3dGenerateInput>
 
 /**
  * Creates a 3D model generation helper for Remix setup (text-to-3D,
@@ -58,12 +58,12 @@ export type CreateGenerate3DModelReturn<TOutput = Model3DResult> =
  *
  * @example
  * ```tsx
- * import { createGenerate3DModel } from '@tanstack/ai-remix'
+ * import { createGenerate3dModel } from '@tanstack/ai-remix'
  * import { fetchServerSentEvents } from '@tanstack/ai-client'
  * import type { Handle } from 'remix/ui'
  *
  * function ModelGenerator(handle: Handle) {
- *   const model = createGenerate3DModel(handle, {
+ *   const model = createGenerate3dModel(handle, {
  *     threadId: 'hero-model',
  *     connection: fetchServerSentEvents('/api/3d-model'),
  *   })
@@ -82,14 +82,14 @@ export type CreateGenerate3DModelReturn<TOutput = Model3DResult> =
  * }
  * ```
  */
-export function createGenerate3DModel<TTransformed = void>(
+export function createGenerate3dModel<TTransformed = void>(
   handle: Pick<Handle, 'update' | 'signal'>,
-  options: Omit<CreateGenerate3DModelOptions, 'onResult'> & {
-    onResult?: (result: Model3DResult) => TTransformed
+  options: Omit<CreateGenerate3dModelOptions, 'onResult'> & {
+    onResult?: (result: Model3dResult) => TTransformed
   },
 ) {
-  const devtools = { ...options.devtools, hookName: 'createGenerate3DModel' }
-  return createGeneration<Model3DGenerateInput, Model3DResult, TTransformed>(
+  const devtools = { ...options.devtools, hookName: 'createGenerate3dModel' }
+  return createGeneration<Model3dGenerateInput, Model3dResult, TTransformed>(
     handle,
     // 3D results are never persisted, even if an untyped caller sets it.
     { ...options, devtools, persistence: false },

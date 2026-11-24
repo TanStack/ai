@@ -1243,4 +1243,105 @@ describe('ChatClient resume', () => {
       },
     ])
   })
+
+  it('drops a queued resume when a newer run replaces the paused interrupt', async () => {
+    const contexts: Array<RunAgentInputContext | undefined> = []
+    let releaseReload!: () => void
+    const reloadGate = new Promise<void>((resolve) => {
+      releaseReload = resolve
+    })
+    let callIndex = 0
+
+    const makeInterruptChunks = (
+      runId: string,
+      threadId: string,
+      interruptId: string,
+    ): Array<StreamChunk> => [
+      {
+        type: EventType.RUN_STARTED,
+        runId,
+        threadId,
+        timestamp: Date.now(),
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        runId,
+        threadId,
+        timestamp: Date.now(),
+        outcome: {
+          type: 'interrupt',
+          interrupts: [
+            {
+              id: interruptId,
+              reason: 'confirmation',
+              metadata: {
+                'tanstack:interruptBinding': {
+                  v: INTERRUPT_BINDING_VERSION,
+                  kind: 'generic',
+                  interruptId,
+                  interruptedRunId: runId,
+                  generation: 0,
+                  responseSchemaHash: 'none',
+                },
+              },
+            },
+          ],
+        },
+      },
+    ]
+
+    const adapter: ConnectConnectionAdapter = {
+      async *connect(_messages, _data, _signal, runContext) {
+        contexts.push(runContext)
+        const currentCall = callIndex++
+        const runId = runContext?.runId ?? `run-${currentCall}`
+        const threadId = runContext?.threadId ?? 'thread-1'
+        if (currentCall === 0) {
+          for (const c of makeInterruptChunks(runId, threadId, 'interrupt-1')) {
+            yield c
+          }
+          return
+        }
+        if (currentCall === 1) {
+          throw new Error('resume stream failed')
+        }
+        if (currentCall === 2) {
+          await reloadGate
+          for (const c of makeInterruptChunks(runId, threadId, 'interrupt-2')) {
+            yield c
+          }
+        }
+      },
+    }
+
+    const client = new ChatClient({ connection: adapter, threadId: 'thread-1' })
+    await client.sendMessage('hi')
+    expect(client.getInterrupts().map((i) => i.id)).toEqual(['interrupt-1'])
+
+    resolveGenericInterrupt(client)
+    await vi.waitFor(() => {
+      expect(contexts).toHaveLength(2)
+      expect(client.getInterruptState().interruptErrors[0]?.code).toBe(
+        'transport',
+      )
+    })
+
+    const reloadPromise = client.reload()
+    await vi.waitFor(() => {
+      expect(contexts).toHaveLength(3)
+      expect(client.getIsLoading()).toBe(true)
+    })
+
+    // Resolve the stale interrupt-1 while reload() is still streaming.
+    resolveGenericInterrupt(client)
+    releaseReload()
+    await reloadPromise
+
+    // Let any queued post-stream actions settle.
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(contexts).toHaveLength(3)
+    expect(client.getInterrupts().map((i) => i.id)).toEqual(['interrupt-2'])
+  })
 })
