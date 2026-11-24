@@ -4,26 +4,60 @@ import { ChatClient } from '../src/chat-client'
 import type { ResumableConnectConnectionAdapter } from '../src/connection-adapters'
 import type { StreamChunk, UIMessage } from '@tanstack/ai/client'
 
-const firstEvents: Array<{
+// chat() stamps this on every adapter chunk. On REASONING_MESSAGE_START it
+// makes the processor create the assistant message before any rebuild trigger.
+const callMetadata = {
+  tanstack: {
+    source: { provider: 'openai', api: 'responses', model: 'example-model' },
+  },
+}
+
+const reasonings: Array<{
   name: string
   chunks: Array<StreamChunk>
-  thinking?: string
+  thinking: { content: string; signature?: string }
 }> = [
   {
-    name: 'reasoning content',
+    name: 'readable reasoning',
     chunks: [
+      { type: EventType.REASONING_START, messageId: 'thinking', timestamp: 2 },
+      {
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: 'thinking',
+        role: 'reasoning',
+        timestamp: 2,
+      },
       {
         type: EventType.REASONING_MESSAGE_CONTENT,
         messageId: 'thinking',
         delta: 'Inspect the files.',
         timestamp: 2,
       },
+      {
+        type: EventType.REASONING_MESSAGE_END,
+        messageId: 'thinking',
+        timestamp: 2,
+      },
+      { type: EventType.REASONING_END, messageId: 'thinking', timestamp: 2 },
     ],
-    thinking: 'Inspect the files.',
+    thinking: { content: 'Inspect the files.' },
   },
   {
-    name: 'encrypted reasoning',
+    name: 'encrypted-only reasoning',
     chunks: [
+      { type: EventType.REASONING_START, messageId: 'thinking', timestamp: 2 },
+      {
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: 'thinking',
+        role: 'reasoning',
+        timestamp: 2,
+      },
+      {
+        type: EventType.REASONING_MESSAGE_END,
+        messageId: 'thinking',
+        timestamp: 2,
+      },
+      { type: EventType.REASONING_END, messageId: 'thinking', timestamp: 2 },
       {
         type: EventType.REASONING_ENCRYPTED_VALUE,
         subtype: 'message',
@@ -32,13 +66,48 @@ const firstEvents: Array<{
         timestamp: 2,
       },
     ],
-    thinking: '',
+    thinking: { content: '', signature: 'signature' },
   },
 ]
 
-it.each(firstEvents)(
-  'keeps activity when replay starts with $name',
-  async ({ chunks, thinking }) => {
+const hydratedTails: Array<{ name: string; tail: Array<UIMessage> }> = [
+  { name: 'a user turn', tail: [] },
+  {
+    name: 'an in-flight assistant',
+    tail: [
+      {
+        id: 'partial',
+        role: 'assistant',
+        parts: [{ type: 'thinking', content: 'Inspect' }],
+      },
+    ],
+  },
+  {
+    name: "an in-flight assistant with the replay's id",
+    tail: [
+      {
+        id: 'reply',
+        role: 'assistant',
+        parts: [{ type: 'text', content: 'Built' }],
+      },
+    ],
+  },
+]
+
+const visits = [
+  { name: 'the first join', joins: 1 },
+  { name: 'a join after the view left mid-run', joins: 2 },
+]
+
+const cases = reasonings.flatMap((reasoning) =>
+  hydratedTails.flatMap((hydrated) =>
+    visits.map((visit) => ({ reasoning, hydrated, visit })),
+  ),
+)
+
+it.each(cases)(
+  'keeps the thread when replay starts with $reasoning.name and hydrate ends with $hydrated.name on $visit.name',
+  async ({ reasoning, hydrated, visit }) => {
     const replay: Array<StreamChunk> = [
       {
         type: EventType.RUN_STARTED,
@@ -46,7 +115,7 @@ it.each(firstEvents)(
         threadId: 't1',
         timestamp: 1,
       },
-      ...chunks,
+      ...reasoning.chunks,
       {
         type: EventType.TOOL_CALL_START,
         toolCallId: 'read',
@@ -87,7 +156,14 @@ it.each(firstEvents)(
         timestamp: 10,
       },
     ]
+    // chat() runs the tool itself, so the tool result is not an adapter chunk.
+    const stamped = replay.map((chunk) =>
+      chunk.type === EventType.TOOL_CALL_RESULT
+        ? chunk
+        : { ...chunk, metadata: callMetadata },
+    )
     let sent: Array<UIMessage> = []
+    let joins = 0
     const connection: ResumableConnectConnectionAdapter = {
       async hydrate() {
         return {
@@ -97,18 +173,24 @@ it.each(firstEvents)(
               role: 'user',
               parts: [{ type: 'text', content: 'Build an app.' }],
             },
-            {
-              id: 'partial',
-              role: 'assistant',
-              parts: [{ type: 'thinking', content: 'Inspect' }],
-            },
+            ...hydrated.tail,
           ],
           activeRun: { runId: 'r1' },
           interrupts: null,
         }
       },
-      async *joinRun() {
-        yield* replay
+      async *joinRun(_runId, signal) {
+        joins += 1
+        if (joins === visit.joins) {
+          yield* stamped
+        } else {
+          // The view leaves before the run ends, so the processor still
+          // holds this run's stream state when the next join replays it.
+          yield* stamped.slice(0, -1)
+          await new Promise((resolve) =>
+            signal?.addEventListener('abort', resolve),
+          )
+        }
       },
       async *connect(messages) {
         sent = messages as Array<UIMessage>
@@ -121,31 +203,39 @@ it.each(firstEvents)(
     })
     try {
       client.attach()
+      if (visit.joins === 2) {
+        await vi.waitFor(() => {
+          expect(client.getMessages().at(-1)?.parts).toContainEqual(
+            expect.objectContaining({
+              type: 'text',
+              content: 'Built the app.',
+            }),
+          )
+        })
+        client.detach()
+        client.attach()
+      }
       await vi.waitFor(() => {
-        expect(
-          client.getMessages().flatMap((message) => message.parts),
-        ).toContainEqual(
-          expect.objectContaining({ type: 'text', content: 'Built the app.' }),
-        )
+        expect(joins).toBe(visit.joins)
+        expect(client.getIsLoading()).toBe(false)
       })
       await client.sendMessage('Change the title.')
-      const parts = sent.flatMap((message) => message.parts)
-      if (thinking !== undefined) {
-        expect(parts).toContainEqual(
-          expect.objectContaining({ type: 'thinking', content: thinking }),
-        )
-      }
-      expect(parts).toContainEqual(
+      const assistants = sent.filter((message) => message.role === 'assistant')
+      expect(assistants).toHaveLength(1)
+      expect(assistants[0]!.id).not.toBe('partial')
+      expect(assistants[0]!.parts).toContainEqual(
+        expect.objectContaining({ type: 'thinking', ...reasoning.thinking }),
+      )
+      expect(assistants[0]!.parts).toContainEqual(
         expect.objectContaining({
           type: 'tool-call',
           id: 'read',
           output: 'file contents',
         }),
       )
-      expect(parts).toContainEqual(
+      expect(assistants[0]!.parts).toContainEqual(
         expect.objectContaining({ type: 'text', content: 'Built the app.' }),
       )
-      expect(sent.some((message) => message.id === 'partial')).toBe(false)
     } finally {
       client.dispose()
     }
