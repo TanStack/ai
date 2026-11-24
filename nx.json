@@ -46,6 +46,11 @@
       "dependsOn": ["^build"],
       "inputs": ["default", "^production"]
     },
+    "test:smoke": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["default", "^production"]
+    },
     "test:build": {
       "cache": true,
       "dependsOn": ["build"],
