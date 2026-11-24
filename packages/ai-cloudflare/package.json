@@ -66,6 +66,7 @@
     "transcription"
   ],
   "dependencies": {
+    "@tanstack/ai-deepgram": "workspace:^",
     "@tanstack/ai-utils": "workspace:^",
     "@tanstack/openai-base": "workspace:^",
     "openai": "^7.30.0"

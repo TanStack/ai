@@ -48,17 +48,33 @@ function createTimeoutReason(ms: number): Error {
   return err
 }
 
+/**
+ * Every Error that `toAbortError` returned. A caller can abort with its own
+ * Error, such as `new Error('call ended')`, which has no abort name. This set
+ * keeps the fact that it came from an abort, without changing the Error.
+ */
+const abortErrors = new WeakSet<Error>()
+
 /** Normalize an abort reason into an Error the activity can reject with. */
 export function toAbortError(reason: unknown): Error {
-  if (reason instanceof Error) return reason
-  if (typeof reason === 'string' && reason.length > 0) {
-    const err = new Error(reason)
+  let err: Error
+  if (reason instanceof Error) {
+    err = reason
+  } else {
+    err = new Error(
+      typeof reason === 'string' && reason.length > 0
+        ? reason
+        : 'The operation was aborted',
+    )
     err.name = 'AbortError'
-    return err
   }
-  const err = new Error('The operation was aborted')
-  err.name = 'AbortError'
+  abortErrors.add(err)
   return err
+}
+
+/** Whether an activity rejected with this Error because its signal aborted. */
+export function isAbortRejection(error: unknown): boolean {
+  return error instanceof Error && abortErrors.has(error)
 }
 
 export interface ActivityAbortControls {

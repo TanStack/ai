@@ -117,6 +117,11 @@
           "addedAt": "2026-10-17"
         },
         {
+          "label": "Voice Support Agent",
+          "to": "tutorials/voice-support-agent",
+          "addedAt": "2026-11-05"
+        },
+        {
           "label": "Effect Chat",
           "to": "tutorials/effect-chat",
           "addedAt": "2026-11-06"
@@ -186,6 +191,11 @@
           "label": "MCP Events",
           "to": "framework/react/examples/mcp-events",
           "addedAt": "2026-10-17"
+        },
+        {
+          "label": "Voice Support Agent",
+          "to": "framework/react/examples/voice-support-agent",
+          "addedAt": "2026-11-05"
         },
         {
           "label": "Effect Chat",
@@ -956,6 +966,18 @@
           "addedAt": "2026-10-21"
         },
         {
+          "label": "Live Transcription",
+          "to": "media/live-transcription",
+          "addedAt": "2026-11-02",
+          "updatedAt": "2026-11-05"
+        },
+        {
+          "label": "Live Transcription: Advanced",
+          "to": "media/live-transcription-advanced",
+          "addedAt": "2026-11-02",
+          "updatedAt": "2026-11-23"
+        },
+        {
           "label": "Voice Creation",
           "to": "media/voice-creation",
           "addedAt": "2026-09-16",
@@ -1690,7 +1712,7 @@
           "label": "Debug Logging",
           "to": "advanced/debug-logging",
           "addedAt": "2026-04-22",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-05"
         },
         {
           "label": "Multimodal Content",
@@ -1824,7 +1846,7 @@
           "label": "Google Gemini: Advanced",
           "to": "adapters/gemini-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-10-25"
+          "updatedAt": "2026-11-05"
         },
         {
           "label": "Google Vertex AI",
@@ -1842,7 +1864,7 @@
           "label": "Grok (xAI)",
           "to": "adapters/grok",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Groq",
@@ -1854,7 +1876,7 @@
           "label": "Mistral",
           "to": "adapters/mistral",
           "addedAt": "2026-06-30",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Cohere",
@@ -1875,10 +1897,15 @@
           "updatedAt": "2026-10-22"
         },
         {
+          "label": "Deepgram",
+          "to": "adapters/deepgram",
+          "addedAt": "2026-11-02"
+        },
+        {
           "label": "ElevenLabs",
           "to": "adapters/elevenlabs",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Cartesia",

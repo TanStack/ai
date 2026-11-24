@@ -148,6 +148,8 @@ chat({
 });
 ```
 
+A cancelled request is not logged. When your `abortSignal` fires, or a `timeout` runs out, the call still rejects with the abort error, but nothing is written to the `errors` category.
+
 To turn off all output, errors included, set `debug: false` or `debug: { errors: false }`.
 
 The logger is an extra output. Errors also always reach the caller, as thrown exceptions or `RUN_ERROR` stream chunks.

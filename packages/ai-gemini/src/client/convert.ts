@@ -323,7 +323,12 @@ export function tBytes(bytes: unknown) {
   return bytes
 }
 
-function partToWire(part: Part) {
+/** `Part` plus the Gemini 3.8 TTS field that @google/genai 2.10 lacks. */
+export type SpeechPart = Part & {
+  speechMetadata?: { style?: string; speaker?: string }
+}
+
+function partToWire(part: SpeechPart) {
   const to: WireObject = pick(part, [
     'mediaResolution',
     'codeExecutionResult',
@@ -339,6 +344,7 @@ function partToWire(part: Part) {
     'toolCall',
     'toolResponse',
     'partMetadata',
+    'speechMetadata',
   ])
   if (part.fileData != null) {
     rejectVertexOnly(part.fileData, ['displayName'])

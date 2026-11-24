@@ -500,7 +500,65 @@ const GEMINI_2_5_FLASH_TTS = {
 >
 
 /**
- * Gemini 3.1 Flash TTS Preview - latest expressive TTS model with
+ * Gemini 3.8 Flash TTS - flagship creative TTS model. 130 languages,
+ * audio tags, and multi-speaker dialogue.
+ * @see https://aistudio.google.com/docs/models/gemini-3.8-flash-tts
+ */
+const GEMINI_3_8_FLASH_TTS = {
+  name: 'gemini-3.8-flash-tts',
+  max_input_tokens: 8_192,
+  max_output_tokens: 16_384,
+  supports: {
+    input: ['text'],
+    output: ['audio'],
+    capabilities: ['audio_generation', 'batch_api'],
+  },
+  pricing: {
+    input: {
+      normal: 0.5,
+    },
+    output: {
+      normal: 9,
+    },
+  },
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions
+>
+
+/**
+ * Gemini 3.8 Flash Lite TTS - low-latency, high-throughput TTS model.
+ * 101 languages. Replaces `gemini-3.1-flash-tts-preview`.
+ * @see https://aistudio.google.com/docs/models/gemini-3.8-flash-lite-tts
+ */
+const GEMINI_3_8_FLASH_LITE_TTS = {
+  name: 'gemini-3.8-flash-lite-tts',
+  max_input_tokens: 8_192,
+  max_output_tokens: 16_384,
+  supports: {
+    input: ['text'],
+    output: ['audio'],
+    capabilities: ['audio_generation', 'batch_api'],
+  },
+  pricing: {
+    input: {
+      normal: 0.5,
+    },
+    output: {
+      normal: 6,
+    },
+  },
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions
+>
+
+/**
+ * Gemini 3.1 Flash TTS Preview - expressive TTS model with
  * 200+ audio tags, 70+ languages, and multi-speaker dialogue support.
  * @see https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-tts-preview
  */
@@ -1044,6 +1102,8 @@ export const GEMINI_IMAGE_MODELS = [
  * @experimental Gemini TTS is an experimental feature and may change.
  */
 export const GEMINI_TTS_MODELS = [
+  GEMINI_3_8_FLASH_TTS.name,
+  GEMINI_3_8_FLASH_LITE_TTS.name,
   GEMINI_3_1_FLASH_TTS.name,
   GEMINI_2_5_FLASH_TTS.name,
   GEMINI_2_5_PRO_TTS.name,

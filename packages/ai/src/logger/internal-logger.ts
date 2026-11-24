@@ -1,3 +1,7 @@
+import {
+  isAbortRejection,
+  isActivityAbortError,
+} from '../utilities/activity-abort'
 import type { DebugCategories, Logger } from './types'
 
 /**
@@ -100,9 +104,18 @@ export class InternalLogger {
 
   /**
    * Log a caught error. Defaults to on even when `debug` is unspecified.
-   * Uses the underlying logger's `error` level.
+   * Uses the underlying logger's `error` level. A cancelled request
+   * (`meta.error` is an abort or timeout error, or the caller's own abort
+   * reason) is not an error, so it is skipped: the caller asked for it, and
+   * still gets the rejection.
    */
   errors(message: string, meta?: Record<string, unknown>): void {
+    if (
+      meta &&
+      'error' in meta &&
+      (isActivityAbortError(meta.error) || isAbortRejection(meta.error))
+    )
+      return
     this.emit('error', 'errors', message, meta)
   }
 

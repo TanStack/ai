@@ -15,7 +15,7 @@ keywords:
   - fal
 ---
 
-Transcription sends audio to a speech-to-text model and returns the text, with timestamps when you request them.
+Transcription sends audio to a speech-to-text model and returns the text, with timestamps when you request them. To get text while someone talks, for example on a phone call, use [Live Transcription](./live-transcription).
 
 ## Transcribe your first file
 

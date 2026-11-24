@@ -29,7 +29,9 @@ import type { AnyEvaluateAdapter } from './evaluate/adapter'
 import type { AnyWorldAdapter } from './generateWorld/adapter'
 import type { AnyMotion3dAdapter } from './generate3dMotion/adapter'
 import type { AnyLiveVideoAdapter } from './generateLiveVideo/adapter'
+
 import type { AnyFilesAdapter } from './files/adapter'
+import type { AnyLiveTranscriptionAdapter } from './transcriptionSession/adapter'
 
 // ===========================
 // Chat Activity
@@ -396,6 +398,28 @@ export {
 } from './generateLiveVideo/adapter'
 
 // ===========================
+// Live Transcription Session Activity
+// ===========================
+
+export {
+  kind as liveTranscriptionKind,
+  transcriptionSession,
+  createAudioConverter,
+  pickAudioFormat,
+  type TranscriptionSession,
+  type TranscriptionSessionOptions,
+  type LiveTranscriptionProviderOptions,
+  type LiveAudioEncoding,
+  type LiveAudioFormat,
+  type LiveAudioInput,
+  type LiveTranscriptionAdapter,
+  type LiveTranscriptionConnectOptions,
+  type LiveTranscriptionConnection,
+  type LiveTranscriptionEvent,
+  type AnyLiveTranscriptionAdapter,
+} from './transcriptionSession/index'
+
+// ===========================
 // Files Activity
 // ===========================
 
@@ -437,6 +461,7 @@ export type AIAdapter =
   | AnyWorldAdapter
   | AnyMotion3dAdapter
   | AnyLiveVideoAdapter
+  | AnyLiveTranscriptionAdapter
   | AnyFilesAdapter
 
 /** Union type of all adapter kinds */
@@ -456,4 +481,5 @@ export type AdapterKind =
   | 'world'
   | 'motion3d'
   | 'liveVideo'
+  | 'liveTranscription'
   | 'files'

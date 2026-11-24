@@ -53,6 +53,13 @@ export {
   type CloudflareTranscriptionProviderOptions,
 } from './adapters/transcription'
 
+export {
+  CLOUDFLARE_LIVE_TRANSCRIPTION_MODELS,
+  cloudflareLiveTranscription,
+  type CloudflareLiveTranscriptionConfig,
+  type CloudflareLiveTranscriptionModel,
+} from './adapters/live-transcription'
+
 export { cloudflareGateway, type CloudflareGatewayTarget } from './gateway'
 
 export {

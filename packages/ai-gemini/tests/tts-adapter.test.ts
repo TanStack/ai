@@ -167,6 +167,92 @@ describe('Gemini TTS Adapter', () => {
     expect(args.config.speechConfig.voiceConfig).toBeUndefined()
   })
 
+  it('sends style and speakers as speechMetadata on Gemini 3.8 TTS', async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      candidates: [
+        {
+          content: {
+            parts: [{ inlineData: { mimeType: 'audio/wav', data: 'B' } }],
+          },
+        },
+      ],
+    })
+
+    await generateSpeech({
+      threadId: 'thread-1',
+      adapter: createGeminiSpeech('gemini-3.8-flash-tts', 'key'),
+      turns: [
+        { voice: 'Puck', text: 'hello' },
+        { voice: 'Kore', text: 'hi' },
+      ],
+      modelOptions: { systemInstruction: 'whispering' },
+    })
+
+    const args = mockGenerateContent.mock.calls[0]![0]
+    expect(args.contents[0].parts).toEqual([
+      {
+        text: 'hello',
+        speechMetadata: { speaker: 'Puck', style: 'whispering' },
+      },
+      { text: 'hi', speechMetadata: { speaker: 'Kore', style: 'whispering' } },
+    ])
+    expect(args.config.systemInstruction).toBeUndefined()
+  })
+
+  it('rejects multiSpeakerVoiceConfig without turns on Gemini 3.8 TTS', async () => {
+    await expect(
+      generateSpeech({
+        threadId: 'thread-1',
+        adapter: createGeminiSpeech('gemini-3.8-flash-tts', 'key'),
+        text: 'Joe: hello\nJane: hi',
+        modelOptions: {
+          multiSpeakerVoiceConfig: {
+            speakerVoiceConfigs: [
+              {
+                speaker: 'Joe',
+                voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } },
+              },
+              {
+                speaker: 'Jane',
+                voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
+              },
+            ],
+          },
+        },
+      }),
+    ).rejects.toThrow(/Pass `turns` for multi-speaker speech/)
+    expect(mockGenerateContent).not.toHaveBeenCalled()
+  })
+
+  it('rejects a 3.8 style on Vertex AI, where the SDK drops speechMetadata', async () => {
+    const adapter = new GeminiTTSAdapter(
+      { vertexai: true, project: 'p', location: 'us-central1' },
+      'gemini-3.8-flash-tts',
+    )
+    await expect(
+      generateSpeech({
+        threadId: 'thread-1',
+        adapter,
+        text: 'hello',
+        modelOptions: { systemInstruction: 'whispering' },
+      }),
+    ).rejects.toThrow(/does not send that field/)
+    expect(mockGenerateContent).not.toHaveBeenCalled()
+
+    // Without a style or turns, nothing is lost, so the request goes out.
+    mockGenerateContent.mockResolvedValueOnce({
+      candidates: [
+        {
+          content: {
+            parts: [{ inlineData: { mimeType: 'audio/wav', data: 'B' } }],
+          },
+        },
+      ],
+    })
+    await generateSpeech({ threadId: 'thread-1', adapter, text: 'hello' })
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1)
+  })
+
   it('honors TTSOptions.voice as a fallback for the prebuilt voice', async () => {
     // Regression: the adapter used to ignore `options.voice` and hard-code
     // 'Kore' even when the caller asked for something else.

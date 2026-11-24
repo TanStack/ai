@@ -4,12 +4,14 @@ import {
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../utils'
+import { usesVertexAI } from '../client/api'
 import { GEMINI_TTS_VOICES } from '../model-meta'
 import { buildGeminiUsage } from '../usage'
 import type { GEMINI_TTS_MODELS, GeminiTTSVoice } from '../model-meta'
 import type { TTSCapabilities, TTSOptions, TTSResult } from '@tanstack/ai'
 import type { SpeechConfig } from '@google/genai'
 import type { GeminiClient } from '../client/index'
+import type { SpeechPart } from '../client/convert'
 import type { GeminiClientConfig } from '../utils/client'
 
 /**
@@ -32,7 +34,7 @@ export interface GeminiSpeakerVoiceConfig {
  *
  * @experimental Gemini TTS is an experimental feature.
  * @see https://ai.google.dev/gemini-api/docs/speech-generation
- * @see https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-tts-preview
+ * @see https://aistudio.google.com/docs/models/gemini-3.8-flash-tts
  */
 export interface GeminiTTSProviderOptions {
   /**
@@ -68,13 +70,13 @@ export interface GeminiTTSProviderOptions {
   }
 
   /**
-   * System instruction for controlling speech style.
-   * Use natural language to describe the desired speaking style,
-   * pace, tone, accent, or other characteristics.
+   * Delivery style in natural language: pace, tone, emotion, volume.
    *
-   * With Gemini 3.1 Flash TTS, you can also use inline audio tags like
-   * `[whispering]`, `[laughs]`, `[excited]` directly in the input text
-   * to control delivery.
+   * Gemini 3.8 TTS models take this as `speechMetadata.style` on each text
+   * part, and reject a system instruction. They read the text as a verbatim
+   * transcript, with angle-bracket tags like `<laugh>` and `<short pause>`
+   * for momentary events. Older models take it as the system instruction,
+   * and Gemini 3.1 Flash TTS also reads inline audio tags like `[whispering]`.
    *
    * @example "Speak slowly and calmly, as if telling a bedtime story"
    * @example "Use an upbeat, enthusiastic tone with moderate pace"
@@ -104,6 +106,13 @@ export interface GeminiTTSConfig extends GeminiClientConfig {}
 /** Model type for Gemini TTS */
 export type GeminiTTSModel = (typeof GEMINI_TTS_MODELS)[number]
 
+/** Models that take `systemInstruction` and speaker labels in the text. */
+const LEGACY_STYLE_MODELS: ReadonlySet<string> = new Set([
+  'gemini-3.1-flash-tts-preview',
+  'gemini-2.5-flash-preview-tts',
+  'gemini-2.5-pro-preview-tts',
+])
+
 /**
  * Gemini Text-to-Speech Adapter
  *
@@ -129,10 +138,13 @@ export class GeminiTTSAdapter<
   override readonly capabilities: TTSCapabilities = { maxSpeakers: 2 }
 
   private readonly client: GeminiClient
+  /** Requests go through `@google/genai`, the same rule as `createGoogleGenAI`. */
+  private readonly viaSdk: boolean
 
   constructor(config: GeminiTTSConfig, model: TModel) {
     super(model, config)
     this.client = createGeminiClient(config)
+    this.viaSdk = usesVertexAI(config) || !config.apiKey
   }
 
   /**
@@ -152,12 +164,34 @@ export class GeminiTTSAdapter<
     })
 
     const speechConfig: SpeechConfig = {}
-    // Gemini has no turn structure on the wire: speakers are named in the
-    // prompt and mapped to voices in the config. `turns` carries voice names,
-    // so the voice name doubles as the speaker label.
-    const text = turns
-      ? turns.map((turn) => `${turn.voice}: ${turn.text}`).join('\n')
-      : options.text
+    const style = modelOptions?.systemInstruction
+    // `turns` carries voice names, so the voice name doubles as the speaker
+    // label. Legacy models read the label from the text; 3.8 models take it,
+    // and the style, as `speechMetadata` on each part.
+    const legacy = LEGACY_STYLE_MODELS.has(model)
+    // @google/genai 2.10 drops `speechMetadata` from a part without an error.
+    if (!legacy && (turns || style) && this.viaSdk) {
+      throw new Error(
+        `Gemini TTS model ${model} sends a style or turns as \`speechMetadata\`, and the @google/genai SDK does not send that field. Use an API key, not Vertex AI or Google auth, for a style or turns on this model.`,
+      )
+    }
+    const input: Array<SpeechPart> = legacy
+      ? [
+          {
+            text: turns
+              ? turns.map((turn) => `${turn.voice}: ${turn.text}`).join('\n')
+              : options.text,
+          },
+        ]
+      : (turns ?? [{ voice: undefined, text: options.text }]).map((turn) => ({
+          text: turn.text,
+          ...((turn.voice || style) && {
+            speechMetadata: {
+              ...(turn.voice && { speaker: turn.voice }),
+              ...(style && { style }),
+            },
+          }),
+        }))
 
     if (turns) {
       const voiceNames = [...new Set(turns.map((turn) => turn.voice))].map(
@@ -170,6 +204,13 @@ export class GeminiTTSAdapter<
         })),
       }
     } else if (modelOptions?.multiSpeakerVoiceConfig) {
+      // 3.8 models read the speaker from each part, not from labels in the
+      // text, so one text part cannot carry a dialogue.
+      if (!legacy) {
+        throw new Error(
+          `Gemini TTS model ${model} does not read speaker labels from the text. Pass \`turns\` for multi-speaker speech.`,
+        )
+      }
       // Validate multi-speaker config: 1 or 2 speakers allowed.
       const speakerConfigs =
         modelOptions.multiSpeakerVoiceConfig.speakerVoiceConfigs
@@ -207,21 +248,14 @@ export class GeminiTTSAdapter<
     try {
       const response = await this.client.models.generateContent({
         model,
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text }],
-          },
-        ],
+        contents: [{ role: 'user', parts: input }],
         config: {
           responseModalities: ['AUDIO'],
           speechConfig,
           ...(options.abortSignal && { abortSignal: options.abortSignal }),
           // systemInstruction belongs inside `config` per the @google/genai
-          // contract — matches sibling Gemini adapters (summarize, text).
-          ...(modelOptions?.systemInstruction && {
-            systemInstruction: modelOptions.systemInstruction,
-          }),
+          // contract. Gemini 3.8 TTS rejects it; its style rides on the part.
+          ...(legacy && style && { systemInstruction: style }),
         },
       })
 

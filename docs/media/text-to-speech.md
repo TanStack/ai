@@ -134,7 +134,7 @@ export async function POST(request: Request) {
 | Provider | Adapter | Models | API key |
 | --- | --- | --- | --- |
 | OpenAI | `openaiSpeech` from `@tanstack/ai-openai` | `tts-1-hd`, `tts-1`, `gpt-4o-mini-tts` | `OPENAI_API_KEY` |
-| Gemini (experimental) | `geminiSpeech` from `@tanstack/ai-gemini` | `gemini-3.1-flash-tts-preview`, `gemini-2.5-flash-preview-tts`, `gemini-2.5-pro-preview-tts` | `GOOGLE_API_KEY` or `GEMINI_API_KEY` |
+| Gemini (experimental) | `geminiSpeech` from `@tanstack/ai-gemini` | `gemini-3.8-flash-tts`, `gemini-3.8-flash-lite-tts`, `gemini-3.1-flash-tts-preview`, and more | `GOOGLE_API_KEY` or `GEMINI_API_KEY` |
 | ElevenLabs | `elevenlabsSpeech` from `@tanstack/ai-elevenlabs` | `eleven_v4`, `eleven_v4_turbo`, `eleven_v3`, and more | `ELEVENLABS_API_KEY` |
 | Cartesia | `cartesiaSpeech` from `@tanstack/ai-cartesia` | `sonic-3.6`, `sonic-3.5`, `sonic-3`, `sonic-latest` | `CARTESIA_API_KEY` |
 | BytePlus | `byteplusSpeech` from `@tanstack/ai-byteplus` | `seed-audio-1.0` | `BYTEPLUS_VOICE_API_KEY` |
@@ -251,7 +251,7 @@ import { generateSpeech } from '@tanstack/ai'
 import { geminiSpeech } from '@tanstack/ai-gemini'
 
 const result = await generateSpeech({
-  adapter: geminiSpeech('gemini-3.1-flash-tts-preview'),
+  adapter: geminiSpeech('gemini-3.8-flash-tts'),
   text: 'Hello from Gemini TTS!',
   threadId: 'thread-1',
 })
@@ -495,7 +495,7 @@ import { createGeminiSpeech } from '@tanstack/ai-gemini'
 const openaiAdapter = createOpenaiSpeech('tts-1-hd', 'your-openai-api-key')
 
 const geminiAdapter = createGeminiSpeech(
-  'gemini-3.1-flash-tts-preview',
+  'gemini-3.8-flash-tts',
   'your-google-api-key',
 )
 ```
