@@ -107,7 +107,7 @@ const TEMPORARY_HTTP_STATUSES = new Set([408, 429, 502, 503, 504])
  * A non-2xx response. A reconnect retries it when the status is temporary
  * (408, 429, 502, 503, 504), and waits for its `Retry-After` when present.
  */
-class StreamHttpError extends Error {
+export class StreamHttpError extends Error {
   readonly retryAfterMs: number | undefined
   constructor(
     message: string,

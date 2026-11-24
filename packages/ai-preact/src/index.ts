@@ -38,6 +38,7 @@ export {
   createAIDevtoolsGenerationPreview,
   StreamTruncatedError,
   DurableStreamIncompleteError,
+  StreamHttpError,
   StreamReconnectLimitError,
   uiMessageToModelMessages,
   modelMessageToUIMessage,

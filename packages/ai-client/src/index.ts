@@ -175,6 +175,7 @@ export {
   webSocket,
   StreamTruncatedError,
   DurableStreamIncompleteError,
+  StreamHttpError,
   StreamReconnectLimitError,
   createReconnectTracker,
   type ReconnectTracker,
