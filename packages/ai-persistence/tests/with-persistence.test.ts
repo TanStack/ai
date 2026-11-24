@@ -1743,7 +1743,7 @@ describe('withPersistence (state-only)', () => {
         }) as AsyncIterable<StreamChunk>,
       )
       const records = await persistence.stores.activities.loadActivities('t1')
-      // act-2 follows u2, which is the fourth row after act-1 at 1.
+      // The merged thread is [u1, act-1, a1, u2, act-2], so act-2 is after u2.
       expect(records.map((record) => [record.id, record.index])).toEqual([
         ['act-1', 1],
         ['act-2', 4],
