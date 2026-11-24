@@ -2,6 +2,7 @@ import { defineInterrupt, validateJsonSchema } from '@tanstack/ai'
 import { isRecord } from './utils'
 import type {
   AnyChatMiddleware,
+  ModelMessage,
   StandardJSONSchemaV1,
   StandardSchemaV1,
 } from '@tanstack/ai'
@@ -214,9 +215,47 @@ export function readApproval(value: unknown): {
 }
 
 /**
+ * How many times the model made a call with this id. Some providers reuse
+ * simple ids (`call_0`) in later turns, so the id alone does not name a call.
+ */
+function occurrenceOf(
+  messages: ReadonlyArray<ModelMessage>,
+  toolCallId: string,
+): number {
+  let count = 0
+  for (const message of messages) {
+    if (message.role !== 'assistant') continue
+    for (const call of message.toolCalls ?? []) {
+      if (call.id === toolCallId) count++
+    }
+  }
+  return count
+}
+
+interface StoredAnswer {
+  toolCallId: string
+  occurrence: number
+  value: unknown
+}
+
+function isStoredAnswer(value: unknown): value is StoredAnswer {
+  return (
+    isRecord(value) &&
+    typeof value.toolCallId === 'string' &&
+    typeof value.occurrence === 'number' &&
+    'value' in value
+  )
+}
+
+/**
  * @internal Durable answer store for boundary waits (`permissions()`, `question()`).
  * Keeps resolved answers in plugin state so they survive across multi-pause
  * tool batches and host restarts before tool execution runs.
+ *
+ * Each answer belongs to one occurrence of its tool call. Call `retain` at
+ * each boundary: it drops the answers of calls that are no longer pending,
+ * and the answers of an earlier call that had the same id. So an answer never
+ * stays in the thread, and never approves a later call that reuses the id.
  */
 export function durableAnswers(ctx: Pick<PluginSetupContext, 'state'>) {
   const state = ctx.state<Record<string, unknown>>({})
@@ -225,22 +264,50 @@ export function durableAnswers(ctx: Pick<PluginSetupContext, 'state'>) {
       const stored = await state.get()
       return Object.hasOwn(stored, key)
     },
-    setMany: async (entries: ReadonlyArray<readonly [string, unknown]>) => {
+    setMany: async (
+      messages: ReadonlyArray<ModelMessage>,
+      entries: ReadonlyArray<
+        readonly [key: string, toolCallId: string, value: unknown]
+      >,
+    ) => {
       if (entries.length === 0) return
       await state.update((current) => {
         const next = { ...current }
-        for (const [key, value] of entries) {
-          next[key] = value
+        for (const [key, toolCallId, value] of entries) {
+          next[key] = {
+            toolCallId,
+            occurrence: occurrenceOf(messages, toolCallId),
+            value,
+          } satisfies StoredAnswer
         }
         return next
       })
     },
+    /** Keep only the answers of these pending calls, as they are now. */
+    retain: async (
+      messages: ReadonlyArray<ModelMessage>,
+      pendingToolCallIds: ReadonlyArray<string>,
+    ) => {
+      const pending = new Set(pendingToolCallIds)
+      const keep = (entry: unknown) =>
+        isStoredAnswer(entry) &&
+        pending.has(entry.toolCallId) &&
+        entry.occurrence === occurrenceOf(messages, entry.toolCallId)
+      const stored = await state.get()
+      if (Object.values(stored).every(keep)) return
+      await state.update((current) =>
+        Object.fromEntries(
+          Object.entries(current).filter(([, entry]) => keep(entry)),
+        ),
+      )
+    },
     take: async (keys: ReadonlyArray<string>) => {
       const stored = await state.get()
       const present = keys.filter((key) => Object.hasOwn(stored, key))
-      const values = keys.map((key) =>
-        Object.hasOwn(stored, key) ? stored[key] : undefined,
-      )
+      const values = keys.map((key) => {
+        const entry = stored[key]
+        return isStoredAnswer(entry) ? entry.value : undefined
+      })
       if (present.length > 0) {
         await state.update((current) => {
           const next = { ...current }

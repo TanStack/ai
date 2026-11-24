@@ -145,6 +145,8 @@ function pendingQuestionCalls(messages: ReadonlyArray<ModelMessage>) {
 
 /** The key of the wait for question `index` of the call `toolCallId`. */
 const keyOf = (toolCallId: string, index: number) => `${toolCallId}:${index}`
+/** The tool call id of a `keyOf` key. */
+const callOfKey = (key: string) => key.slice(0, key.lastIndexOf(':'))
 
 /**
  * Add a `question` tool: the model asks the user one to four questions,
@@ -178,7 +180,12 @@ export function question() {
         onInterruptBoundary: async (run) => {
           if (run.phase !== 'beforeTools') return undefined
           const interrupts = []
-          for (const call of pendingQuestionCalls(run.messages)) {
+          const calls = pendingQuestionCalls(run.messages)
+          await replies.retain(
+            run.messages,
+            calls.map((call) => call.id),
+          )
+          for (const call of calls) {
             // A call with input that is not valid fails when it runs.
             const items = questionsOf(parseArgs(call.function.arguments))
             if (!items) continue
@@ -201,12 +208,14 @@ export function question() {
           }
           return interrupts.length > 0 ? { interrupts } : undefined
         },
-        onInterruptResolution: async (_run, resolutions) => {
+        onInterruptResolution: async (run, resolutions) => {
           await replies.setMany(
+            run.messages,
             resolutions.for(questionInterrupt).map(
               (resolution) =>
                 [
                   resolution.request.key,
+                  callOfKey(resolution.request.key),
                   // A cancelled question has no reply: the call gets no answer.
                   resolution.status === 'resolved' ? resolution.response : '',
                 ] as const,

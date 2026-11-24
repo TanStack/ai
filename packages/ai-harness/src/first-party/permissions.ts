@@ -845,7 +845,12 @@ export function permissions(
         if (run.phase !== 'beforeTools') return undefined
         const metadata = getMetadata(run, { optional: true })
         const interrupts = []
-        for (const call of pendingCalls(run.messages)) {
+        const calls = pendingCalls(run.messages)
+        await answers.retain(
+          run.messages,
+          calls.map((call) => call.id),
+        )
+        for (const call of calls) {
           if (await answers.has(call.id)) continue
           const tool = call.function.name
           // A call that cannot be checked is denied: it is refused when it runs.
@@ -869,11 +874,13 @@ export function permissions(
       const check = {
         name: 'tanstack/permissions',
         onInterruptBoundary: boundary,
-        onInterruptResolution: async (_run, resolutions) => {
+        onInterruptResolution: async (run, resolutions) => {
           await answers.setMany(
+            run.messages,
             resolutions.for(approvalInterrupt).map(
               (resolution) =>
                 [
+                  resolution.request.key,
                   resolution.request.key,
                   // A cancelled approval is a reject: `false`.
                   resolution.status === 'resolved'
