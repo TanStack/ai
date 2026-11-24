@@ -227,6 +227,36 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       }
     })
 
+    it('preserves caller-supplied runId on RUN_STARTED and RUN_FINISHED', async () => {
+      setupStreamingMock([
+        deltaChunk('{"name":"John","age":30}'),
+        finishChunk(),
+      ])
+      const adapter = new TestAdapter()
+
+      const chunks = await collect(
+        adapter.structuredOutputStream!({
+          chatOptions: {
+            runId: 'run-from-client',
+            threadId: 'thread-1',
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'extract' }],
+            logger: testLogger,
+          },
+          outputSchema: personSchema,
+        }),
+      )
+
+      const runStarted = chunks.find((c) => c.type === 'RUN_STARTED')
+      const runFinished = chunks.find((c) => c.type === 'RUN_FINISHED')
+      expect(
+        runStarted?.type === 'RUN_STARTED' ? runStarted.runId : undefined,
+      ).toBe('run-from-client')
+      expect(
+        runFinished?.type === 'RUN_FINISHED' ? runFinished.runId : undefined,
+      ).toBe('run-from-client')
+    })
+
     it('passes provider nulls through unchanged (engine un-widens, not the adapter)', async () => {
       // Mirror of the non-streaming `transformStructuredOutput` passthrough test
       // (`chat-completions-text.test.ts`) for the STREAMING path: the adapter no
