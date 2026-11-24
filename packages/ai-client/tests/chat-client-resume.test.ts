@@ -1452,16 +1452,33 @@ describe('ChatClient resume', () => {
       )
     })
 
+    const staleInterrupt = client.getInterrupts()[0]
+    if (staleInterrupt?.kind !== 'generic') {
+      throw new Error('Expected a generic interrupt')
+    }
+
     const reloadPromise = client.reload()
     await vi.waitFor(() => {
       expect(contexts).toHaveLength(3)
       expect(client.getIsLoading()).toBe(true)
     })
 
-    // Resolve the stale interrupt-1 while reload() is still streaming.
-    resolveGenericInterrupt(client)
+    // reload() clears stale interrupts immediately, and any captured resolve
+    // handle or queued resume for the superseded run is dropped.
+    expect(client.getInterrupts()).toEqual([])
+    expect(() =>
+      staleInterrupt.resolveInterrupt({ answer: 'continue' }),
+    ).toThrow('Unknown interrupt: interrupt-1')
+    const queuedResume = client.resumeInterruptsUnsafe([
+      {
+        interruptId: 'interrupt-1',
+        status: 'resolved',
+        payload: { answer: 'continue' },
+      },
+    ])
     releaseReload()
     await reloadPromise
+    await expect(queuedResume).resolves.toBe(false)
 
     // Let any queued post-stream actions settle.
     await Promise.resolve()
