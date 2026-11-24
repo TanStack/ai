@@ -88,6 +88,7 @@ for (const provider of providersFor('transcription')) {
 
     test('fetcher -- transcribes audio via server function', async ({
       page,
+      request,
       testId,
       aimockPort,
     }) => {
@@ -95,6 +96,29 @@ for (const provider of providersFor('transcription')) {
         featureUrl(provider, 'transcription', testId, aimockPort, 'fetcher'),
       )
       await clickGenerate(page)
+      if (provider === 'openai') {
+        let assertionsPassed = false
+        try {
+          await expect(page.getByTestId('transcription-partial')).toHaveText(
+            'I would like to buy a Fender Stratocaster please',
+          )
+          await expect(page.getByTestId('generation-status')).toHaveText(
+            'loading',
+          )
+          assertionsPassed = true
+        } finally {
+          const response = await request
+            .post(
+              `http://127.0.0.1:${aimockPort}/transcription-stream/release`,
+              { headers: { 'x-test-id': testId } },
+            )
+            .catch((error: unknown) => {
+              if (assertionsPassed) throw error
+              return undefined
+            })
+          if (assertionsPassed) expect(response?.status()).toBe(204)
+        }
+      }
       await waitForGenerationComplete(page)
       const text = await page.getByTestId('transcription-text').innerText()
       expect(text).toContain('Fender Stratocaster')

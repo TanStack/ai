@@ -355,7 +355,10 @@ async function runGenerateSpeech<
       }),
       abortControls.signal,
     )
-    const result = await applyGenerationResultTransforms(mwCtx, rawResult)
+    const result = await raceWithAbort(
+      applyGenerationResultTransforms(mwCtx, rawResult),
+      abortControls.signal,
+    )
     const duration = Date.now() - startTime
 
     aiEventClient.emit('speech:request:completed', {

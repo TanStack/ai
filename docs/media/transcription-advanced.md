@@ -159,15 +159,13 @@ export function Transcriber() {
 
 ### Server function that streams
 
-With OpenAI, `gpt-transcribe`, `gpt-4o-transcribe`, and
-`gpt-4o-mini-transcribe` emit standard AG-UI text deltas when `stream: true`.
-If `responseFormat` or `modelOptions.response_format` is not `'json'`, the
-adapter waits for the full result and emits one text delta.
-If middleware registers a result transform, the stream sends the transformed
-text as one delta after the transform completes.
-Whisper does not support incremental transcription and returns its text when
-the request completes. Other adapters can opt in by implementing
-`transcribeStream`.
+When `stream` is `true`, `gpt-transcribe`, `gpt-4o-transcribe`, and `gpt-4o-mini-transcribe` send AG-UI text deltas.
+
+If the format is `json` or you omit it, `gpt-transcribe` sends each text delta as the model writes it. If the format is not `json`, `gpt-transcribe` waits for the full result and sends one text delta. `gpt-4o-transcribe` and `gpt-4o-mini-transcribe` accept only `json`. A different format is an API error.
+
+If you pass `middleware`, the stream sends one text delta after the middleware completes.
+
+Whisper does not send text deltas. When the request completes, the full text arrives. When an adapter implements `transcribeStream`, that adapter sends text deltas.
 
 ```typescript ignore
 // lib/server-functions.ts

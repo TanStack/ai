@@ -98,6 +98,82 @@ describe('OpenAI transcription adapter', () => {
     )
   })
 
+  it('throws when the stream ends without a final text event', async () => {
+    const adapter = new TestOpenAITranscriptionAdapter(
+      { apiKey: 'test-api-key' },
+      'gpt-transcribe',
+    )
+    adapter.spyOnTranscriptionsCreate().mockResolvedValueOnce({
+      async *[Symbol.asyncIterator]() {
+        yield { type: 'transcript.text.delta', delta: 'Hello ' }
+      },
+    })
+
+    const transcribeStream = adapter.transcribeStream
+    if (!transcribeStream) {
+      throw new Error(
+        'Expected gpt-transcribe to support incremental streaming',
+      )
+    }
+
+    const stream = transcribeStream({
+      model: 'gpt-transcribe',
+      audio: new File([], 'audio.mp3', { type: 'audio/mpeg' }),
+      logger: testLogger,
+    })
+    expect(await stream.next()).toMatchObject({
+      done: false,
+      value: 'Hello ',
+    })
+    await expect(stream.next()).rejects.toThrow(
+      'OpenAI transcription stream completed without a final text event (model=gpt-transcribe).',
+    )
+  })
+
+  it('sends a non-json format as one batch transcription', async () => {
+    const adapter = new TestOpenAITranscriptionAdapter(
+      { apiKey: 'test-api-key' },
+      'gpt-transcribe',
+    )
+    const mockCreate = adapter
+      .spyOnTranscriptionsCreate()
+      .mockResolvedValueOnce('Hello world')
+
+    const transcribeStream = adapter.transcribeStream
+    if (!transcribeStream) {
+      throw new Error(
+        'Expected gpt-transcribe to support incremental streaming',
+      )
+    }
+
+    const stream = transcribeStream({
+      model: 'gpt-transcribe',
+      audio: new File([], 'audio.mp3', { type: 'audio/mpeg' }),
+      responseFormat: 'text',
+      logger: testLogger,
+    })
+    expect(await stream.next()).toMatchObject({
+      done: false,
+      value: 'Hello world',
+    })
+    const final = await stream.next()
+    expect(final.done).toBe(true)
+    if (!final.done) throw new Error('Expected the transcription stream to end')
+    expect(final.value.text).toBe('Hello world')
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.not.objectContaining({ stream: true }),
+      { signal: undefined },
+    )
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'gpt-transcribe',
+        response_format: 'text',
+      }),
+      { signal: undefined },
+    )
+  })
+
   it('does not expose incremental streaming for Whisper', () => {
     const adapter = new TestOpenAITranscriptionAdapter(
       { apiKey: 'test-api-key' },
