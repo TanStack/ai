@@ -49,12 +49,19 @@ export function resolveInterruptComponent(
     | {
         tools?: Record<string, unknown>
         generic?: Record<string, unknown>
+        unbound?: unknown
       }
     | undefined,
 ): unknown {
   if (!interruptsMap) return undefined
   if (interrupt.kind === 'tool-approval') {
     return interruptsMap.tools?.[interrupt.toolName]
+  }
+  if (interrupt.kind === 'unbound') {
+    if (interruptsMap.unbound !== undefined) {
+      return interruptsMap.unbound
+    }
+    return interruptsMap.generic?.fallback
   }
   const generic = interruptsMap.generic
   if (!generic) return undefined
@@ -83,6 +90,22 @@ function isToolApproval(
   return interrupt.kind === 'tool-approval'
 }
 
+function collectToolParts(
+  messages: ReadonlyArray<UIMessage>,
+  callIds: Set<string>,
+  resultsByCallId: Map<string, ToolResultPart>,
+): void {
+  for (const message of messages) {
+    for (const part of message.parts) {
+      if (isToolCallPart(part)) callIds.add(part.id)
+      if (isToolResultPart(part)) resultsByCallId.set(part.toolCallId, part)
+      if (part.type === 'subagent') {
+        collectToolParts(part.subagent.messages, callIds, resultsByCallId)
+      }
+    }
+  }
+}
+
 export function selectChatUI(input: ChatUISelectInput): ChatUISelection {
   const messages = input.messages
   const interrupts = input.interrupts ?? []
@@ -90,12 +113,7 @@ export function selectChatUI(input: ChatUISelectInput): ChatUISelection {
 
   const resultsByCallId = new Map<string, ToolResultPart>()
   const callIds = new Set<string>()
-  for (const message of messages) {
-    for (const part of message.parts) {
-      if (isToolCallPart(part)) callIds.add(part.id)
-      if (isToolResultPart(part)) resultsByCallId.set(part.toolCallId, part)
-    }
-  }
+  collectToolParts(messages, callIds, resultsByCallId)
 
   const approvalByCallId = new Map<string, ToolApprovalInterrupt>()
   for (const interrupt of interrupts) {

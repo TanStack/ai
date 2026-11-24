@@ -124,18 +124,32 @@ const runStarted: StreamChunk = {
 describe('ChatClient resume', () => {
   it('tracks the run/thread of an interrupted run', async () => {
     const { adapter, contexts } = recordingAdapter([
-      [
+      (ctx) => [
         runStarted,
         text('a'),
         text('b'),
         {
           type: EventType.RUN_FINISHED,
-          runId: 'run-1',
+          runId: ctx?.runId ?? 'run-1',
           threadId: 'thread-1',
           timestamp: Date.now(),
           outcome: {
             type: 'interrupt',
-            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+            interrupts: [
+              {
+                id: 'interrupt-1',
+                reason: 'client_tool_input',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: 1,
+                    kind: 'generic',
+                    interruptId: 'interrupt-1',
+                    interruptedRunId: ctx?.runId ?? 'run-1',
+                    generation: 0,
+                  },
+                },
+              },
+            ],
           },
         },
       ],
@@ -338,7 +352,21 @@ describe('ChatClient resume', () => {
           timestamp: Date.now(),
           outcome: {
             type: 'interrupt',
-            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+            interrupts: [
+              {
+                id: 'interrupt-1',
+                reason: 'client_tool_input',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: 1,
+                    kind: 'generic',
+                    interruptId: 'interrupt-1',
+                    interruptedRunId: ctx?.runId ?? 'run-1',
+                    generation: 0,
+                  },
+                },
+              },
+            ],
           },
         },
       ],
@@ -437,7 +465,21 @@ describe('ChatClient resume', () => {
           timestamp: Date.now(),
           outcome: {
             type: 'interrupt',
-            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+            interrupts: [
+              {
+                id: 'interrupt-1',
+                reason: 'client_tool_input',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: 1,
+                    kind: 'generic',
+                    interruptId: 'interrupt-1',
+                    interruptedRunId: ctx?.runId ?? 'run-1',
+                    generation: 0,
+                  },
+                },
+              },
+            ],
           },
         },
       ],
@@ -472,7 +514,21 @@ describe('ChatClient resume', () => {
           timestamp: Date.now(),
           outcome: {
             type: 'interrupt',
-            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+            interrupts: [
+              {
+                id: 'interrupt-1',
+                reason: 'client_tool_input',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: 1,
+                    kind: 'generic',
+                    interruptId: 'interrupt-1',
+                    interruptedRunId: ctx?.runId ?? 'run-1',
+                    generation: 0,
+                  },
+                },
+              },
+            ],
           },
         },
       ],
@@ -522,7 +578,21 @@ describe('ChatClient resume', () => {
           timestamp: Date.now(),
           outcome: {
             type: 'interrupt',
-            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+            interrupts: [
+              {
+                id: 'interrupt-1',
+                reason: 'client_tool_input',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: 1,
+                    kind: 'generic',
+                    interruptId: 'interrupt-1',
+                    interruptedRunId: ctx?.runId ?? 'run-1',
+                    generation: 0,
+                  },
+                },
+              },
+            ],
           },
         },
       ],
@@ -562,7 +632,21 @@ describe('ChatClient resume', () => {
           timestamp: Date.now(),
           outcome: {
             type: 'interrupt',
-            interrupts: [{ id: 'interrupt-a', reason: 'client_tool_input' }],
+            interrupts: [
+              {
+                id: 'interrupt-a',
+                reason: 'client_tool_input',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: 1,
+                    kind: 'generic',
+                    interruptId: 'interrupt-a',
+                    interruptedRunId: ctx?.runId ?? 'run-a',
+                    generation: 0,
+                  },
+                },
+              },
+            ],
           },
         },
       ],
@@ -610,7 +694,21 @@ describe('ChatClient resume', () => {
           timestamp: Date.now(),
           outcome: {
             type: 'interrupt',
-            interrupts: [{ id: 'interrupt-a', reason: 'client_tool_input' }],
+            interrupts: [
+              {
+                id: 'interrupt-a',
+                reason: 'client_tool_input',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: 1,
+                    kind: 'generic',
+                    interruptId: 'interrupt-a',
+                    interruptedRunId: ctx?.runId ?? 'run-a',
+                    generation: 0,
+                  },
+                },
+              },
+            ],
           },
         },
       ],
@@ -665,7 +763,21 @@ describe('ChatClient resume', () => {
           timestamp: Date.now(),
           outcome: {
             type: 'interrupt',
-            interrupts: [{ id: 'interrupt-a', reason: 'client_tool_input' }],
+            interrupts: [
+              {
+                id: 'interrupt-a',
+                reason: 'client_tool_input',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: 1,
+                    kind: 'generic',
+                    interruptId: 'interrupt-a',
+                    interruptedRunId: ctx?.runId ?? 'run-a',
+                    generation: 0,
+                  },
+                },
+              },
+            ],
           },
         },
       ],
@@ -716,7 +828,21 @@ describe('ChatClient resume', () => {
           timestamp: Date.now(),
           outcome: {
             type: 'interrupt',
-            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+            interrupts: [
+              {
+                id: 'interrupt-1',
+                reason: 'client_tool_input',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: 1,
+                    kind: 'generic',
+                    interruptId: 'interrupt-1',
+                    interruptedRunId: ctx?.runId ?? 'run-1',
+                    generation: 0,
+                  },
+                },
+              },
+            ],
           },
         },
       ],
