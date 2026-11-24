@@ -1,5 +1,15 @@
 # @tanstack/ai-opencode
 
+## 1.0.2
+
+### Patch Changes
+
+- [#2243](https://github.com/TanStack/ai/pull/2243) [`16bbcd0`](https://github.com/TanStack/ai/commit/16bbcd0338d8a1e63d6364019addfd9dd1ba7a41) - Support the event stream of OpenCode 1.x. An `ask` permission no longer stops a run: the adapter now answers the `permission.asked` request that OpenCode 1.x sends. The text of the agent reaches the chat again: a turn ends only after OpenCode sends `session.idle`, which comes after the last text of the turn. The text also streams again, from the `message.part.delta` events.
+
+- Updated dependencies [[`d595931`](https://github.com/TanStack/ai/commit/d5959314c65622ba82937837666d98976c250a48), [`92e8799`](https://github.com/TanStack/ai/commit/92e8799d48bb80106234df5d700674f318c56bef), [`e5bb4d5`](https://github.com/TanStack/ai/commit/e5bb4d5e666663664321ea2d3c6cf06176c3d942), [`f25954a`](https://github.com/TanStack/ai/commit/f25954a2867ceacaad11c0a5995ba742e2201934), [`a686f36`](https://github.com/TanStack/ai/commit/a686f360090bec30263ec194742b11333b4d9621), [`c695ada`](https://github.com/TanStack/ai/commit/c695ada5091e7022bf13b235220645ceb65d43b0)]:
+  - @tanstack/ai-sandbox@1.6.0
+  - @tanstack/ai@1.9.0
+
 ## 1.0.1
 
 ### Patch Changes

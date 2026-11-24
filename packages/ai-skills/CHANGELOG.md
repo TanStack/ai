@@ -1,5 +1,15 @@
 # @tanstack/ai-skills
 
+## 1.0.4
+
+### Patch Changes
+
+- [#2215](https://github.com/TanStack/ai/pull/2215) [`55f46fe`](https://github.com/TanStack/ai/commit/55f46fe4cc5b4d23c25729a1c3cf22e2755b1c64) - `generateCatalog` and `staticSkills` now keep a skill's frontmatter `metadata` map, matching `skillDirectory`. The catalog `revision` now changes when a skill's frontmatter or resources change, not only its body.
+
+- Updated dependencies [[`92e8799`](https://github.com/TanStack/ai/commit/92e8799d48bb80106234df5d700674f318c56bef), [`8856bf6`](https://github.com/TanStack/ai/commit/8856bf63f2305d428f613063c97c68f1219c23f5), [`3e9a35d`](https://github.com/TanStack/ai/commit/3e9a35df8eb725a1a783777ce87335a98eab544e), [`e5bb4d5`](https://github.com/TanStack/ai/commit/e5bb4d5e666663664321ea2d3c6cf06176c3d942), [`267c2ac`](https://github.com/TanStack/ai/commit/267c2ac6d18d2e56caadcc64323f99437fc73ca7), [`f25954a`](https://github.com/TanStack/ai/commit/f25954a2867ceacaad11c0a5995ba742e2201934), [`a686f36`](https://github.com/TanStack/ai/commit/a686f360090bec30263ec194742b11333b4d9621), [`ca20519`](https://github.com/TanStack/ai/commit/ca205198b06d2a392152b0a91ecc495a0982620c), [`c695ada`](https://github.com/TanStack/ai/commit/c695ada5091e7022bf13b235220645ceb65d43b0)]:
+  - @tanstack/ai@1.9.0
+  - @tanstack/ai-harness@0.5.0
+
 ## 1.0.3
 
 ### Patch Changes

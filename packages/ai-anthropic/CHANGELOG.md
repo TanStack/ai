@@ -1,5 +1,14 @@
 # @tanstack/ai-anthropic
 
+## 1.2.2
+
+### Patch Changes
+
+- [#2040](https://github.com/TanStack/ai/pull/2040) [`16026d9`](https://github.com/TanStack/ai/commit/16026d91a71d962acc53b05c4ec832aad874a3d8) - Send `thinking.block_binding` set to `drop_block`, and the `thinking-binding-controls-2026-08-01` beta, whenever thinking is on. A compacted history no longer fails with a 400 on a signed thinking block. An `anthropic-beta` request header now adds to the request betas, and does not replace them.
+
+- Updated dependencies [[`92e8799`](https://github.com/TanStack/ai/commit/92e8799d48bb80106234df5d700674f318c56bef), [`e5bb4d5`](https://github.com/TanStack/ai/commit/e5bb4d5e666663664321ea2d3c6cf06176c3d942), [`f25954a`](https://github.com/TanStack/ai/commit/f25954a2867ceacaad11c0a5995ba742e2201934), [`a686f36`](https://github.com/TanStack/ai/commit/a686f360090bec30263ec194742b11333b4d9621), [`c695ada`](https://github.com/TanStack/ai/commit/c695ada5091e7022bf13b235220645ceb65d43b0)]:
+  - @tanstack/ai@1.9.0
+
 ## 1.2.1
 
 ### Patch Changes

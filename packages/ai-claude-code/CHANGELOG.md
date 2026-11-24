@@ -1,5 +1,15 @@
 # @tanstack/ai-claude-code
 
+## 1.0.4
+
+### Patch Changes
+
+- [#2229](https://github.com/TanStack/ai/pull/2229) [`e64c7af`](https://github.com/TanStack/ai/commit/e64c7afbc577e0febeb44a153b2513406a2f263d) - Add the Claude 5 models (`claude-opus-5`, `claude-opus-5-5`, `claude-sonnet-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`, `claude-fable-5`, `claude-fable-5-1`) to the Claude Code reasoning table, so `chat({ reasoning })` is no longer silently ignored for them.
+
+- Updated dependencies [[`d595931`](https://github.com/TanStack/ai/commit/d5959314c65622ba82937837666d98976c250a48), [`92e8799`](https://github.com/TanStack/ai/commit/92e8799d48bb80106234df5d700674f318c56bef), [`e5bb4d5`](https://github.com/TanStack/ai/commit/e5bb4d5e666663664321ea2d3c6cf06176c3d942), [`f25954a`](https://github.com/TanStack/ai/commit/f25954a2867ceacaad11c0a5995ba742e2201934), [`a686f36`](https://github.com/TanStack/ai/commit/a686f360090bec30263ec194742b11333b4d9621), [`c695ada`](https://github.com/TanStack/ai/commit/c695ada5091e7022bf13b235220645ceb65d43b0)]:
+  - @tanstack/ai-sandbox@1.6.0
+  - @tanstack/ai@1.9.0
+
 ## 1.0.3
 
 ### Patch Changes
