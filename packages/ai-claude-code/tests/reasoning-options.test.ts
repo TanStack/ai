@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { claudeCodeReasoning } from '../src/adapters/text'
-import { CLAUDE_CODE_MODELS, CLAUDE_CODE_MODEL_REASONING } from '../src/model-meta'
+import {
+  CLAUDE_CODE_MODELS,
+  CLAUDE_CODE_MODEL_REASONING,
+} from '../src/model-meta'
 
 describe('Claude Code chat({ reasoning }) CLI settings', () => {
   it('effort models: --effort with the level', () => {
