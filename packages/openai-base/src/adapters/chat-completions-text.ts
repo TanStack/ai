@@ -163,7 +163,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   ): AsyncIterable<AdapterYieldChunk> {
     // AG-UI lifecycle tracking (mutable state object for ESLint compatibility)
     const aguiState = {
-      runId: generateId(this.name),
+      runId: options.runId ?? generateId(this.name),
       threadId: options.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
@@ -479,7 +479,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     )
 
     const aguiState = {
-      runId: generateId(this.name),
+      runId: chatOptions.runId ?? generateId(this.name),
       threadId: chatOptions.threadId,
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,

@@ -37,6 +37,10 @@ function turnHandoffs(
     subagents: [],
     humans: options.humans ?? false,
     tool: options.tool ?? true,
+    // These tests do not read the shared state.
+    state: () => {
+      throw new Error('No shared state in this test.')
+    },
     append: async (record) => record,
     publish: (record) => {
       records.push(record)

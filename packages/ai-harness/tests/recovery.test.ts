@@ -173,10 +173,11 @@ describe('a durable host with only a log', () => {
     )
     await waitFor(() => expect(first.calls).toHaveLength(1))
 
-    // A second host while the first owns the log: it leaves the turn alone.
+    // A second host while the first owns the log: it leaves the turn alone,
+    // and reads from the log that the turn runs.
     const watcher = await openHost(persistence, [() => text('never')])
     expect(watcher.calls).toHaveLength(0)
-    expect(watcher.session.snapshot().status).toBe('idle')
+    expect(watcher.session.snapshot().status).toBe('running')
     await watcher.host.close()
 
     await ownershipExpired()

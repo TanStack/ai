@@ -37,7 +37,8 @@
         "packages/ai-meshy",
         "packages/ai-cartesia",
         "packages/ai-muse",
-        "packages/ai-uthana"
+        "packages/ai-uthana",
+        "packages/ai-tripo"
       ],
       "talksTo": ["core"]
     },

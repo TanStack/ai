@@ -102,6 +102,17 @@ export type OpencodeEvent =
       properties: { part: OpencodePart; delta?: string }
     }
   | {
+      /** OpenCode 1.x: new text for one field of a part. */
+      type: 'message.part.delta'
+      properties: {
+        sessionID?: string
+        messageID: string
+        partID: string
+        field: string
+        delta: string
+      }
+    }
+  | {
       type: 'message.updated'
       properties: {
         info: { id: string; sessionID?: string; role: 'user' | 'assistant' }

@@ -40,6 +40,7 @@ import {
   isOfferedInputRecord,
   scopeOf,
   loggedChildWaits,
+  loggedTurn,
   snapshotFrom,
   storedUser,
   changeSettings,
@@ -237,6 +238,22 @@ export abstract class SessionState<
    * opens and ends. After a failed write the fold is behind, so memory wins.
    */
   protected stoppedTurn(): InterruptedTurn | undefined {
+    const writer = this.readsTheLog()
+    if (!writer) return this.interrupted
+    return writer.state.thread.interrupted ?? undefined
+  }
+
+  /**
+   * The turn that another host runs, as the log has it. `undefined` while
+   * this host owns the log: its own `activeTurn` says it then.
+   */
+  protected otherHostTurn() {
+    const writer = this.readsTheLog()
+    return writer ? loggedTurn(writer.state.inputs) : undefined
+  }
+
+  /** The log writer, when this host does not own the log: the log has the turns. */
+  private readsTheLog() {
     const writer = this.logWriter
     if (
       !writer ||
@@ -244,9 +261,9 @@ export abstract class SessionState<
       this.activeTurn ||
       writer.epoch !== NO_OWNER_EPOCH
     ) {
-      return this.interrupted
+      return undefined
     }
-    return writer.state.thread.interrupted ?? undefined
+    return writer
   }
 
   snapshot(): SessionSnapshot {
@@ -256,10 +273,13 @@ export abstract class SessionState<
         !operation.isSettled() && !this.joinedTo.get(operation)?.isSettled(),
     )
     const stopped = this.stoppedTurn()
-    const pendingInterrupts =
-      this.activeResume && !this.activeTurn?.isSettled()
-        ? []
-        : (stopped?.interrupts ?? [])
+    const logged = this.otherHostTurn()
+    // A resolve that runs answered the interrupts of the stopped turn. They
+    // stay in the stopped turn until its turn ends.
+    const resuming =
+      (this.activeResume && !this.activeTurn?.isSettled()) ||
+      logged?.input.op === 'resolve'
+    const pendingInterrupts = resuming ? [] : (stopped?.interrupts ?? [])
     // The saved state of a plugin that this host did not set up yet (a turn
     // plugin before its first turn here) comes from the log.
     const saved = [...(this.logWriter?.state.thread.plugins ?? [])].filter(
@@ -284,7 +304,7 @@ export abstract class SessionState<
         ? loggedChildWaits(this.logWriter, this.threadId)
         : [],
       live: {
-        isRunning: this.activeTurn !== undefined,
+        isRunning: this.activeTurn !== undefined || logged !== undefined,
         activeOperations: active.map((operation) => ({
           id: operation.id,
           kind: operation.kind,

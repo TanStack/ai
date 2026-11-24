@@ -1,8 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { toolDefinition } from '@tanstack/ai'
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { memoryLogState, memoryLogStore } from '@tanstack/ai-persistence'
+import { z } from 'zod'
+import type { AnyTool } from '@tanstack/ai'
 
 /**
  * Two hosts on one log backend, as two instances of a serverless app on one
@@ -17,6 +20,9 @@ import { memoryLogState, memoryLogStore } from '@tanstack/ai-persistence'
  *   `host.events()` of the other host shows for the thread.
  * - `cancel`: the model of the owner waits until the turn stops. The other
  *   host gets `POST control` with a `cancel` input for the turn.
+ * - `approval`: the owner stops for the approval of a tool, and the user
+ *   approves it on the owner. While the tool runs, the route returns the
+ *   snapshots of the other host: of `host.observe`, and of its open session.
  *
  * A custom `fetch` answers with canned Anthropic streams and holds the first
  * answer until the follow-up is in, so no aimock fixture is needed.
@@ -61,6 +67,43 @@ const reply = (id: string, text: string) =>
     .map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
     .join('')
 
+/** An answer that calls the tool `name` with no arguments. */
+const toolUseReply = (id: string, name: string) =>
+  [
+    {
+      type: 'message_start',
+      message: {
+        id,
+        type: 'message',
+        role: 'assistant',
+        content: [],
+        model: MODEL,
+        stop_reason: null,
+        stop_sequence: null,
+        usage: { input_tokens: 5, output_tokens: 0 },
+      },
+    },
+    {
+      type: 'content_block_start',
+      index: 0,
+      content_block: { type: 'tool_use', id: `toolu_${id}`, name, input: {} },
+    },
+    {
+      type: 'content_block_delta',
+      index: 0,
+      delta: { type: 'input_json_delta', partial_json: '{}' },
+    },
+    { type: 'content_block_stop', index: 0 },
+    {
+      type: 'message_delta',
+      delta: { stop_reason: 'tool_use', stop_sequence: null },
+      usage: { output_tokens: 1 },
+    },
+    { type: 'message_stop' },
+  ]
+    .map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
+    .join('')
+
 /** The text of each message of the transcript. */
 const textsOf = (messages: Array<{ role: string; content: unknown }>) =>
   messages.map((message) => ({
@@ -69,12 +112,13 @@ const textsOf = (messages: Array<{ role: string; content: unknown }>) =>
   }))
 
 /**
- * A model whose answers are `texts`, in order. The first answer waits for
- * `until`. `calls` counts the requests that reach it. With `hang`, each
- * request waits until the turn stops, and then fails.
+ * A model whose answers are `texts`, in order: a text, or `{ tool }` for a
+ * call of that tool. The first answer waits for `until`. `calls` counts the
+ * requests that reach it. With `hang`, each request waits until the turn
+ * stops, and then fails.
  */
 function scriptedModel(
-  texts: Array<string>,
+  texts: Array<string | { tool: string }>,
   until: Promise<void>,
   { hang = false } = {},
 ) {
@@ -91,8 +135,13 @@ function scriptedModel(
       })
     }
     if (counter.calls === 1) await until
-    const text = texts[counter.calls - 1] ?? 'No more answers.'
-    return new Response(reply(`msg_forwarding_${counter.calls}`, text), {
+    const answer = texts[counter.calls - 1] ?? 'No more answers.'
+    const id = `msg_forwarding_${counter.calls}`
+    const body =
+      typeof answer === 'string'
+        ? reply(id, answer)
+        : toolUseReply(id, answer.tool)
+    return new Response(body, {
       headers: { 'Content-Type': 'text/event-stream' },
     })
   }
@@ -118,6 +167,7 @@ const THREAD = 'e2e-harness-forwarding'
 async function twoHosts(
   ownerModel: ReturnType<typeof scriptedModel>,
   otherModel: ReturnType<typeof scriptedModel>,
+  tools: Array<AnyTool> = [],
 ) {
   const logState = memoryLogState()
   const ownerHost = createHarnessHost({
@@ -132,12 +182,13 @@ async function twoHosts(
   }
   try {
     const owner = await ownerHost.open(
-      defineHarness({ name: NAME, adapter: ownerModel.adapter }),
+      defineHarness({ name: NAME, adapter: ownerModel.adapter, tools }),
       { threadId: THREAD },
     )
     const otherHarness = defineHarness({
       name: NAME,
       adapter: otherModel.adapter,
+      tools,
     })
     const other = await otherHost.open(otherHarness, { threadId: THREAD })
     return { ownerHost, otherHost, owner, other, otherHarness, close }
@@ -263,7 +314,80 @@ async function cancel() {
   }
 }
 
-const scenarios = { followUp, status, cancel }
+/**
+ * The snapshots of the other host while the owner runs a tool that the user
+ * approved. The approval is answered, so neither snapshot lists it.
+ */
+async function approval() {
+  let started!: () => void
+  const running = new Promise<void>((resolve) => {
+    started = resolve
+  })
+  let release!: () => void
+  const released = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const deploy = toolDefinition({
+    name: 'deploy',
+    description: 'Deploy',
+    inputSchema: z.object({}),
+    needsApproval: true,
+  }).server(async () => {
+    started()
+    await released
+    return 'deployed'
+  })
+  const ownerModel = scriptedModel(
+    [{ tool: 'deploy' }, 'Deployed.'],
+    Promise.resolve(),
+  )
+  const otherModel = scriptedModel(['Not on this host.'], Promise.resolve())
+  const { otherHost, owner, other, otherHarness, close } = await twoHosts(
+    ownerModel,
+    otherModel,
+    [deploy],
+  )
+  try {
+    await owner.send('[harness-forwarding] approval')
+    const [wait] = owner.snapshot().pendingWaits
+    if (!wait) throw new Error('The turn did not stop for approval.')
+    const receipt = await owner.resolve({
+      resume: [{ interruptId: wait.waitId, status: 'resolved', payload: true }],
+    })
+    await running
+    // Where the owner's log is once the resumed turn runs.
+    const resumedAt = Number(owner.snapshot().cursor)
+    const view = await otherHost.observe(otherHarness, { threadId: THREAD })
+    const summary = (snapshot: {
+      status: string
+      pendingWaits: Array<{ waitId: string }>
+    }) => ({
+      status: snapshot.status,
+      waits: snapshot.pendingWaits.map(({ waitId }) => waitId),
+    })
+    // The other host follows the log: wait until it has the resumed turn.
+    const hasResumedTurn = () => Number(other.snapshot().cursor) >= resumedAt
+    await waitUntil(hasResumedTurn)
+    const caughtUp = hasResumedTurn()
+    const observed = summary(await view.snapshot())
+    const open = summary(other.snapshot())
+    release()
+    await waitUntil(() => owner.snapshot().status === 'idle')
+    return {
+      receipt: { status: receipt.status },
+      caughtUp,
+      observed,
+      open,
+      ownerCalls: ownerModel.counter.calls,
+      otherCalls: otherModel.counter.calls,
+    }
+  } finally {
+    release()
+    await close()
+  }
+}
+
+const scenarios = { followUp, status, cancel, approval }
 
 export const Route = createFileRoute('/api/harness-forwarding')({
   server: {
@@ -271,7 +395,9 @@ export const Route = createFileRoute('/api/harness-forwarding')({
       POST: async ({ request }) => {
         const picked = new URL(request.url).searchParams.get('scenario')
         const scenario =
-          picked === 'status' || picked === 'cancel' ? picked : 'followUp'
+          picked === 'status' || picked === 'cancel' || picked === 'approval'
+            ? picked
+            : 'followUp'
         try {
           return Response.json(await scenarios[scenario]())
         } catch (error) {

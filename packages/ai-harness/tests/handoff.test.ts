@@ -447,6 +447,44 @@ describe('handoffs', () => {
     await host.close()
   })
 
+  it('routing.handoffTool reads and updates the shared state', async () => {
+    const billing = modelAgent('billing', [() => text('Refunded')])
+    // What `get()` gives inside the tool, before and after the update.
+    const reads: Array<number> = []
+    const { host, session, log } = await openRouting({
+      agents: [billing.agent],
+      handoffTool: ({ from, handoff, state }) =>
+        toolDefinition({
+          name: 'transfer',
+          description: 'Move the user to another desk.',
+          inputSchema: z.object({ to: z.string(), note: z.string() }),
+        }).server(async ({ to, note }) => {
+          const count = state({ key: 'handoffs', initial: 0 })
+          reads.push(await count.get())
+          await count.update((n) => n + 1)
+          const n = await count.get()
+          reads.push(n)
+          await handoff({ to, note: `${from ?? 'main'} #${n}: ${note}` })
+          return `Moved to ${to}.`
+        }),
+      replies: [
+        () =>
+          toolCall('transfer', { to: 'billing', note: 'order 42' }, 'call_t'),
+      ],
+    })
+
+    expect((await session.send('refund please')).text).toBe(
+      'billing:\nRefunded',
+    )
+    expect(reads).toEqual([0, 1])
+    expect((await handoffRecords(log)).map(({ note }) => note)).toEqual([
+      'main #1: order 42',
+    ])
+    const stored = await storedThreadState(log, { threadId: THREAD })
+    expect(stored.shared.get('handoffs')).toBe(1)
+    await host.close()
+  })
+
   it('gives no handoff tool with routing.giveModelsHandoffTool false, so an app tool can be named handoff', async () => {
     const billing = modelAgent('billing', [() => text('Billed')])
     const { host, session, main } = await openRouting({
