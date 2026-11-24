@@ -4,15 +4,14 @@
  * sandbox paths (default workdir `/vercel/sandbox`).
  *
  * Vercel's `runCommand` executes a program directly (no implicit shell), so we
- * run shell command strings as `sh -c "<command>"`. fs is implemented over that
- * exec with chunked base64 piping (binary-safe); the runtime image provides
- * `sh`, `base64`, and coreutils.
+ * run shell command strings as `sh -c "<command>"`. fs writes go through the
+ * SDK's `writeFiles` upload; the other fs calls run over that exec, and the
+ * runtime image provides `sh`, `base64`, and coreutils.
  */
 import {
   UnsupportedCapabilityError,
   createExecBackedGit,
 } from '@tanstack/ai-sandbox'
-import { fsWriteCommands } from './fs-write'
 import type { Command, Sandbox } from '@vercel/sandbox'
 import type {
   ExecResult,
@@ -189,11 +188,16 @@ export class VercelHandle implements SandboxHandle {
       },
       write: async (p, data, o) => {
         o?.signal?.throwIfAborted()
-        for (const command of fsWriteCommands(this.abs(p), data)) {
-          const r = await this.exec(command)
-          if (r.exitCode !== 0)
-            throw new Error(`write failed: ${r.stderr.trim()}`)
-        }
+        // One upload, whatever the size. `writeFiles` resolves a relative path
+        // against the sandbox's own cwd, not `workdir`, so resolve it here.
+        const target = this.abs(p)
+        const path = target.startsWith('/')
+          ? target
+          : `${this.workdir}/${target}`
+        await this.sandbox.writeFiles(
+          [{ path, content: data }],
+          o?.signal ? { signal: o.signal } : undefined,
+        )
       },
       list: async (p, o) => {
         o?.signal?.throwIfAborted()
