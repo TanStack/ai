@@ -824,9 +824,11 @@ Exactly **one** terminal hook runs per `chat()` call:
 
 When a consumer stops iterating, the chunk it stopped at decides the hook:
 
-- A `RUN_FINISHED` chunk with `outcome.type === 'interrupt'`: `onFinish`.
+- The last `RUN_FINISHED` chunk of the call, for a completed run or a pause (`outcome.type === 'interrupt'`): `onFinish`.
 - A `RUN_ERROR` chunk: `onError`.
-- Any other chunk, including the final `RUN_FINISHED` of a completed run: `onAbort`.
+- Any other chunk, including the `RUN_FINISHED` of a turn that ends in a tool call: `onAbort`.
+
+`onFinish` runs before the last `RUN_FINISHED` goes out. As a result, a chunk that `onFinish` sends with `ctx.emitActivity` or `ctx.emitCustomEvent` comes before it.
 
 `onAbort` gets `info.cancelRequested`. It is `true` only when an explicit cancel aborted the run. It is `false` when the client disconnected or the consumer stopped iterating. A consumer stop has no `info.reason`.
 
