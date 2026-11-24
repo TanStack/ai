@@ -19,8 +19,8 @@ interface CloudflareEvaluateOutput {
 
 /**
  * Cloudflare evaluate adapter. Runs TypeSafe Jev (`typesafe/jev`) through
- * Workers AI (`{ state, questions }` in, `{ model, answers, usage }` out)
- * through the binding or the REST API.
+ * Workers AI (`{ state, questions }` in, `{ state: 'Completed', result:
+ * { model, answers, usage } }` out) through the binding or the REST API.
  */
 export class CloudflareEvaluateAdapter<
   TModel extends CloudflareEvaluateModel,
@@ -41,12 +41,13 @@ export class CloudflareEvaluateAdapter<
         provider: this.name,
         model,
       })
-      const output = (await runModel(
+      // Workers AI wraps third-party model output in `{ state, result }`.
+      const { result: output } = (await runModel(
         this.cfConfig,
         model,
         { state, questions },
         { signal: abortSignal },
-      )) as CloudflareEvaluateOutput
+      )) as { result: CloudflareEvaluateOutput }
       const inputTokens = output.usage.input_tokens
       const outputTokens = output.usage.output_tokens
       return {
