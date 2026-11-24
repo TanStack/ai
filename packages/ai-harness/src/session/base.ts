@@ -794,6 +794,40 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
+   * @internal Events of one operation, from `from` (or its run start in the
+   * log), ending once the operation settles so already-finished or retried
+   * runs do not hang open streams.
+   */
+  operationEvents(
+    operationId: string,
+    options?: { from?: Cursor; signal?: AbortSignal },
+  ): AsyncIterable<SessionEvent> {
+    const live = this.operations.get(operationId)
+    if (live) return live.events(options)
+    const from = options?.from ?? this.runStart(operationId) ?? '0'
+    const isDone = () => {
+      const input = [...this.writer.state.inputs.values()].find(
+        (entry) => entry.operationId === operationId,
+      )
+      if (input?.status === 'settled' || input?.status === 'rejected') {
+        return true
+      }
+      const run = this.writer.state.thread.runs.get(operationId)
+      return (
+        run !== undefined &&
+        run.status !== 'running' &&
+        run.status !== 'interrupted'
+      )
+    }
+    return this.feed.read({
+      ...(options?.signal ? { signal: options.signal } : {}),
+      from,
+      filter: (entry) => entry.operationId === operationId,
+      until: isDone,
+    })
+  }
+
+  /**
    * The token usage of this thread: every model call of its turns, their
    * subagents, and its agent runs, in total, by `provider/model`, and by
    * sender. `cost` is the sum of what the providers reported. The log keeps

@@ -160,13 +160,16 @@ export function useChat<
     },
   )
 
+  let subscribed = false
   watch(
     () => options.live,
     (live) => {
       if (live) {
         client.subscribe()
-      } else {
+        subscribed = true
+      } else if (subscribed) {
         client.unsubscribe()
+        subscribed = false
       }
     },
     { immediate: true },
@@ -181,16 +184,13 @@ export function useChat<
     client.mountDevtools()
   })
 
-  // Cleanup on unmount: stop any in-flight requests
-  // Note: client.stop() is safe to call even if nothing is in progress
+  // Cleanup on unmount: detach and dispose without calling `stop()` so durable
+  // runs and pending interrupts survive navigation.
   onScopeDispose(() => {
-    // Release the connection first: the counterpart of the `attach` above. It keeps
-    // the transcript and resume pointer, so a later mount picks the run back up.
     client.detach()
-    if (options.live) {
+    if (subscribed) {
       client.unsubscribe()
-    } else {
-      client.stop()
+      subscribed = false
     }
     client.dispose()
   })

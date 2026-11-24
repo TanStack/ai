@@ -682,17 +682,31 @@ export interface RoutedSubagentPersistence {
      */
     resume?: ReadonlyArray<RunAgentResumeItem>
   }) => Promise<void>
+  /** Load stored UI messages with subagent cards for a bare server resume. */
+  loadMessages?: (input: { threadId: string }) => Promise<{
+    messages: Array<UIMessage>
+    interruptedRunId?: string
+  }>
   chunk: (input: {
     threadId: string
     runId: string
     chunk: StreamChunk
   }) => Promise<void>
-  finish: (input: { threadId: string; runId: string }) => Promise<void>
+  finish: (input: {
+    threadId: string
+    runId: string
+    /** Commit only these interrupt ids instead of the whole run batch. */
+    interruptIds?: ReadonlyArray<string>
+    /** Keep the parent run open because main chat() takes over from here. */
+    handoffToMain?: boolean
+  }) => Promise<void>
   /** The run stopped because a child waits for outside input. */
   suspend?: (input: {
     threadId: string
     runId: string
     interrupts: ReadonlyArray<Interrupt>
+    /** Commit only these interrupt ids instead of the whole run batch. */
+    interruptIds?: ReadonlyArray<string>
   }) => Promise<void>
   abort: (input: {
     threadId: string

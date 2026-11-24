@@ -1,5 +1,5 @@
 import { toolDefinition } from '@tanstack/ai'
-import { questionInterrupt } from '../boundary-waits'
+import { durableAnswers, questionInterrupt } from '../boundary-waits'
 import { definePlugin } from '../plugins'
 import { isRecord } from '../utils'
 import type { AnyChatMiddleware, ModelMessage, ToolCall } from '@tanstack/ai'
@@ -145,6 +145,8 @@ function pendingQuestionCalls(messages: ReadonlyArray<ModelMessage>) {
 
 /** The key of the wait for question `index` of the call `toolCallId`. */
 const keyOf = (toolCallId: string, index: number) => `${toolCallId}:${index}`
+/** The tool call id of a `keyOf` key. */
+const callOfKey = (key: string) => key.slice(0, key.lastIndexOf(':'))
 
 /**
  * Add a `question` tool: the model asks the user one to four questions,
@@ -164,52 +166,63 @@ const keyOf = (toolCallId: string, index: number) => `${toolCallId}:${index}`
 export function question() {
   return definePlugin({
     name: 'tanstack/question',
-    setup: () => {
+    setup: (ctx) => {
       /**
-       * The replies to the questions of the turn, by `keyOf`. The turn that
-       * resumes gets them in `onInterruptResolution`, on any host, before
-       * its tools run. A call takes its replies when it runs.
+       * The replies to the questions of the turn, by `keyOf`. Stored in plugin
+       * state so answers survive multi-pause batches and host restarts until
+       * the question call runs.
        */
-      const replies = new Map<string, unknown>()
+      // ponytail: only the lead turn registers the question waits (see the
+      // end of setup), so all replies belong to it.
+      const replies = durableAnswers(ctx).forRun(undefined)
       const boundary = {
         name: 'tanstack/question',
         // Stop the turn before its tools run, with a wait for each question
         // of each `question` call that has no reply yet.
-        onInterruptBoundary: (run) => {
+        onInterruptBoundary: async (run) => {
           if (run.phase !== 'beforeTools') return undefined
-          const interrupts = pendingQuestionCalls(run.messages).flatMap(
-            (call) => {
-              // A call with input that is not valid fails when it runs.
-              const items = questionsOf(parseArgs(call.function.arguments))
-              if (!items) return []
-              return items.flatMap((item, index) => {
-                const key = keyOf(call.id, index)
-                if (replies.has(key)) return []
-                return [
-                  questionInterrupt.interrupt({
-                    key,
-                    reason: 'question',
-                    message: messageOf(item),
-                    payload: {
-                      toolCallId: call.id,
-                      index,
-                      schema: answerSchema(item),
-                    },
-                  }),
-                ]
-              })
-            },
+          const interrupts = []
+          const calls = pendingQuestionCalls(run.messages)
+          await replies.retain(
+            run.messages,
+            calls.map((call) => call.id),
           )
+          for (const call of calls) {
+            // A call with input that is not valid fails when it runs.
+            const items = questionsOf(parseArgs(call.function.arguments))
+            if (!items) continue
+            for (const [index, item] of items.entries()) {
+              const key = keyOf(call.id, index)
+              if (await replies.has(key)) continue
+              interrupts.push(
+                questionInterrupt.interrupt({
+                  key,
+                  reason: 'question',
+                  message: messageOf(item),
+                  payload: {
+                    toolCallId: call.id,
+                    index,
+                    schema: answerSchema(item),
+                  },
+                }),
+              )
+            }
+          }
           return interrupts.length > 0 ? { interrupts } : undefined
         },
-        onInterruptResolution: (_run, resolutions) => {
-          for (const resolution of resolutions.for(questionInterrupt)) {
-            // A cancelled question has no reply: the call gets no answer.
-            replies.set(
-              resolution.request.key,
-              resolution.status === 'resolved' ? resolution.response : '',
-            )
-          }
+        onInterruptResolution: async (run, resolutions) => {
+          await replies.setMany(
+            run.messages,
+            resolutions.for(questionInterrupt).map(
+              (resolution) =>
+                [
+                  resolution.request.key,
+                  callOfKey(resolution.request.key),
+                  // A cancelled question has no reply: the call gets no answer.
+                  resolution.status === 'resolved' ? resolution.response : '',
+                ] as const,
+            ),
+          )
         },
       } satisfies AnyChatMiddleware
       const tool = toolDefinition({
@@ -260,16 +273,16 @@ export function question() {
         },
         // Asking again after a crash has no side effect.
         replay: 'safe',
-      }).server((args: unknown, context) => {
+      }).server(async (args: unknown, context) => {
         const items = questionsOf(args)
         if (!items)
           throw new Error('Each question needs a question and options.')
         const toolCallId = context?.toolCallId ?? ''
         const keys = items.map((_item, index) => keyOf(toolCallId, index))
+        const { values } = await replies.take(keys)
         const answers = items.map((item, index) =>
-          readAnswer(replies.get(keys[index] ?? ''), item),
+          readAnswer(values[index], item),
         )
-        for (const key of keys) replies.delete(key)
         // One question with no answer gives the model no answer.
         if (answers.includes(undefined)) throw new Error(NO_ANSWER)
         return items

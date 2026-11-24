@@ -1,8 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { defineAgent, toolDefinition } from '@tanstack/ai'
+import {
+  EventType,
+  defineAgent,
+  defineChatMiddleware,
+  defineInterrupt,
+  toolDefinition,
+} from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
+import { permissions } from '../src/first-party/permissions'
 import {
   appendToLog,
   mockAdapter,
@@ -800,5 +807,221 @@ describe('committed approval phases', () => {
     expect((await storedInterrupt(log, 'external'))?.status).toBe('pending')
     expect(remove.execute).toHaveBeenCalledTimes(1)
     await host.close()
+  })
+
+  it('consumes a permissions() approval after tool execution even when the follow-up model call fails', async () => {
+    const { persistence } = approvalStores()
+    const write = vi.fn(async () => ({ saved: true }))
+    const writeTool = toolDefinition({
+      name: 'write_note',
+      description: 'Write a note',
+      inputSchema: z.object({ text: z.string() }),
+    }).server(write)
+    const adapter = mockAdapter([
+      () => toolCall('write_note', { text: 'hello' }, 'call-perm-1'),
+      () =>
+        (async function* () {
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: 'r-fail',
+            threadId: THREAD,
+            timestamp: Date.now(),
+          }
+          throw new Error('follow-up model down')
+        })(),
+    ]).adapter
+    const config = defineHarness({
+      name: 'perm-follow-up-fail',
+      adapter,
+      tools: [writeTool],
+      plugins: () => [
+        permissions({ rules: [{ tool: 'write_note', decision: 'ask' }] }),
+      ],
+    })
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(config, { threadId: THREAD })
+    const stopped = await session.send('write hello')
+    const approval = stopped.interrupts?.[0]
+    if (!approval) throw new Error('The turn did not stop for permission.')
+
+    const receipt = await session.resolve({
+      resume: [
+        {
+          interruptId: approval.id,
+          status: 'resolved',
+          payload: { answer: 'once' },
+        },
+      ],
+      inputId: 'approve-perm',
+    })
+    expect(receipt.status).toBe('accepted')
+    expect(await session.settled({ inputId: 'approve-perm' })).toMatchObject({
+      outcome: 'failed',
+    })
+    expect(write).toHaveBeenCalledTimes(1)
+    expect(session.snapshot().pendingWaits).toEqual([])
+    await host.close()
+  })
+
+  it('recovers a pending resolve input across host restart instead of rejecting it as expired_on_restart', async () => {
+    const { log, persistence } = approvalStores()
+    const write = vi.fn(async () => ({ saved: true }))
+    const writeTool = toolDefinition({
+      name: 'write_note',
+      description: 'Write a note',
+      inputSchema: z.object({ text: z.string() }),
+    }).server(write)
+    const makeHarness = (replies: Array<Reply>) =>
+      defineHarness({
+        name: 'pending-resolve-crash',
+        adapter: mockAdapter(replies).adapter,
+        tools: [writeTool],
+        plugins: () => [
+          permissions({ rules: [{ tool: 'write_note', decision: 'ask' }] }),
+        ],
+      })
+
+    const host1 = createHarnessHost({ persistence })
+    const session1 = await host1.open(
+      makeHarness([() => toolCall('write_note', { text: 'a' }, 'call-pr-1')]),
+      { threadId: THREAD },
+    )
+    const stopped = await session1.send('write a')
+    const approval = stopped.interrupts?.[0]
+    if (!approval) throw new Error('The turn did not stop for permission.')
+    await host1.close()
+
+    await writeAsOther(log, [
+      {
+        type: 'harness.input',
+        inputId: 'pending-resolve-1',
+        input: {
+          op: 'resolve',
+          resume: [
+            {
+              interruptId: approval.id,
+              status: 'resolved',
+              payload: { answer: 'once' },
+            },
+          ],
+        },
+        at: Date.now(),
+      },
+    ])
+
+    const host2 = createHarnessHost({ persistence })
+    const session2 = await host2.open(
+      makeHarness([() => text('Saved after crash.')]),
+      { threadId: THREAD },
+    )
+    expect(
+      await session2.settled({ inputId: 'pending-resolve-1' }),
+    ).toMatchObject({ outcome: 'completed' })
+    expect(write).toHaveBeenCalledTimes(1)
+    expect(session2.snapshot().pendingWaits).toEqual([])
+    await host2.close()
+  })
+
+  it('keeps a permissions() approval across host restart during a multi-pause tool batch', async () => {
+    const { persistence } = approvalStores()
+    const runAlpha = vi.fn(async () => ({ alpha: true }))
+    const toolAlpha = toolDefinition({
+      name: 'tool_alpha',
+      description: 'Alpha',
+      inputSchema: z.object({}),
+    }).server(runAlpha)
+    const secondGate = defineInterrupt({
+      id: 'second_gate',
+      responseSchema: z.object({ ok: z.boolean() }),
+    })
+    let gateArmed = false
+    let gateResolved = false
+    const makeHarness = (replies: Array<Reply>) =>
+      defineHarness({
+        name: 'perm-multi-pause',
+        adapter: mockAdapter(replies).adapter,
+        tools: [toolAlpha],
+        interrupts: [secondGate],
+        middleware: [
+          defineChatMiddleware({
+            name: 'second-gate',
+            onInterruptBoundary(ctx) {
+              if (ctx.phase !== 'beforeTools') return undefined
+              if (!gateArmed) {
+                gateArmed = true
+                return undefined
+              }
+              if (gateResolved) return undefined
+              return {
+                interrupts: [
+                  secondGate.interrupt({
+                    key: 'gate-1',
+                    reason: 'confirm',
+                    message: 'Confirm step 2',
+                  }),
+                ],
+              }
+            },
+            onInterruptResolution(_ctx, resolutions) {
+              if (resolutions.for(secondGate).length > 0) {
+                gateResolved = true
+              }
+              return { toolResume: 'continue' }
+            },
+          }),
+        ],
+        plugins: () => [
+          permissions({ rules: [{ tool: 'tool_alpha', decision: 'ask' }] }),
+        ],
+      })
+
+    const host1 = createHarnessHost({ persistence })
+    const session1 = await host1.open(
+      makeHarness([() => toolCall('tool_alpha', {}, 'call-a')]),
+      { threadId: THREAD },
+    )
+    const pause1 = await session1.send('run alpha')
+    expect(pause1.interrupts).toHaveLength(1)
+    const r1 = await session1.resolve({
+      resume: [
+        {
+          interruptId: pause1.interrupts![0]!.id,
+          status: 'resolved',
+          payload: { answer: 'once' },
+        },
+      ],
+      inputId: 'res-alpha',
+    })
+    expect(r1.status).toBe('accepted')
+    expect(await session1.settled({ inputId: 'res-alpha' })).toMatchObject({
+      outcome: 'interrupted',
+    })
+    const waits2 = session1.snapshot().pendingWaits
+    expect(waits2).toHaveLength(1)
+    expect(runAlpha).not.toHaveBeenCalled()
+    await host1.close()
+
+    const host2 = createHarnessHost({ persistence })
+    const session2 = await host2.open(
+      makeHarness([() => text('Alpha done.')]),
+      { threadId: THREAD },
+    )
+    const r2 = await session2.resolve({
+      resume: [
+        {
+          interruptId: waits2[0]!.waitId,
+          status: 'resolved',
+          payload: { ok: true },
+        },
+      ],
+      inputId: 'res-gate',
+    })
+    expect(r2.status).toBe('accepted')
+    expect(await session2.settled({ inputId: 'res-gate' })).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(runAlpha).toHaveBeenCalledTimes(1)
+    expect(session2.snapshot().pendingWaits).toEqual([])
+    await host2.close()
   })
 })

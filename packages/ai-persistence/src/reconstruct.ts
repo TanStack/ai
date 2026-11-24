@@ -3,19 +3,13 @@ import {
   isTerminalRunStatus,
   modelMessagesToUIMessages,
 } from '@tanstack/ai'
-import type {
-  ModelMessage,
-  RunRecord,
-  SubagentPart,
-  TerminalRunStatus,
-  UIMessage,
-} from '@tanstack/ai'
-import { storedSubagentInfo } from './subagent-runs'
+import type { ModelMessage, TerminalRunStatus, UIMessage } from '@tanstack/ai'
+import { isChatOwnedPendingInterrupt } from './interrupt-ownership'
+import { attachSubagentCards } from './subagent-runs'
 import { validateReconstructChatStores } from './types'
 import type {
   AIPersistence,
   ChatTranscriptStores,
-  InterruptRecord,
   MessagePage,
   MessageStore,
 } from './types'
@@ -214,7 +208,11 @@ export async function reconstructChat(
   const pending = threadId
     ? ((await persistence.stores.interrupts?.listPending(threadId)) ?? [])
     : []
-  const firstPending = pending[0]
+  // Prefer chat-owned interrupts for the runId correlation so an older foreign
+  // unbound interrupt in the same thread cannot poison newer bound approvals.
+  const ownedPending = pending.filter(isChatOwnedPendingInterrupt)
+  const activePending = ownedPending.length > 0 ? ownedPending : pending
+  const firstPending = activePending[0]
   const isPaging = pageSize !== undefined && threadId !== ''
   const transcript = !isPaging
     ? { messages: fullUi() }
@@ -234,7 +232,7 @@ export async function reconstructChat(
     persistence.stores.runs,
     messageStore,
     threadId,
-    pending,
+    activePending,
   )
   const runStore = persistence.stores.runs
   const runs =
@@ -260,7 +258,7 @@ export async function reconstructChat(
     interrupts: firstPending
       ? {
           runId: firstPending.runId,
-          pending: pending.map((record) => record.payload),
+          pending: activePending.map((record) => record.payload),
         }
       : null,
     ...('page' in transcript ? { page: transcript.page } : {}),
@@ -272,15 +270,6 @@ export async function reconstructChat(
       'cache-control': 'no-store',
     },
   })
-}
-
-function messageRunId(message: UIMessage) {
-  const metadata = message.metadata
-  if (!metadata || typeof metadata !== 'object') return
-  const tanstack = metadata.tanstack
-  if (!tanstack || typeof tanstack !== 'object') return
-  const runId = (tanstack as { runId?: unknown }).runId
-  return typeof runId === 'string' && runId !== '' ? runId : undefined
 }
 
 /**
@@ -313,139 +302,6 @@ function stampRunTimings(
           },
         },
       },
-    }
-  })
-}
-
-type Runs = NonNullable<ChatTranscriptStores['runs']>
-
-/** Rebuild one child card from its run record and stored transcript. */
-async function childCard(
-  child: RunRecord,
-  runs: Runs,
-  messageStore: MessageStore,
-  pending: ReadonlyArray<InterruptRecord>,
-  depth: number,
-): Promise<SubagentPart> {
-  const subagentRunId = child.subagentRunId ?? child.runId
-  const stored = await messageStore.loadThread(child.threadId)
-  const info = storedSubagentInfo(stored)
-  const messages = modelMessagesToUIMessages(
-    stored.filter(
-      (message) => storedSubagentInfo([message])?.placeholder !== true,
-    ),
-  )
-  const nested =
-    runs.listByParentRun && depth < 8
-      ? await runs.listByParentRun(subagentRunId)
-      : []
-  if (nested.length > 0) {
-    const cards = await Promise.all(
-      nested.map((run) =>
-        childCard(run, runs, messageStore, pending, depth + 1),
-      ),
-    )
-    const last = messages.findLastIndex((m) => m.role === 'assistant')
-    if (last === -1) {
-      messages.push({
-        id: `child-cards:${subagentRunId}`,
-        role: 'assistant',
-        parts: cards,
-      })
-    } else {
-      const host = messages[last]
-      if (host) messages[last] = { ...host, parts: [...host.parts, ...cards] }
-    }
-  }
-  const failed = child.status === 'failed' || child.status === 'aborted'
-  // The child metadata keeps the full error with its code. A stopped child
-  // has no error on its run record.
-  const error = info?.error ?? child.error
-  const interruptIds = pending
-    .filter((record) => record.payload.subagentRunId === subagentRunId)
-    .map((record) => record.interruptId)
-  return {
-    type: 'subagent',
-    subagent: {
-      id: subagentRunId,
-      name: child.name ?? info?.name ?? 'subagent',
-      status: failed
-        ? 'error'
-        : child.status === 'running'
-          ? 'running'
-          : child.status === 'interrupted'
-            ? 'suspended'
-            : 'finished',
-      ...(child.parentRunId !== undefined && {
-        parentRunId: child.parentRunId,
-      }),
-      ...(info?.parentToolCallId !== undefined && {
-        parentToolCallId: info.parentToolCallId,
-      }),
-      ...(interruptIds.length > 0 && { interruptIds }),
-      ...(info?.metadata !== undefined && { metadata: info.metadata }),
-      messages,
-      ...(failed && error ? { error } : {}),
-    },
-  }
-}
-
-/**
- * Put stored subagent cards back on the transcript. A routed child sits on
- * the parent assistant message of its run. A child that a tool call started
- * sits on the message that holds that tool call.
- */
-async function attachSubagentCards(
-  messages: Array<UIMessage>,
-  runs: ChatTranscriptStores['runs'],
-  messageStore: MessageStore,
-  threadId: string,
-  pending: ReadonlyArray<InterruptRecord>,
-) {
-  if (!runs?.listByParentRun) return messages
-  const parentRunIds = new Set<string>()
-  for (const message of messages) {
-    const runId = messageRunId(message)
-    if (runId) parentRunIds.add(runId)
-  }
-  const hasToolCalls = messages.some((message) =>
-    message.parts.some((part) => part.type === 'tool-call'),
-  )
-  if (hasToolCalls && runs.listByThread && threadId !== '') {
-    for (const run of await runs.listByThread(threadId)) {
-      parentRunIds.add(run.runId)
-    }
-  }
-
-  const cardsByRun = new Map<string, Array<SubagentPart>>()
-  const cardsByToolCall = new Map<string, Array<SubagentPart>>()
-  for (const runId of parentRunIds) {
-    for (const child of await runs.listByParentRun(runId)) {
-      const card = await childCard(child, runs, messageStore, pending, 0)
-      const toolCallId = card.subagent.parentToolCallId
-      const target = toolCallId === undefined ? cardsByRun : cardsByToolCall
-      const key = toolCallId ?? runId
-      target.set(key, [...(target.get(key) ?? []), card])
-    }
-  }
-  if (cardsByRun.size === 0 && cardsByToolCall.size === 0) return messages
-
-  return messages.map((message) => {
-    if (message.role !== 'assistant') return message
-    const runId = messageRunId(message)
-    const routed = runId !== undefined ? cardsByRun.get(runId) : undefined
-    const started = message.parts.flatMap((part) =>
-      part.type === 'tool-call' ? (cardsByToolCall.get(part.id) ?? []) : [],
-    )
-    if (!routed && started.length === 0) return message
-    // A routed parent message holds only the children's text. The cards
-    // replace it.
-    const parts = routed
-      ? message.parts.filter((part) => part.type !== 'text')
-      : message.parts
-    return {
-      ...message,
-      parts: [...(routed ?? []), ...parts, ...started],
     }
   })
 }

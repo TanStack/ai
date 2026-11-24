@@ -74,6 +74,7 @@ import type {
   ModelMessage,
   StreamChunk,
   SubagentRouterPick,
+  UIMessage,
 } from '@tanstack/ai'
 import type { AnyHarness } from '../define'
 import type { AnyCommand } from '../commands'
@@ -1069,7 +1070,10 @@ export abstract class SessionTurn<
             agents: rootAgents,
             router: () => {
               // A resolve has no pick. chat() continues its saved plan.
+              // A retry after an early commit has no resume, so this runs.
               if (pick === undefined) {
+                const saved = savedRouterPick(turn.answers?.routed?.messages)
+                if (saved !== undefined) return saved
                 throw new Error('The routed turn has no saved plan.')
               }
               return pick
@@ -1462,7 +1466,12 @@ export abstract class SessionTurn<
               const tanstack = chunk.metadata?.tanstack
               if (tanstack?.toolResultOutcome !== 'cancelled') {
                 if (tanstack?.state === 'output-error') {
-                  errorResultIds.add(chunk.toolCallId)
+                  if (
+                    !operation.abortController.signal.aborted ||
+                    tanstack.toolResultOutcome === 'denied'
+                  ) {
+                    errorResultIds.add(chunk.toolCallId)
+                  }
                 } else {
                   resultIds.add(chunk.toolCallId)
                 }
@@ -1548,9 +1557,55 @@ export abstract class SessionTurn<
                 continued: isContinued,
               }),
             )
-            // The resume stays: withPersistence commits it only when a call
-            // succeeds, so its interrupts are still open.
+            // withPersistence commits an answered tool resume before the
+            // follow-up model call, once its tool ran. The retry keeps only
+            // the items that are still pending, and runs from the transcript
+            // when none are left.
+            if (resume) {
+              const ran = resume.filter((item) => {
+                const interrupt = turn.answers?.interrupts.find(
+                  (candidate) => candidate.id === item.interruptId,
+                )
+                const toolCallId = interrupt ? toolCallOf(interrupt) : undefined
+                const agentCall =
+                  interrupt?.subagentRunId === undefined
+                    ? undefined
+                    : agentCardOf(
+                        turn.answers?.routed?.messages ?? [],
+                        interrupt.subagentRunId,
+                      )?.parentToolCallId
+                const ids = [toolCallId, agentCall].filter(
+                  (id) => id !== undefined,
+                )
+                return ids.some(
+                  (id) => resultIds.has(id) || errorResultIds.has(id),
+                )
+              })
+              if (ran.length > 0) {
+                await this.consumeResume(ran).catch((error: unknown) =>
+                  this.warn(operation, 'harness:interrupts', error),
+                )
+                this.dropInterrupts(ran)
+              }
+              const records = await Promise.all(
+                resume.map((item) => this.interruptStore.get(item.interruptId)),
+              )
+              const open = resume.filter(
+                (_, index) => records[index]?.status === 'pending',
+              )
+              if (open.length === 0) {
+                resume = undefined
+                parentRunId = undefined
+              } else {
+                resume = open
+              }
+            }
             message = undefined
+            // The first stream consumed routedFrom. A retry still needs the
+            // saved cards so chat() can keep the plan and skip finished tools.
+            if (turn.answers?.routed?.messages) {
+              routedFrom = turn.answers.routed.messages
+            }
             // withPersistence failed the run. It runs again, for the retry.
             await this.runStore.update(operation.id, {
               status: 'running',
@@ -1885,51 +1940,47 @@ export abstract class SessionTurn<
             ...(turn.context !== undefined ? { context: turn.context } : {}),
           }
         : undefined
-    // A resume whose tools ran is used up, even when the turn fails after
-    // them. Offering its interrupts again would run the tools a second time.
-    // A resume that failed before its tools ran stays open for a retry.
+    // Each resumed item whose tool ran is used up, even when the turn fails
+    // after it or another item in the batch did not run. Offering it again
+    // would run that tool a second time.
     const resumed = turn.resume ?? []
     const stoppedTurn = turn.answers ?? this.interrupted
     const resumedFrom = stoppedTurn?.interrupts ?? []
-    const didResumedToolsRun =
-      !isResumeRefused &&
-      resumed.length > 0 &&
-      resumed.every((item) => {
-        const interrupt = resumedFrom.find(
-          (candidate) => candidate.id === item.interruptId,
-        )
-        // A wait of an agent tool is used when that tool call got a result.
-        // A sign-in or an app interrupt of the agent names no tool call.
-        const agentCall =
-          interrupt?.subagentRunId === undefined
-            ? undefined
-            : agentCardOf(
-                stoppedTurn?.routed?.messages ?? [],
-                interrupt.subagentRunId,
-              )?.parentToolCallId
-        const toolCallIds = [
-          interrupt ? toolCallOf(interrupt) : undefined,
-          agentCall,
-        ].filter((id) => id !== undefined)
-        // A stopped run gives the calls it did not run an error result.
-        return toolCallIds.some(
-          (toolCallId) =>
-            resultIds.has(toolCallId) ||
-            (!operation.abortController.signal.aborted &&
-              errorResultIds.has(toolCallId)),
-        )
-      })
+    const consumedResumed = isResumeRefused
+      ? []
+      : resumed.filter((item) => {
+          const interrupt = resumedFrom.find(
+            (candidate) => candidate.id === item.interruptId,
+          )
+          // A wait of an agent tool is used when that tool call got a result.
+          // A sign-in or an app interrupt of the agent names no tool call.
+          const agentCall =
+            interrupt?.subagentRunId === undefined
+              ? undefined
+              : agentCardOf(
+                  stoppedTurn?.routed?.messages ?? [],
+                  interrupt.subagentRunId,
+                )?.parentToolCallId
+          const toolCallIds = [
+            interrupt ? toolCallOf(interrupt) : undefined,
+            agentCall,
+          ].filter((id) => id !== undefined)
+          return toolCallIds.some(
+            (toolCallId) =>
+              resultIds.has(toolCallId) || errorResultIds.has(toolCallId),
+          )
+        })
     // On a success, withPersistence committed them already, and this skips
     // them. A failure or a stop can also come after the tools ran.
-    if (didResumedToolsRun) {
-      await this.consumeResume(resumed).catch((error: unknown) =>
+    if (consumedResumed.length > 0) {
+      await this.consumeResume(consumedResumed).catch((error: unknown) =>
         this.warn(operation, 'harness:interrupts', error),
       )
     }
     await this.refreshTurnInterrupts(operation, observedInterrupts)
     // A failed log write can keep their records pending. Here they are used
     // up all the same.
-    if (didResumedToolsRun) this.dropInterrupts(resumed)
+    if (consumedResumed.length > 0) this.dropInterrupts(consumedResumed)
     if (this.logFailure) {
       operation.fail('failed', this.logFailure)
     } else if (timedOut) {
@@ -2008,6 +2059,31 @@ function publishText(
 
 /** The id of the note with the files of the operator reply `id`. */
 const attachmentId = (id: string) => `${id}:media`
+
+/**
+ * The router plan saved on a routed child's card. A resolve retry uses it
+ * after the early commit clears `resume`.
+ */
+function savedRouterPick(
+  messages: ReadonlyArray<UIMessage> | undefined,
+): SubagentRouterPick | undefined {
+  if (!messages) return undefined
+  for (const message of messages) {
+    for (const part of message.parts) {
+      if (part.type !== 'subagent') continue
+      const metadata = part.subagent.metadata
+      if (metadata == null || typeof metadata !== 'object') continue
+      const tanstack = (metadata as { tanstack?: unknown }).tanstack
+      if (tanstack == null || typeof tanstack !== 'object') continue
+      const plan = (tanstack as { subagentPlan?: unknown }).subagentPlan
+      if (plan == null || typeof plan !== 'object' || !('steps' in plan)) {
+        continue
+      }
+      return plan as SubagentRouterPick
+    }
+  }
+  return undefined
+}
 
 /**
  * The answer message of a routed run, kept under the id `${id}:${index}`.

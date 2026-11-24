@@ -2,6 +2,7 @@ import {
   EventType,
   getChunkRunId as getNormalizedChunkRunId,
   restoreInboundChunk,
+  tanstackMetadata,
   uiMessagesToWire,
   withTanstackMetadata,
 } from '@tanstack/ai/client'
@@ -882,6 +883,25 @@ function fetchEventSource(
  * This engine is transport-agnostic: fetch/XHR × SSE/NDJSON all share it, the
  * only difference being the {@link StreamEventSource} they pass in.
  */
+/**
+ * True when a chunk ends the durable stream. An intermediate `tool_calls`
+ * `RUN_FINISHED` without an interrupt or loop stop continues in a later model
+ * turn, so a clean transport drop after it must still reconnect.
+ */
+function isTerminalStreamChunk(chunk: StreamChunk): boolean {
+  if (chunk.type === 'RUN_ERROR') return true
+  if (chunk.type !== 'RUN_FINISHED') return false
+  if (chunk.outcome?.type === 'interrupt') return true
+  const tanstack = tanstackMetadata(chunk)
+  if (tanstack?.loopStopped === true) return true
+  const extra = chunk as StreamChunk & { finishReason?: unknown }
+  const finishReason =
+    extra.finishReason !== undefined
+      ? extra.finishReason
+      : tanstack?.finishReason
+  return finishReason !== 'tool_calls'
+}
+
 async function* resumableStream(
   openEventSource: StreamEventSource,
   abortSignal?: AbortSignal,
@@ -905,7 +925,7 @@ async function* resumableStream(
       )) {
         if (tracker.note(id) === 'duplicate') continue
         progressed = true
-        if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+        if (isTerminalStreamChunk(chunk)) {
           sawTerminal = true
         }
         yield chunk
@@ -2817,7 +2837,7 @@ export function webSocket(
         if (session.runId === undefined) {
           session.runId = getChunkRunId(chunk)
         }
-        if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+        if (isTerminalStreamChunk(chunk)) {
           session.sawTerminal = true
         }
       }

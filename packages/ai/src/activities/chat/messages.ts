@@ -1496,14 +1496,45 @@ export function modelMessagesToUIMessages(
         const toolResultOutcome = isToolResultOutcome(rawToolResultOutcome)
           ? rawToolResultOutcome
           : undefined
-        const resultState =
-          msg.error === undefined && toolResultOutcome === undefined
-            ? 'complete'
-            : 'error'
         const toolCallPart = currentAssistantMessage.parts.find(
           (part): part is ToolCallPart =>
             part.type === 'tool-call' && part.id === msg.toolCallId,
         )
+
+        // A pending-execution marker records an approval reply, not a finished
+        // tool output. Keep the call in approval-responded state and skip the
+        // synthetic tool-result row so re-hydration never treats it as done.
+        if (
+          msg.error === undefined &&
+          toolResultOutcome === undefined &&
+          typeof content === 'string'
+        ) {
+          const parsed = parseToolOutput(content, msg.metadata)
+          if (
+            parsed &&
+            typeof parsed === 'object' &&
+            !Array.isArray(parsed) &&
+            (parsed as Record<string, unknown>).pendingExecution === true
+          ) {
+            if (
+              toolCallPart &&
+              (parsed as Record<string, unknown>).approved === true
+            ) {
+              toolCallPart.state = 'approval-responded'
+              toolCallPart.approval = {
+                id: `approval_${msg.toolCallId}`,
+                needsApproval: true,
+                approved: true,
+              }
+            }
+            continue
+          }
+        }
+
+        const resultState =
+          msg.error === undefined && toolResultOutcome === undefined
+            ? 'complete'
+            : 'error'
 
         if (toolCallPart) {
           toolCallPart.output =

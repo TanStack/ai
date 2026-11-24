@@ -19,9 +19,12 @@ import {
 import { z } from 'zod'
 import type {
   AnyTextAdapter,
+  ModelMessage,
+  RunAgentResumeItem,
   StreamChunk,
   TokenUsage,
   Tool,
+  UIMessage,
 } from '@tanstack/ai'
 
 /**
@@ -385,6 +388,358 @@ function interruptRun(
   })()
 }
 
+const approvalReloadPersistence = memoryPersistence()
+const approvalExecCounts = new Map<string, number>()
+const deleteOrderTool = toolDefinition({
+  name: 'delete_order',
+  description: 'Delete an order',
+  inputSchema: z.object({ id: z.string() }),
+  needsApproval: true,
+}).server(({ id }, ctx) => {
+  const key = ctx?.threadId ?? 'default'
+  const count = (approvalExecCounts.get(key) ?? 0) + 1
+  approvalExecCounts.set(key, count)
+  return { deleted: id, count }
+})
+
+function toolCallChunkRun(
+  threadId: string,
+  runId: string,
+  toolCallId: string,
+  toolCallName: string,
+  argsJson: string,
+): AsyncIterable<StreamChunk> {
+  return (async function* () {
+    yield {
+      type: 'RUN_STARTED',
+      threadId,
+      runId,
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'TOOL_CALL_START',
+      toolCallId,
+      toolCallName,
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'TOOL_CALL_ARGS',
+      toolCallId,
+      delta: argsJson,
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'TOOL_CALL_END',
+      toolCallId,
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'RUN_FINISHED',
+      threadId,
+      runId,
+      finishReason: 'tool_calls',
+      timestamp: Date.now(),
+    } as StreamChunk
+  })()
+}
+
+function customTextRun(
+  threadId: string,
+  runId: string,
+  content: string,
+  messageId = `assistant-${runId}`,
+): AsyncIterable<StreamChunk> {
+  return (async function* () {
+    yield {
+      type: 'RUN_STARTED',
+      threadId,
+      runId,
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'TEXT_MESSAGE_START',
+      messageId,
+      role: 'assistant',
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'TEXT_MESSAGE_CONTENT',
+      messageId,
+      delta: content,
+      content,
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'TEXT_MESSAGE_END',
+      messageId,
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'RUN_FINISHED',
+      threadId,
+      runId,
+      timestamp: Date.now(),
+      outcome: { type: 'success' },
+    } as StreamChunk
+  })()
+}
+
+const approvalReloadAdapter: AnyTextAdapter = {
+  kind: 'text',
+  name: 'fixed',
+  model: 'test-model',
+  '~types': {},
+  chatStream: ({
+    threadId,
+    runId,
+    messages,
+  }: {
+    threadId: string
+    runId: string
+    messages: ReadonlyArray<{ role: string }>
+  }) => {
+    if (messages.some((message) => message.role === 'tool')) {
+      const count = approvalExecCounts.get(threadId) ?? 0
+      return customTextRun(threadId, runId, `DELETED_ONCE count=${count}`)
+    }
+    return toolCallChunkRun(
+      threadId,
+      runId,
+      `call-delete-${threadId}`,
+      'delete_order',
+      '{"id":"77"}',
+    )
+  },
+} as unknown as AnyTextAdapter
+
+interface MidContinuationGate {
+  started: boolean
+  released: boolean
+  release: () => void
+  gate: Promise<void>
+}
+
+const midContinuationPersistence = memoryPersistence()
+const midContinuationGates = new Map<string, MidContinuationGate>()
+
+function getMidContinuationGate(threadId: string): MidContinuationGate {
+  let entry = midContinuationGates.get(threadId)
+  if (!entry) {
+    let release = () => {}
+    const gate = new Promise<void>((resolve) => {
+      release = () => {
+        if (entry) entry.released = true
+        resolve()
+      }
+    })
+    entry = { started: false, released: false, release, gate }
+    midContinuationGates.set(threadId, entry)
+  }
+  return entry
+}
+
+const slowDeleteTool = toolDefinition({
+  name: 'slow_delete',
+  description: 'Delete an order slowly',
+  inputSchema: z.object({ id: z.string() }),
+  needsApproval: true,
+}).server(async ({ id }, ctx) => {
+  const entry = getMidContinuationGate(ctx?.threadId ?? 'default')
+  entry.started = true
+  await entry.gate
+  return { deleted: id }
+})
+
+const midContinuationAdapter: AnyTextAdapter = {
+  kind: 'text',
+  name: 'fixed',
+  model: 'test-model',
+  '~types': {},
+  chatStream: ({
+    threadId,
+    runId,
+    messages,
+  }: {
+    threadId: string
+    runId: string
+    messages: ReadonlyArray<{ role: string }>
+  }) => {
+    if (messages.some((message) => message.role === 'tool')) {
+      return customTextRun(threadId, runId, 'MID_CONT_DONE')
+    }
+    return toolCallChunkRun(
+      threadId,
+      runId,
+      `call-slow-${threadId}`,
+      'slow_delete',
+      '{"id":"55"}',
+    )
+  },
+} as unknown as AnyTextAdapter
+
+const declineFailPersistence = memoryPersistence()
+const declineExecCounts = new Map<string, number>()
+const chargeCardTool = toolDefinition({
+  name: 'charge_card',
+  description: 'Charge a credit card',
+  inputSchema: z.object({ amount: z.number() }),
+  needsApproval: true,
+}).server(({ amount }, ctx) => {
+  const key = ctx?.threadId ?? 'default'
+  declineExecCounts.set(key, (declineExecCounts.get(key) ?? 0) + 1)
+  return { charged: amount }
+})
+
+const declineFailAdapter: AnyTextAdapter = {
+  kind: 'text',
+  name: 'fixed',
+  model: 'test-model',
+  '~types': {},
+  chatStream: ({
+    threadId,
+    runId,
+    messages,
+  }: {
+    threadId: string
+    runId: string
+    messages: ReadonlyArray<{ role: string }>
+  }) => {
+    if (messages.some((message) => message.role === 'tool')) {
+      return (async function* () {
+        yield {
+          type: 'RUN_STARTED',
+          threadId,
+          runId,
+          timestamp: Date.now(),
+        } as StreamChunk
+        throw new Error('provider 500 after decline')
+      })()
+    }
+    return toolCallChunkRun(
+      threadId,
+      runId,
+      `call-charge-${threadId}`,
+      'charge_card',
+      '{"amount":99}',
+    )
+  },
+} as unknown as AnyTextAdapter
+
+const clientToolPersistence = memoryPersistence()
+const getTimezoneDef = toolDefinition({
+  name: 'get_timezone',
+  description: 'Get browser timezone',
+  inputSchema: z.object({}),
+  outputSchema: z.object({ tz: z.string() }),
+})
+
+const clientToolAdapter: AnyTextAdapter = {
+  kind: 'text',
+  name: 'fixed',
+  model: 'test-model',
+  '~types': {},
+  chatStream: ({
+    threadId,
+    runId,
+    messages,
+  }: {
+    threadId: string
+    runId: string
+    messages: ReadonlyArray<{ role: string; content?: unknown }>
+  }) => {
+    const lastUser = [...messages]
+      .reverse()
+      .find((message) => message.role === 'user')
+    if (
+      typeof lastUser?.content === 'string' &&
+      lastUser.content.includes('ping')
+    ) {
+      return customTextRun(threadId, runId, 'PONG_OK')
+    }
+    if (messages.some((message) => message.role === 'tool')) {
+      return customTextRun(threadId, runId, 'TZ_RESOLVED UTC')
+    }
+    return toolCallChunkRun(
+      threadId,
+      runId,
+      `call-tz-${threadId}`,
+      'get_timezone',
+      '{}',
+    )
+  },
+} as unknown as AnyTextAdapter
+
+const lookupPriceTool = toolDefinition({
+  name: 'lookup_price',
+  description: 'Look up an item price',
+  inputSchema: z.object({ item: z.string() }),
+}).server(async ({ item }) => {
+  await new Promise((resolve) => setTimeout(resolve, 60))
+  return { item, price: 42 }
+})
+
+const buyItemTool = toolDefinition({
+  name: 'buy_item',
+  description: 'Buy an item',
+  inputSchema: z.object({ item: z.string(), price: z.number() }),
+  needsApproval: true,
+}).server(({ item, price }) => ({ bought: item, price }))
+
+const multiIterCutAdapter: AnyTextAdapter = {
+  kind: 'text',
+  name: 'fixed',
+  model: 'test-model',
+  '~types': {},
+  chatStream: ({
+    threadId,
+    runId,
+    messages,
+  }: {
+    threadId: string
+    runId: string
+    messages: ReadonlyArray<{ role: string }>
+  }) => {
+    const toolCount = messages.filter(
+      (message) => message.role === 'tool',
+    ).length
+    if (toolCount === 0) {
+      return toolCallChunkRun(
+        threadId,
+        runId,
+        `call-lookup-${threadId}`,
+        'lookup_price',
+        '{"item":"guitar"}',
+      )
+    }
+    if (toolCount === 1) {
+      return toolCallChunkRun(
+        threadId,
+        runId,
+        `call-buy-${threadId}`,
+        'buy_item',
+        '{"item":"guitar","price":42}',
+      )
+    }
+    return customTextRun(threadId, runId, 'BOUGHT_GUITAR')
+  },
+} as unknown as AnyTextAdapter
+
+function messagesField(body: unknown): Array<UIMessage | ModelMessage> {
+  if (typeof body !== 'object' || body === null || !('messages' in body)) {
+    return []
+  }
+  const value: unknown = (body as Record<string, unknown>).messages
+  return Array.isArray(value) ? (value as Array<UIMessage | ModelMessage>) : []
+}
+
+function resumeField(body: unknown): Array<RunAgentResumeItem> | undefined {
+  if (typeof body !== 'object' || body === null || !('resume' in body)) {
+    return undefined
+  }
+  const value: unknown = (body as Record<string, unknown>).resume
+  return Array.isArray(value) ? (value as Array<RunAgentResumeItem>) : undefined
+}
+
 function stringField(body: unknown, key: string): string | undefined {
   if (typeof body !== 'object' || body === null || !(key in body)) {
     return undefined
@@ -404,7 +759,12 @@ function scenarioOf(
   | 'usage'
   | 'tool-error'
   | 'subagent-stopped'
-  | 'stopped-progress' {
+  | 'stopped-progress'
+  | 'approval-reload'
+  | 'approval-mid-continuation'
+  | 'decline-llm-fail'
+  | 'client-tool-reload'
+  | 'multi-iter-cut' {
   try {
     const value = new URL(request.url).searchParams.get('scenario')
     if (value === 'interrupt') return 'interrupt'
@@ -415,6 +775,13 @@ function scenarioOf(
     if (value === 'tool-error') return 'tool-error'
     if (value === 'subagent-stopped') return 'subagent-stopped'
     if (value === 'stopped-progress') return 'stopped-progress'
+    if (value === 'approval-reload') return 'approval-reload'
+    if (value === 'approval-mid-continuation') {
+      return 'approval-mid-continuation'
+    }
+    if (value === 'decline-llm-fail') return 'decline-llm-fail'
+    if (value === 'client-tool-reload') return 'client-tool-reload'
+    if (value === 'multi-iter-cut') return 'multi-iter-cut'
     return 'text'
   } catch {
     return 'text'
@@ -582,6 +949,128 @@ export const Route = createFileRoute('/api/persistence-durability')({
           const run = await cumulativeUsage(threadId, runId)
           return Response.json({ runId, threadId, usage: run?.usage })
         }
+        if (scenario === 'approval-reload') {
+          const parentRunId = stringField(body, 'parentRunId')
+          const resume = resumeField(body)
+          const stream = chat({
+            adapter: approvalReloadAdapter,
+            messages: messagesField(body),
+            tools: [deleteOrderTool],
+            threadId,
+            runId,
+            ...(parentRunId ? { parentRunId } : {}),
+            ...(resume ? { resume } : {}),
+            middleware: [withPersistence(approvalReloadPersistence)],
+          })
+          return toServerSentEventsResponse(stream, {
+            durability: { adapter: memoryStream(request) },
+          })
+        }
+        if (scenario === 'approval-mid-continuation') {
+          const parentRunId = stringField(body, 'parentRunId')
+          const resume = resumeField(body)
+          const stream = chat({
+            adapter: midContinuationAdapter,
+            messages: messagesField(body),
+            tools: [slowDeleteTool],
+            threadId,
+            runId,
+            ...(parentRunId ? { parentRunId } : {}),
+            ...(resume ? { resume } : {}),
+            middleware: [withPersistence(midContinuationPersistence)],
+          })
+          return toServerSentEventsResponse(stream, {
+            durability: { adapter: memoryStream(request) },
+          })
+        }
+        if (scenario === 'decline-llm-fail') {
+          const parentRunId = stringField(body, 'parentRunId')
+          const resume = resumeField(body)
+          const stream = chat({
+            adapter: declineFailAdapter,
+            messages: messagesField(body),
+            tools: [chargeCardTool],
+            threadId,
+            runId,
+            ...(parentRunId ? { parentRunId } : {}),
+            ...(resume ? { resume } : {}),
+            middleware: [withPersistence(declineFailPersistence)],
+          })
+          return toServerSentEventsResponse(stream)
+        }
+        if (scenario === 'client-tool-reload') {
+          const url = new URL(request.url)
+          const parentRunId = stringField(body, 'parentRunId')
+          const resume = resumeField(body)
+          const stream = chat({
+            adapter: clientToolAdapter,
+            messages:
+              url.searchParams.get('seed') === '1'
+                ? [{ role: 'user', content: 'check timezone' }]
+                : messagesField(body),
+            tools: [getTimezoneDef],
+            threadId,
+            runId,
+            ...(parentRunId ? { parentRunId } : {}),
+            ...(resume ? { resume } : {}),
+            middleware: [withPersistence(clientToolPersistence)],
+          })
+          if (url.searchParams.get('seed') === '1') {
+            for await (const _ of stream) void _
+            return Response.json({ runId, threadId, seeded: true })
+          }
+          return toServerSentEventsResponse(stream)
+        }
+        if (scenario === 'multi-iter-cut') {
+          const parentRunId = stringField(body, 'parentRunId')
+          const resume = resumeField(body)
+          const stream = chat({
+            adapter: multiIterCutAdapter,
+            messages: messagesField(body),
+            tools: [lookupPriceTool, buyItemTool],
+            threadId,
+            runId,
+            ...(parentRunId ? { parentRunId } : {}),
+            ...(resume ? { resume } : {}),
+          })
+          const resp = toServerSentEventsResponse(stream, {
+            durability: { adapter: memoryStream(request) },
+          })
+          if (resume?.length || !resp.body) return resp
+          // Close the first HTTP stream cleanly right after Iteration 1's
+          // RUN_FINISHED(tool_calls) while draining the producer into memoryStream.
+          const reader = resp.body.getReader()
+          const decoder = new TextDecoder()
+          let cutOnce = false
+          const cutBody = new ReadableStream<Uint8Array>({
+            async pull(controller) {
+              const { done, value } = await reader.read()
+              if (done) {
+                controller.close()
+                return
+              }
+              controller.enqueue(value)
+              const text = decoder.decode(value, { stream: true })
+              if (
+                !cutOnce &&
+                text.includes('RUN_FINISHED') &&
+                text.includes('tool_calls')
+              ) {
+                cutOnce = true
+                controller.close()
+                void (async () => {
+                  while (!(await reader.read()).done) {
+                    // Drain producer so Iteration 2 writes its interrupt to memoryStream.
+                  }
+                })()
+              }
+            },
+          })
+          return new Response(cutBody, {
+            status: resp.status,
+            headers: resp.headers,
+          })
+        }
         const stream =
           scenario === 'interrupt'
             ? interruptRun(threadId, runId)
@@ -601,35 +1090,85 @@ export const Route = createFileRoute('/api/persistence-durability')({
       //    `reconstructChat`-shaped JSON; the `server-interrupt` scenario carries
       //    a pending approval so a fresh client re-prompts it from the server.
       GET: ({ request }) => {
-        if (scenarioOf(request) === 'structured-output') {
+        const scenario = scenarioOf(request)
+        if (scenario === 'structured-output') {
           return reconstructChat(structuredOutputPersistence, request, {
             authorize: (threadId) => threadId.length > 0,
           })
         }
-        if (scenarioOf(request) === 'harness-output') {
+        if (scenario === 'harness-output') {
           return reconstructChat(harnessOutputPersistence, request, {
             authorize: (threadId) => threadId.length > 0,
           })
         }
-        if (scenarioOf(request) === 'tool-error') {
+        if (scenario === 'tool-error') {
           return reconstructChat(toolErrorPersistence, request, {
             authorize: (threadId) => threadId.length > 0,
           })
         }
-        if (scenarioOf(request) === 'subagent-stopped') {
+        if (scenario === 'subagent-stopped') {
           return reconstructChat(subagentStoppedPersistence, request, {
             authorize: (threadId) => threadId.length > 0,
           })
         }
-        if (scenarioOf(request) === 'stopped-progress') {
+        if (scenario === 'stopped-progress') {
           return reconstructChat(stoppedProgressPersistence, request, {
             authorize: (threadId) => threadId.length > 0,
           })
         }
-        if (scenarioOf(request) === 'usage') {
+        if (scenario === 'usage') {
           return reconstructChat(usagePersistence, request, {
             authorize: (threadId) => threadId.length > 0,
             includeRuns: true,
+          })
+        }
+        if (scenario === 'approval-reload') {
+          const durability = memoryStream(request)
+          if (durability.resumeFrom() !== null) {
+            return resumeServerSentEventsResponse({ adapter: durability })
+          }
+          return reconstructChat(approvalReloadPersistence, request, {
+            authorize: (threadId) => threadId.length > 0,
+          })
+        }
+        if (scenario === 'approval-mid-continuation') {
+          const url = new URL(request.url)
+          const action = url.searchParams.get('action')
+          const tid = url.searchParams.get('threadId') ?? 'default'
+          if (action === 'status') {
+            const gate = getMidContinuationGate(tid)
+            return Response.json({
+              toolStarted: gate.started,
+              released: gate.released,
+            })
+          }
+          if (action === 'release') {
+            getMidContinuationGate(tid).release()
+            return Response.json({ released: true })
+          }
+          const durability = memoryStream(request)
+          if (durability.resumeFrom() !== null) {
+            return resumeServerSentEventsResponse({ adapter: durability })
+          }
+          return reconstructChat(midContinuationPersistence, request, {
+            authorize: (threadId) => threadId.length > 0,
+          })
+        }
+        if (scenario === 'decline-llm-fail') {
+          const url = new URL(request.url)
+          if (url.searchParams.get('action') === 'status') {
+            const tid = url.searchParams.get('threadId') ?? 'default'
+            return Response.json({
+              execCount: declineExecCounts.get(tid) ?? 0,
+            })
+          }
+          return reconstructChat(declineFailPersistence, request, {
+            authorize: (threadId) => threadId.length > 0,
+          })
+        }
+        if (scenario === 'client-tool-reload') {
+          return reconstructChat(clientToolPersistence, request, {
+            authorize: (threadId) => threadId.length > 0,
           })
         }
         const durability = memoryStream(request)
@@ -637,7 +1176,7 @@ export const Route = createFileRoute('/api/persistence-durability')({
           return resumeServerSentEventsResponse({ adapter: durability })
         }
         const body =
-          scenarioOf(request) === 'server-interrupt'
+          scenario === 'server-interrupt'
             ? serverInterruptReconstruction()
             : { messages: [], activeRun: null, interrupts: null }
         return new Response(JSON.stringify(body), {

@@ -257,6 +257,76 @@ describe('MCP input resume', () => {
     })
   })
 
+  it('gives a step-1 answer only to its own tool call when ids share a prefix', async () => {
+    const execute = vi.fn(
+      (_args: unknown, ctx?: ToolExecutionContext) => ctx?.inputResponse,
+    )
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.textStart(),
+          ev.textContent('done'),
+          ev.textEnd(),
+          ev.runFinished('stop'),
+        ],
+      ],
+    })
+    await collectChunks(
+      chat({
+        adapter,
+        threadId: 'thread-1',
+        runId: 'continuation-run',
+        parentRunId: 'interrupted-run',
+        messages: [
+          { role: 'user', content: 'Ask' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'lookup',
+                type: 'function',
+                function: { name: 'askInput', arguments: '{}' },
+              },
+              {
+                id: 'lookup_2',
+                type: 'function',
+                function: { name: 'askInput', arguments: '{}' },
+              },
+            ],
+          },
+        ],
+        tools: [serverTool('askInput', execute)],
+        resume: [
+          {
+            interruptId: 'mcp_input_lookup_2',
+            status: 'resolved',
+            payload: 'x',
+          },
+        ],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const answered = execute.mock.calls.filter(
+      (call) => call[1]?.inputResponse !== undefined,
+    )
+    expect(answered).toHaveLength(1)
+    expect(answered[0]?.[1]?.toolCallId).toBe('lookup_2')
+  })
+
+  it('answers a later step with the mcp_input:<n>:<toolCallId> id', async () => {
+    const { execute } = await resumeWith([
+      { interruptId: 'mcp_input:2:call_1', status: 'resolved', payload: 'y' },
+    ])
+
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(execute.mock.calls[0]?.[1]?.inputResponse).toEqual({
+      status: 'resolved',
+      payload: 'y',
+    })
+  })
+
   it('rejects an answer for a tool call that is not pending', async () => {
     const { execute, chunks } = await resumeWith([
       { interruptId: 'mcp_input_call_2', status: 'resolved', payload: 'x' },

@@ -476,7 +476,7 @@ export class InterruptManager<
   private resuming = false
   private readonly warnedSchemaMismatches = new Set<string>()
   private tools: TTools | undefined
-  private readonly interruptDefinitions: ReadonlyMap<
+  private interruptDefinitions: ReadonlyMap<
     string,
     InterruptDefinition<any, any, any, any>
   >
@@ -485,36 +485,32 @@ export class InterruptManager<
     private readonly options: InterruptManagerOptions<TTools, TInterrupts>,
   ) {
     this.tools = options.tools
+    this.interruptDefinitions = this.buildInterruptDefinitions(
+      options.interrupts,
+    )
+  }
+
+  private buildInterruptDefinitions(
+    interrupts: TInterrupts | undefined,
+  ): ReadonlyMap<string, InterruptDefinition<any, any, any, any>> {
     const definitions = new Map<
       string,
       InterruptDefinition<any, any, any, any>
     >()
-    for (const definition of options.interrupts ?? []) {
+    for (const definition of interrupts ?? []) {
       if (definitions.has(definition.id)) {
         throw new Error(`Duplicate interrupt definition id: ${definition.id}`)
       }
       definitions.set(definition.id, definition)
     }
-    this.interruptDefinitions = definitions
+    return definitions
   }
 
-  updateTools(tools: TTools): void {
-    this.tools = tools
-  }
-
-  hydrate(
-    hydration: InterruptManagerHydration,
-    source: InterruptManagerChangeSource = 'live',
-  ): void {
-    this.activeSubmissionOperation = undefined
-    this.hydration = {
-      threadId: hydration.threadId,
-      interruptedRunId: hydration.interruptedRunId,
-      generation: hydration.generation,
-      interrupts: cloneAndDeepFreezeJson(hydration.interrupts),
-    }
+  private countFirstPartyIndexes(
+    interrupts: ReadonlyArray<Interrupt>,
+  ): Map<number, number> {
     const firstPartyIndexes = new Map<number, number>()
-    for (const interrupt of hydration.interrupts) {
+    for (const interrupt of interrupts) {
       const binding = getDescriptorBinding(interrupt)
       if (
         binding?.kind === 'generic' &&
@@ -528,6 +524,67 @@ export class InterruptManager<
         )
       }
     }
+    return firstPartyIndexes
+  }
+
+  /** Re-classify open pending items after async tools or interrupt definitions arrive. */
+  private rehydrateOpenItems(): void {
+    if (!this.hydration || this.resuming || this.activeTransaction) return
+    const firstPartyIndexes = this.countFirstPartyIndexes(
+      this.hydration.interrupts,
+    )
+    let shouldPublish = false
+    for (let i = 0; i < this.items.length; i++) {
+      const prev = this.items[i]
+      if (!prev || prev.status !== 'pending' || prev.resolution !== undefined) {
+        continue
+      }
+      const next = this.hydrateInterrupt(
+        prev.descriptor,
+        this.hydration,
+        firstPartyIndexes,
+      )
+      const changed =
+        prev.kind !== next.kind ||
+        prev.definition?.id !== next.definition?.id ||
+        prev.canResolve !== next.canResolve ||
+        prev.resumable !== next.resumable ||
+        prev.status !== next.status
+      if (changed) {
+        this.items[i] = next
+        shouldPublish = true
+      } else {
+        prev.tool = next.tool
+        prev.definition = next.definition
+      }
+    }
+    if (shouldPublish) {
+      this.publish('hydrate')
+    }
+  }
+
+  updateTools(tools: TTools): void {
+    this.tools = tools
+    this.rehydrateOpenItems()
+  }
+
+  updateInterrupts(interrupts: TInterrupts): void {
+    this.interruptDefinitions = this.buildInterruptDefinitions(interrupts)
+    this.rehydrateOpenItems()
+  }
+
+  hydrate(
+    hydration: InterruptManagerHydration,
+    source: InterruptManagerChangeSource = 'live',
+  ): void {
+    this.activeSubmissionOperation = undefined
+    this.hydration = {
+      threadId: hydration.threadId,
+      interruptedRunId: hydration.interruptedRunId,
+      generation: hydration.generation,
+      interrupts: cloneAndDeepFreezeJson(hydration.interrupts),
+    }
+    const firstPartyIndexes = this.countFirstPartyIndexes(hydration.interrupts)
     this.items = hydration.interrupts.map((interrupt) =>
       this.hydrateInterrupt(interrupt, hydration, firstPartyIndexes),
     )
@@ -554,6 +611,28 @@ export class InterruptManager<
     return this.items.some(
       (item) => item.kind === 'generic' && item.definition !== undefined,
     )
+  }
+
+  /** True when at least one interrupt is owned by this client and resumable. */
+  hasResumableInterrupts(): boolean {
+    return this.items.some(isClientOwnedInterrupt)
+  }
+
+  /** True when every client-owned interrupt is actively submitting. */
+  isSubmitting(): boolean {
+    const owned = this.items.filter(isClientOwnedInterrupt)
+    return (
+      owned.length > 0 && owned.every((item) => item.status === 'submitting')
+    )
+  }
+
+  hasClientToolInterrupt(toolCallId: string): boolean {
+    return this.findClientToolItem(toolCallId) !== undefined
+  }
+
+  isClientToolPending(toolCallId: string): boolean {
+    const item = this.findClientToolItem(toolCallId)
+    return item !== undefined && item.status === 'pending'
   }
 
   reset(options?: {
@@ -653,13 +732,8 @@ export class InterruptManager<
     })
   }
 
-  private resolveClientToolResult(
-    toolCallId: string,
-    result:
-      | { state: 'output-available'; output: unknown }
-      | { state: 'output-error'; errorText: string },
-  ): boolean {
-    const item =
+  private findClientToolItem(toolCallId: string): RuntimeInterrupt | undefined {
+    return (
       this.items.find(
         (candidate) =>
           candidate.kind === 'client-tool-execution' &&
@@ -674,6 +748,16 @@ export class InterruptManager<
           candidate.canResolve &&
           candidate.descriptor.toolCallId === toolCallId,
       )
+    )
+  }
+
+  private resolveClientToolResult(
+    toolCallId: string,
+    result:
+      | { state: 'output-available'; output: unknown }
+      | { state: 'output-error'; errorText: string },
+  ): boolean {
+    const item = this.findClientToolItem(toolCallId)
     if (!item) return false
     if (result.state === 'output-available') {
       this.resolveItem(item.descriptor.id, result.output)
@@ -1184,7 +1268,12 @@ export class InterruptManager<
     // owns them. Including them in the completeness gate would deadlock the
     // batch, so the run's own interrupts could never be answered once a
     // foreign one shared the stream.
-    const hasGeneric = this.items.some((item) => item.kind === 'generic')
+    // Check the server binding kind, not the runtime fallback kind. A
+    // schema-mismatched tool-approval falls back to generic at runtime, but it
+    // must not omit client-tool-execution items from the resume batch.
+    const hasGeneric = this.items.some(
+      (item) => getDescriptorBinding(item.descriptor)?.kind === 'generic',
+    )
     const ours = this.items.filter(
       (item) =>
         isClientOwnedInterrupt(item) &&

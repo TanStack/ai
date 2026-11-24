@@ -595,4 +595,48 @@ describe('reconstructChat paging', () => {
     expect(idsOf(parsed)).toEqual(['2', '3'])
     expect(parsed.page).toEqual({ truncated: false })
   })
+
+  it('prefers chat-owned pending interrupts over foreign unbound interrupts when selecting interrupts.runId', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.interrupts!.create({
+      interruptId: 'foreign-1',
+      runId: 'run-foreign',
+      threadId: 't1',
+      requestedAt: 1,
+      payload: {
+        id: 'foreign-1',
+        reason: 'workflow_wait',
+        message: 'External',
+      },
+    })
+    await persistence.stores.interrupts!.create({
+      interruptId: 'approval_tc1',
+      runId: 'run-chat',
+      threadId: 't1',
+      requestedAt: 2,
+      payload: {
+        id: 'approval_tc1',
+        reason: 'tool_approval',
+        toolCallId: 'tc1',
+        metadata: {
+          'tanstack:interruptBinding': {
+            v: 1,
+            kind: 'tool-approval',
+            interruptId: 'approval_tc1',
+            interruptedRunId: 'run-chat',
+            generation: 0,
+            toolName: 'delete_order',
+            toolCallId: 'tc1',
+            originalArgs: { id: '1' },
+          },
+        },
+      },
+    })
+
+    const parsed = await hydrate(persistence, chatUrl('threadId=t1'))
+    expect(parsed.interrupts?.runId).toBe('run-chat')
+    expect(parsed.interrupts?.pending.map((item) => item.id)).toEqual([
+      'approval_tc1',
+    ])
+  })
 })
