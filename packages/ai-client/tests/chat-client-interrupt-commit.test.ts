@@ -107,7 +107,7 @@ function connectionFor(committed: boolean) {
   return connection
 }
 
-async function approveAndSettle(client: ChatClient) {
+async function approveAndSettle(client: ChatClient<Array<typeof cartTool>>) {
   await client.sendMessage('add the guitar')
   const interrupt = client.getInterrupts()[0]
   if (interrupt?.kind !== 'tool-approval') throw new Error('no approval')
