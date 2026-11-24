@@ -36,6 +36,8 @@ export const Route = createFileRoute('/api/otel-transcription')({
             provider as Provider,
             aimockPort,
             testId,
+            // Duration billing is Whisper. gpt-transcribe bills tokens.
+            { model: 'whisper-1' },
           )
           const { tracer, spans } = createLocalCaptureTracer()
 

@@ -45,6 +45,7 @@ const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
 type TranscriptionAdapterOptions = {
+  model?: string
   responseFormat?: TranscriptionResponseFormat
   modelOptions?: Record<string, any>
 }
@@ -77,6 +78,7 @@ function testHeaders(testId?: string): Record<string, string> | undefined {
 }
 
 function getOpenaiTranscriptionModel(options: TranscriptionAdapterOptions) {
+  if (options.model) return options.model
   const modelOptions = options.modelOptions
   const isDiarizationRequest =
     modelOptions?.response_format === 'diarized_json' ||
