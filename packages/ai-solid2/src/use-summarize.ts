@@ -125,6 +125,11 @@ export function useSummarize<TTransformed = void>(
     TTransformed
   >({
     ...options,
+    // The spread above would freeze a caller-supplied `get body()`. Re-expose
+    // it so useGeneration keeps tracking the current body.
+    get body() {
+      return options.body
+    },
     devtools,
     reconstructResult: reconstructSummarizeResult,
   })

@@ -145,6 +145,33 @@ describe('useAudioRecorder (solid2)', () => {
     expect(result.recording()).toBe('second')
   })
 
+  it('keeps an older successful recording when a newer stop fails', async () => {
+    let finishFirst!: (value: string) => void
+    const firstTransform = new Promise<string>((resolve) => {
+      finishFirst = resolve
+    })
+    const onComplete = vi
+      .fn()
+      .mockReturnValueOnce(firstTransform)
+      .mockRejectedValueOnce(new Error('transform failed'))
+    const onError = vi.fn()
+    const { result } = renderHook(() =>
+      useAudioRecorder({ onComplete, onError }),
+    )
+    flush()
+    await result.start()
+    const firstStop = result.stop()
+    await vi.waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1))
+
+    await result.start()
+    await expect(result.stop()).rejects.toThrow('transform failed')
+    expect(result.recording()).toBeNull()
+
+    finishFirst('first')
+    await expect(firstStop).resolves.toBe('first')
+    expect(result.recording()).toBe('first')
+  })
+
   it('does not invalidate a valid stop when a concurrent stop is rejected', async () => {
     const onComplete = vi.fn((rec: AudioRecording) => rec.base64)
     const { result } = renderHook(() => useAudioRecorder({ onComplete }))

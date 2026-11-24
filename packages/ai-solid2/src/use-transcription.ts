@@ -132,7 +132,16 @@ export function useTranscription<TTransformed = void>(
     TranscriptionGenerateInput,
     TranscriptionResult,
     TTransformed
-  >({ ...options, devtools, reconstructResult: reconstructTranscriptionResult })
+  >({
+    ...options,
+    // The spread above would freeze a caller-supplied `get body()`. Re-expose
+    // it so useGeneration keeps tracking the current body.
+    get body() {
+      return options.body
+    },
+    devtools,
+    reconstructResult: reconstructTranscriptionResult,
+  })
 
   return generation
 }

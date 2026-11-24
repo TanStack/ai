@@ -77,6 +77,9 @@ export function useAudioRecorder(
   )
   const [recording, setRecording] = createSignal<unknown>(null)
   let latestStop = 0
+  // Only a later *successful* stop may displace an earlier stored result, so a
+  // rejected newer stop does not discard a recording that already succeeded.
+  let publishedStop = 0
 
   onSettled(() => {
     const unsubscribe = recorder.subscribe((state) => {
@@ -114,7 +117,10 @@ export function useAudioRecorder(
     // null is a real value, matching the inferred output type.
     const output = transformed === undefined ? rawRecording : transformed
     // Store via updater so a function-valued transform result isn't invoked.
-    if (!disposed && stopId === latestStop) setRecording(() => output)
+    if (!disposed && stopId >= publishedStop) {
+      publishedStop = stopId
+      setRecording(() => output)
+    }
     return output
   }
 

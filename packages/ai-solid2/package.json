@@ -44,7 +44,8 @@
     "test:oxlint": "oxlint src --type-aware",
     "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
     "test:lib": "vitest run && vitest run --config vitest.ssr.config.ts",
-    "test:lib:dev": "pnpm test:lib --watch",
+    "test:lib:dev": "vitest --watch",
+    "test:lib:dev:ssr": "vitest --watch --config vitest.ssr.config.ts",
     "test:types": "tsc",
     "build": "tsdown"
   },

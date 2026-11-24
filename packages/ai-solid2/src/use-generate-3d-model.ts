@@ -128,6 +128,11 @@ export function useGenerate3DModel<TTransformed = void>(
   }
   return useGeneration<Model3DGenerateInput, Model3DResult, TTransformed>({
     ...options,
+    // The spread above would freeze a caller-supplied `get body()`. Re-expose
+    // it so useGeneration keeps tracking the current body.
+    get body() {
+      return options.body
+    },
     devtools,
     // 3D results are never persisted, even if an untyped caller sets it.
     persistence: false,

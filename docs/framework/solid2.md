@@ -205,3 +205,5 @@ Supply `reconstructResult` when calling `useGeneration` directly with `persisten
 Without a mapper, hydration restores the run status but leaves `result()` null, even for a completed run. Return `null` from the mapper if the stored fields cannot rebuild your result. A completed snapshot then reports an error. Rebuilt results pass through `onResult`.
 
 The specialized generation hooks already provide their own mappers. Keep the same `threadId` across reloads and supply the server hydration handler through the connection or `hydrateGeneration`.
+
+Hydration can also return a run that is still generating. Supply `joinRun` in that case, through the connection or the `joinRun` option. Without it, the client reports an interrupted error instead of resuming the run. Use the option when the transport is a fetcher and the connection has no resumption handler.
