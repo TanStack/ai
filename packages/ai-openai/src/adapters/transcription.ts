@@ -296,10 +296,7 @@ export class OpenAITranscriptionAdapter<
           start: w.start,
           end: w.end,
         }))
-        const usage = buildTranscriptionUsage(
-          response.usage,
-          response.duration,
-        )
+        const usage = buildTranscriptionUsage(response.usage, response.duration)
         return {
           id: generateId(this.name),
           model,
