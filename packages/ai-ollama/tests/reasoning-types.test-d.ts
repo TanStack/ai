@@ -39,3 +39,8 @@ chat({
   // @ts-expect-error think is set with chat({ reasoning })
   modelOptions: { think: true },
 })
+
+// An unlisted model accepts defaults such as keep_alive without model.
+createOllamaChat('my-local-model', {
+  defaultModelOptions: { keep_alive: '5m' },
+})

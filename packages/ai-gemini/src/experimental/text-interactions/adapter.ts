@@ -254,6 +254,43 @@ export class GeminiTextInteractionsAdapter<
     this.client = createGeminiClient(config)
   }
 
+  /**
+   * A previous_interaction_id the caller set on this call. An id that only
+   * arrived from defaultModelOptions is not call-level.
+   */
+  private callLevelPreviousInteractionId(
+    modelOptions:
+      | { previous_interaction_id?: string | undefined }
+      | undefined,
+  ): string | undefined {
+    const mergedId = modelOptions?.previous_interaction_id
+    if (
+      mergedId === undefined ||
+      mergedId === this.defaultModelOptions?.previous_interaction_id
+    ) {
+      return undefined
+    }
+    return mergedId
+  }
+
+  /**
+   * Call-level id, then the captured continuation id, then the adapter
+   * default. Continuations therefore chain from the latest response even
+   * when defaultModelOptions sets previous_interaction_id.
+   */
+  private resolvePreviousInteractionId(
+    modelOptions:
+      | { previous_interaction_id?: string | undefined }
+      | undefined,
+    threadId: string,
+  ): string | undefined {
+    return (
+      this.callLevelPreviousInteractionId(modelOptions) ??
+      this.interactionIdByThread.get(threadId) ??
+      this.defaultModelOptions?.previous_interaction_id
+    )
+  }
+
   async *chatStream(
     options: TextOptions<GeminiTextInteractionsProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
@@ -278,25 +315,28 @@ export class GeminiTextInteractionsAdapter<
     const timestamp = Date.now()
     const { logger } = options
 
-    // Fresh-turn intent: caller didn't thread an id AND only a single
-    // user message is queued. Drop any stale captured id so we don't
-    // silently chain off a prior turn the caller doesn't know about.
-    // Multi-message inputs are follow-ups (agent-loop iteration or
-    // structuredOutput composition) and keep the Map entry.
+    // Fresh-turn intent: the caller did not pass a call-level id AND
+    // only a single user message is queued. Drop any stale captured id
+    // so we don't silently chain off a prior turn the caller doesn't
+    // know about. A defaulted id is not call-level. Multi-message
+    // inputs are follow-ups (agent-loop iteration or structuredOutput
+    // composition) and keep the Map entry.
+    const callLevelPreviousInteractionId =
+      this.callLevelPreviousInteractionId(options.modelOptions)
     if (
-      !options.modelOptions?.previous_interaction_id &&
+      !callLevelPreviousInteractionId &&
       options.messages.length === 1 &&
       options.messages[0]?.role === 'user'
     ) {
       this.interactionIdByThread.delete(threadId)
     }
 
-    // Resolve `previous_interaction_id`. Caller-provided wins; otherwise
+    // Resolve `previous_interaction_id`. A call-level id wins; otherwise
     // fall back to the id we captured during a prior iteration of this
-    // same agent-loop run (matched by threadId).
+    // same agent-loop run (matched by threadId). A defaulted id is last
+    // so it cannot replace the captured continuation parent.
     const effectivePreviousInteractionId =
-      options.modelOptions?.previous_interaction_id ??
-      this.interactionIdByThread.get(threadId)
+      this.resolvePreviousInteractionId(options.modelOptions, threadId)
 
     let sawTerminalEvent = false
     // Sentinel for the `.return()` abandonment path. Set to `true` only at
@@ -443,8 +483,7 @@ export class GeminiTextInteractionsAdapter<
     // previous_interaction_id those would throw "cannot send prior
     // conversation history on a fresh interaction".
     const effectivePreviousInteractionId =
-      chatOptions.modelOptions?.previous_interaction_id ??
-      this.interactionIdByThread.get(threadId)
+      this.resolvePreviousInteractionId(chatOptions.modelOptions, threadId)
 
     const baseRequest = buildInteractionsRequest({
       ...chatOptions,
@@ -559,8 +598,7 @@ export class GeminiTextInteractionsAdapter<
     const threadId = chatOptions.threadId
     const timestamp = Date.now()
     const effectivePreviousInteractionId =
-      chatOptions.modelOptions?.previous_interaction_id ??
-      this.interactionIdByThread.get(threadId)
+      this.resolvePreviousInteractionId(chatOptions.modelOptions, threadId)
     const baseRequest = buildInteractionsRequest({
       ...chatOptions,
       modelOptions: {

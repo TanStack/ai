@@ -54,7 +54,7 @@ export type OllamaTextModel =
 type ResolveModelOptions<TModel extends string> =
   TModel extends keyof OllamaChatModelOptionsByName
     ? OllamaChatModelOptionsByName[TModel]
-    : Omit<ChatRequest, 'think'>
+    : Omit<ChatRequest, 'think' | 'model'>
 
 /**
  * The reasoning levels of a model, for `chat({ reasoning })`. A model name

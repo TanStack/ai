@@ -5,18 +5,23 @@ import type { TranscriptionOptions, TranscriptionResult } from '@tanstack/ai'
 import type { CartesiaAdapterConfig } from './client'
 import type { CartesiaTranscriptionModel } from './model-meta'
 
+/** Provider options Cartesia STT accepts, minus file and model. */
+export type CartesiaTranscriptionOptions = Partial<
+  Omit<Cartesia.STTTranscribeParams, 'file' | 'model'>
+>
+
 /** Transcribe recorded audio with a Cartesia model. */
 export class CartesiaTranscriptionAdapter<
   TModel extends CartesiaTranscriptionModel,
-> extends BaseTranscriptionAdapter<TModel> {
+> extends BaseTranscriptionAdapter<TModel, CartesiaTranscriptionOptions> {
   readonly name = 'cartesia' as const
   private readonly client: Cartesia
-  readonly defaultModelOptions: Record<string, unknown> | undefined
+  readonly defaultModelOptions: CartesiaTranscriptionOptions | undefined
 
   /** Configure the model and API connection for transcription. */
   constructor(
     model: TModel,
-    config: CartesiaAdapterConfig<Record<string, unknown>> = {},
+    config: CartesiaAdapterConfig<CartesiaTranscriptionOptions> = {},
   ) {
     super(model)
     const { defaultModelOptions, ...clientConfig } = config
@@ -26,7 +31,7 @@ export class CartesiaTranscriptionAdapter<
 
   /** Transcribe audio and return text and available word timings. */
   async transcribe(
-    options: TranscriptionOptions,
+    options: TranscriptionOptions<CartesiaTranscriptionOptions>,
   ): Promise<TranscriptionResult> {
     const { logger } = options
     logger.request(
@@ -50,14 +55,20 @@ export class CartesiaTranscriptionAdapter<
       }
       const result = await this.client.stt.transcribe(
         {
+          ...options.modelOptions,
           file: toAudioFile(options.audio),
           model: this.model,
           // Omit language and Cartesia uses English and translates other
           // speech. The cast only narrows the string.
-          language:
-            options.language as Cartesia.STTTranscribeParams['language'],
-          timestamp_granularities:
-            options.responseFormat === 'verbose_json' ? ['word'] : undefined,
+          ...(options.language
+            ? {
+                language:
+                  options.language as Cartesia.STTTranscribeParams['language'],
+              }
+            : {}),
+          ...(options.responseFormat === 'verbose_json'
+            ? { timestamp_granularities: ['word'] }
+            : {}),
         },
         { signal: options.abortSignal },
       )
@@ -87,7 +98,7 @@ export function cartesiaTranscription<
   TModel extends CartesiaTranscriptionModel,
 >(
   model: TModel,
-  config?: CartesiaAdapterConfig<Record<string, unknown>>,
+  config?: CartesiaAdapterConfig<CartesiaTranscriptionOptions>,
 ): CartesiaTranscriptionAdapter<TModel> {
   return new CartesiaTranscriptionAdapter(model, config)
 }
@@ -98,7 +109,7 @@ export function createCartesiaTranscription<
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<CartesiaAdapterConfig<Record<string, unknown>>, 'apiKey'>,
+  config?: Omit<CartesiaAdapterConfig<CartesiaTranscriptionOptions>, 'apiKey'>,
 ): CartesiaTranscriptionAdapter<TModel> {
   return new CartesiaTranscriptionAdapter(model, { ...config, apiKey })
 }

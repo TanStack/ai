@@ -131,7 +131,8 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
     // Order matters: size and derived image-input fields first, then
     // modelOptions (so explicit user overrides win for mask_url /
     // control_image_url / reference_image_urls), then the call-controlled
-    // prompt / num_images, which always take precedence.
+    // prompt. Set num_images only when the call sets numberOfImages so a
+    // default num_images is not replaced with undefined.
     const inputFields = mapImageInputsToFalFields(this.model, resolved.images)
     const input = {
       ...sizeParams,
@@ -140,7 +141,9 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
       // Media-only prompts (e.g. upscalers, background removal) omit the
       // prompt field entirely rather than sending an empty string.
       ...(resolved.text ? { prompt: resolved.text } : {}),
-      num_images: options.numberOfImages,
+      ...(options.numberOfImages !== undefined
+        ? { num_images: options.numberOfImages }
+        : {}),
     } as FalModelInput<TModel>
     return input
   }

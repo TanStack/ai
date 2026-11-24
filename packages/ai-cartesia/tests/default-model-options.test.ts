@@ -26,9 +26,9 @@ const factories = [
     kind: 'transcription',
     create: () =>
       createCartesiaTranscription('ink-whisper', 'test-key', {
-        defaultModelOptions: { timestamps: true },
+        defaultModelOptions: { timestamp_granularities: ['word'] },
       }),
-    defaults: { timestamps: true },
+    defaults: { timestamp_granularities: ['word'] },
   },
 ]
 
