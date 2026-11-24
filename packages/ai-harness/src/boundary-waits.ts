@@ -233,6 +233,7 @@ function occurrenceOf(
 }
 
 interface StoredAnswer {
+  scope: string
   toolCallId: string
   occurrence: number
   value: unknown
@@ -241,6 +242,7 @@ interface StoredAnswer {
 function isStoredAnswer(value: unknown): value is StoredAnswer {
   return (
     isRecord(value) &&
+    typeof value.scope === 'string' &&
     typeof value.toolCallId === 'string' &&
     typeof value.occurrence === 'number' &&
     'value' in value
@@ -252,6 +254,12 @@ function isStoredAnswer(value: unknown): value is StoredAnswer {
  * Keeps resolved answers in plugin state so they survive across multi-pause
  * tool batches and host restarts before tool execution runs.
  *
+ * All runs of a session share the plugin state, so each run reads and writes
+ * only its own answers: `forRun(scope)`, with the `subagentRunId` of an agent
+ * run, or `undefined` for the lead turn. Some providers reuse simple ids
+ * (`call_0`), so the answer of a parallel run never approves a call of this
+ * one.
+ *
  * Each answer belongs to one occurrence of its tool call. Call `retain` at
  * each boundary: it drops the answers of calls that are no longer pending,
  * and the answers of an earlier call that had the same id. So an answer does
@@ -260,77 +268,82 @@ function isStoredAnswer(value: unknown): value is StoredAnswer {
 export function durableAnswers(ctx: Pick<PluginSetupContext, 'state'>) {
   const state = ctx.state<Record<string, unknown>>({})
   return {
-    has: async (key: string) => {
-      const stored = await state.get()
-      return Object.hasOwn(stored, key)
-    },
-    setMany: async (
-      messages: ReadonlyArray<ModelMessage>,
-      entries: ReadonlyArray<
-        readonly [key: string, toolCallId: string, value: unknown]
-      >,
-    ) => {
-      if (entries.length === 0) return
-      await state.update((current) => {
-        const next = { ...current }
-        for (const [key, toolCallId, value] of entries) {
-          // An own property even for a provider id such as `__proto__`.
-          Object.defineProperty(next, key, {
-            value: {
-              toolCallId,
-              occurrence: occurrenceOf(messages, toolCallId),
-              value,
-            } satisfies StoredAnswer,
-            enumerable: true,
-            writable: true,
-            configurable: true,
+    forRun: (runScope: string | undefined) => {
+      const scope = runScope ?? ''
+      // A JSON pair, so no scope and key can make the key of another pair.
+      const slot = (key: string) => JSON.stringify([scope, key])
+      return {
+        has: async (key: string) => {
+          const stored = await state.get()
+          return Object.hasOwn(stored, slot(key))
+        },
+        setMany: async (
+          messages: ReadonlyArray<ModelMessage>,
+          entries: ReadonlyArray<
+            readonly [key: string, toolCallId: string, value: unknown]
+          >,
+        ) => {
+          if (entries.length === 0) return
+          await state.update((current) => {
+            const next = { ...current }
+            for (const [key, toolCallId, value] of entries) {
+              next[slot(key)] = {
+                scope,
+                toolCallId,
+                occurrence: occurrenceOf(messages, toolCallId),
+                value,
+              } satisfies StoredAnswer
+            }
+            return next
           })
-        }
-        return next
-      })
-    },
-    /**
-     * Drop the answers of calls in `messages` that are no longer pending, or
-     * that an earlier call with the same id made. An answer of a call that is
-     * not in `messages` stays: it belongs to the run of another agent that
-     * shares this plugin state.
-     */
-    retain: async (
-      messages: ReadonlyArray<ModelMessage>,
-      pendingToolCallIds: ReadonlyArray<string>,
-    ) => {
-      const pending = new Set(pendingToolCallIds)
-      const keep = (entry: unknown) => {
-        if (!isStoredAnswer(entry)) return false
-        const occurrence = occurrenceOf(messages, entry.toolCallId)
-        if (occurrence === 0) return true
-        return pending.has(entry.toolCallId) && entry.occurrence === occurrence
-      }
-      const stored = await state.get()
-      if (Object.values(stored).every(keep)) return
-      await state.update((current) =>
-        Object.fromEntries(
-          Object.entries(current).filter(([, entry]) => keep(entry)),
-        ),
-      )
-    },
-    take: async (keys: ReadonlyArray<string>) => {
-      const stored = await state.get()
-      const present = keys.filter((key) => Object.hasOwn(stored, key))
-      const values = keys.map((key) => {
-        const entry = stored[key]
-        return isStoredAnswer(entry) ? entry.value : undefined
-      })
-      if (present.length > 0) {
-        await state.update((current) => {
-          const next = { ...current }
-          for (const key of present) {
-            delete next[key]
+        },
+        /**
+         * Drop the answers of this run for calls in `messages` that are no
+         * longer pending, or that an earlier call with the same id made. The
+         * answers of other runs stay.
+         */
+        retain: async (
+          messages: ReadonlyArray<ModelMessage>,
+          pendingToolCallIds: ReadonlyArray<string>,
+        ) => {
+          const pending = new Set(pendingToolCallIds)
+          const keep = (entry: unknown) => {
+            if (!isStoredAnswer(entry)) return false
+            if (entry.scope !== scope) return true
+            const occurrence = occurrenceOf(messages, entry.toolCallId)
+            // Not in this transcript: a call that this run cannot judge.
+            if (occurrence === 0) return true
+            return (
+              pending.has(entry.toolCallId) && entry.occurrence === occurrence
+            )
           }
-          return next
-        })
+          const stored = await state.get()
+          if (Object.values(stored).every(keep)) return
+          await state.update((current) =>
+            Object.fromEntries(
+              Object.entries(current).filter(([, entry]) => keep(entry)),
+            ),
+          )
+        },
+        take: async (keys: ReadonlyArray<string>) => {
+          const stored = await state.get()
+          const present = keys.filter((key) => Object.hasOwn(stored, slot(key)))
+          const values = keys.map((key) => {
+            const entry = stored[slot(key)]
+            return isStoredAnswer(entry) ? entry.value : undefined
+          })
+          if (present.length > 0) {
+            await state.update((current) => {
+              const next = { ...current }
+              for (const key of present) {
+                delete next[slot(key)]
+              }
+              return next
+            })
+          }
+          return { present, values }
+        },
       }
-      return { present, values }
     },
   }
 }

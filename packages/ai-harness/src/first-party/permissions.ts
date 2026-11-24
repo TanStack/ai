@@ -829,11 +829,12 @@ export function permissions(
         decideCall(tool, args, sessionMetadata),
       )
       /**
-       * The replies to the approvals of the turn, by tool call id. Stored in
+       * The replies to the approvals of each run, by tool call id. Stored in
        * plugin state so answers survive multi-pause batches and host restarts
-       * until the approved call runs.
+       * until the approved call runs. Each run (the lead turn, or one agent
+       * run by its `subagentRunId`) has its own answers.
        */
-      const answers = durableAnswers(ctx)
+      const store = durableAnswers(ctx)
       /**
        * Decide each tool call of the model message before the tools run.
        * Each call that asks opens one approval wait, so the turn stops, and
@@ -846,6 +847,7 @@ export function permissions(
         const metadata = getMetadata(run, { optional: true })
         const interrupts = []
         const calls = pendingCalls(run.messages)
+        const answers = store.forRun(run.subagentRunId)
         await answers.retain(
           run.messages,
           calls.map((call) => call.id),
@@ -875,7 +877,7 @@ export function permissions(
         name: 'tanstack/permissions',
         onInterruptBoundary: boundary,
         onInterruptResolution: async (run, resolutions) => {
-          await answers.setMany(
+          await store.forRun(run.subagentRunId).setMany(
             run.messages,
             resolutions.for(approvalInterrupt).map(
               (resolution) =>
@@ -899,7 +901,9 @@ export function permissions(
           const call = await decideCall(hook.toolName, hook.args, metadata)
           // Always take any stored answer so stale entries do not stay when
           // rules change before the call runs.
-          const { present, values } = await answers.take([hook.toolCallId])
+          const { present, values } = await store
+            .forRun(run.subagentRunId)
+            .take([hook.toolCallId])
           if (call.decision === 'allow') return undefined
           if (call.decision === 'deny') return refuse(call.error)
           // The boundary asked about every call of the model message. A call

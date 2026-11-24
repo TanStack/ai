@@ -172,7 +172,9 @@ export function question() {
        * state so answers survive multi-pause batches and host restarts until
        * the question call runs.
        */
-      const replies = durableAnswers(ctx)
+      // ponytail: only the lead turn registers the question waits (see the
+      // end of setup), so all replies belong to it.
+      const replies = durableAnswers(ctx).forRun(undefined)
       const boundary = {
         name: 'tanstack/question',
         // Stop the turn before its tools run, with a wait for each question
