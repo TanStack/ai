@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
 import { runSandboxed, sandboxedChatTool } from '../src/index'
-import type { Facades, Limits } from '../src/index'
+import type { FacadeContext, Facades, Limits } from '../src/index'
 
 const driver = createQuickJSIsolateDriver()
 
@@ -208,6 +208,34 @@ describe('sandboxedChatTool', () => {
     await expect(blocking.execute?.({})).rejects.toThrow(
       'sandboxed tool "loop" blocked: a sandbox limit was hit',
     )
+  })
+
+  it('passes chat context to facades but not into the isolate', async () => {
+    type AppContext = { userId: string }
+    const seen: Array<string> = []
+    const scoped = sandboxedChatTool({
+      name: 'whoami',
+      description: 'Reads the current user',
+      inputSchema: { type: 'object', properties: {} },
+      snippet: `const me = await host.user.get({ userId: 'someone-else' }); return { me, leaked: typeof context }`,
+      facades: {
+        'user.get': {
+          execute: async (_args, ctx: FacadeContext<AppContext>) => {
+            const userId = ctx.context?.userId ?? 'none'
+            seen.push(userId)
+            return userId
+          },
+        },
+      },
+      driver,
+      limits: LIMITS,
+    })
+    const result = await scoped.execute?.(
+      {},
+      { context: { userId: 'u1' }, emitCustomEvent: () => {} },
+    )
+    expect(result).toEqual({ me: 'u1', leaked: 'undefined' })
+    expect(seen).toEqual(['u1'])
   })
 
   it('keeps facade error text off the model-facing message', async () => {

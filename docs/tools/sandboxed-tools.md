@@ -118,6 +118,69 @@ To keep a large result, list its string fields in `truncatable`, as dotted paths
 
 Facades are the only egress. Secrets and backend URLs live in the facade closure, in your process, and never enter the isolate. A facade also enforces its own authorization: the isolate guarantees the snippet can reach only that facade, and the facade guarantees the caller may use it this way.
 
+## Scope facades to the user
+
+A facade gets the `chat({ context })` value as `ctx.context`. Use it to find the current user. It stays in your process and never enters the isolate.
+
+```ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { sandboxedChatTool } from '@tanstack/ai-mcp-sandbox'
+import type { FacadeContext } from '@tanstack/ai-mcp-sandbox'
+import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
+import { z } from 'zod'
+
+type AppContext = { userId: string }
+
+const ORDERS = [
+  { id: 'o1', userId: 'user_123', total: 40 },
+  { id: 'o2', userId: 'user_456', total: 95 },
+]
+
+const listOrders = sandboxedChatTool({
+  name: 'listOrders',
+  description: 'List the current user\'s orders.',
+  inputSchema: z.object({}),
+  snippet: `return await host.orders.list({})`,
+  facades: {
+    'orders.list': {
+      execute: async (_args: unknown, ctx: FacadeContext<AppContext>) =>
+        ORDERS.filter((order) => order.userId === ctx.context?.userId),
+    },
+  },
+  driver: createQuickJSIsolateDriver(),
+  limits: {
+    wallClockMs: 2000,
+    memoryMb: 64,
+    maxInjectedCalls: 5,
+    resultBytes: 16 * 1024,
+  },
+})
+
+export async function POST(request: Request) {
+  const { messages, threadId } = await chatParamsFromRequest(request)
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    messages,
+    threadId,
+    tools: [listOrders],
+    // Build this from your server session.
+    context: { userId: 'user_123' },
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+Follow these rules:
+
+- Take the user from `ctx.context`, never from the facade `args`. The snippet picks the args, so it can ask for any user.
+- Build the context on the server. If a value comes from the client in `forwardedProps`, validate it first. See [Client-to-Server Handoff](../advanced/runtime-context#client-to-server-handoff).
+- Never return a context value, such as a token or a database client, from a facade. A facade's return value goes into the isolate.
+
 ## A sandboxed endpoint body
 
 For a server endpoint, call `runSandboxed()` directly. Validate input on the host, run the snippet with injected facades, then return a result. A snippet error or a tripped limit comes back as `ok: false`. Bad setup, such as a driver that cannot start, throws:
@@ -176,4 +239,4 @@ Whole-body sandboxing fits a non-streaming data endpoint or server function. The
 - `injectedCalls`: how many facade calls the run made.
 - `ms`: wall-clock duration.
 
-`sandboxedChatTool()` wraps that for you: a blocked run throws, and a successful run returns the snippet's value to the agent. Every call runs as one `anonymous` caller with no policy, so check per-user access inside the facades.
+`sandboxedChatTool()` wraps that for you: a blocked run throws, and a successful run returns the snippet's value to the agent. Facades get the `chat({ context })` value as `ctx.context`. See [Scope facades to the user](#scope-facades-to-the-user).

@@ -16,9 +16,9 @@ export function safeName(dotted: string): string {
  * policy) and verify each exists. Throws on an unknown facade — a manifest
  * injecting something the server can't provide is a configuration error.
  */
-export function resolveAllowed(
+export function resolveAllowed<TContext>(
   declared: ReadonlyArray<string>,
-  facades: Facades,
+  facades: Facades<TContext>,
   authInfo: AuthInfo,
   policy?: ClientPolicy,
 ): ReadonlyArray<string> {
@@ -37,15 +37,21 @@ export function resolveAllowed(
  * Wrap the allowed facades as isolate bindings. Each binding's `execute`
  * ticks the call counter and injects `FacadeContext` (authInfo, clientId).
  */
-export function buildBindings(opts: {
+export function buildBindings<TContext>(opts: {
   allowed: ReadonlyArray<string>
-  facades: Facades
+  facades: Facades<TContext>
   authInfo: AuthInfo
   signal?: AbortSignal
+  context?: TContext
   tick: () => void
 }): Record<string, ToolBinding> {
-  const { allowed, facades, authInfo, signal, tick } = opts
-  const ctx: FacadeContext = { authInfo, clientId: authInfo.clientId, signal }
+  const { allowed, facades, authInfo, signal, context, tick } = opts
+  const ctx: FacadeContext<TContext> = {
+    authInfo,
+    clientId: authInfo.clientId,
+    signal,
+    context,
+  }
 
   const bindings: Record<string, ToolBinding> = {}
   const seen = new Set<string>()

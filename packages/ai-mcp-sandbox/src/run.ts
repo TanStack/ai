@@ -14,13 +14,13 @@ import type {
  * single-tenant server function). A multi-tenant host passes the real caller. */
 const ANONYMOUS: AuthInfo = { token: '', clientId: 'anonymous', scopes: [] }
 
-export interface RunSandboxedOptions {
+export interface RunSandboxedOptions<TContext = unknown> {
   /** Raw function body: top-level `await` / `return`, sees `input` + `host.*`. */
   snippet: string
   /** Validated args, JSON-copied into the isolate as `input`. */
   input: unknown
   /** Host functions the snippet may call as `host.<ns>.<fn>`. Its only egress. */
-  facades: Facades
+  facades: Facades<TContext>
   /** Facade names this run may call. Default: every key of `facades`. */
   inject?: ReadonlyArray<string>
   /** Isolate driver (e.g. `createQuickJSIsolateDriver()`). */
@@ -34,6 +34,8 @@ export interface RunSandboxedOptions {
   policy?: ClientPolicy
   /** Aborts the run and is passed to each facade as `ctx.signal`. */
   signal?: AbortSignal
+  /** Request context passed to each facade as `ctx.context`. Never enters the isolate. */
+  context?: TContext
 }
 
 interface RunStats {
@@ -79,8 +81,8 @@ function classifyFailure(
  * A snippet failure or a tripped limit comes back as `{ ok: false }`.
  * Misconfiguration (an unknown facade, a driver that fails to start) throws.
  */
-export async function runSandboxed(
-  opts: RunSandboxedOptions,
+export async function runSandboxed<TContext = unknown>(
+  opts: RunSandboxedOptions<TContext>,
 ): Promise<SandboxRunResult> {
   const {
     snippet,
@@ -93,6 +95,7 @@ export async function runSandboxed(
     authInfo = ANONYMOUS,
     policy,
     signal,
+    context,
   } = opts
 
   const allowed = resolveAllowed(inject, facades, authInfo, policy)
@@ -114,6 +117,7 @@ export async function runSandboxed(
         facades,
         authInfo,
         signal,
+        context,
         tick: counter.tick,
       }),
       timeout: limits.wallClockMs,

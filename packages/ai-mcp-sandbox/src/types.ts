@@ -46,10 +46,15 @@ export interface Manifest {
 }
 
 /** Context a facade receives on every call. */
-export interface FacadeContext {
+export interface FacadeContext<TContext = unknown> {
   authInfo: AuthInfo
   clientId: string
   signal?: AbortSignal
+  /**
+   * Request context from the host, e.g. `chat({ context })` for a
+   * `sandboxedChatTool`. Host-side only: it never enters the isolate.
+   */
+  context?: TContext
 }
 
 /**
@@ -57,14 +62,14 @@ export interface FacadeContext {
  * `host.<namespace>.<fn>(input)`. Secrets and backend URLs live in the
  * closure here, never in the isolate.
  */
-export interface Facade {
+export interface Facade<TContext = unknown> {
   description?: string
   inputSchema?: Record<string, unknown>
-  execute: (args: unknown, ctx: FacadeContext) => Promise<unknown>
+  execute: (args: unknown, ctx: FacadeContext<TContext>) => Promise<unknown>
 }
 
 /** Facades keyed by the dotted name used in `Manifest.inject`. */
-export type Facades = Record<string, Facade>
+export type Facades<TContext = unknown> = Record<string, Facade<TContext>>
 
 /**
  * Per-client capability filter. Return the subset of declared facade names

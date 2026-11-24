@@ -395,7 +395,7 @@
         {
           "label": "Sandboxed Chat Tools",
           "to": "tools/sandboxed-tools",
-          "addedAt": "2026-11-20"
+          "addedAt": "2026-11-24"
         },
         {
           "label": "Tool Result Metadata",
