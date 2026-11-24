@@ -9,7 +9,7 @@ if (major == 20) {
   console.warn(`warn: This version of pnpm requires at least Node.js v22.13
 warn: The current version of Node.js is ${process.version}
 warn: ${COMPATIBILITY_PAGE}`)
-} else if (major < 22 || major == 22 && minor < 13) {
+} else if (major < 22 || (major == 22 && minor < 13)) {
   console.error(`ERROR: This version of pnpm requires at least Node.js v22.13
 The current version of Node.js is ${process.version}
 ${COMPATIBILITY_PAGE}`)

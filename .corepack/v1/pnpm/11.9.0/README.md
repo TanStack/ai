@@ -12,15 +12,15 @@
 
 Fast, disk space efficient package manager:
 
-* **Fast.** Up to 2x faster than the alternatives (see [benchmark](#benchmark)).
-* **Efficient.** Files inside `node_modules` are linked from a single content-addressable storage.
-* **[Great for monorepos](https://pnpm.io/workspaces).**
-* **Strict.** A package can access only dependencies that are specified in its `package.json`.
-* **Deterministic.** Has a lockfile called `pnpm-lock.yaml`.
-* **Works as a Node.js version manager.** See [pnpm runtime](https://pnpm.io/11.x/cli/runtime).
-* **Works everywhere.** Supports Windows, Linux, and macOS.
-* **Battle-tested.** Used in production by teams of [all sizes](https://pnpm.io/workspaces#usage-examples) since 2016.
-* [See the full feature comparison with npm and Yarn](https://pnpm.io/feature-comparison).
+- **Fast.** Up to 2x faster than the alternatives (see [benchmark](#benchmark)).
+- **Efficient.** Files inside `node_modules` are linked from a single content-addressable storage.
+- **[Great for monorepos](https://pnpm.io/workspaces).**
+- **Strict.** A package can access only dependencies that are specified in its `package.json`.
+- **Deterministic.** Has a lockfile called `pnpm-lock.yaml`.
+- **Works as a Node.js version manager.** See [pnpm runtime](https://pnpm.io/11.x/cli/runtime).
+- **Works everywhere.** Supports Windows, Linux, and macOS.
+- **Battle-tested.** Used in production by teams of [all sizes](https://pnpm.io/workspaces#usage-examples) since 2016.
+- [See the full feature comparison with npm and Yarn](https://pnpm.io/feature-comparison).
 
 To quote the [Rush](https://rushjs.io/) team:
 
@@ -226,10 +226,10 @@ When using npm, if you have 100 projects using lodash, you will have 100 copies 
 With pnpm, lodash will be stored in a content-addressable storage, so:
 
 1. If you depend on different versions of lodash, only the files that differ are added to the store.
-  If lodash has 100 files, and a new version has a change only in one of those files,
-  `pnpm update` will only add 1 new file to the storage.
+   If lodash has 100 files, and a new version has a change only in one of those files,
+   `pnpm update` will only add 1 new file to the storage.
 1. All the files are saved in a single place on the disk. When packages are installed, their files are linked
-  from that single place consuming no additional disk space. Linking is performed using either hard-links or reflinks (copy-on-write).
+   from that single place consuming no additional disk space. Linking is performed using either hard-links or reflinks (copy-on-write).
 
 As a result, you save gigabytes of space on your disk and you have a lot faster installations!
 If you'd like more details about the unique `node_modules` structure that pnpm creates and
@@ -269,4 +269,3 @@ Benchmarks on an app with lots of dependencies:
 ## License
 
 [MIT](https://github.com/pnpm/pnpm/blob/main/LICENSE)
-

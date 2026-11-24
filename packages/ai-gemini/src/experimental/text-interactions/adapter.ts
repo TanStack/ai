@@ -259,9 +259,7 @@ export class GeminiTextInteractionsAdapter<
    * arrived from defaultModelOptions is not call-level.
    */
   private callLevelPreviousInteractionId(
-    modelOptions:
-      | { previous_interaction_id?: string | undefined }
-      | undefined,
+    modelOptions: { previous_interaction_id?: string | undefined } | undefined,
   ): string | undefined {
     const mergedId = modelOptions?.previous_interaction_id
     if (
@@ -279,9 +277,7 @@ export class GeminiTextInteractionsAdapter<
    * when defaultModelOptions sets previous_interaction_id.
    */
   private resolvePreviousInteractionId(
-    modelOptions:
-      | { previous_interaction_id?: string | undefined }
-      | undefined,
+    modelOptions: { previous_interaction_id?: string | undefined } | undefined,
     threadId: string,
   ): string | undefined {
     return (
@@ -321,8 +317,9 @@ export class GeminiTextInteractionsAdapter<
     // know about. A defaulted id is not call-level. Multi-message
     // inputs are follow-ups (agent-loop iteration or structuredOutput
     // composition) and keep the Map entry.
-    const callLevelPreviousInteractionId =
-      this.callLevelPreviousInteractionId(options.modelOptions)
+    const callLevelPreviousInteractionId = this.callLevelPreviousInteractionId(
+      options.modelOptions,
+    )
     if (
       !callLevelPreviousInteractionId &&
       options.messages.length === 1 &&
@@ -335,8 +332,10 @@ export class GeminiTextInteractionsAdapter<
     // fall back to the id we captured during a prior iteration of this
     // same agent-loop run (matched by threadId). A defaulted id is last
     // so it cannot replace the captured continuation parent.
-    const effectivePreviousInteractionId =
-      this.resolvePreviousInteractionId(options.modelOptions, threadId)
+    const effectivePreviousInteractionId = this.resolvePreviousInteractionId(
+      options.modelOptions,
+      threadId,
+    )
 
     let sawTerminalEvent = false
     // Sentinel for the `.return()` abandonment path. Set to `true` only at
@@ -482,8 +481,10 @@ export class GeminiTextInteractionsAdapter<
     // messages include assistant/tool turns; without a chained
     // previous_interaction_id those would throw "cannot send prior
     // conversation history on a fresh interaction".
-    const effectivePreviousInteractionId =
-      this.resolvePreviousInteractionId(chatOptions.modelOptions, threadId)
+    const effectivePreviousInteractionId = this.resolvePreviousInteractionId(
+      chatOptions.modelOptions,
+      threadId,
+    )
 
     const baseRequest = buildInteractionsRequest({
       ...chatOptions,
@@ -597,8 +598,10 @@ export class GeminiTextInteractionsAdapter<
     const runId = chatOptions.runId ?? generateId(this.name)
     const threadId = chatOptions.threadId
     const timestamp = Date.now()
-    const effectivePreviousInteractionId =
-      this.resolvePreviousInteractionId(chatOptions.modelOptions, threadId)
+    const effectivePreviousInteractionId = this.resolvePreviousInteractionId(
+      chatOptions.modelOptions,
+      threadId,
+    )
     const baseRequest = buildInteractionsRequest({
       ...chatOptions,
       modelOptions: {
