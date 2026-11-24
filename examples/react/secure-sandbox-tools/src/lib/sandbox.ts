@@ -21,13 +21,14 @@ export type JsonValue =
   | { [key: string]: JsonValue }
   | Array<JsonValue>
 
-export interface SandboxRun {
-  ok: boolean
-  value?: JsonValue
-  error?: string
+interface RunStats {
   injectedCalls: number
   ms: number
 }
+
+export type SandboxRun =
+  | ({ ok: true; value: JsonValue } & RunStats)
+  | ({ ok: false; kind: 'error' | 'limit'; error: string } & RunStats)
 
 /** Sensible defaults for a short, read-only tool/endpoint body. */
 export const DEFAULT_LIMITS: Limits = {
@@ -46,5 +47,5 @@ export async function runSandboxed(opts: {
 }): Promise<SandboxRun> {
   const run = await runSandboxedCore({ ...opts, driver: driver() })
   // The isolate round-trips through JSON, so value is a JsonValue by construction.
-  return { ...run, value: run.value as JsonValue | undefined }
+  return run.ok ? { ...run, value: run.value as JsonValue } : run
 }

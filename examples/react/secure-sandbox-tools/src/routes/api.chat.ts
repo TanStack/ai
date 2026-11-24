@@ -1,287 +1,34 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
   chat,
-  chatParamsFromRequestBody,
-  createChatOptions,
+  chatParamsFromRequest,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { OPENAI_CHAT_MODELS, createOpenaiChat } from '@tanstack/ai-openai'
-import { openaiByok } from '@tanstack/ai-openai/byok'
-import { OllamaTextModels, ollamaText } from '@tanstack/ai-ollama'
-import { ANTHROPIC_MODELS, createAnthropicChat } from '@tanstack/ai-anthropic'
-import { anthropicByok } from '@tanstack/ai-anthropic/byok'
-import { GEMINI_MODELS, createGeminiChat } from '@tanstack/ai-gemini'
-import { geminiByok } from '@tanstack/ai-gemini/byok'
-import { createGeminiTextInteractions } from '@tanstack/ai-gemini/experimental'
-import { createOpenRouterText } from '@tanstack/ai-openrouter'
-import { OPENROUTER_CHAT_MODELS } from '@tanstack/ai-openrouter/model-meta'
-import { openrouterByok } from '@tanstack/ai-openrouter/byok'
-import { GROK_CHAT_MODELS, createGrokText } from '@tanstack/ai-grok'
-import { grokByok } from '@tanstack/ai-grok/byok'
-import { GROQ_CHAT_MODELS, createGroqText } from '@tanstack/ai-groq'
-import { groqByok } from '@tanstack/ai-groq/byok'
-import { createCloudflareText } from '@tanstack/ai-cloudflare'
-import {
-  cloudflareAccountByok,
-  cloudflareByok,
-} from '@tanstack/ai-cloudflare/byok'
-import { BEDROCK_CONVERSE_MODELS, bedrockText } from '@tanstack/ai-bedrock'
-import { BYTEPLUS_CHAT_MODELS, createBytePlusText } from '@tanstack/ai-byteplus'
-import { byteplusByok } from '@tanstack/ai-byteplus/byok'
-import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
-import { z } from 'zod'
+import { openaiText } from '@tanstack/ai-openai'
 import { secureTools } from '@/lib/secure-chat-tools'
-import type { ByokProvider } from '@tanstack/ai/byok'
-
-/**
- * Client-supplied provider + model, validated once per request. An unknown
- * provider falls back to OpenAI and an unknown model falls back to that
- * provider's default, so arbitrary client strings never reach an adapter.
- * The parsed `model` is narrowed to each adapter's literal model union.
- */
-const modelSelectionSchema = z
-  .discriminatedUnion('provider', [
-    z.object({
-      provider: z.literal('openai'),
-      model: z.enum(OPENAI_CHAT_MODELS).catch('gpt-5.2'),
-    }),
-    z.object({
-      provider: z.literal('anthropic'),
-      model: z.enum(ANTHROPIC_MODELS).catch('claude-sonnet-4-6'),
-    }),
-    z.object({
-      provider: z.literal('gemini'),
-      model: z.enum(GEMINI_MODELS).catch('gemini-3.1-pro-preview'),
-    }),
-    z.object({
-      provider: z.literal('gemini-interactions'),
-      model: z.enum(GEMINI_MODELS).catch('gemini-3.1-pro-preview'),
-    }),
-    z.object({
-      provider: z.literal('ollama'),
-      model: z.enum(OllamaTextModels).catch('gpt-oss:20b'),
-    }),
-    z.object({
-      provider: z.literal('grok'),
-      model: z.enum(GROK_CHAT_MODELS).catch('grok-build-0.1'),
-    }),
-    z.object({
-      provider: z.literal('groq'),
-      model: z.enum(GROQ_CHAT_MODELS).catch('openai/gpt-oss-120b'),
-    }),
-    z.object({
-      provider: z.literal('openrouter'),
-      model: z.enum(OPENROUTER_CHAT_MODELS).catch('openai/gpt-5.1'),
-    }),
-    z.object({
-      provider: z.literal('bedrock'),
-      model: z
-        .enum(BEDROCK_CONVERSE_MODELS)
-        .catch('us.anthropic.claude-haiku-4-5-20251001-v1:0'),
-    }),
-    z.object({
-      provider: z.literal('byteplus'),
-      model: z.enum(BYTEPLUS_CHAT_MODELS).catch('seed-2-0-lite-260428'),
-    }),
-    z.object({
-      provider: z.literal('cloudflare'),
-      model: z.string().catch('@cf/deepseek-ai/deepseek-v4.1-flash-1017'),
-    }),
-  ])
-  .catch({ provider: 'openai', model: 'gpt-5.2' })
-
-type ModelSelection = z.infer<typeof modelSelectionSchema>
-type Provider = ModelSelection['provider']
-
-const BYOK_PROVIDERS: Partial<Record<Provider, ByokProvider>> = {
-  openai: openaiByok,
-  anthropic: anthropicByok,
-  gemini: geminiByok,
-  openrouter: openrouterByok,
-  groq: groqByok,
-  grok: grokByok,
-  byteplus: byteplusByok,
-  cloudflare: cloudflareByok,
-}
-
-function chatByokProvider(provider: Provider) {
-  if (provider === 'gemini-interactions') return geminiByok
-  return BYOK_PROVIDERS[provider]
-}
-
-function resolveByokApiKey(request: Request, provider: Provider) {
-  const byokProvider = chatByokProvider(provider)
-  if (!byokProvider) return { missing: false as const, apiKey: null }
-  const apiKey = getByokKey(request, byokProvider)
-  if (!apiKey) return { missing: true as const, provider: byokProvider }
-  return { missing: false as const, apiKey }
-}
-
-function requireApiKey(apiKey: string | null) {
-  if (!apiKey) {
-    throw new Error('API key is required')
-  }
-  return apiKey
-}
 
 const SYSTEM_PROMPT =
-  'You are a helpful assistant for a warehouse. When asked about stock levels ' +
-  'or availability, use the checkInventory tool. The tool runs in a sandbox, ' +
-  'so it can only read the inventory table — nothing else.'
+  'You are an inventory assistant. Use the checkInventory tool to answer ' +
+  'stock questions. Its body runs in a sandbox, so it can only read the ' +
+  'inventory table.'
+
+export async function POST({ request }: { request: Request }) {
+  const params = await chatParamsFromRequest(request)
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    systemPrompts: [SYSTEM_PROMPT],
+    tools: secureTools,
+  })
+  return toServerSentEventsResponse(stream)
+}
 
 export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
-      POST: async ({ request }) => {
-        const requestSignal = request.signal
-
-        if (requestSignal.aborted) {
-          return new Response(null, { status: 499 })
-        }
-
-        const abortController = new AbortController()
-
-        let params
-        try {
-          params = await chatParamsFromRequestBody(await request.json())
-        } catch (error) {
-          return new Response(
-            error instanceof Error ? error.message : 'Bad request',
-            { status: 400 },
-          )
-        }
-
-        const selection = modelSelectionSchema.parse({
-          provider: params.forwardedProps.provider,
-          model: params.forwardedProps.model,
-        })
-        const previousInteractionId =
-          typeof params.forwardedProps.previousInteractionId === 'string'
-            ? params.forwardedProps.previousInteractionId
-            : undefined
-
-        const buildChatOptions = (
-          { provider, model }: ModelSelection,
-          apiKey: string | null,
-          cloudflareAccountId: string | null,
-        ) => {
-          switch (provider) {
-            case 'anthropic':
-              return createChatOptions({
-                adapter: createAnthropicChat(model, requireApiKey(apiKey)),
-              })
-            case 'openrouter':
-              return createChatOptions({
-                adapter: createOpenRouterText(model, requireApiKey(apiKey)),
-              })
-            case 'gemini':
-              return createChatOptions({
-                adapter: createGeminiChat(model, requireApiKey(apiKey)),
-              })
-            case 'gemini-interactions':
-              return createChatOptions({
-                adapter: createGeminiTextInteractions(
-                  model,
-                  requireApiKey(apiKey),
-                ),
-                modelOptions: {
-                  previous_interaction_id: previousInteractionId,
-                  store: true,
-                },
-              })
-            case 'grok':
-              return createChatOptions({
-                adapter: createGrokText(model, requireApiKey(apiKey)),
-                modelOptions: {},
-              })
-            case 'groq':
-              return createChatOptions({
-                adapter: createGroqText(model, requireApiKey(apiKey)),
-              })
-            case 'bedrock':
-              return createChatOptions({
-                adapter: bedrockText(model, {
-                  region: process.env.AWS_REGION || 'us-east-1',
-                  ...(process.env.BEDROCK_AUTH === 'sigv4' && {
-                    auth: 'sigv4' as const,
-                  }),
-                }),
-              })
-            case 'byteplus':
-              return createChatOptions({
-                adapter: createBytePlusText(model, requireApiKey(apiKey)),
-              })
-            case 'cloudflare':
-              return createChatOptions({
-                adapter: createCloudflareText(model, {
-                  accountId: requireApiKey(cloudflareAccountId),
-                  apiKey: requireApiKey(apiKey),
-                  ...(process.env.CLOUDFLARE_AI_GATEWAY_ID && {
-                    gateway: { id: process.env.CLOUDFLARE_AI_GATEWAY_ID },
-                  }),
-                }),
-              })
-            case 'ollama':
-              return createChatOptions({
-                adapter: ollamaText(model),
-              })
-            case 'openai':
-              return createChatOptions({
-                adapter: createOpenaiChat(model, requireApiKey(apiKey)),
-                modelOptions: {
-                  prompt_cache_key: 'user-session-12345',
-                  prompt_cache_retention: '24h',
-                },
-              })
-          }
-        }
-
-        try {
-          const provider: Provider = selection.provider
-          const resolvedKey = resolveByokApiKey(request, provider)
-          if (resolvedKey.missing) {
-            return byokMissing(resolvedKey.provider)
-          }
-          const cloudflareAccountId =
-            provider === 'cloudflare'
-              ? getByokKey(request, cloudflareAccountByok)
-              : null
-          if (provider === 'cloudflare' && !cloudflareAccountId) {
-            return byokMissing(cloudflareAccountByok)
-          }
-          // buildChatOptions returns a union across every provider. The spread
-          // is typed loosely so chat() still infers its own adapter/return from
-          // the concrete options built above.
-          const options: Record<string, unknown> = buildChatOptions(
-            selection,
-            resolvedKey.apiKey,
-            cloudflareAccountId,
-          )
-
-          const stream = chat({
-            ...options,
-            adapter: options.adapter as Parameters<typeof chat>[0]['adapter'],
-            systemPrompts: [SYSTEM_PROMPT],
-            tools: secureTools,
-            messages: params.messages,
-            threadId: params.threadId,
-            runId: params.runId,
-            abortController,
-          })
-          return toServerSentEventsResponse(stream, { abortController })
-        } catch (error: unknown) {
-          const message =
-            error instanceof Error ? error.message : 'An error occurred'
-          const name = error instanceof Error ? error.name : ''
-          if (name === 'AbortError' || abortController.signal.aborted) {
-            return new Response(null, { status: 499 })
-          }
-          return new Response(JSON.stringify({ error: message }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        }
-      },
+      POST,
     },
   },
 })

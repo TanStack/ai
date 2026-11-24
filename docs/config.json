@@ -119,6 +119,11 @@
           "label": "Generate Motion",
           "to": "tutorials/generate-motion",
           "addedAt": "2026-11-19"
+        },
+        {
+          "label": "Sandbox a Tool and an Endpoint",
+          "to": "tutorials/secure-sandbox-tools",
+          "addedAt": "2026-11-24"
         }
       ]
     },
@@ -185,6 +190,11 @@
           "label": "Generate Motion",
           "to": "framework/react/examples/generate-motion",
           "addedAt": "2026-11-19"
+        },
+        {
+          "label": "Secure Sandbox Tools",
+          "to": "framework/react/examples/secure-sandbox-tools",
+          "addedAt": "2026-11-24"
         }
       ]
     },

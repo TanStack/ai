@@ -30,9 +30,7 @@ describe('runSandboxed', () => {
       driver,
       limits: LIMITS,
     })
-    expect(run.ok).toBe(true)
-    expect(run.value).toEqual({ v: 42 })
-    expect(run.injectedCalls).toBe(1)
+    expect(run).toMatchObject({ ok: true, value: { v: 42 }, injectedCalls: 1 })
   })
 
   it('stops an infinite loop at the wall-clock limit', async () => {
@@ -43,8 +41,8 @@ describe('runSandboxed', () => {
       driver,
       limits: { ...LIMITS, wallClockMs: 300 },
     })
-    expect(run.ok).toBe(false)
-    expect(run.error).toMatch(/tim(e|ed) out/i)
+    expect(run).toMatchObject({ ok: false, kind: 'limit' })
+    expect(!run.ok && run.error).toMatch(/tim(e|ed) out/i)
   })
 
   it('has no network: fetch is not defined', async () => {
@@ -55,8 +53,8 @@ describe('runSandboxed', () => {
       driver,
       limits: LIMITS,
     })
-    expect(run.ok).toBe(false)
-    expect(run.error).toMatch(/fetch/)
+    expect(run).toMatchObject({ ok: false, kind: 'error' })
+    expect(!run.ok && run.error).toMatch(/fetch/)
   })
 
   it('enforces the injected-call budget', async () => {
@@ -67,8 +65,110 @@ describe('runSandboxed', () => {
       driver,
       limits: { ...LIMITS, maxInjectedCalls: 2 },
     })
-    expect(run.ok).toBe(false)
-    expect(run.error).toMatch(/Injected-call limit/)
+    expect(run).toMatchObject({ ok: false, kind: 'limit' })
+    expect(!run.ok && run.error).toMatch(/Injected-call limit/)
+  })
+
+  it('stops a snippet that catches the injected-call rejection and returns', async () => {
+    const run = await runSandboxed({
+      snippet: `for (let i = 0; i < 5; i++) { try { await host.db.get({ key: i }) } catch {} } return 'ok'`,
+      input: {},
+      facades,
+      driver,
+      limits: { ...LIMITS, maxInjectedCalls: 2 },
+    })
+    expect(run).toMatchObject({ ok: false, kind: 'limit' })
+    expect(run.injectedCalls).toBeGreaterThan(2)
+  })
+
+  it('truncates declared paths, then stops an oversized result', async () => {
+    const snippet = `return { body: 'x'.repeat(4000), id: 1 }`
+    const limits = { ...LIMITS, resultBytes: 256 }
+    const truncated = await runSandboxed({
+      snippet,
+      input: {},
+      facades,
+      driver,
+      limits,
+      truncatable: ['body'],
+    })
+    expect(truncated).toMatchObject({ ok: true, value: { body: '…', id: 1 } })
+
+    const tooBig = await runSandboxed({
+      snippet,
+      input: {},
+      facades,
+      driver,
+      limits,
+    })
+    expect(tooBig).toMatchObject({ ok: false, kind: 'limit' })
+    expect(!tooBig.ok && tooBig.error).toMatch(/Result too large/)
+  })
+
+  it('passes authInfo to facades and lets policy narrow them', async () => {
+    const seen: Array<string> = []
+    const two: Facades = {
+      'db.get': {
+        execute: async (_args, ctx) => {
+          seen.push(ctx.clientId)
+          return 1
+        },
+      },
+      'db.drop': { execute: async () => 'dropped' },
+    }
+    const authInfo = { token: 't', clientId: 'c1', scopes: [] }
+    const allowed = await runSandboxed({
+      snippet: `return await host.db.get({})`,
+      input: {},
+      facades: two,
+      driver,
+      limits: LIMITS,
+      authInfo,
+      policy: () => ['db.get'],
+    })
+    expect(allowed).toMatchObject({ ok: true, value: 1 })
+
+    const denied = await runSandboxed({
+      snippet: `return await host.db.drop({})`,
+      input: {},
+      facades: two,
+      driver,
+      limits: LIMITS,
+      authInfo,
+      policy: () => ['db.get'],
+    })
+    expect(denied).toMatchObject({ ok: false, kind: 'error' })
+
+    await runSandboxed({
+      snippet: `return await host.db.get({})`,
+      input: {},
+      facades: two,
+      driver,
+      limits: LIMITS,
+    })
+    expect(seen).toEqual(['c1', 'anonymous'])
+  })
+
+  it('passes the abort signal to facades', async () => {
+    const controller = new AbortController()
+    let sawSignal: AbortSignal | undefined
+    const run = await runSandboxed({
+      snippet: `return await host.db.get({})`,
+      input: {},
+      facades: {
+        'db.get': {
+          execute: async (_args, ctx) => {
+            sawSignal = ctx.signal
+            return 1
+          },
+        },
+      },
+      driver,
+      limits: LIMITS,
+      signal: controller.signal,
+    })
+    expect(run.ok).toBe(true)
+    expect(sawSignal).toBe(controller.signal)
   })
 })
 
@@ -105,6 +205,35 @@ describe('sandboxedChatTool', () => {
       limits: { ...LIMITS, wallClockMs: 300 },
     })
     expect(blocking.execute).toBeDefined()
-    await expect(blocking.execute?.({})).rejects.toThrow(/blocked/)
+    await expect(blocking.execute?.({})).rejects.toThrow(
+      'sandboxed tool "loop" blocked: a sandbox limit was hit',
+    )
+  })
+
+  it('keeps facade error text off the model-facing message', async () => {
+    const leaky = sandboxedChatTool({
+      name: 'leaky',
+      description: 'leaks',
+      inputSchema: { type: 'object', properties: {} },
+      snippet: `return await host.db.get({})`,
+      facades: {
+        'db.get': {
+          execute: async () => {
+            throw new Error('ECONNREFUSED db.internal:5432')
+          },
+        },
+      },
+      driver,
+      limits: LIMITS,
+    })
+    let error: unknown
+    try {
+      await leaky.execute?.({})
+    } catch (e) {
+      error = e
+    }
+    expect(error).toBeInstanceOf(Error)
+    expect(error instanceof Error && error.message).not.toMatch(/db\.internal/)
+    expect(error instanceof Error && error.cause).toMatch(/db\.internal/)
   })
 })

@@ -203,6 +203,7 @@ import { Route as ApiRetryAfterRouteImport } from './routes/api.retry-after'
 import { Route as ApiSandboxDurabilityRouteImport } from './routes/api.sandbox-durability'
 import { Route as ApiSandboxFilePersistenceRouteImport } from './routes/api.sandbox-file-persistence'
 import { Route as ApiSandboxToolHistoryRouteImport } from './routes/api.sandbox-tool-history'
+import { Route as ApiSandboxedChatToolRouteImport } from './routes/api.sandboxed-chat-tool'
 import { Route as ApiServerToolStoreWireRouteImport } from './routes/api.server-tool-store-wire'
 import { Route as ApiStructuredOutputLengthWireRouteImport } from './routes/api.structured-output-length-wire'
 import { Route as ApiSubagentsTestRouteImport } from './routes/api.subagents-test'
@@ -1254,6 +1255,11 @@ const ApiSandboxToolHistoryRoute = ApiSandboxToolHistoryRouteImport.update({
   path: '/api/sandbox-tool-history',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSandboxedChatToolRoute = ApiSandboxedChatToolRouteImport.update({
+  id: '/api/sandboxed-chat-tool',
+  path: '/api/sandboxed-chat-tool',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiServerToolStoreWireRoute = ApiServerToolStoreWireRouteImport.update({
   id: '/api/server-tool-store-wire',
   path: '/api/server-tool-store-wire',
@@ -1604,6 +1610,7 @@ export interface FileRoutesByFullPath {
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
+  '/api/sandboxed-chat-tool': typeof ApiSandboxedChatToolRoute
   '/api/server-tool-store-wire': typeof ApiServerToolStoreWireRoute
   '/api/structured-output-length-wire': typeof ApiStructuredOutputLengthWireRoute
   '/api/subagents-test': typeof ApiSubagentsTestRoute
@@ -1830,6 +1837,7 @@ export interface FileRoutesByTo {
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
+  '/api/sandboxed-chat-tool': typeof ApiSandboxedChatToolRoute
   '/api/server-tool-store-wire': typeof ApiServerToolStoreWireRoute
   '/api/structured-output-length-wire': typeof ApiStructuredOutputLengthWireRoute
   '/api/subagents-test': typeof ApiSubagentsTestRoute
@@ -2057,6 +2065,7 @@ export interface FileRoutesById {
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
+  '/api/sandboxed-chat-tool': typeof ApiSandboxedChatToolRoute
   '/api/server-tool-store-wire': typeof ApiServerToolStoreWireRoute
   '/api/structured-output-length-wire': typeof ApiStructuredOutputLengthWireRoute
   '/api/subagents-test': typeof ApiSubagentsTestRoute
@@ -2285,6 +2294,7 @@ export interface FileRouteTypes {
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
+    | '/api/sandboxed-chat-tool'
     | '/api/server-tool-store-wire'
     | '/api/structured-output-length-wire'
     | '/api/subagents-test'
@@ -2511,6 +2521,7 @@ export interface FileRouteTypes {
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
+    | '/api/sandboxed-chat-tool'
     | '/api/server-tool-store-wire'
     | '/api/structured-output-length-wire'
     | '/api/subagents-test'
@@ -2737,6 +2748,7 @@ export interface FileRouteTypes {
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
+    | '/api/sandboxed-chat-tool'
     | '/api/server-tool-store-wire'
     | '/api/structured-output-length-wire'
     | '/api/subagents-test'
@@ -2964,6 +2976,7 @@ export interface RootRouteChildren {
   ApiSandboxDurabilityRoute: typeof ApiSandboxDurabilityRoute
   ApiSandboxFilePersistenceRoute: typeof ApiSandboxFilePersistenceRoute
   ApiSandboxToolHistoryRoute: typeof ApiSandboxToolHistoryRoute
+  ApiSandboxedChatToolRoute: typeof ApiSandboxedChatToolRoute
   ApiServerToolStoreWireRoute: typeof ApiServerToolStoreWireRoute
   ApiStructuredOutputLengthWireRoute: typeof ApiStructuredOutputLengthWireRoute
   ApiSubagentsTestRoute: typeof ApiSubagentsTestRoute
@@ -4352,6 +4365,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSandboxToolHistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/sandboxed-chat-tool': {
+      id: '/api/sandboxed-chat-tool'
+      path: '/api/sandboxed-chat-tool'
+      fullPath: '/api/sandboxed-chat-tool'
+      preLoaderRoute: typeof ApiSandboxedChatToolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/server-tool-store-wire': {
       id: '/api/server-tool-store-wire'
       path: '/api/server-tool-store-wire'
@@ -4823,6 +4843,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSandboxDurabilityRoute: ApiSandboxDurabilityRoute,
   ApiSandboxFilePersistenceRoute: ApiSandboxFilePersistenceRoute,
   ApiSandboxToolHistoryRoute: ApiSandboxToolHistoryRoute,
+  ApiSandboxedChatToolRoute: ApiSandboxedChatToolRoute,
   ApiServerToolStoreWireRoute: ApiServerToolStoreWireRoute,
   ApiStructuredOutputLengthWireRoute: ApiStructuredOutputLengthWireRoute,
   ApiSubagentsTestRoute: ApiSubagentsTestRoute,

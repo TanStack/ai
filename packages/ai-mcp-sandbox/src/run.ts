@@ -1,6 +1,6 @@
 import { buildBindings, buildPrelude, resolveAllowed } from './capability'
 import { makeCallCounter } from './limits'
-import { shapeResult } from './result'
+import { ResultTooLargeError, shapeResult } from './result'
 import type { IsolateContext } from '@tanstack/ai-code-mode'
 import type {
   AuthInfo,
@@ -21,6 +21,8 @@ export interface RunSandboxedOptions {
   input: unknown
   /** Host functions the snippet may call as `host.<ns>.<fn>`. Its only egress. */
   facades: Facades
+  /** Facade names this run may call. Default: every key of `facades`. */
+  inject?: ReadonlyArray<string>
   /** Isolate driver (e.g. `createQuickJSIsolateDriver()`). */
   driver: IsolateDriver
   limits: Limits
@@ -30,24 +32,52 @@ export interface RunSandboxedOptions {
   authInfo?: AuthInfo
   /** Per-caller facade filter (can only narrow what `facades` already allows). */
   policy?: ClientPolicy
+  /** Aborts the run and is passed to each facade as `ctx.signal`. */
+  signal?: AbortSignal
 }
 
-export interface SandboxRunResult {
-  ok: boolean
-  value?: unknown
-  /** Why the run stopped: a thrown error, a timeout, or a tripped limit. */
-  error?: string
+interface RunStats {
   injectedCalls: number
   ms: number
 }
 
+export type SandboxRunResult =
+  | ({ ok: true; value: unknown } & RunStats)
+  | ({
+      ok: false
+      /** `limit`: a wall-clock, memory, call-budget or result-size trip.
+       * `error`: the snippet (or a facade it called) threw. */
+      kind: 'error' | 'limit'
+      /** Raw message. Can carry facade error text: log it, don't show it. */
+      error: string
+    } & RunStats)
+
+/**
+ * The injected-call counter is authoritative for the call budget; wall-clock
+ * and memory trips are matched by the driver's error text.
+ */
+function classifyFailure(
+  message: string,
+  overCallBudget: boolean,
+): 'error' | 'limit' {
+  if (overCallBudget) return 'limit'
+  // Match only genuine resource diagnostics. "stack" alone is too broad: an
+  // application error like `stack service unavailable` must stay an 'error',
+  // so we only treat a real stack-overflow message as a limit.
+  return /timed out|out of memory|memory limit|stack overflow|maximum call stack/i.test(
+    message,
+  )
+    ? 'limit'
+    : 'error'
+}
+
 /**
  * Run an untrusted snippet in an isolate with only the injected facades, under
- * hard limits (wall-clock, memory, host-call budget, result size). Unlike
- * {@link sandboxedTool}, there is no MCP scope gate or manifest/signature step:
- * the caller is a chat tool or a server function, not an MCP client. Returns a
- * structured outcome instead of throwing, so a blocked run renders like any
- * other result.
+ * hard limits (wall-clock, memory, host-call budget, result size). This is the
+ * engine behind {@link sandboxedTool}, without its MCP scope gate or manifest.
+ *
+ * A snippet failure or a tripped limit comes back as `{ ok: false }`.
+ * Misconfiguration (an unknown facade, a driver that fails to start) throws.
  */
 export async function runSandboxed(
   opts: RunSandboxedOptions,
@@ -56,22 +86,26 @@ export async function runSandboxed(
     snippet,
     input,
     facades,
+    inject = Object.keys(facades),
     driver,
     limits,
     truncatable = [],
     authInfo = ANONYMOUS,
     policy,
+    signal,
   } = opts
 
-  // Every provided facade is allowed; resolveAllowed also verifies each exists.
-  const allowed = resolveAllowed(
-    Object.keys(facades),
-    facades,
-    authInfo,
-    policy,
-  )
+  const allowed = resolveAllowed(inject, facades, authInfo, policy)
   const counter = makeCallCounter(limits.maxInjectedCalls)
   const started = Date.now()
+  const fail = (kind: 'error' | 'limit', error: string): SandboxRunResult => ({
+    ok: false,
+    kind,
+    error,
+    injectedCalls: counter.count,
+    ms: Date.now() - started,
+  })
+
   let ctx: IsolateContext | undefined
   try {
     ctx = await driver.createContext({
@@ -79,6 +113,7 @@ export async function runSandboxed(
         allowed,
         facades,
         authInfo,
+        signal,
         tick: counter.tick,
       }),
       timeout: limits.wallClockMs,
@@ -87,25 +122,32 @@ export async function runSandboxed(
 
     // The driver wraps this (async IIFE + JSON round-trip); pass it raw.
     const code = `${buildPrelude(allowed, input)}\n${snippet}`
-    const result = await ctx.execute(code)
-    const ms = Date.now() - started
+    const result = await ctx.execute(code, signal ? { signal } : undefined)
+    const overBudget = counter.count > limits.maxInjectedCalls
 
     if (!result.success) {
-      const error = result.error?.message ?? 'execution failed'
-      return { ok: false, error, injectedCalls: counter.count, ms }
+      const error = result.error?.message ?? 'driver returned no error message'
+      return fail(classifyFailure(error, overBudget), error)
     }
     // A snippet can catch the injected-call rejection and still return; an
     // over-budget run is a stop regardless.
-    if (counter.count > limits.maxInjectedCalls) {
-      const error = `Injected-call limit reached (${limits.maxInjectedCalls})`
-      return { ok: false, error, injectedCalls: counter.count, ms }
+    if (overBudget) {
+      return fail(
+        'limit',
+        `Injected-call limit reached (${limits.maxInjectedCalls})`,
+      )
     }
     try {
       const value = shapeResult(result.value, truncatable, limits.resultBytes)
-      return { ok: true, value, injectedCalls: counter.count, ms }
+      return {
+        ok: true,
+        value,
+        injectedCalls: counter.count,
+        ms: Date.now() - started,
+      }
     } catch (e) {
-      const error = e instanceof Error ? e.message : String(e)
-      return { ok: false, error, injectedCalls: counter.count, ms }
+      if (e instanceof ResultTooLargeError) return fail('limit', e.message)
+      throw e
     }
   } finally {
     if (ctx) await ctx.dispose()

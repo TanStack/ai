@@ -1,9 +1,8 @@
 # secure-sandbox-tools
 
-A playground for running **untrusted endpoint / tool bodies in a QuickJS isolate**,
-built on the engine from `@tanstack/ai-mcp-sandbox` (PR #2171) — but applied to
-two surfaces that PR doesn't cover: a chat tool and a TanStack Start server
-function.
+Run **untrusted endpoint and tool bodies in a QuickJS isolate** with
+`@tanstack/ai-mcp-sandbox`, on two surfaces: a chat tool and a TanStack Start
+server function. Walkthrough: [Secure Sandbox Tools tutorial](../../../docs/tutorials/secure-sandbox-tools.md).
 
 The idea: the endpoint/tool _implementation_ is a snippet that can touch **only
 the host functions ("facades") you inject**, under hard limits. No `fetch`, no
@@ -22,7 +21,7 @@ wall-clock ms, memory MB, max injected host-calls, max result bytes.
 `checkInventory` is a normal `chat()` tool whose body runs in the sandbox. It can
 only call `host.db.inventory`; its blast radius is exactly that facade. Wired into
 `/api/chat` via `tools: secureTools`. Ask the chat _"is SKU-123 in stock?"_
-(needs a model key — set one with the 🔑 dialog or `.env.local`).
+(needs `OPENAI_API_KEY` in `.env.local`).
 
 ## Surface B — sandboxed Start server function (`src/lib/sandbox-demo.ts`)
 
@@ -47,6 +46,7 @@ No API key needed for Surface B — it's pure isolate execution.
 
 ```bash
 pnpm install
+cp .env.example .env.local   # then set OPENAI_API_KEY (Surface A only)
 pnpm --filter secure-sandbox-tools dev   # http://localhost:3100
 ```
 

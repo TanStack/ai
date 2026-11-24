@@ -16,7 +16,10 @@ const facades: Facades = {
   'db.metrics': {
     description: 'Read canned team metrics',
     execute: async (args) => {
-      const team = (args as { team?: unknown }).team
+      const team =
+        typeof args === 'object' && args !== null && 'team' in args
+          ? args.team
+          : undefined
       return { team, p95: 123, errorRate: 0.004, requests: 98213 }
     },
   },
@@ -41,7 +44,7 @@ const SNIPPETS: Record<Scenario, string> = {
   `,
 }
 
-/** Run one scenario in the isolate. Returns a structured outcome, never throws. */
+/** Run one scenario in the isolate. A blocked run comes back as `ok: false`. */
 export function runScenario(
   scenario: Scenario,
   team: string,

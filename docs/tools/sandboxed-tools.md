@@ -16,7 +16,9 @@ keywords:
 
 Wrap a tool's body in an isolate with `sandboxedChatTool()`. The tool reaches the host only through facades you declare, under limits you set. Drop it into `chat({ tools })` like any other server tool.
 
-Reach for this when the tool body is not code you fully trust: a model wrote it, a user uploaded it, or you want a hard blast-radius wall around a tool that touches money, data, or the network. The isolate has no `fetch`, no `fs`, no `process`. The only way out is a facade you pass in.
+Reach for this when the tool body is not code you fully trust: a model wrote it, a user uploaded it, or you want a hard blast-radius wall around a tool that touches money, data, or the network. In the QuickJS isolate, the snippet has no `fetch`, no `fs`, and no `process`. The only way out is a facade you pass in.
+
+For a full walkthrough, follow the [Sandbox a Tool and an Endpoint](../tutorials/secure-sandbox-tools) tutorial.
 
 For an MCP server tool, use [`sandboxedTool()`](../mcp/server-sandboxed-tools) instead. It adds a per-caller OAuth scope gate and a signed manifest on top of the same engine.
 
@@ -33,6 +35,8 @@ vanilla: @tanstack/ai-mcp-sandbox @tanstack/ai-isolate-quickjs
 <!-- ::end:tabs -->
 
 The driver is swappable. `@tanstack/ai-isolate-quickjs` is a WASM VM that runs server-side, including edge runtimes. See [Isolate Drivers](../code-mode/code-mode-isolates) for the others.
+
+The isolation comes from the driver, not from this package. A remote driver (Daytona, E2B) runs the snippet in a VM or container that can have network access, and it may not apply `memoryMb`. Use QuickJS when the snippet must have no egress except the facades.
 
 ## A sandboxed chat tool
 
@@ -99,20 +103,24 @@ export async function POST(request: Request) {
 
 The agent calls `checkInventory`. Its body runs in the isolate and can only call `host.db.inventory`. A body that tried to `fetch`, read a file, or loop forever would be stopped. A blocked run throws, so the agent loop sees a normal tool error.
 
+The model sees only the kind of stop: `a sandbox limit was hit` or `the snippet failed`. The raw message can contain facade internals, such as a database host name. It is on `error.cause`, so log it on the host.
+
 ## The limits
 
-Every run is held to four limits. A run that trips one stops:
+Every run is held to four limits. A run that trips one is rejected:
 
 - `wallClockMs`: wall-clock budget. Kills an infinite loop.
 - `memoryMb`: isolate heap cap.
-- `maxInjectedCalls`: how many facade calls one run may make.
-- `resultBytes`: max serialized result size.
+- `maxInjectedCalls`: how many facade calls one run may make. A snippet that catches the over-budget error and returns a value is still rejected.
+- `resultBytes`: max serialized result size. The check runs after the snippet returns.
+
+To keep a large result, list its string fields in `truncatable`, as dotted paths such as `['body']` or `['rows.0.note']`. When the result is too large, each listed field is replaced with `…`, in order, until the result fits. If it still does not fit, the run is rejected.
 
 Facades are the only egress. Secrets and backend URLs live in the facade closure, in your process, and never enter the isolate. A facade also enforces its own authorization: the isolate guarantees the snippet can reach only that facade, and the facade guarantees the caller may use it this way.
 
 ## A sandboxed endpoint body
 
-For a server endpoint, call `runSandboxed()` directly. Validate input on the host, run the snippet with injected facades, then return a result. `runSandboxed()` returns a structured result and never throws:
+For a server endpoint, call `runSandboxed()` directly. Validate input on the host, run the snippet with injected facades, then return a result. A snippet error or a tripped limit comes back as `ok: false`. Bad setup, such as a driver that cannot start, throws:
 
 ```ts
 import { createServerFn } from '@tanstack/react-start'
@@ -144,7 +152,11 @@ export const getReport = createServerFn({ method: 'POST' })
         resultBytes: 256 * 1024,
       },
     })
-    if (!run.ok) throw new Error(run.error)
+    if (!run.ok) {
+      // run.error can contain facade internals: log it, don't return it.
+      console.error(run.error)
+      throw new Error(`report blocked (${run.kind})`)
+    }
     return { ok: run.ok, ms: run.ms }
   })
 ```
@@ -157,10 +169,11 @@ Whole-body sandboxing fits a non-streaming data endpoint or server function. The
 
 `runSandboxed()` returns:
 
-- `ok`: `true` when the snippet returned a value.
+- `ok`: `true` when the snippet returned a value that fits `resultBytes`, possibly after truncation.
 - `value`: the snippet's return value, when `ok` is `true`.
-- `error`: why the run stopped, when `ok` is `false`. A thrown error, a timeout, or a tripped limit.
+- `kind`: when `ok` is `false`, `'limit'` for a tripped limit or `'error'` for a thrown error.
+- `error`: the raw message, when `ok` is `false`. It can contain facade internals.
 - `injectedCalls`: how many facade calls the run made.
 - `ms`: wall-clock duration.
 
-`sandboxedChatTool()` wraps that for you: a blocked run throws, and a successful run returns the snippet's value to the agent.
+`sandboxedChatTool()` wraps that for you: a blocked run throws, and a successful run returns the snippet's value to the agent. Every call runs as one `anonymous` caller with no policy, so check per-user access inside the facades.

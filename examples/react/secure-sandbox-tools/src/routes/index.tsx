@@ -1,19 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { Send, Square } from 'lucide-react'
-import { fetchServerSentEvents, useByok, useChat } from '@tanstack/ai-react'
-import {
-  completeOpenRouterPkceIntoByok,
-  startOpenRouterPkceLogin,
-} from '@tanstack/ai-openrouter/pkce'
-import { ThinkingPart } from '@tanstack/ai-react/ui'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import type { UIMessage } from '@tanstack/ai-react'
-import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
-import type { ProviderId } from '@tanstack/ai/byok'
-import type { ModelOption } from '@/lib/model-selection'
-import { DEFAULT_MODEL_OPTION, MODEL_OPTIONS } from '@/lib/model-selection'
-import { byok, getEnvKeyStatus, toByokProvider } from '@/lib/byok'
-import { ByokKeyDialog } from '@/components/ByokKeyDialog'
 import { runSandboxDemo } from '@/lib/sandbox-demo'
 import type { SandboxRun } from '@/lib/sandbox'
 
@@ -99,11 +88,7 @@ function SandboxDemo() {
 function Messages({ messages }: { messages: ReadonlyArray<UIMessage> }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const visibleMessages = messages.filter((message) =>
-    message.parts.some(
-      (part) =>
-        part.type === 'thinking' ||
-        (part.type === 'text' && part.content.trim()),
-    ),
+    message.parts.some((part) => part.type === 'text' && part.content.trim()),
   )
 
   useEffect(() => {
@@ -120,7 +105,9 @@ function Messages({ messages }: { messages: ReadonlyArray<UIMessage> }) {
           <h2 className="mb-2 text-xl font-semibold text-white">
             Welcome to TanStack AI
           </h2>
-          <p className="text-sm text-gray-400">Start a conversation below.</p>
+          <p className="text-sm text-gray-400">
+            Ask &quot;Is SKU-123 in stock?&quot; to call the sandboxed tool.
+          </p>
         </div>
       </div>
     )
@@ -152,20 +139,6 @@ function Messages({ messages }: { messages: ReadonlyArray<UIMessage> }) {
             </div>
             <div className="min-w-0 flex-1">
               {message.parts.map((part, index) => {
-                if (part.type === 'thinking') {
-                  const isComplete = message.parts
-                    .slice(index + 1)
-                    .some((p) => p.type === 'text')
-                  return (
-                    <div key={`thinking-${index}`} className="mb-2 mt-2">
-                      <ThinkingPart
-                        content={part.content}
-                        isComplete={isComplete}
-                        className="rounded-lg border border-gray-700/50 bg-gray-800/50 p-4"
-                      />
-                    </div>
-                  )
-                }
                 if (part.type === 'text' && part.content) {
                   return (
                     <div
@@ -187,75 +160,11 @@ function Messages({ messages }: { messages: ReadonlyArray<UIMessage> }) {
 }
 
 function ChatPage() {
-  const [selectedModel, setSelectedModel] =
-    useState<ModelOption>(DEFAULT_MODEL_OPTION)
-  const [interactionId, setInteractionId] = useState<string | undefined>(
-    undefined,
-  )
-  const snapshot = useByok(byok)
-  const [envKeyStatus, setEnvKeyStatus] = useState<Record<string, boolean>>({})
-  const [keyDialog, setKeyDialog] = useState<{
-    open: boolean
-    provider: ProviderId | null
-  }>({ open: false, provider: null })
-  const [openRouterCompleting, setOpenRouterCompleting] = useState(false)
-  const [openRouterError, setOpenRouterError] = useState<string | null>(null)
   const [input, setInput] = useState('')
-
-  useEffect(() => {
-    void getEnvKeyStatus().then(setEnvKeyStatus)
-  }, [])
-
-  useEffect(() => {
-    setOpenRouterCompleting(true)
-    void completeOpenRouterPkceIntoByok(byok)
-      .catch((error: unknown) =>
-        setOpenRouterError(
-          error instanceof Error ? error.message : 'OpenRouter sign-in failed',
-        ),
-      )
-      .finally(() => setOpenRouterCompleting(false))
-  }, [])
-
-  useEffect(() => {
-    if (snapshot.prompt?.reason === 'missing') {
-      setKeyDialog({ open: true, provider: snapshot.prompt.provider })
-    }
-  }, [snapshot.prompt])
-
-  const activeByokId = toByokProvider(selectedModel.provider)
-
-  const forwardedProps = useMemo(
-    () => ({
-      provider: selectedModel.provider,
-      model: selectedModel.model,
-      ...(selectedModel.provider === 'gemini-interactions' && interactionId
-        ? { previousInteractionId: interactionId }
-        : {}),
-    }),
-    [selectedModel.provider, selectedModel.model, interactionId],
-  )
-
-  const { messages, setMessages, sendMessage, isLoading, error, stop } =
-    useChat({
-      connection: fetchServerSentEvents('/api/chat'),
-      byok,
-      threadId: 'secure-sandbox-lab',
-      forwardedProps,
-      onCustomEvent: (eventType, data) => {
-        if (eventType === 'gemini.interactionId') {
-          const value = data as
-            | GeminiInteractionsCustomEventValue<'gemini.interactionId'>
-            | undefined
-          if (value?.interactionId) setInteractionId(value.interactionId)
-        }
-      },
-    })
-
-  useEffect(() => {
-    setInteractionId(undefined)
-    setMessages([])
-  }, [selectedModel.provider, selectedModel.model, setMessages])
+  const { messages, sendMessage, isLoading, error, stop } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'secure-sandbox-tools',
+  })
 
   const handleSendMessage = () => {
     if (!input.trim()) return
@@ -266,56 +175,6 @@ function ChatPage() {
   return (
     <div className="flex h-screen bg-gray-900">
       <div className="flex w-full flex-col">
-        <div className="border-b border-orange-500/20 bg-gray-800 px-4 py-3">
-          <div className="flex items-end gap-3">
-            <div className="flex-1">
-              <label className="mb-2 block text-sm text-gray-400">
-                Select Model:
-              </label>
-              <select
-                value={MODEL_OPTIONS.findIndex(
-                  (opt) =>
-                    opt.provider === selectedModel.provider &&
-                    opt.model === selectedModel.model,
-                )}
-                onChange={(e) => {
-                  const option = MODEL_OPTIONS[parseInt(e.target.value)]
-                  if (option) setSelectedModel(option)
-                }}
-                disabled={isLoading}
-                className="w-full rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
-              >
-                {MODEL_OPTIONS.map((option, index) => (
-                  <option key={index} value={index}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <ByokKeyDialog
-              open={keyDialog.open}
-              onOpenChange={(open) => setKeyDialog((s) => ({ ...s, open }))}
-              envStatus={envKeyStatus}
-              activeProvider={activeByokId}
-              highlightProvider={keyDialog.provider}
-              openRouter={{
-                onLogin: () => {
-                  setOpenRouterError(null)
-                  void startOpenRouterPkceLogin().catch((error: unknown) =>
-                    setOpenRouterError(
-                      error instanceof Error
-                        ? error.message
-                        : 'OpenRouter sign-in failed',
-                    ),
-                  )
-                },
-                completing: openRouterCompleting,
-                error: openRouterError,
-              }}
-            />
-          </div>
-        </div>
-
         <SandboxDemo />
 
         <Messages messages={messages} />

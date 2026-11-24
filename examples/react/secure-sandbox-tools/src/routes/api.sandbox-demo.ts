@@ -5,7 +5,7 @@
 //   curl -X POST http://localhost:3100/api/sandbox-demo \
 //     -H 'content-type: application/json' -d '{"scenario":"loop"}'
 //
-// → { "ok": false, "error": "Code execution timed out", "injectedCalls": 0, "ms": 2004 }
+// → { "ok": false, "kind": "limit", "error": "Code execution timed out", ... }
 import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
 import { SCENARIO_IDS, runScenario } from '@/lib/sandbox-scenarios'
@@ -35,7 +35,8 @@ export const Route = createFileRoute('/api/sandbox-demo')({
             400,
           )
         }
-        // runScenario never throws — a blocked run is a normal 200 with ok:false.
+        // A blocked run is a normal 200 with ok:false. The demo facades are
+        // canned, so the raw error is safe to return here.
         return json(await runScenario(body.scenario, body.team))
       },
     },
