@@ -35,7 +35,7 @@ export const deployProgress = defineActivityType({
 ```
 
 - `activityType`: the name of the type. The client reads it as `part.activityType`.
-- `contentSchema`: a Standard Schema, such as a Zod schema. It gives the type of the content, and it checks the content on each call.
+- `contentSchema`: a Standard Schema, such as a Zod schema. It gives the type of the content, and it checks the content on each call. The content must be an object, and the schema must have `validate`. A schema that has only JSON Schema is a compile error.
 
 ### 2. Emit it from a server tool
 

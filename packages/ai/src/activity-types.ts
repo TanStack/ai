@@ -5,7 +5,6 @@ import type { ActivityPart, ActivitySnapshotEvent } from './types'
 import type {
   InferSchemaInput,
   InferSchemaOutput,
-  PortableSchema,
 } from './interrupt-definition'
 
 /** A typed activity type. Make one with {@link defineActivityType}. */
@@ -17,7 +16,7 @@ export interface ActivityTypeDefinition<
   /** The type name. It is the `activityType` of each part of this type. */
   readonly activityType: TType
   /** The schema that checks the content of each snapshot. */
-  readonly contentSchema: PortableSchema
+  readonly contentSchema: ActivityContentSchema
   /**
    * Returns `true` when `value` is an activity part or record of this type,
    * and narrows `content` to the content of this type. A record has no
@@ -33,6 +32,13 @@ export interface ActivityTypeDefinition<
    */
   snapshot: (id: string, content: TContentInput) => ActivitySnapshotEvent
 }
+
+/**
+ * A Standard Schema with `validate`, whose output is an object. A JSON-Schema
+ * only schema has no `validate`, so `snapshot()` could not check content, and
+ * AG-UI requires activity content to be an object.
+ */
+export type ActivityContentSchema = StandardSchemaV1<any, Record<string, any>>
 
 /** Any activity type definition. Use it as a type constraint. */
 export type AnyActivityTypeDefinition = ActivityTypeDefinition<string, any, any>
@@ -91,8 +97,9 @@ type ActivityOfDefinition<TContent> = Omit<
  * the client shows, for example a progress card or a pending approval.
  *
  * - `activityType`: the type name, for example `'deploy.progress'`.
- * - `contentSchema`: a Standard Schema for the content. It gives the content
- *   type and checks the content of each snapshot.
+ * - `contentSchema`: a Standard Schema (with `validate`) for an object
+ *   content. It gives the content type and checks the content of each
+ *   snapshot.
  *
  * `snapshot(id, content)` throws a `TypeError` that names the activity type
  * when the content fails the check, or when the schema validates only async.
@@ -113,7 +120,7 @@ type ActivityOfDefinition<TContent> = Omit<
  */
 export function defineActivityType<
   const TType extends string,
-  const TSchema extends PortableSchema,
+  const TSchema extends ActivityContentSchema,
 >(options: { activityType: TType; contentSchema: TSchema }) {
   const { activityType, contentSchema } = options
   const definition: ActivityTypeDefinition<

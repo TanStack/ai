@@ -1,6 +1,7 @@
 import { expectTypeOf } from 'vitest'
 import { z } from 'zod'
 import { defineActivityType } from '../src'
+import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
 import type { TextPart, TypedActivityPart } from '../src/client'
 
 const deployProgress = defineActivityType({
@@ -70,3 +71,22 @@ if (deployProgress.is(record)) {
   expectTypeOf(record.content.step).toEqualTypeOf<number>()
   expectTypeOf(record.type).toEqualTypeOf<'activity' | undefined>()
 }
+
+// AG-UI requires object content, so a non-object schema is a compile error.
+defineActivityType({
+  activityType: 'bad.number',
+  // @ts-expect-error content must be an object
+  contentSchema: z.number(),
+})
+
+// A JSON-Schema-only schema has no `validate`, so snapshot() could not check
+// content. It is a compile error.
+declare const jsonOnlySchema: StandardJSONSchemaV1<
+  { step: number },
+  { step: number }
+>
+defineActivityType({
+  activityType: 'bad.json-schema',
+  // @ts-expect-error contentSchema needs a Standard Schema `validate`
+  contentSchema: jsonOnlySchema,
+})

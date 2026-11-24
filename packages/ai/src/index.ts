@@ -398,6 +398,7 @@ export {
 export type {
   ActivityContentInput,
   ActivityContentOf,
+  ActivityContentSchema,
   ActivityPartOf,
   ActivityTypeDefinition,
   AnyActivityTypeDefinition,
