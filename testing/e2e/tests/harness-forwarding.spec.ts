@@ -78,4 +78,30 @@ test.describe('harness: the host that does not own the thread', () => {
     expect(result.ownerCalls).toBe(1)
     expect(result.otherCalls).toBe(0)
   })
+
+  test('the other host shows running, and no approval that a running turn answered', async ({
+    request,
+  }) => {
+    const res = await request.post('/api/harness-forwarding?scenario=approval')
+    expect(res.ok()).toBe(true)
+    const result: {
+      error?: string
+      receipt: { status: string }
+      caughtUp: boolean
+      observed: { status: string; waits: Array<string> }
+      open: { status: string; waits: Array<string> }
+      ownerCalls: number
+      otherCalls: number
+    } = await res.json()
+    expect(result.error ?? null).toBeNull()
+
+    expect(result.receipt.status).toBe('accepted')
+    // The other host has read the log up to the resumed turn.
+    expect(result.caughtUp).toBe(true)
+    // Both read the log: the resumed turn runs, and the approval is answered.
+    expect(result.observed).toEqual({ status: 'running', waits: [] })
+    expect(result.open).toEqual({ status: 'running', waits: [] })
+    expect(result.ownerCalls).toBe(2)
+    expect(result.otherCalls).toBe(0)
+  })
 })
