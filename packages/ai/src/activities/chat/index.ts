@@ -1599,30 +1599,57 @@ class TextEngine<
 
   async *run(): AsyncGenerator<StreamChunk> {
     const steps = this.runSteps()
+    // AG-UI allows no event after RUN_FINISHED except a new RUN_STARTED or a
+    // RUN_ERROR. A terminal hook (onFinish, onAbort) runs after RUN_FINISHED
+    // went out, and its emitActivity or emitCustomEvent chunks drain then.
+    // Hold RUN_FINISHED, and send those chunks before it.
+    let heldFinish: StreamChunk | undefined
     for await (const chunk of steps) {
-      let resumed = false
-      try {
-        yield chunk
-        resumed = true
-      } finally {
-        // The consumer stopped iterating (`break` or `return()`).
-        if (!resumed) {
-          if (
-            chunk.type === EventType.RUN_ERROR ||
-            (chunk.type === EventType.RUN_FINISHED &&
-              chunk.outcome?.type === 'interrupt')
-          ) {
-            // A yielded error or a pause ends this invocation. Finish it
-            // unseen so it reports `onError` or `onFinish`, as a drained run
-            // does. A pause keeps its paused state.
-            for await (const _chunk of steps) {
-              // discard
-            }
-          } else {
-            // Abort before the loop closes `runSteps`, so its `finally`
-            // reports `onAbort`.
-            this.middlewareAbortController?.abort()
+      if (
+        heldFinish &&
+        (isActivityChunk(chunk) || chunk.type === EventType.CUSTOM)
+      ) {
+        yield* this.yieldRunChunk(chunk, steps)
+        continue
+      }
+      if (heldFinish) yield* this.yieldRunChunk(heldFinish, steps)
+      heldFinish = undefined
+      if (chunk.type === EventType.RUN_FINISHED) {
+        heldFinish = chunk
+        continue
+      }
+      yield* this.yieldRunChunk(chunk, steps)
+    }
+    if (heldFinish) yield* this.yieldRunChunk(heldFinish, steps)
+  }
+
+  /** Yield one public chunk, and finish or abort the run if the consumer stops at it. */
+  private async *yieldRunChunk(
+    chunk: StreamChunk,
+    steps: AsyncGenerator<StreamChunk>,
+  ): AsyncGenerator<StreamChunk> {
+    let resumed = false
+    try {
+      yield chunk
+      resumed = true
+    } finally {
+      // The consumer stopped iterating (`break` or `return()`).
+      if (!resumed) {
+        if (
+          chunk.type === EventType.RUN_ERROR ||
+          (chunk.type === EventType.RUN_FINISHED &&
+            chunk.outcome?.type === 'interrupt')
+        ) {
+          // A yielded error or a pause ends this invocation. Finish it
+          // unseen so it reports `onError` or `onFinish`, as a drained run
+          // does. A pause keeps its paused state.
+          for await (const _chunk of steps) {
+            // discard
           }
+        } else {
+          // Abort before the loop closes `runSteps`, so its `finally`
+          // reports `onAbort`.
+          this.middlewareAbortController?.abort()
         }
       }
     }

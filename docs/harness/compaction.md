@@ -59,7 +59,7 @@ const host = createHarnessHost({ persistence: memoryPersistence() })
 - Compaction runs before a model call when the count passes `maxTokens`. If the usage of the last model call of a turn passed `maxTokens` or `contextWindow`, compaction also runs right after that call. This check needs `countTokens: 'usage'`.
 - The log only grows, so the original messages stay in the store. The fold that the model gets starts with the summary.
 - Readers still get every message. `session.transcript()`, `GET transcript`, and the chat hydration show the full history, not the summary.
-- A compaction and the [`/compact`](./coding-agent#what-each-plugin-adds) command keep only the newest `sandbox.status` [activity](./custom-ui#show-activities) of the session. A live view shows this change after it loads the session snapshot again, for example after a reload.
+- A compaction and the [`/compact`](./coding-agent#what-each-plugin-adds) command keep only the newest `sandbox.status` [activity](./custom-ui#show-activities) of the session. A view that is open keeps the old rows. A new view, for example after a reload, shows the change.
 - A thread can change its model. To give each model its own limit, pass a function, like `maxTokens: ({ model }) => ...`. See [A limit for each model](../advanced/compaction-advanced#a-limit-for-each-model).
 
 ## Prepare the summary in the background
@@ -164,7 +164,7 @@ export const summary = definePlugin({
 ```
 
 - The session keeps only the newest `sandbox.status` row. The other activities stay, in their order.
-- A live view shows this change after it loads the session snapshot again.
+- A view that is open keeps the old rows. A new view, for example after a reload, shows the change.
 - If the write is not a summary, for example an undo, do not pass `compaction: true`. Then the session keeps every row.
 
 ## What you have now

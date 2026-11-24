@@ -1,7 +1,7 @@
 import { EventType } from './types'
 import { parseWithStandardSchema } from './activities/chat/tools/schema-converter'
 import type { StandardSchemaV1 } from '@standard-schema/spec'
-import type { ActivitySnapshotEvent } from './types'
+import type { ActivityPart, ActivitySnapshotEvent } from './types'
 import type {
   InferSchemaInput,
   InferSchemaOutput,
@@ -20,9 +20,10 @@ export interface ActivityTypeDefinition<
   readonly contentSchema: PortableSchema
   /**
    * Returns `true` when `value` is an activity part or record of this type,
-   * and narrows `content` to the content of this type.
+   * and narrows `content` to the content of this type. A record has no
+   * `type`, so `type` is optional here.
    */
-  is: (value: unknown) => value is OtherActivityPart & { content: TContent }
+  is: (value: unknown) => value is ActivityOfDefinition<TContent>
   /**
    * Checks `content` with the schema and returns an `ACTIVITY_SNAPSHOT`
    * chunk that replaces the activity message `id`.
@@ -54,11 +55,9 @@ export type ActivityContentOf<TDef extends AnyActivityTypeDefinition> =
  */
 export type ActivityPartOf<TDef extends AnyActivityTypeDefinition> =
   TDef extends AnyActivityTypeDefinition
-    ? {
-        type: 'activity'
+    ? Omit<ActivityPart, 'activityType' | 'content'> & {
         activityType: TDef['activityType']
         content: ActivityContentOf<TDef>
-        subagentRunId?: string
       }
     : never
 
@@ -70,16 +69,22 @@ export type OtherActivityType = `tanstack:other-activity:${string}`
  * a name never selects it, but the `default` or final `else` branch keeps it.
  * Read its typed content with the `is()` of its definition.
  */
-export type OtherActivityPart = {
-  type: 'activity'
+export type OtherActivityPart = Omit<ActivityPart, 'activityType'> & {
   // ponytail: TypeScript cannot express "any string except the built-in
   // names", so the fallback uses a name pattern that no real activity type
   // has. It keeps `===` narrowing for built-ins, makes a typo a compile error,
   // and keeps the `default` branch usable. The runtime value is the real name.
   activityType: OtherActivityType
-  content: Record<string, unknown>
-  subagentRunId?: string
 }
+
+/**
+ * What `is()` narrows to: an activity part, or a stored activity record,
+ * which has no `type`.
+ */
+type ActivityOfDefinition<TContent> = Omit<
+  OtherActivityPart,
+  'type' | 'content'
+> & { type?: 'activity'; content: TContent }
 
 /**
  * Defines a typed activity type. An activity is a message with one part that
@@ -118,9 +123,7 @@ export function defineActivityType<
   > = {
     activityType,
     contentSchema,
-    is(
-      value,
-    ): value is OtherActivityPart & { content: InferSchemaOutput<TSchema> } {
+    is(value): value is ActivityOfDefinition<InferSchemaOutput<TSchema>> {
       if (typeof value !== 'object' || value === null) return false
       if (!('activityType' in value) || value.activityType !== activityType) {
         return false

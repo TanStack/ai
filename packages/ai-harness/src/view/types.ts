@@ -2,6 +2,7 @@ import type { TypedActivityPart } from '@tanstack/ai'
 import type { ConfigOption } from '../config'
 import type { SessionUsage } from '../usage'
 import type { Wait } from '../waits'
+import type { SessionActivity } from '../session/types'
 import type {
   MediaKind,
   Receipt,
@@ -209,7 +210,10 @@ type ActivityOf<TPart> = TPart extends {
   activityType: infer TType
   content: infer TContent
 }
-  ? { id: string; activityType: TType; content: TContent; operationId: string }
+  ? Omit<SessionActivity, 'activityType' | 'content'> & {
+      activityType: TType
+      content: TContent
+    }
   : never
 
 /**

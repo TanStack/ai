@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { EventType, defineActivityType } from '@tanstack/ai'
 import {
   createBridgeEventChannel,
@@ -89,5 +89,18 @@ describe('mergeChunkStreams', () => {
         },
       },
     ])
+  })
+
+  it('warns when an activity lands after the channel closed', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const channel = createBridgeEventChannel({ model: 'test-model' })
+    channel.close()
+
+    channel.emitActivity(deployProgress, 'deploy-1', { step: 1, total: 2 })
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("dropped deploy.progress activity 'deploy-1'"),
+    )
+    warn.mockRestore()
   })
 })

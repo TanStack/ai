@@ -19,7 +19,7 @@ if (part.activityType === 'sandbox.status') {
 } else if (part.activityType === 'sandbox.approval') {
   expectTypeOf(part.content.approvalId).toEqualTypeOf<string>()
 } else {
-  expectTypeOf(part.content).toEqualTypeOf<Record<string, unknown>>()
+  expectTypeOf(part.content).toEqualTypeOf<Record<string, any>>()
 }
 
 // A typo in a built-in name is a compile error.
@@ -37,7 +37,7 @@ switch (part.activityType) {
     >()
     break
   default:
-    expectTypeOf(part.content).toEqualTypeOf<Record<string, unknown>>()
+    expectTypeOf(part.content).toEqualTypeOf<Record<string, any>>()
 }
 
 // `is()` narrows a type that the union does not declare, also when the union
@@ -46,6 +46,7 @@ declare const messagePart: TextPart | TypedActivityPart
 if (deployProgress.is(messagePart)) {
   expectTypeOf(messagePart.content.step).toEqualTypeOf<number>()
   expectTypeOf(messagePart.content.total).toEqualTypeOf<number>()
+  expectTypeOf(messagePart.type).toEqualTypeOf<'activity'>()
   expectTypeOf(
     messagePart.activityType,
   ).toEqualTypeOf<`tanstack:other-activity:${string}`>()
@@ -61,4 +62,11 @@ if (declaredPart.activityType === 'deploy.progress') {
 }
 if (deployProgress.is(declaredPart)) {
   expectTypeOf(declaredPart.content.step).toEqualTypeOf<number>()
+}
+
+// A stored record has no `type`, so `is()` does not claim one.
+declare const record: { id: string; activityType: string; content: unknown }
+if (deployProgress.is(record)) {
+  expectTypeOf(record.content.step).toEqualTypeOf<number>()
+  expectTypeOf(record.type).toEqualTypeOf<'activity' | undefined>()
 }

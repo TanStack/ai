@@ -173,6 +173,37 @@ describe('ChatClient.respondToSandboxApproval', () => {
     expect(rowStatus(sent[0] ?? [])).toBe('granted')
   })
 
+  it('keeps the row pending when send fails before connection.send', async () => {
+    let fail = true
+    const sent: Array<Array<UIMessage | ModelMessage>> = []
+    const onError = vi.fn()
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection: createMockConnectionAdapter({
+        chunks: createTextChunks('done', 'asst-1'),
+        chunkDelay: 5,
+        onConnect: (messages) => {
+          sent.push(messages)
+        },
+      }),
+      initialMessages: [createUIMessage('user-1', 'Clean up'), pendingRow],
+      onError,
+      onResponse: () => {
+        if (fail) throw new Error('offline')
+      },
+    })
+
+    await client.respondToSandboxApproval(approvalId, true)
+    expect(onError).toHaveBeenCalled()
+    expect(rowStatus(client.getMessages())).toBe('pending')
+    expect(sent).toEqual([])
+
+    fail = false
+    await client.respondToSandboxApproval(approvalId, true)
+    expect(rowStatus(client.getMessages())).toBe('granted')
+    expect(sent).toHaveLength(1)
+  })
+
   it('does not treat a false streamResponse result as a failed send', async () => {
     const sent: Array<Array<UIMessage | ModelMessage>> = []
     const client = new ChatClient({
@@ -266,7 +297,9 @@ describe('ChatClient.respondToSandboxApproval', () => {
     const approvingA = client.respondToSandboxApproval(approvalId, true)
     await vi.waitFor(() => expect(client.getIsLoading()).toBe(true))
     await client.respondToSandboxApproval(approvalIdB, true)
-    await expect(approvingA).rejects.toBeInstanceOf(ByokMissingError)
+    // The queued continue of B fails, and streamResponse reports it. The
+    // error does not reject the call for A.
+    await approvingA
 
     expect(rowStatus(client.getMessages())).toBe('granted')
     const rowB = client.getMessages().find((message) => message.id === rowIdB)

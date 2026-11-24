@@ -108,7 +108,14 @@ export function createBridgeEventChannel(meta: {
       // Check the content before the `closed` check, so a bad content always
       // throws in the tool, as it does in `chat()`.
       const snapshot = definition.snapshot(id, content)
-      if (closed) return
+      if (closed) {
+        // The run output ended, so the client never sees this row. For a
+        // `sandbox.approval` row, the user gets no prompt.
+        console.warn(
+          `[ai-sandbox] dropped ${snapshot.activityType} activity '${id}': the run stream already ended`,
+        )
+        return
+      }
       buffer.push(withTanstackMetadata(snapshot, runMetadata))
       notify?.()
     },

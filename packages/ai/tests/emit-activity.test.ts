@@ -134,6 +134,8 @@ describe('emitActivity', () => {
     })
 
     expect(activitySnapshots(chunks)).toEqual([firstStepSnapshot])
+    // AG-UI: nothing may follow RUN_FINISHED.
+    expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
   })
 
   it('keeps a row emitted in init onConfig in ctx.activities at onFinish', async () => {

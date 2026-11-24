@@ -1,5 +1,6 @@
 import type { CredentialStore } from '@tanstack/ai/byok'
 import type {
+  ActivityRecord,
   AnyTool,
   SubagentBudget,
   Interrupt,
@@ -308,11 +309,7 @@ export interface JobInfo {
  * content that a tool, a middleware, or an adapter sent for the activity
  * message `id`. The session log keeps it, so it stays after a reload.
  */
-export interface SessionActivity {
-  /** The id of the activity message. */
-  id: string
-  activityType: string
-  content: Record<string, unknown>
+export interface SessionActivity extends Omit<ActivityRecord, 'index'> {
   /** The operation that first sent the activity. */
   operationId: string
 }

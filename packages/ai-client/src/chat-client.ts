@@ -3789,21 +3789,20 @@ export class ChatClient<
 
     // The same rules as for a client tool result: a run in progress ends
     // first, and a pending interrupt owns the next send.
-    // Keep the row pending when send throws so the same call can retry.
-    // A false streamResponse result is not a failed send: the server may
-    // already have accepted the request.
-    // Restore pending only when this request never reached connection.send.
-    // A later queued continue that throws from streamResponse finally must
-    // not flip a delivered row back.
+    // Restore pending when this request never reached connection.send, so
+    // the same call can retry. streamResponse reports most errors and returns
+    // false, so check both paths. After the send, the server may already have
+    // the decision, so the row stays decided.
     const continueRun = async () => {
       if (this.hasPendingInterrupts()) return
       const expectedGeneration = this.streamGeneration + 1
+      const restoreUnsent = () => {
+        if (!this.streamReachedSend.has(expectedGeneration)) restorePending()
+      }
       try {
-        await this.streamResponse()
+        if (!(await this.streamResponse())) restoreUnsent()
       } catch (error) {
-        if (!this.streamReachedSend.has(expectedGeneration)) {
-          restorePending()
-        }
+        restoreUnsent()
         throw error
       }
     }
@@ -3814,7 +3813,12 @@ export class ChatClient<
           restorePending()
           return
         }
-        await continueRun()
+        try {
+          await continueRun()
+        } catch {
+          // streamResponse already reported it. A rethrow here would reject
+          // the previous run and stop the other queued actions.
+        }
       })
       return
     }
