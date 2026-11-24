@@ -1734,9 +1734,9 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
 
       const runStarted = chunks.find((c) => c.type === EventType.RUN_STARTED)
       const runFinished = chunks.find((c) => c.type === EventType.RUN_FINISHED)
-      expect(runStarted?.type === EventType.RUN_STARTED && runStarted.runId).toBe(
-        'run-from-client',
-      )
+      expect(
+        runStarted?.type === EventType.RUN_STARTED && runStarted.runId,
+      ).toBe('run-from-client')
       expect(
         runFinished?.type === EventType.RUN_FINISHED && runFinished.runId,
       ).toBe('run-from-client')
