@@ -61,6 +61,7 @@
     "@tanstack/ai-sandbox-local-process": "workspace:*",
     "@tanstack/ai-skills": "workspace:*",
     "@tanstack/ai-solid": "workspace:*",
+    "@tanstack/ai-tripo": "workspace:*",
     "@tanstack/ai-typesafe": "workspace:*",
     "@tanstack/ai-uthana": "workspace:*",
     "@tanstack/ai-vercel-compat": "workspace:*",
