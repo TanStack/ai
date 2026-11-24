@@ -82,7 +82,68 @@ function messageUpdated(
   }
 }
 
+/** A `message.part.delta` event of OpenCode 1.x: new text for one part. */
+function partDelta(
+  partID: string,
+  delta: string,
+  messageID = 'msg-1',
+): OpencodeStreamEvent {
+  return {
+    kind: 'event',
+    event: {
+      type: 'message.part.delta',
+      properties: {
+        sessionID: 'sess-1',
+        messageID,
+        partID,
+        field: 'text',
+        delta,
+      },
+    },
+  }
+}
+
 describe('translateOpencodeStream', () => {
+  it('streams text from the message.part.delta events of OpenCode 1.x', async () => {
+    const chunks = await collect([
+      session,
+      messageUpdated('msg-1', 'assistant'),
+      textPart('part-1', ''),
+      partDelta('part-1', 'ON'),
+      partDelta('part-1', 'E'),
+      textPart('part-1', 'ONE'),
+      done(),
+    ])
+
+    const content = chunks.filter(
+      (chunk) => chunk.type === 'TEXT_MESSAGE_CONTENT',
+    )
+    expect(content).toMatchObject([
+      { delta: 'ON' },
+      { delta: 'E', content: 'ONE' },
+    ])
+  })
+
+  it('keeps the text of a delta that comes before the role of its message', async () => {
+    const chunks = await collect([
+      session,
+      textPart('part-1', ''),
+      partDelta('part-1', 'ON'),
+      messageUpdated('msg-1', 'assistant'),
+      partDelta('part-1', 'E'),
+      textPart('part-1', 'ONE'),
+      done(),
+    ])
+
+    const content = chunks.filter(
+      (chunk) => chunk.type === 'TEXT_MESSAGE_CONTENT',
+    )
+    expect(content).toMatchObject([
+      { delta: 'ON' },
+      { delta: 'E', content: 'ONE' },
+    ])
+  })
+
   it('translates a simple text turn', async () => {
     const chunks = await collect([
       session,

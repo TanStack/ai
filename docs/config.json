@@ -70,6 +70,11 @@
           "addedAt": "2026-11-18"
         },
         {
+          "label": "Tripo Animated Character",
+          "to": "tutorials/tripo-animated-character",
+          "addedAt": "2026-11-23"
+        },
+        {
           "label": "Streaming Structured Table",
           "to": "tutorials/streaming-structured-table",
           "addedAt": "2026-09-17",
@@ -146,6 +151,11 @@
           "label": "Game Asset Pipeline",
           "to": "framework/react/examples/game-asset-pipeline",
           "addedAt": "2026-11-18"
+        },
+        {
+          "label": "Tripo Animated Character",
+          "to": "framework/react/examples/tripo-animated-character",
+          "addedAt": "2026-11-23"
         },
         {
           "label": "Streaming Structured Table",
@@ -1019,13 +1029,13 @@
           "label": "3D Model Generation",
           "to": "media/3d-model-generation",
           "addedAt": "2026-11-18",
-          "updatedAt": "2026-11-20"
+          "updatedAt": "2026-11-23"
         },
         {
           "label": "3D Model Generation: Advanced",
           "to": "media/3d-model-generation-advanced",
           "addedAt": "2026-11-18",
-          "updatedAt": "2026-11-20"
+          "updatedAt": "2026-11-23"
         },
         {
           "label": "Generation Hooks",
@@ -1806,7 +1816,7 @@
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-09"
+          "updatedAt": "2026-11-23"
         },
         {
           "label": "Anthropic: Advanced",
@@ -1918,6 +1928,16 @@
           "label": "Meshy: Advanced",
           "to": "adapters/meshy-advanced",
           "addedAt": "2026-11-20"
+        },
+        {
+          "label": "Tripo",
+          "to": "adapters/tripo",
+          "addedAt": "2026-11-23"
+        },
+        {
+          "label": "Tripo: Advanced",
+          "to": "adapters/tripo-advanced",
+          "addedAt": "2026-11-23"
         },
         {
           "label": "OpenRouter Adapter",

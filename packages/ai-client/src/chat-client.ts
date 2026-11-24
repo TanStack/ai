@@ -2072,6 +2072,10 @@ export class ChatClient<
       return new Promise<boolean>((resolve, reject) => {
         this.queuePostStreamAction(
           async () => {
+            if (this.lastResume?.runId !== target.runId) {
+              resolve(false)
+              return
+            }
             try {
               resolve(
                 await this.resumeInterruptsUnsafeForGeneration(
