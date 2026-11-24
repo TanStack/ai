@@ -138,44 +138,83 @@ describe('emitActivity', () => {
     expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
   })
 
-  it('still ends with RUN_FINISHED when onFinish throws', async () => {
+  it('still sends RUN_FINISHED when onFinish throws', async () => {
+    const { adapter } = createMockAdapter({
+      iterations: [[ev.runStarted(), ev.runFinished('stop')]],
+    })
+    const stream = chat({
+      adapter,
+      threadId: 'thread-1',
+      messages: [{ role: 'user', content: 'Hi' }],
+      middleware: [
+        {
+          name: 'failing-teardown',
+          onFinish() {
+            throw new Error('snapshot failed')
+          },
+        },
+      ],
+    })
+    const seen: Array<StreamChunk> = []
+    await expect(async () => {
+      for await (const chunk of stream) seen.push(chunk)
+    }).rejects.toThrow('snapshot failed')
+    expect(seen.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+  })
+
+  it('finishes onAbort when the consumer breaks and onAbort emits', async () => {
     const { adapter } = createMockAdapter({
       iterations: [
         [
           ev.runStarted(),
           ev.textStart('msg-1'),
-          ev.textContent('Done', 'msg-1'),
+          ev.textContent('Hello', 'msg-1'),
+          ev.textContent(' there', 'msg-1'),
           ev.textEnd('msg-1'),
           ev.runFinished('stop'),
         ],
       ],
     })
-    const chunks: Array<StreamChunk> = []
-    let thrown: unknown
-    try {
-      for await (const chunk of chat({
-        adapter,
-        threadId: 'thread-1',
-        messages: [{ role: 'user', content: 'Hi' }],
-        middleware: [
-          {
-            name: 'fail-finish',
-            onFinish() {
-              throw new Error('messages.append failed')
-            },
+    const seenByMiddleware: Array<StreamChunk> = []
+    let deferredSettled = false
+    const stream = chat({
+      adapter,
+      threadId: 'thread-1',
+      messages: [{ role: 'user', content: 'Hi' }],
+      middleware: [
+        {
+          name: 'abort-status',
+          onAbort(ctx) {
+            ctx.emitActivity(deployProgress, 'deploy-1', firstStep)
+            ctx.emitActivity(deployProgress, 'deploy-1', {
+              step: 2,
+              total: 3,
+            })
+            ctx.defer(
+              Promise.resolve().then(() => {
+                deferredSettled = true
+              }),
+            )
           },
-        ],
-      })) {
-        chunks.push(chunk)
-      }
-    } catch (error) {
-      thrown = error
+          onChunk(_ctx, chunk) {
+            seenByMiddleware.push(chunk)
+          },
+        },
+      ],
+    })
+    for await (const chunk of stream) {
+      if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) break
     }
-
-    expect(thrown).toEqual(
-      expect.objectContaining({ message: 'messages.append failed' }),
-    )
-    expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+    // Both rows reach middleware (so persistence saves them), and the
+    // deferred work is awaited: the generator did not stay suspended.
+    expect(
+      seenByMiddleware.filter(
+        (c) =>
+          c.type === EventType.ACTIVITY_SNAPSHOT ||
+          c.type === EventType.ACTIVITY_DELTA,
+      ),
+    ).toHaveLength(2)
+    expect(deferredSettled).toBe(true)
   })
 
   it('keeps a row emitted in init onConfig in ctx.activities at onFinish', async () => {

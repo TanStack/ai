@@ -1217,6 +1217,8 @@ class TextEngine<
   // observe both cancellation sources via ctx.abortSignal.
   private readonly toolAbortSignal?: AbortSignal
   private terminalHookCalled = false
+  /** The consumer stopped iterating (`break` or `return()`), so nothing may yield. */
+  private consumerStopped = false
   /**
    * Latched the first time the delivery socket closes; see `notifyDisconnected`.
    * Also read by `subscribe` so a listener registered AFTER the disconnect (a
@@ -1621,11 +1623,13 @@ class TextEngine<
         }
         yield* this.yieldRunChunk(chunk, steps)
       }
-    } finally {
-      // onFinish can throw after runTerminalHook sets terminalHookCalled.
-      // runSteps then skips onError and rethrows, so flush here.
-      if (heldFinish) yield* this.yieldRunChunk(heldFinish, steps)
+    } catch (error) {
+      // A terminal hook threw after the model run finished. Send the
+      // RUN_FINISHED it held first, as the run did before the hold.
+      if (heldFinish) yield heldFinish
+      throw error
     }
+    if (heldFinish) yield* this.yieldRunChunk(heldFinish, steps)
   }
 
   /** Yield one public chunk, and finish or abort the run if the consumer stops at it. */
@@ -1654,6 +1658,7 @@ class TextEngine<
         } else {
           // Abort before the loop closes `runSteps`, so its `finally`
           // reports `onAbort`.
+          this.consumerStopped = true
           this.middlewareAbortController?.abort()
         }
       }
@@ -1958,13 +1963,22 @@ class TextEngine<
       if (!this.terminalHookCalled && this.isCancelled()) {
         this.terminalHookCalled = true
         const reason = this.resolveAbortReason()
-        yield* this.runWhileYielding(
-          this.middlewareRunner.runOnAbort(this.middlewareCtx, {
-            reason,
-            duration: Date.now() - this.streamStartTime,
-            cancelRequested: isCancelRequestedReason(reason),
-          }),
-        )
+        const onAbort = this.middlewareRunner.runOnAbort(this.middlewareCtx, {
+          reason,
+          duration: Date.now() - this.streamStartTime,
+          cancelRequested: isCancelRequestedReason(reason),
+        })
+        if (this.consumerStopped) {
+          // This `finally` runs inside `return()`. A yield here would leave
+          // the generator suspended, so run the hook's chunks through
+          // middleware (persistence still saves them) and send none.
+          const hook = this.runWhileYielding(onAbort)
+          while (!(await hook.next()).done) {
+            // the consumer is gone
+          }
+        } else {
+          yield* this.runWhileYielding(onAbort)
+        }
       }
 
       // Await deferred promises (non-blocking side effects)
