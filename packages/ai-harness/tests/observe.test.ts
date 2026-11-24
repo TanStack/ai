@@ -5,6 +5,7 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   AccessDeniedError,
   createHarnessHost,
+  defineCommand,
   defineHarness,
   definePlugin,
   membersOnly,
@@ -198,6 +199,7 @@ describe('host.observe snapshot of a running turn', () => {
    * Two hosts on one log, as behind a load balancer. `owner` runs the
    * turns. `other` only reads the log, with `host.observe`. The `deploy`
    * tool runs until `release()`, after an approval when `needsApproval`.
+   * `hold` is a command that runs until `releaseHold()`.
    */
   async function twoHosts({ needsApproval }: { needsApproval: boolean }) {
     let started = () => {}
@@ -207,6 +209,14 @@ describe('host.observe snapshot of a running turn', () => {
     let release = () => {}
     const released = new Promise<void>((resolve) => {
       release = resolve
+    })
+    let holdStarted = () => {}
+    const holding = new Promise<void>((resolve) => {
+      holdStarted = resolve
+    })
+    let releaseHold = () => {}
+    const holdReleased = new Promise<void>((resolve) => {
+      releaseHold = resolve
     })
     const deploy = toolDefinition({
       name: 'deploy',
@@ -218,6 +228,21 @@ describe('host.observe snapshot of a running turn', () => {
       await released
       return 'deployed'
     })
+    const hold = definePlugin({
+      name: 'test/hold',
+      setup: () => ({
+        commands: {
+          hold: defineCommand({
+            description: 'Hold',
+            run: async () => {
+              holdStarted()
+              await holdReleased
+              return 'held'
+            },
+          }),
+        },
+      }),
+    })
     const persistence = memoryPersistence()
     const harness = defineHarness({
       name: 'test/observe-running',
@@ -226,6 +251,7 @@ describe('host.observe snapshot of a running turn', () => {
         () => text('Deployed.'),
       ]).adapter,
       tools: [deploy],
+      plugins: () => [hold],
     })
     const hostOf = (hostId: string) =>
       createHarnessHost({
@@ -240,11 +266,21 @@ describe('host.observe snapshot of a running turn', () => {
       (await other.observe(harness, { threadId: THREAD })).snapshot()
     const close = async () => {
       release()
+      releaseHold()
       await owner.close()
       await other.close()
     }
     const openOnOther = () => other.open(harness, { threadId: THREAD })
-    return { session, observed, openOnOther, running, release, close }
+    return {
+      session,
+      observed,
+      openOnOther,
+      running,
+      release,
+      holding,
+      releaseHold,
+      close,
+    }
   }
 
   it('reports running and no answered waits while a resumed turn runs', async () => {
@@ -316,6 +352,53 @@ describe('host.observe snapshot of a running turn', () => {
     release()
     await sent
     expect((await observed()).status).toBe('idle')
+    await close()
+  })
+
+  it('stays idle on another host while a command runs', async () => {
+    const { session, observed, holding, releaseHold, close } = await twoHosts({
+      needsApproval: false,
+    })
+    const command = session.runCommand({ name: 'hold' })
+    await holding
+
+    expect(session.snapshot().status).toBe('idle')
+    expect((await observed()).status).toBe('idle')
+
+    releaseHold()
+    await command
+    await close()
+  })
+
+  it('hides answered waits of a running resolve while a command is applied', async () => {
+    const { session, observed, running, release, holding, releaseHold, close } =
+      await twoHosts({
+        needsApproval: true,
+      })
+    const command = session.runCommand({ name: 'hold' })
+    await holding
+    await session.send('Deploy.')
+    const [wait] = session.snapshot().pendingWaits
+    const receipt = await session.resolve({
+      resume: [
+        { interruptId: wait!.waitId, status: 'resolved', payload: true },
+      ],
+    })
+    expect(receipt.status).not.toBe('rejected')
+    await running
+
+    expect(session.snapshot()).toMatchObject({
+      status: 'running',
+      pendingWaits: [],
+    })
+    expect(await observed()).toMatchObject({
+      status: 'running',
+      pendingWaits: [],
+    })
+
+    release()
+    releaseHold()
+    await command
     await close()
   })
 })

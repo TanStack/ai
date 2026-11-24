@@ -176,7 +176,6 @@ const TURN_OPS = new Set<HarnessInput['op']>([
   'steer',
   'continue',
   'resolve',
-  'command',
   'reset',
   'tool',
 ])
