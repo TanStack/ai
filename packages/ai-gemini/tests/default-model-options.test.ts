@@ -4,6 +4,7 @@ import { createGeminiEmbedding } from '../src/adapters/embedding'
 import { createGeminiDecider } from '../src/adapters/evaluate'
 import { createGeminiImage } from '../src/adapters/image'
 import { createGeminiChat } from '../src/adapters/text'
+import { createGeminiSummarize } from '../src/adapters/summarize'
 import { createGeminiSpeech } from '../src/adapters/tts'
 import { createGeminiVideo } from '../src/adapters/video'
 import { createGeminiTextInteractions } from '../src/experimental/text-interactions/adapter'
@@ -117,5 +118,15 @@ describe('Gemini defaultModelOptions', () => {
     })
 
     expect(adapter.defaultModelOptions).toBe(defaults)
+  })
+})
+
+describe('Gemini summarize defaultModelOptions', () => {
+  it('summarize factory exposes the defaults of its text adapter', () => {
+    const adapter = createGeminiSummarize('test-key', 'gemini-2.5-flash', {
+      defaultModelOptions: { temperature: 0.1 },
+    })
+
+    expect(adapter.defaultModelOptions).toEqual({ temperature: 0.1 })
   })
 })

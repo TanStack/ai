@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createOllamaEmbedding } from '../src/adapters/embedding'
-import { createOllamaChat } from '../src/adapters/text'
+import {
+  createOllamaEmbedding,
+  ollamaEmbedding,
+} from '../src/adapters/embedding'
+import { ollamaSummarize } from '../src/adapters/summarize'
+import { createOllamaChat, ollamaText } from '../src/adapters/text'
 
 const mocks = vi.hoisted(() => {
   return {
@@ -52,5 +56,31 @@ describe('Ollama defaultModelOptions', () => {
       host: 'http://remote:11434',
       headers: undefined,
     })
+  })
+})
+
+describe('Ollama env-reading factories take defaultModelOptions', () => {
+  it('ollamaText stores the defaults', () => {
+    const adapter = ollamaText('llama3.2:latest', {
+      defaultModelOptions: { keep_alive: '5m' },
+    })
+
+    expect(adapter.defaultModelOptions).toEqual({ keep_alive: '5m' })
+  })
+
+  it('ollamaEmbedding stores the defaults', () => {
+    const adapter = ollamaEmbedding('nomic-embed-text', {
+      defaultModelOptions: { truncate: false },
+    })
+
+    expect(adapter.defaultModelOptions).toEqual({ truncate: false })
+  })
+
+  it('ollamaSummarize exposes the defaults of its text adapter', () => {
+    const adapter = ollamaSummarize('llama3.2:latest', {
+      defaultModelOptions: { keep_alive: '5m' },
+    })
+
+    expect(adapter.defaultModelOptions).toEqual({ keep_alive: '5m' })
   })
 })

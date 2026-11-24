@@ -709,7 +709,8 @@ export function createOllamaChat<TModel extends string>(
  */
 export function ollamaText<TModel extends string>(
   model: TModel,
+  config?: Pick<OllamaTextConfig<TModel>, 'defaultModelOptions'>,
 ): OllamaTextAdapter<TModel> {
   const host = getOllamaHostFromEnv()
-  return new OllamaTextAdapter(host, model)
+  return new OllamaTextAdapter({ host, ...config }, model)
 }

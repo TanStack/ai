@@ -171,3 +171,32 @@ describe('evaluate adapter', () => {
     )
   })
 })
+
+describe('evaluate adapter modelOptions', () => {
+  it('sends modelOptions with the Workers AI inputs, and cannot replace state or questions', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        success: true,
+        result: {
+          model: 'jev-1.13.0',
+          answers,
+          usage: { input_tokens: 12, output_tokens: 4 },
+        },
+      }),
+    )
+
+    await createRestDecider(fetchMock).evaluate({
+      model: MODEL,
+      state,
+      questions,
+      modelOptions: { temperature: 0, state: 'other' },
+      logger,
+    })
+
+    const body = fetchMock.mock.calls[0]?.[1]?.body
+    if (typeof body !== 'string') {
+      throw new Error('expected a JSON string body')
+    }
+    expect(JSON.parse(body)).toEqual({ temperature: 0, state, questions })
+  })
+})

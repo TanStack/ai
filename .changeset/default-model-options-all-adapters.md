@@ -44,3 +44,9 @@ const adapter = openaiImage('gpt-image-2.6-flare', {
 ```
 
 `summarize()` with a text-backed summarize adapter applies the `defaultModelOptions` of the wrapped text adapter. A `temperature` in those defaults replaces the built-in summarize temperature.
+
+The OpenAI, Cloudflare, Ollaya, and TypeSafe evaluate adapters now send `modelOptions` in the request. Before, they did not send them.
+
+`ollamaText()`, `ollamaEmbedding()`, and the summarize factories of Anthropic, Gemini, Ollama, and Vertex take `defaultModelOptions` too.
+
+`ai-uthana`: the `defaults` config option is deprecated. Use `defaultModelOptions`.

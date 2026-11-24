@@ -5,6 +5,7 @@ import {
   vertexEmbedding,
   vertexImage,
   vertexSpeech,
+  vertexSummarize,
   vertexText,
   vertexVideo,
 } from '../src'
@@ -81,6 +82,15 @@ describe('vertex defaultModelOptions', () => {
       // drain
     }
     expectCleanSdkClient()
+  })
+
+  it('vertexSummarize exposes the defaults of its text adapter', () => {
+    const adapter = vertexSummarize('gemini-3.7-flash', {
+      ...auth,
+      defaultModelOptions: { temperature: 0.2 },
+    })
+
+    expect(adapter.defaultModelOptions).toEqual({ temperature: 0.2 })
   })
 
   it('vertexImage stores the defaults and keeps them out of the SDK client', async () => {

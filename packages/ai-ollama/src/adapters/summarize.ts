@@ -2,14 +2,21 @@ import { ChatStreamSummarizeAdapter } from '@tanstack/ai/adapters'
 import { getOllamaHostFromEnv } from '../utils'
 import { OllamaTextAdapter } from './text'
 import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
+import type { OllamaTextConfig } from './text'
 import type { OLLAMA_TEXT_MODELS as OllamaSummarizeModels } from '../model-meta'
 
 export type OllamaSummarizeModel =
   | (typeof OllamaSummarizeModels)[number]
   | (string & {})
 
-export interface OllamaSummarizeAdapterOptions {
+export interface OllamaSummarizeAdapterOptions<TModel extends string = string> {
   host?: string
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: OllamaTextConfig<TModel>['defaultModelOptions']
 }
 
 /**
@@ -23,13 +30,16 @@ export interface OllamaSummarizeAdapterOptions {
 export function createOllamaSummarize<TModel extends OllamaSummarizeModel>(
   model: TModel,
   host?: string,
-  _options?: OllamaSummarizeAdapterOptions,
+  options?: OllamaSummarizeAdapterOptions<TModel>,
 ): ChatStreamSummarizeAdapter<
   TModel,
   InferTextProviderOptions<OllamaTextAdapter<TModel>>
 > {
   return new ChatStreamSummarizeAdapter(
-    new OllamaTextAdapter(host, model),
+    new OllamaTextAdapter(
+      { host, defaultModelOptions: options?.defaultModelOptions },
+      model,
+    ),
     model,
     'ollama',
   )
@@ -47,7 +57,7 @@ export function createOllamaSummarize<TModel extends OllamaSummarizeModel>(
  */
 export function ollamaSummarize<TModel extends OllamaSummarizeModel>(
   model: TModel,
-  options?: OllamaSummarizeAdapterOptions,
+  options?: OllamaSummarizeAdapterOptions<TModel>,
 ): ChatStreamSummarizeAdapter<
   TModel,
   InferTextProviderOptions<OllamaTextAdapter<TModel>>

@@ -45,7 +45,12 @@ export interface UthanaMotion3dProviderOptions {
 
 /** Configuration for the Uthana motion adapter. */
 export interface UthanaMotion3dConfig extends UthanaClientConfig {
-  /** Provider options for every job. The call's `modelOptions` win. */
+  /**
+   * Provider options for every job. The call's `modelOptions` win.
+   *
+   * @deprecated Use `defaultModelOptions`. It does the same job, and every
+   * adapter takes it. When both are set, `defaultModelOptions` wins.
+   */
   defaults?: UthanaMotion3dProviderOptions
   /**
    * Default `modelOptions` for every call. The activity merges them under
@@ -252,8 +257,8 @@ export class UthanaMotion3dAdapter<
 
 /**
  * Create an Uthana motion adapter. Reads `config.apiKey`, or
- * `UTHANA_API_KEY` from the environment. `config.defaults` sets provider
- * options for every job.
+ * `UTHANA_API_KEY` from the environment. `config.defaultModelOptions` sets
+ * provider options for every job.
  *
  * @example
  * ```ts

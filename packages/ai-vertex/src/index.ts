@@ -51,10 +51,17 @@ export function vertexText<TModel extends GeminiTextModel>(
 
 export function vertexSummarize<TModel extends GeminiTextModel>(
   model: TModel,
-  config: VertexClientConfig = {},
-): ChatStreamSummarizeAdapter<TModel> {
+  config: VertexAdapterConfig<GeminiTextConfig<TModel>> = {},
+): ChatStreamSummarizeAdapter<
+  TModel,
+  NonNullable<GeminiTextConfig<TModel>['defaultModelOptions']>
+> {
+  const { defaultModelOptions, ...client } = config
   return new ChatStreamSummarizeAdapter(
-    new GeminiTextAdapter(resolveVertexGeminiOptions(config), model),
+    new GeminiTextAdapter(
+      { ...resolveVertexGeminiOptions(client), defaultModelOptions },
+      model,
+    ),
     model,
     'gemini',
   )

@@ -204,7 +204,8 @@ export function createOllamaEmbedding<TModel extends OllamaEmbeddingModel>(
  */
 export function ollamaEmbedding<TModel extends OllamaEmbeddingModel>(
   model: TModel,
+  config?: Pick<OllamaEmbeddingConfig, 'defaultModelOptions'>,
 ): OllamaEmbeddingAdapter<TModel> {
   const host = getOllamaHostFromEnv()
-  return new OllamaEmbeddingAdapter(host, model)
+  return new OllamaEmbeddingAdapter({ host, ...config }, model)
 }

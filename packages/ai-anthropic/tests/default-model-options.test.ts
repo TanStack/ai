@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AnthropicTextAdapter, createAnthropicChat } from '../src/adapters/text'
+import { createAnthropicSummarize } from '../src/adapters/summarize'
 import { anthropicVertexText } from '../src/vertex'
 import type { AnthropicMessagesClient } from '../src/utils/client'
 
@@ -79,5 +80,15 @@ describe('Anthropic defaultModelOptions', () => {
       projectId: 'my-project',
       region: 'europe-west1',
     })
+  })
+})
+
+describe('Anthropic summarize defaultModelOptions', () => {
+  it('summarize factory exposes the defaults of its text adapter', () => {
+    const adapter = createAnthropicSummarize('claude-sonnet-4-5', 'test-key', {
+      defaultModelOptions: { max_tokens: 300 },
+    })
+
+    expect(adapter.defaultModelOptions).toEqual({ max_tokens: 300 })
   })
 })

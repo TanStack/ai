@@ -192,9 +192,9 @@ async function runSummarizeStreamFallback(input: RunInput): Promise<Seen> {
 /** A text adapter that records what `chatStream` got and yields nothing. */
 function fakeTextAdapter(defaultModelOptions: ModelOptions | undefined) {
   const calls: Array<TextOptions<ModelOptions>> = []
-  const textAdapter: ChatStreamCapable<ModelOptions> = {
+  const textAdapter: ChatStreamCapable = {
     defaultModelOptions,
-    chatStream: (options) => {
+    chatStream: (options: TextOptions<ModelOptions>) => {
       calls.push(options)
       return (async function* () {})()
     },
@@ -212,7 +212,10 @@ async function runChatStreamSummarize(input: RunInput): Promise<Seen> {
   const recorder = startRecorder()
   await drain(
     summarize({
-      adapter: new ChatStreamSummarizeAdapter(textAdapter, 'fake-text'),
+      adapter: new ChatStreamSummarizeAdapter<'fake-text', ModelOptions>(
+        textAdapter,
+        'fake-text',
+      ),
       text: 'long text',
       threadId: 'thread-1',
       stream: true,
@@ -263,7 +266,10 @@ describe.each(kinds)('$kind: adapter defaultModelOptions', ({ run }) => {
 describe('summarize with ChatStreamSummarizeAdapter', () => {
   it('exposes the text adapter defaults as its own', () => {
     const { textAdapter } = fakeTextAdapter(defaults)
-    const adapter = new ChatStreamSummarizeAdapter(textAdapter, 'fake-text')
+    const adapter = new ChatStreamSummarizeAdapter<'fake-text', ModelOptions>(
+      textAdapter,
+      'fake-text',
+    )
     expect(adapter.defaultModelOptions).toEqual({ mode: 'fast', level: 1 })
   })
 

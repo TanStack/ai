@@ -51,7 +51,7 @@ function isOllayaEvaluateResponse(
  */
 export class OllayaEvaluateAdapter<
   TModel extends OllayaEvaluateModel,
-> extends BaseEvaluateAdapter<TModel> {
+> extends BaseEvaluateAdapter<TModel, Record<string, unknown>> {
   readonly name = 'ollaya' as const
 
   private readonly apiKey: string | undefined
@@ -72,15 +72,16 @@ export class OllayaEvaluateAdapter<
   }
 
   /**
-   * POST `{ model, state, questions }` to Ollaya and return wire answers plus
+   * POST `{ ...modelOptions, model, state, questions }` to Ollaya and return wire answers plus
    * mapped token usage. Does not invent unified `.value` fields.
    *
    * @throws An `Error` with a numeric `status` (the HTTP status code) when
    * Ollaya answers with a non-OK response.
    */
   async evaluate(options: EvaluateOptions) {
-    const { model, state, questions, abortSignal, logger } = options
-    const body = { model, state, questions }
+    const { model, state, questions, modelOptions, abortSignal, logger } =
+      options
+    const body = { ...modelOptions, model, state, questions }
     const fetchFn = this.fetchFn ?? globalThis.fetch
 
     logger.request(`activity=evaluate provider=${this.name} model=${model}`, {
