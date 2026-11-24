@@ -27,6 +27,7 @@
 '@tanstack/ai-opencode': minor
 '@tanstack/ai-openrouter': minor
 '@tanstack/ai-reactor': minor
+'@tanstack/ai-tripo': minor
 '@tanstack/ai-typesafe': minor
 '@tanstack/ai-uthana': minor
 '@tanstack/ai-vercel-gateway': minor
@@ -47,6 +48,6 @@ const adapter = openaiImage('gpt-image-2.6-flare', {
 
 The OpenAI, Cloudflare, Ollaya, and TypeSafe evaluate adapters now send `modelOptions` in the request. Before, they did not send them.
 
-`ollamaText()`, `ollamaEmbedding()`, and the summarize factories of Anthropic, Gemini, Ollama, and Vertex take `defaultModelOptions` too.
+`ollamaText()`, `ollamaEmbedding()`, `tripo3dModel()`, and the summarize factories of Anthropic, Gemini, Ollama, and Vertex take `defaultModelOptions` too.
 
 `ai-uthana`: the `defaults` config option is deprecated. Use `defaultModelOptions`.

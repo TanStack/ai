@@ -214,9 +214,12 @@ describe('evaluate adapter modelOptions', () => {
       Response.json({
         success: true,
         result: {
-          model: 'jev-1.13.0',
-          answers,
-          usage: { input_tokens: 12, output_tokens: 4 },
+          state: 'Completed',
+          result: {
+            model: 'jev-1.13.0',
+            answers,
+            usage: { input_tokens: 12, output_tokens: 4 },
+          },
         },
       }),
     )
@@ -233,6 +236,9 @@ describe('evaluate adapter modelOptions', () => {
     if (typeof body !== 'string') {
       throw new Error('expected a JSON string body')
     }
-    expect(JSON.parse(body)).toEqual({ temperature: 0, state, questions })
+    expect(JSON.parse(body)).toEqual({
+      model: MODEL,
+      input: { temperature: 0, state, questions },
+    })
   })
 })
