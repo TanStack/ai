@@ -1144,6 +1144,8 @@ class TextEngine<
   private readonly resumeDeniedToolResults = new Map<string, unknown>()
   private readonly resumeCancelledToolCallIds = new Set<string>()
   private readonly resumeInputResponses = new Map<string, ToolInputResponse>()
+  /** Highest resumed MCP input step per toolCallId so a second prompt gets a fresh id. */
+  private readonly resumedMcpInputStep = new Map<string, number>()
   private readonly resumeGenericInterrupts = new Map<
     string,
     ChatResumeGenericResolution
@@ -1715,6 +1717,7 @@ class TextEngine<
                 )
               ) {
                 this.setToolPhase('wait')
+                await this.runTerminalHook()
                 return
               }
 
@@ -1730,6 +1733,7 @@ class TextEngine<
               )
             ) {
               this.setToolPhase('wait')
+              await this.runTerminalHook()
               return
             }
             if (this.shouldExecuteToolPhase()) {
@@ -3867,7 +3871,11 @@ class TextEngine<
     }
 
     for (const pendingInput of inputRequired) {
-      const id = `mcp_input_${pendingInput.toolCallId}`
+      const previousStep = this.resumedMcpInputStep.get(pendingInput.toolCallId)
+      const id =
+        previousStep === undefined
+          ? `mcp_input_${pendingInput.toolCallId}`
+          : `mcp_input_${pendingInput.toolCallId}_${previousStep + 1}`
       interrupts.push({
         id,
         reason: pendingInput.reason ?? 'mcp_input',
@@ -5640,22 +5648,26 @@ class TextEngine<
     })
     pending.push(...genericPending)
     // An `mcp_input_*` answer is valid only for a server tool call that is
-    // still pending in history.
+    // still pending in history. Match step 1 (`mcp_input_<id>`) and later steps
+    // (`mcp_input_<id>_<n>` where n >= 2).
     for (const toolCall of pendingToolCalls) {
-      const interruptId = `mcp_input_${toolCall.id}`
-      if (!resumeInterruptIds.has(interruptId)) continue
       if (!toolsByCallId.get(toolCall.id)?.execute) continue
-      pending.push({
-        interruptId,
-        payload: { id: interruptId },
-        binding: {
-          v: INTERRUPT_BINDING_VERSION,
-          kind: 'generic',
+      for (const interruptId of resumeInterruptIds) {
+        if (mcpInputStepForToolCall(interruptId, toolCall.id) === undefined) {
+          continue
+        }
+        pending.push({
           interruptId,
-          interruptedRunId,
-          generation: 0,
-        },
-      })
+          payload: { id: interruptId },
+          binding: {
+            v: INTERRUPT_BINDING_VERSION,
+            kind: 'generic',
+            interruptId,
+            interruptedRunId,
+            generation: 0,
+          },
+        })
+      }
     }
     const validated = await validateInterruptResumeBatch({
       threadId: this.threadId,
@@ -5903,14 +5915,22 @@ class TextEngine<
           )
         )
           continue
-        const resolution = state.genericInterrupts.get(
-          `mcp_input_${toolCall.id}`,
-        )
-        if (!resolution) continue
+        let matchedStep: number | undefined
+        let matchedResolution: ChatResumeGenericResolution | undefined
+        for (const [interruptId, resolution] of state.genericInterrupts) {
+          const step = mcpInputStepForToolCall(interruptId, toolCall.id)
+          if (step === undefined) continue
+          if (matchedStep === undefined || step > matchedStep) {
+            matchedStep = step
+            matchedResolution = resolution
+          }
+        }
+        if (!matchedResolution || matchedStep === undefined) continue
+        this.resumedMcpInputStep.set(toolCall.id, matchedStep)
         this.resumeInputResponses.set(
           toolCall.id,
-          resolution.status === 'resolved'
-            ? { status: 'resolved', payload: resolution.payload }
+          matchedResolution.status === 'resolved'
+            ? { status: 'resolved', payload: matchedResolution.payload }
             : { status: 'cancelled' },
         )
       }
@@ -6764,7 +6784,17 @@ async function* streamTextChunks(
     const messages = options.messages ?? []
     // A resume can answer a child's interrupts. Those entries go to the child
     // tool call. The parent run validates only its own entries.
-    const turn = readSubagentTurn(messages, options.resume)
+    let turn = readSubagentTurn(messages, options.resume)
+    let parentRunId = options.parentRunId
+    if (!turn && messages.length === 0 && (options.resume?.length ?? 0) > 0) {
+      const loaded = await readRoutedSubagentPersistence(
+        options.middleware,
+      )?.loadMessages?.({ threadId })
+      if (loaded) {
+        turn = readSubagentTurn(loaded.messages, options.resume)
+        parentRunId ??= loaded.interruptedRunId
+      }
+    }
     const sink = createSubagentSink()
     const calls = subagentCallMessages(
       new Set(bag.agents.map((agent: DefinedAgent) => agent.name)),
@@ -6776,8 +6806,8 @@ async function* streamTextChunks(
       canContinue: continuesChildren(options.middleware),
       threadId,
       runId,
-      ...(options.parentRunId !== undefined && {
-        interruptedRunId: options.parentRunId,
+      ...(parentRunId !== undefined && {
+        interruptedRunId: parentRunId,
       }),
       ...(options.subagentRunId !== undefined && {
         parentSubagentRunId: options.subagentRunId,
@@ -6813,6 +6843,21 @@ async function* streamTextChunks(
   yield* runChatEngine(options, engineRef)
 }
 
+/** Step number for an MCP input interrupt id (`1` for base id, `n >= 2` for suffixed ids). */
+function mcpInputStepForToolCall(
+  interruptId: string,
+  toolCallId: string,
+): number | undefined {
+  const base = `mcp_input_${toolCallId}`
+  if (interruptId === base) return 1
+  const prefix = `${base}_`
+  if (!interruptId.startsWith(prefix)) return undefined
+  const suffix = interruptId.slice(prefix.length)
+  if (!/^[1-9]\d*$/.test(suffix)) return undefined
+  const step = Number(suffix)
+  return step >= 2 ? step : undefined
+}
+
 /** Add child usage to the next RUN_FINISHED of the parent. */
 async function* streamWithChildUsage(
   stream: AsyncIterable<StreamChunk>,
@@ -6837,7 +6882,16 @@ async function* runRoutedSubagents(
   const threadId = options.threadId
   const runId = options.runId ?? `run-${Date.now()}`
   const messages = options.messages ?? []
-  const turn = readSubagentTurn(messages, options.resume)
+  const subagentPersistence = readRoutedSubagentPersistence(options.middleware)
+  let turn = readSubagentTurn(messages, options.resume)
+  let parentRunId = options.parentRunId
+  if (!turn && messages.length === 0 && (options.resume?.length ?? 0) > 0) {
+    const loaded = await subagentPersistence?.loadMessages?.({ threadId })
+    if (loaded) {
+      turn = readSubagentTurn(loaded.messages, options.resume)
+      parentRunId ??= loaded.interruptedRunId
+    }
+  }
   if (!turn && (options.resume?.length ?? 0) > 0) {
     // No child owns these answers. Main raised them, after a main pick or a
     // handoff. Run main alone.
@@ -6849,7 +6903,9 @@ async function* runRoutedSubagents(
   }
   const abortSignal = options.abortController?.signal
   const turnMessages = turn?.before ?? messages
-  const subagentPersistence = readRoutedSubagentPersistence(options.middleware)
+  const childResumeIds = turn?.children.flatMap((child) =>
+    child.resume.map((entry) => entry.interruptId),
+  )
   await subagentPersistence?.start({
     threadId,
     runId,
@@ -6864,7 +6920,7 @@ async function* runRoutedSubagents(
       (turn &&
         savedPlan(turn.plan, bag.agents, {
           threadId,
-          interruptedRunId: options.parentRunId ?? runId,
+          interruptedRunId: parentRunId ?? runId,
           interruptIds: options.resume?.map((entry) => entry.interruptId) ?? [],
         })) ??
       normalizeRouterPick(
@@ -6890,8 +6946,16 @@ async function* runRoutedSubagents(
     const checked = await checkRoutedInputs(plan, bag.agents)
     const onlyStep = plan.steps.length === 1 ? plan.steps[0] : undefined
     if (onlyStep?.names.length === 1 && onlyStep.names[0] === 'main') {
-      // Earlier children own answers in this resume. Commit them first.
-      if (turn) await subagentPersistence?.finish({ threadId, runId })
+      // Earlier children own answers in this resume. Commit only theirs and
+      // keep the parent run open so main can commit or interrupt the rest.
+      if (turn) {
+        await subagentPersistence?.finish({
+          threadId,
+          runId,
+          ...(childResumeIds ? { interruptIds: childResumeIds } : {}),
+          handoffToMain: true,
+        })
+      }
       yield* runChatEngine(
         {
           ...options,
@@ -7035,7 +7099,12 @@ async function* runRoutedSubagents(
 
     if (sink.interrupts.length > 0) {
       const interrupts = rebindInterrupts(sink.interrupts, runId)
-      await subagentPersistence?.suspend?.({ threadId, runId, interrupts })
+      await subagentPersistence?.suspend?.({
+        threadId,
+        runId,
+        interrupts,
+        ...(childResumeIds ? { interruptIds: childResumeIds } : {}),
+      })
       yield withChildUsage(
         {
           type: EventType.RUN_FINISHED,
@@ -7052,9 +7121,14 @@ async function* runRoutedSubagents(
     const strategy = bag.strategy ?? 'exclusive'
     if (strategy === 'handoff') {
       const childText = stepTexts.join('\n\n')
-      // The children are done. Commit their answers and settle their records
-      // before main runs. Main's own persistence takes over from here.
-      await subagentPersistence?.finish({ threadId, runId })
+      // The children are done. Commit only their answers and keep the parent
+      // run open so main can commit or interrupt the rest.
+      await subagentPersistence?.finish({
+        threadId,
+        runId,
+        ...(childResumeIds ? { interruptIds: childResumeIds } : {}),
+        handoffToMain: true,
+      })
       yield* streamWithChildUsage(
         runChatEngine(
           {

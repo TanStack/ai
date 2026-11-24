@@ -1674,4 +1674,49 @@ describe('durableStream exact-once resume', () => {
     ])
     expect(server.closeCount()).toBe(1)
   })
+
+  it('recovers from a live 404 before producer creation and retries failed POST without advancing seq', async () => {
+    const server = makeProtocolServer()
+    let getAttempts = 0
+    let postAttempts = 0
+    const flakyFetch: typeof fetch = async (input, init) => {
+      const method = (init?.method ?? 'GET').toUpperCase()
+      if (method === 'GET' && getAttempts === 0) {
+        getAttempts += 1
+        return new Response('not found', { status: 404 })
+      }
+      if (method === 'POST' && postAttempts === 0) {
+        postAttempts += 1
+        return new Response('temporary failure', { status: 503 })
+      }
+      return server.fetchStub(input, init)
+    }
+
+    const producer = durableStream(
+      new Request('https://app.test/api/chat?runId=run-flaky-retry'),
+      { server: 'https://ds.test', fetch: flakyFetch },
+    )
+    // First POST fails with 503; retry must keep producerSeq at 1 (no gap).
+    await expect(producer.append([textChunk('first')])).rejects.toThrow()
+    await producer.append([textChunk('first')])
+    await producer.close()
+    expect(
+      server.batches.flatMap((batch) =>
+        batch.records.map((record) => record.seq),
+      ),
+    ).toEqual([1])
+
+    const reader = durableStream(
+      new Request('https://app.test/api/chat?runId=run-flaky-retry&offset=-1'),
+      { server: 'https://ds.test', fetch: flakyFetch },
+    )
+    const chunks: Array<StreamChunk> = []
+    for await (const event of reader.read('-1')) {
+      chunks.push(event.chunk)
+    }
+    expect(getAttempts).toBe(1)
+    expect(chunks.map((c) => (c.type === 'TEXT_MESSAGE_CONTENT' ? c.delta : ''))).toEqual([
+      'first',
+    ])
+  })
 })

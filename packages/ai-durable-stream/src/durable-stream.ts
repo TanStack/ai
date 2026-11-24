@@ -642,6 +642,7 @@ export function durableStream(
     let streamCursor: string | undefined
     let consecutiveReadFailures = 0
     let windowsPulled = 0
+    let ensuredOnNotFound = false
 
     for (;;) {
       if (signal?.aborted) return
@@ -670,6 +671,16 @@ export function durableStream(
       } catch (error) {
         if (signal?.aborted) return
         throw error
+      }
+      if (
+        response.status === 404 &&
+        !stopWhenUpToDate &&
+        !ensuredOnNotFound &&
+        (offset === '-1' || offset === 'now')
+      ) {
+        ensuredOnNotFound = true
+        await ensureCreated()
+        continue
       }
       if (!response.ok) throw httpFailure('read', response)
       if (!response.body) {
@@ -721,6 +732,9 @@ export function durableStream(
             dataStartOffset = backendOffset
             sawControl = true
             dataAwaitingControl = false
+            if (stopWhenUpToDate && (control.streamClosed === true || control.upToDate === true)) {
+              appendTailOffset = backendOffset
+            }
             if (control.streamClosed === true) return
             // A snapshot has now been handed everything the backend holds.
             // Returning here abandons the rest of the SSE body, which the
@@ -735,15 +749,14 @@ export function durableStream(
       } catch (error) {
         if (signal?.aborted) return
         if (error instanceof ResponseBodyReadFailure) {
-          if (
+          const madeProgress =
             yieldedData ||
             (sawControl &&
               (backendOffset !== requestOffset ||
                 streamCursor !== requestCursor))
-          ) {
-            // Made progress before the body failed — retry from the last valid
-            // position, but cap consecutive failures and throttle so a
-            // persistently failing backend surfaces the error, not a hot loop.
+          if (madeProgress || !stopWhenUpToDate) {
+            // Retry from the last valid position (including an idle live window
+            // that dropped before its first frame), capped by maxReadFailures.
             consecutiveReadFailures += 1
             if (consecutiveReadFailures > maxReadFailures) throw error.readError
             await abortableDelay(readRetryDelayMs, signal)
@@ -884,11 +897,7 @@ export function durableStream(
           chunk,
         }),
       )
-      // Through `observeSeq`, so a concurrent read that already pushed the
-      // counter further cannot be walked backwards.
-      observeSeq(firstSeq + records.length - 1)
       const requestProducerSeq = producerSeq
-      producerSeq += 1
       const requestInit: RequestInit = {
         method: 'POST',
         headers: await resolveHeaders({
@@ -914,6 +923,10 @@ export function durableStream(
       }
       if (!response.ok) throw httpFailure('append', response)
       const nextOffset = requireNextOffset(response, 'append')
+      // Advance sequence counters only after the backend confirms the append so
+      // a failed POST does not create a permanent Producer-Seq / seq gap.
+      observeSeq(firstSeq + records.length - 1)
+      producerSeq += 1
       appendTailOffset = nextOffset
       return records.map((record) =>
         encodeCursor({
