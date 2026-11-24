@@ -33,7 +33,6 @@
     "maintainer:sweep": "node scripts/maintainer/sweep.ts",
     "maintainer:scorecard": "node scripts/maintainer/scorecard.ts",
     "test:kiira": "kiira check",
-    "test:react-native": "pnpm --filter @tanstack/ai-react-native-smoke smoke",
     "test:e2e": "pnpm --filter @tanstack/ai-e2e test:e2e",
     "test:e2e:ui": "pnpm --filter @tanstack/ai-e2e test:e2e:ui",
     "codemod:ag-ui-compliance": "pnpm --filter @tanstack/ai-codemods exec node ./run.mjs ag-ui-compliance",

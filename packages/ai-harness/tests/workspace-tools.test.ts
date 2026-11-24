@@ -170,12 +170,7 @@ async function openSession(
 const toolNames = (call: { tools: Array<{ name: string }> }) =>
   call.tools.map((tool) => tool.name)
 
-/**
- * Is the process `pid` still running? A zombie is not: it ended, but no
- * process reaped it. In a container whose PID 1 does not reap (such as
- * `sleep infinity`), a killed command that lost its shell stays a zombie,
- * and signal 0 still finds it.
- */
+/** Is the process `pid` still running? */
 function isRunning(pid: number) {
   try {
     process.kill(pid, 0)
@@ -187,7 +182,6 @@ function isRunning(pid: number) {
   // its state on Linux. With no /proc, the process counts as running.
   try {
     const stat = readFileSync(`/proc/${pid}/stat`, 'utf8')
-    // The state comes after the name, which is in parentheses.
     return !stat.slice(stat.lastIndexOf(')') + 2).startsWith('Z')
   } catch {
     return true
