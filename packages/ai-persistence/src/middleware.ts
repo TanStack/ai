@@ -2494,8 +2494,11 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           // message. This covers a row the run started before this merge: an
           // event sent from setup drains RUN_STARTED early, so the row was
           // indexed against the request alone (#2246). `index` counts the
-          // earlier activity rows too, so subtract them.
-          const requestUi = modelMessagesToUIMessages(config.messages).length
+          // earlier activity rows too, so subtract them. The engine indexed
+          // against the request as received, which is `ctx.messages` during
+          // init, not `config.messages` after earlier middleware.
+          // ponytail: assumes one row per index, like keptActivities.
+          const requestUi = modelMessagesToUIMessages([...ctx.messages]).length
           const tail = new Set(
             [...(ctx.activities ?? [])]
               .sort((a, b) => a.index - b.index)

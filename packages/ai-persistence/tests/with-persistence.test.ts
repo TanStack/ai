@@ -1905,6 +1905,54 @@ describe('withPersistence (state-only)', () => {
         ['research-r2', 4],
       ])
     })
+
+    it('counts the request as received when an earlier middleware trims its messages', async () => {
+      const persistence = memoryPersistence()
+      await persistence.stores.messages!.saveThread('t1', [
+        { id: 'u1', role: 'user', content: 'q1' },
+        { id: 'a1', role: 'assistant', content: 'answer' },
+      ])
+      // The engine indexed the rows against the request as received, so a
+      // middleware that shortens `messages` must not change which rows move.
+      const lastTurnOnly: ChatMiddleware = {
+        name: 'last-turn-only',
+        onConfig: (ctx, config) =>
+          ctx.phase === 'init'
+            ? { messages: config.messages.slice(-1) }
+            : undefined,
+      }
+      const { adapter } = mockAdapter([
+        [ev.runStarted('r2'), ev.runFinished('r2')],
+      ])
+      await collect(
+        chat({
+          adapter,
+          messages: [
+            { id: 'u1', role: 'user', content: 'q1' },
+            {
+              id: 'act-inbound',
+              role: 'activity',
+              parts: [{ type: 'activity', activityType: 'PLAN', content: {} }],
+            },
+            { id: 'a1', role: 'assistant', content: 'answer' },
+            { id: 'u2', role: 'user', content: 'q2' },
+          ],
+          runId: 'r2',
+          threadId: 't1',
+          middleware: [
+            setupEvent,
+            lastTurnOnly,
+            withPersistence(persistence),
+            research,
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      const records = await persistence.stores.activities.loadActivities('t1')
+      expect(records.map((record) => [record.id, record.index])).toEqual([
+        ['act-inbound', 1],
+        ['research-r2', 4],
+      ])
+    })
   })
 
   // #1804: a stopped or failed run must keep its activity rows too.
