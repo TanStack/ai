@@ -1743,7 +1743,11 @@ describe('withPersistence (state-only)', () => {
         }) as AsyncIterable<StreamChunk>,
       )
       const records = await persistence.stores.activities.loadActivities('t1')
-      expect(records.map((record) => record.id)).toEqual(['act-1', 'act-2'])
+      // The merged thread is [u1, act-1, a1, u2, act-2], so act-2 is after u2.
+      expect(records.map((record) => [record.id, record.index])).toEqual([
+        ['act-1', 1],
+        ['act-2', 4],
+      ])
     })
 
     it('drops the rows of a turn that a reload replaces', async () => {
@@ -1752,6 +1756,202 @@ describe('withPersistence (state-only)', () => {
       expect(await persistence.stores.activities.loadActivities('t1')).toEqual(
         [],
       )
+    })
+  })
+
+  // #2246: an event sent from setup drains RUN_STARTED before the init
+  // onConfig merge, so a row started there was indexed against the request.
+  describe('activity started before the stored thread is merged', () => {
+    // Stands in for withSandbox, which sends sandbox.starting from setup.
+    const setupEvent: ChatMiddleware = {
+      name: 'setup-event',
+      setup: (ctx) => ctx.emitCustomEvent('sandbox.starting', {}),
+    }
+    // Starts one activity row per run, as a trail or progress row does.
+    const research: ChatMiddleware = {
+      name: 'research',
+      onChunk: (ctx, chunk) =>
+        chunk.type === EventType.RUN_STARTED
+          ? [
+              chunk,
+              {
+                type: EventType.ACTIVITY_SNAPSHOT,
+                messageId: `research-${ctx.runId}`,
+                activityType: 'RESEARCH',
+                content: {},
+                timestamp: 1,
+              },
+            ]
+          : undefined,
+    }
+
+    async function threeTurns(
+      request: (
+        persistence: ReturnType<typeof memoryPersistence>,
+        user: ModelMessage,
+      ) => Promise<Array<ModelMessage>>,
+    ) {
+      const persistence = memoryPersistence()
+      for (const turn of [1, 2, 3]) {
+        const runId = `r${turn}`
+        const { adapter } = mockAdapter([
+          [
+            ev.runStarted(runId),
+            {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: `a${turn}`,
+              role: 'assistant',
+              timestamp: 1,
+            },
+            {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: `a${turn}`,
+              delta: 'answer',
+              timestamp: 1,
+            },
+            {
+              type: EventType.TEXT_MESSAGE_END,
+              messageId: `a${turn}`,
+              timestamp: 1,
+            },
+            ev.runFinished(runId),
+          ],
+        ])
+        const user: ModelMessage = {
+          id: `u${turn}`,
+          role: 'user',
+          content: `q${turn}`,
+        }
+        await collect(
+          chat({
+            adapter,
+            messages: await request(persistence, user),
+            runId,
+            threadId: 't1',
+            middleware: [setupEvent, withPersistence(persistence), research],
+          }) as AsyncIterable<StreamChunk>,
+        )
+      }
+      return persistence
+    }
+
+    async function expectEachRowAfterItsTurn(
+      persistence: ReturnType<typeof memoryPersistence>,
+    ) {
+      const records = await persistence.stores.activities.loadActivities('t1')
+      expect(records.map((record) => record.index)).toEqual([1, 4, 7])
+      const reconstructed = (await (
+        await reconstructChat(
+          persistence,
+          new Request('http://example.test/api/chat?threadId=t1'),
+        )
+      ).json()) as { messages: Array<{ id: string }> }
+      expect(reconstructed.messages.map((message) => message.id)).toEqual([
+        'u1',
+        'research-r1',
+        'a1',
+        'u2',
+        'research-r2',
+        'a2',
+        'u3',
+        'research-r3',
+        'a3',
+      ])
+    }
+
+    it('puts the row after its turn when the request has only that turn', async () => {
+      const persistence = await threeTurns(async (_, user) => [user])
+      await expectEachRowAfterItsTurn(persistence)
+    })
+
+    it('puts the row after its turn when the request has the full transcript', async () => {
+      const persistence = await threeTurns(async (persistence, user) => [
+        ...(await loadedThread(persistence)),
+        user,
+      ])
+      await expectEachRowAfterItsTurn(persistence)
+    })
+
+    it('counts the activity rows that the request carries', async () => {
+      const persistence = memoryPersistence()
+      await persistence.stores.messages!.saveThread('t1', [
+        { id: 'u1', role: 'user', content: 'q1' },
+        { id: 'a1', role: 'assistant', content: 'answer' },
+      ])
+      const { adapter } = mockAdapter([
+        [ev.runStarted('r2'), ev.runFinished('r2')],
+      ])
+      await collect(
+        chat({
+          adapter,
+          messages: [
+            { id: 'u1', role: 'user', content: 'q1' },
+            {
+              id: 'act-inbound',
+              role: 'activity',
+              parts: [{ type: 'activity', activityType: 'PLAN', content: {} }],
+            },
+            { id: 'a1', role: 'assistant', content: 'answer' },
+            { id: 'u2', role: 'user', content: 'q2' },
+          ],
+          runId: 'r2',
+          threadId: 't1',
+          middleware: [setupEvent, withPersistence(persistence), research],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      const records = await persistence.stores.activities.loadActivities('t1')
+      expect(records.map((record) => [record.id, record.index])).toEqual([
+        ['act-inbound', 1],
+        ['research-r2', 4],
+      ])
+    })
+
+    it('counts the request as received when an earlier middleware trims its messages', async () => {
+      const persistence = memoryPersistence()
+      await persistence.stores.messages!.saveThread('t1', [
+        { id: 'u1', role: 'user', content: 'q1' },
+        { id: 'a1', role: 'assistant', content: 'answer' },
+      ])
+      // The engine indexed the rows against the request as received, so a
+      // middleware that shortens `messages` must not change which rows move.
+      const lastTurnOnly: ChatMiddleware = {
+        name: 'last-turn-only',
+        onConfig: (ctx, config) =>
+          ctx.phase === 'init'
+            ? { messages: config.messages.slice(-1) }
+            : undefined,
+      }
+      const { adapter } = mockAdapter([
+        [ev.runStarted('r2'), ev.runFinished('r2')],
+      ])
+      await collect(
+        chat({
+          adapter,
+          messages: [
+            { id: 'u1', role: 'user', content: 'q1' },
+            {
+              id: 'act-inbound',
+              role: 'activity',
+              parts: [{ type: 'activity', activityType: 'PLAN', content: {} }],
+            },
+            { id: 'a1', role: 'assistant', content: 'answer' },
+            { id: 'u2', role: 'user', content: 'q2' },
+          ],
+          runId: 'r2',
+          threadId: 't1',
+          middleware: [
+            setupEvent,
+            lastTurnOnly,
+            withPersistence(persistence),
+            research,
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      const records = await persistence.stores.activities.loadActivities('t1')
+      expect(records.map((record) => [record.id, record.index])).toEqual([
+        ['act-inbound', 1],
+        ['research-r2', 4],
+      ])
     })
   })
 

@@ -2490,11 +2490,34 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
               storedCutoff(stored, config.messages),
             ).map((record) => [record.id, record]),
           )
+          // A new row after every request message goes after every merged
+          // message. This covers a row the run started before this merge: an
+          // event sent from setup drains RUN_STARTED early, so the row was
+          // indexed against the request alone (#2246). `index` counts the
+          // earlier activity rows too, so subtract them. The engine indexed
+          // against the request as received, which is `ctx.messages` during
+          // init, not `config.messages` after earlier middleware.
+          // ponytail: assumes one row per index, like keptActivities.
+          const requestUi = modelMessagesToUIMessages([...ctx.messages]).length
+          const tail = new Set(
+            [...(ctx.activities ?? [])]
+              .sort((a, b) => a.index - b.index)
+              .filter(
+                (record, earlier) =>
+                  !byId.has(record.id) && record.index - earlier >= requestUi,
+              ),
+          )
           // Same merge as the messages: an inbound row replaces the stored row
           // with its id and keeps the stored position.
           for (const record of ctx.activities ?? []) {
+            if (tail.has(record)) continue
             const index = byId.get(record.id)?.index ?? record.index
             byId.set(record.id, { ...record, index })
+          }
+          // `byId.size` is the number of rows ahead of this one.
+          const mergedUi = modelMessagesToUIMessages(patch.messages).length
+          for (const record of tail) {
+            byId.set(record.id, { ...record, index: mergedUi + byId.size })
           }
           patch.activities = [...byId.values()]
         }
