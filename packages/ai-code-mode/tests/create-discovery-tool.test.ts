@@ -100,4 +100,11 @@ describe("createDiscoveryTool — catalog 'search'", () => {
     const result = await tool.execute!({ toolNames: ['external_sendEmail'] })
     expect(result.tools.map((t) => t.name)).toEqual(['external_sendEmail'])
   })
+
+  it('returns an error when called with no query and no names', async () => {
+    const tool = createDiscoveryTool([lazyA, lazyB], { catalog: 'search' })
+    const result = await tool.execute!({})
+    expect(result.tools).toEqual([])
+    expect(result.errors?.[0]).toContain('Pass a query or toolNames.')
+  })
 })

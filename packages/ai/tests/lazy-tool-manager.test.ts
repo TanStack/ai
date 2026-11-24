@@ -554,6 +554,7 @@ describe("LazyToolManager — catalog 'search'", () => {
     expect(discovery.description).not.toContain('check_stock')
     expect(discovery.inputSchema).toMatchObject({
       properties: { query: { type: 'string' } },
+      anyOf: [{ required: ['query'] }, { required: ['toolNames'] }],
     })
   })
 
@@ -581,6 +582,22 @@ describe("LazyToolManager — catalog 'search'", () => {
     const result = await discoveryOf(mgr).execute!({
       toolNames: ['search_inventory'],
     })
+    expect(result.tools.map((t: { name: string }) => t.name)).toEqual([
+      'search_inventory',
+    ])
+  })
+
+  it('returns an error when called with no query and no names', async () => {
+    const mgr = new LazyToolManager(tools, [], { catalog: 'search' })
+    const result = await discoveryOf(mgr).execute!({})
+    expect(result.tools).toEqual([])
+    expect(result.errors?.[0]).toContain('Pass a query or toolNames.')
+  })
+
+  it('a second search returns tools not yet discovered', async () => {
+    const mgr = new LazyToolManager(tools, [], { catalog: 'search' })
+    await discoveryOf(mgr).execute!({ query: 'stock level' })
+    const result = await discoveryOf(mgr).execute!({ query: 'guitar' })
     expect(result.tools.map((t: { name: string }) => t.name)).toEqual([
       'search_inventory',
     ])

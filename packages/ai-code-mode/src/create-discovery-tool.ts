@@ -20,20 +20,27 @@ const discoverInputSchema = z.object({
 })
 
 /** Input for `catalog: 'search'`: a query, exact names, or both. */
-const discoverSearchInputSchema = z.object({
-  query: z
-    .string()
-    .optional()
-    .describe(
-      'What you need to do, in a few words. Returns the best matching functions.',
-    ),
-  toolNames: z
-    .array(z.string())
-    .optional()
-    .describe(
-      'Exact function names to discover. The external_ prefix is optional.',
-    ),
-})
+const discoverSearchInputSchema = z
+  .object({
+    query: z
+      .string()
+      .optional()
+      .describe(
+        'What you need to do, in a few words. Returns the best matching functions.',
+      ),
+    toolNames: z
+      .array(z.string())
+      .optional()
+      .describe(
+        'Exact function names to discover. The external_ prefix is optional.',
+      ),
+  })
+  .refine(
+    (value) =>
+      Boolean(value.query?.trim()) ||
+      Boolean(value.toolNames && value.toolNames.length > 0),
+    { message: 'Pass a query or toolNames.' },
+  )
 
 const discoverOutputSchema = z.object({
   tools: z.array(
@@ -108,10 +115,13 @@ export function createDiscoveryTool(
     const errors: Array<string> = []
 
     const names = new Set((toolNames ?? []).map(stripExternalPrefix))
-    if (query) {
-      const found = searchLazyTools(lazyTools, query)
+    const q = query?.trim() ?? ''
+    if (search && !q && names.size === 0) {
+      errors.push('Pass a query or toolNames.')
+    } else if (q) {
+      const found = searchLazyTools(lazyTools, q)
       if (found.length === 0) {
-        errors.push(`No functions match '${query}'. Try other words.`)
+        errors.push(`No functions match '${q}'. Try other words.`)
       }
       for (const tool of found) names.add(tool.name)
     }

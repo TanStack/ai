@@ -270,6 +270,7 @@ export class LazyToolManager {
                 description: 'Exact names of tools to discover.',
               },
             },
+            anyOf: [{ required: ['query'] }, { required: ['toolNames'] }],
           }
         : {
             type: 'object',
@@ -292,10 +293,18 @@ export class LazyToolManager {
         const errors: Array<string> = []
 
         const names = new Set(args.toolNames ?? [])
-        if (args.query) {
-          const found = searchLazyTools(lazyToolMap.values(), args.query)
+        const query = args.query?.trim() ?? ''
+        if (search && !query && names.size === 0) {
+          errors.push('Pass a query or toolNames.')
+        } else if (query) {
+          const found = searchLazyTools(
+            Array.from(lazyToolMap.values()).filter(
+              (t) => !manager.discoveredTools.has(t.name),
+            ),
+            query,
+          )
           if (found.length === 0) {
-            errors.push(`No tools match '${args.query}'. Try other words.`)
+            errors.push(`No tools match '${query}'. Try other words.`)
           }
           for (const tool of found) names.add(tool.name)
         }
