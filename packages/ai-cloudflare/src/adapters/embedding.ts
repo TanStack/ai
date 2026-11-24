@@ -5,7 +5,11 @@ import { requireTextOnlyEmbeddingInput } from '@tanstack/ai'
 import { resolveConfigFromEnv } from '../utils/config'
 import { runModel } from '../utils/run'
 import type { EmbeddingOptions, EmbeddingResult } from '@tanstack/ai'
-import type { CloudflareConfig, CloudflareConfigInput } from '../utils/config'
+import type {
+  CloudflareAdapterConfig,
+  CloudflareConfig,
+  CloudflareConfigInput,
+} from '../utils/config'
 import type { CloudflareEmbeddingModel } from '../utils/models'
 
 /**
@@ -28,11 +32,22 @@ export class CloudflareEmbeddingAdapter<
 > extends BaseEmbeddingAdapter<TModel, CloudflareEmbeddingProviderOptions> {
   readonly name = 'cloudflare' as const
 
+  private readonly cfConfig: CloudflareConfig
+  readonly defaultModelOptions: CloudflareEmbeddingProviderOptions | undefined
+
   constructor(
-    private readonly cfConfig: CloudflareConfig,
+    {
+      defaultModelOptions,
+      ...cfConfig
+    }: CloudflareAdapterConfig<
+      CloudflareConfig,
+      CloudflareEmbeddingProviderOptions
+    >,
     model: TModel,
   ) {
     super(model, {})
+    this.cfConfig = cfConfig
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async createEmbeddings(
@@ -95,13 +110,28 @@ export class CloudflareEmbeddingAdapter<
 
 export function createCloudflareEmbedding<
   TModel extends CloudflareEmbeddingModel,
->(model: TModel, config: CloudflareConfig): CloudflareEmbeddingAdapter<TModel> {
+>(
+  model: TModel,
+  config: CloudflareAdapterConfig<
+    CloudflareConfig,
+    CloudflareEmbeddingProviderOptions
+  >,
+): CloudflareEmbeddingAdapter<TModel> {
   return new CloudflareEmbeddingAdapter(config, model)
 }
 
 export function cloudflareEmbedding<TModel extends CloudflareEmbeddingModel>(
   model: TModel,
-  config?: CloudflareConfigInput,
+  config?: CloudflareAdapterConfig<
+    CloudflareConfigInput,
+    CloudflareEmbeddingProviderOptions
+  >,
 ): CloudflareEmbeddingAdapter<TModel> {
-  return new CloudflareEmbeddingAdapter(resolveConfigFromEnv(config), model)
+  return new CloudflareEmbeddingAdapter(
+    {
+      ...resolveConfigFromEnv(config),
+      defaultModelOptions: config?.defaultModelOptions,
+    },
+    model,
+  )
 }

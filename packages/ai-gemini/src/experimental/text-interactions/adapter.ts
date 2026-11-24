@@ -59,7 +59,14 @@ import type { GeminiClientConfig } from '../../utils/client'
 type Interaction = Interactions.Interaction
 type InteractionSSEEvent = Interactions.InteractionSSEEvent
 
-export type GeminiTextInteractionsConfig = GeminiClientConfig
+export type GeminiTextInteractionsConfig = GeminiClientConfig & {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: ResolveProviderOptions
+}
 
 export type GeminiTextInteractionsProviderOptions =
   ExternalTextInteractionsProviderOptions
@@ -232,9 +239,14 @@ export class GeminiTextInteractionsAdapter<
   // single user message — anything else is a follow-up). Errors evict
   // immediately so a failed turn never chains into the next one.
   private readonly interactionIdByThread = new Map<string, string>()
+  readonly defaultModelOptions: ResolveProviderOptions | undefined
 
-  constructor(config: GeminiTextInteractionsConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: GeminiTextInteractionsConfig,
+    model: TModel,
+  ) {
     super({}, model)
+    this.defaultModelOptions = defaultModelOptions
     this.provider =
       config.vertexai === true || config.enterprise === true
         ? 'google-vertex'

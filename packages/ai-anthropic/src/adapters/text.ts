@@ -550,7 +550,9 @@ const DEFERRED_TOOL_PLACEHOLDER: BetaTool = {
 /**
  * Configuration for Anthropic text adapter
  */
-export interface AnthropicTextConfig extends AnthropicClientConfig {
+export interface AnthropicTextConfig<
+  TModel extends string = string,
+> extends AnthropicClientConfig {
   /**
    * The mid-conversation channels (the
    * `mid-conversation-tool-changes-2026-07-01` beta and mid-conversation
@@ -566,16 +568,24 @@ export interface AnthropicTextConfig extends AnthropicClientConfig {
   allowEmptySignature?: boolean
   /** Identify a gateway separately from the direct Anthropic API. */
   provider?: string
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: ResolveProviderOptions<TModel>
 }
 
-export type AnthropicTextAdapterConfig =
-  | AnthropicTextConfig
+export type AnthropicTextAdapterConfig<TModel extends string = string> =
+  | AnthropicTextConfig<TModel>
   | {
       client: AnthropicMessagesClient
       /** See {@link AnthropicTextConfig.midConversationChannels}. */
       midConversationChannels?: boolean
       allowEmptySignature?: boolean
       provider?: string
+      /** See {@link AnthropicTextConfig.defaultModelOptions}. */
+      defaultModelOptions?: ResolveProviderOptions<TModel>
     }
 
 /** The headers that Claude Code sends with an OAuth token. */
@@ -698,9 +708,14 @@ export class AnthropicTextAdapter<
   /** The adapter's own client. An injected client cannot take a fetch. */
   private readonly sdkClient: AnthropicClient | undefined
   private readonly baseFetch: typeof fetch | undefined
+  readonly defaultModelOptions: ResolveProviderOptions<TModel> | undefined
 
-  constructor(config: AnthropicTextAdapterConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: AnthropicTextAdapterConfig<TModel>,
+    model: TModel,
+  ) {
     super({}, model)
+    this.defaultModelOptions = defaultModelOptions
     this.provider = config.provider ?? this.name
     this.allowEmptySignature = config.allowEmptySignature ?? false
     // On by default only on Anthropic's own API: a proxy, a gateway, Vertex,
@@ -2693,7 +2708,7 @@ export function createAnthropicChat<
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<AnthropicTextConfig, 'apiKey'>,
+  config?: Omit<AnthropicTextConfig<TModel>, 'apiKey'>,
 ): AnthropicTextAdapter<
   TModel,
   ResolveProviderOptions<TModel>,
@@ -2727,7 +2742,7 @@ export function createAnthropicChatWithClient<
  */
 export function anthropicText<TModel extends (typeof ANTHROPIC_MODELS)[number]>(
   model: TModel,
-  config?: Omit<AnthropicTextConfig, 'apiKey'>,
+  config?: Omit<AnthropicTextConfig<TModel>, 'apiKey'>,
 ): AnthropicTextAdapter<
   TModel,
   ResolveProviderOptions<TModel>,

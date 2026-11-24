@@ -1,7 +1,7 @@
 import { AnthropicVertex } from '@anthropic-ai/vertex-sdk'
-import { createAnthropicChatWithClient } from '../adapters/text'
+import { AnthropicTextAdapter } from '../adapters/text'
 import { resolveAnthropicVertexOptions } from './auth'
-import type { AnthropicTextAdapter } from '../adapters/text'
+import type { AnthropicTextConfig } from '../adapters/text'
 import type { AnthropicVertexChatModel } from '../model-meta'
 import type { AnthropicVertexConfig } from './auth'
 
@@ -22,8 +22,12 @@ export {
  */
 export function anthropicVertexText<TModel extends AnthropicVertexChatModel>(
   model: TModel,
-  config: AnthropicVertexConfig = {},
+  config: AnthropicVertexConfig &
+    Pick<AnthropicTextConfig<TModel>, 'defaultModelOptions'> = {},
 ): AnthropicTextAdapter<TModel> {
-  const client = new AnthropicVertex(resolveAnthropicVertexOptions(config))
-  return createAnthropicChatWithClient(model, client)
+  const { defaultModelOptions, ...vertexConfig } = config
+  const client = new AnthropicVertex(
+    resolveAnthropicVertexOptions(vertexConfig),
+  )
+  return new AnthropicTextAdapter({ client, defaultModelOptions }, model)
 }

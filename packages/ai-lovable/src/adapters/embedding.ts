@@ -19,7 +19,14 @@ import type {
 import type { LovableEmbeddingProviderOptions } from '../embedding/embedding-provider-options'
 import type { LovableClientConfig } from '../utils/client'
 
-export interface LovableEmbeddingConfig extends LovableClientConfig {}
+export interface LovableEmbeddingConfig extends LovableClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: LovableEmbeddingProviderOptions
+}
 
 export class LovableEmbeddingAdapter<
   TModel extends LovableEmbeddingModel,
@@ -32,10 +39,15 @@ export class LovableEmbeddingAdapter<
   readonly name = 'lovable' as const
 
   protected client: OpenAIClientLike
+  readonly defaultModelOptions: LovableEmbeddingProviderOptions | undefined
 
-  constructor(config: LovableEmbeddingConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: LovableEmbeddingConfig,
+    model: TModel,
+  ) {
     super(model, {})
     this.client = createOpenAIClient(withLovableDefaults(config))
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async createEmbeddings(

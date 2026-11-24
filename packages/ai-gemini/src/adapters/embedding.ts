@@ -26,7 +26,14 @@ const GEMINI_MAX_BATCH_SIZE = 100
 /**
  * Configuration for Gemini Embedding adapter
  */
-export interface GeminiEmbeddingConfig extends GeminiClientConfig {}
+export interface GeminiEmbeddingConfig extends GeminiClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: GeminiEmbeddingProviderOptions
+}
 
 /**
  * Gemini Embedding Adapter
@@ -51,9 +58,14 @@ export class GeminiEmbeddingAdapter<
   readonly name = 'gemini' as const
 
   protected client: GeminiClient
+  readonly defaultModelOptions: GeminiEmbeddingProviderOptions | undefined
 
-  constructor(config: GeminiEmbeddingConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: GeminiEmbeddingConfig,
+    model: TModel,
+  ) {
     super(model, {})
+    this.defaultModelOptions = defaultModelOptions
     this.client = createGeminiClient(config)
   }
 

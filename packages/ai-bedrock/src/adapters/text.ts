@@ -21,9 +21,19 @@ import type {
   ResolveProviderOptions,
 } from '../model-meta'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
+import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 
-export interface BedrockTextConfig
-  extends BedrockClientConfig, OpenAIBaseTextAdapterOptions {}
+export interface BedrockTextConfig<
+  TProviderOptions = ExternalTextProviderOptions,
+>
+  extends BedrockClientConfig, OpenAIBaseTextAdapterOptions {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
 
 export type { ExternalTextProviderOptions as BedrockTextProviderOptions } from '../text/text-provider-options'
 
@@ -71,12 +81,16 @@ export class BedrockTextAdapter<
   override readonly provider = 'amazon-bedrock'
   override readonly inputModalities = BEDROCK_MODEL_INPUT_MODALITIES[this.model]
 
-  constructor(config: BedrockTextConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: BedrockTextConfig<TProviderOptions>,
+    model: TModel,
+  ) {
     // No `forced` -> honors config.endpoint ('runtime' default, 'mantle' allowed).
     const options = withBedrockDefaults(config, undefined, model)
     super(model, 'bedrock', createOpenAIClient(options), {
       ...config,
       fetch: options.fetch,
+      defaultModelOptions,
     })
   }
 
@@ -129,7 +143,7 @@ function readDeltaReasoning(chunk: unknown): { text: string } | undefined {
 export function createBedrockChat<TModel extends BedrockChatModels>(
   model: TModel,
   apiKey: string,
-  config?: Omit<BedrockTextConfig, 'apiKey'>,
+  config?: Omit<BedrockTextConfig<ResolveProviderOptions<TModel>>, 'apiKey'>,
 ): BedrockTextAdapter<TModel> {
   return new BedrockTextAdapter({ ...config, apiKey }, model)
 }

@@ -25,6 +25,20 @@ export interface MeshyClientConfig {
 }
 
 /**
+ * `MeshyClientConfig` plus the options of one adapter.
+ *
+ * @experimental Meshy support is experimental and may change.
+ */
+export type MeshyAdapterConfig<TProviderOptions> = MeshyClientConfig & {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under the
+   * call's `modelOptions`. A key the call sets replaces the default key in
+   * full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
+
+/**
  * The error for a Meshy response that is not 2xx. `status` is the HTTP status.
  *
  * @experimental Meshy support is experimental and may change.

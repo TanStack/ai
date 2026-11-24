@@ -44,6 +44,12 @@ export interface OpenAIVideoConfig extends OpenAIClientConfig {
    * to `true` to opt into buffering.
    */
   allowUrlFetch?: boolean
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: OpenAIVideoProviderOptions
 }
 
 /**
@@ -73,6 +79,7 @@ export class OpenAIVideoAdapter<
 
   protected client: OpenAIClientLike
   protected clientConfig: OpenAIVideoConfig
+  readonly defaultModelOptions: OpenAIVideoProviderOptions | undefined
 
   constructor(config: OpenAIVideoConfig, model: TModel) {
     // `VideoAdapterConfig` declares its optional fields without `| undefined`,
@@ -80,8 +87,13 @@ export class OpenAIVideoAdapter<
     // We hold our own typed copy on `clientConfig` and pass an empty object up.
     super({}, model)
     this.clientConfig = config
-    const { allowUrlFetch: _allowUrlFetch, ...clientOptions } = config
+    const {
+      allowUrlFetch: _allowUrlFetch,
+      defaultModelOptions,
+      ...clientOptions
+    } = config
     this.client = createOpenAIClient(clientOptions)
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async createVideoJob(

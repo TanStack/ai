@@ -111,6 +111,12 @@ export interface AcpCompatibleConfig<
    */
   modelOptions?: TModelOptions
   /**
+   * Default `modelOptions` for every call. `chat()` merges them under the
+   * call's `modelOptions`. A key the call sets replaces the default key in
+   * full.
+   */
+  defaultModelOptions?: AcpCompatibleProviderOptions & TModelOptions
+  /**
    * Build the shell command that launches the harness's ACP server over
    * **stdio** inside the sandbox (e.g. `` `pi --acp -m ${model}` ``). Required
    * unless {@link openTransport} is provided.
@@ -255,6 +261,8 @@ export class AcpCompatibleTextAdapter<
   /** `toolChoice` warnings that this instance already logged. */
   private readonly toolChoiceWarnings = new Set<string>()
 
+  readonly defaultModelOptions: ResolvedOptions<TModelOptions> | undefined
+
   constructor(
     config: AcpCompatibleConfig<ReadonlyArray<string>, TModelOptions>,
     model: TModel,
@@ -265,8 +273,10 @@ export class AcpCompatibleTextAdapter<
         `acpCompatible("${config.name}") needs either a "command" or an "openTransport".`,
       )
     }
-    this.harness = config
+    const { defaultModelOptions, ...harness } = config
+    this.harness = harness
     this.name = config.name
+    this.defaultModelOptions = defaultModelOptions
   }
 
   supportsCombinedToolsAndSchema(): boolean {

@@ -296,6 +296,38 @@ export function ImageGenerator() {
 }
 ```
 
+### Same model options on every call
+
+You want every image in the same quality and format. Writing the same `modelOptions` at each call site is easy to forget. Put them on the adapter once with `defaultModelOptions`:
+
+```typescript
+import { generateImage } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+
+const adapter = openaiImage('gpt-image-2.6-flare', {
+  defaultModelOptions: { quality: 'high', output_format: 'webp' },
+})
+
+// Sends quality: 'high' and output_format: 'webp'
+const poster = await generateImage({
+  adapter,
+  prompt: 'A sunset over mountains',
+  threadId: 'poster',
+})
+
+// Sends quality: 'low' and output_format: 'webp'
+const draft = await generateImage({
+  adapter,
+  prompt: 'A sunset over mountains',
+  threadId: 'draft',
+  modelOptions: { quality: 'low' },
+})
+```
+
+Every media adapter takes `defaultModelOptions`: image, speech, transcription, video, audio, voice, 3D, and world.
+
+The activity merges the defaults under the call's `modelOptions`, one level deep. A key that the call sets replaces the default key in full.
+
 ### Hook options and return values
 
 All generation hooks share one set of options and one return shape. The full tables, result transforms, and the framework variants are in [Generation Hooks](./generation-hooks).

@@ -19,6 +19,7 @@ import type {
   ResolveProviderOptions,
 } from '../model-meta'
 import type { LLMGatewayMessageMetadataByModality } from '../message-types'
+import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type { LLMGatewayClientConfig } from '../utils/client'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 import type OpenAI from 'openai'
@@ -44,8 +45,17 @@ type ResolveToolCapabilities<TModel extends string> =
 /**
  * Configuration for LLM Gateway text adapter
  */
-export interface LLMGatewayTextConfig
-  extends LLMGatewayClientConfig, OpenAIBaseTextAdapterOptions {}
+export interface LLMGatewayTextConfig<
+  TProviderOptions = ExternalTextProviderOptions,
+>
+  extends LLMGatewayClientConfig, OpenAIBaseTextAdapterOptions {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
 
 /**
  * Re-export of the public provider options type
@@ -86,12 +96,15 @@ export class LLMGatewayTextAdapter<
   override readonly inputModalities =
     LLMGATEWAY_MODEL_INPUT_MODALITIES[this.model]
 
-  constructor(config: LLMGatewayTextConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: LLMGatewayTextConfig<TProviderOptions>,
+    model: TModel,
+  ) {
     super(
       model,
       'llmgateway',
       createOpenAIClient(withLLMGatewayDefaults(config)),
-      config,
+      { ...config, defaultModelOptions },
     )
   }
 
@@ -131,7 +144,7 @@ export class LLMGatewayTextAdapter<
 export function createLLMGatewayText<TModel extends LLMGatewayModelId>(
   model: TModel,
   apiKey: string,
-  config?: Omit<LLMGatewayTextConfig, 'apiKey'>,
+  config?: Omit<LLMGatewayTextConfig<ResolveProviderOptions<TModel>>, 'apiKey'>,
 ): LLMGatewayTextAdapter<TModel> {
   return new LLMGatewayTextAdapter({ apiKey, ...config }, model)
 }
@@ -147,7 +160,7 @@ export function createLLMGatewayText<TModel extends LLMGatewayModelId>(
  */
 export function llmGatewayText<TModel extends LLMGatewayModelId>(
   model: TModel,
-  config?: Omit<LLMGatewayTextConfig, 'apiKey'>,
+  config?: Omit<LLMGatewayTextConfig<ResolveProviderOptions<TModel>>, 'apiKey'>,
 ): LLMGatewayTextAdapter<TModel> {
   const apiKey = getLLMGatewayApiKeyFromEnv()
   return createLLMGatewayText(model, apiKey, config)

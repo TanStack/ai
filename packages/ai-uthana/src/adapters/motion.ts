@@ -43,6 +43,18 @@ export interface UthanaMotion3dProviderOptions {
   rewrite_prompt?: boolean
 }
 
+/** Configuration for the Uthana motion adapter. */
+export interface UthanaMotion3dConfig extends UthanaClientConfig {
+  /** Provider options for every job. The call's `modelOptions` win. */
+  defaults?: UthanaMotion3dProviderOptions
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: UthanaMotion3dProviderOptions
+}
+
 interface UthanaJob {
   id: string
   status: string
@@ -114,14 +126,14 @@ export class UthanaMotion3dAdapter<
   readonly name = 'uthana' as const
   private readonly config: ResolvedUthanaConfig
   private readonly defaults: UthanaMotion3dProviderOptions
+  readonly defaultModelOptions: UthanaMotion3dProviderOptions | undefined
 
-  constructor(
-    model: TModel,
-    config?: UthanaClientConfig & { defaults?: UthanaMotion3dProviderOptions },
-  ) {
+  constructor(model: TModel, config: UthanaMotion3dConfig = {}) {
     super(model)
-    this.config = resolveUthanaConfig(config)
-    this.defaults = config?.defaults ?? {}
+    const { defaults, defaultModelOptions, ...clientConfig } = config
+    this.config = resolveUthanaConfig(clientConfig)
+    this.defaults = defaults ?? {}
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async create3dMotionJob(
@@ -252,7 +264,7 @@ export class UthanaMotion3dAdapter<
  */
 export function uthana3dMotion<TModel extends UthanaMotion3dModel>(
   model: TModel,
-  config?: UthanaClientConfig & { defaults?: UthanaMotion3dProviderOptions },
+  config?: UthanaMotion3dConfig,
 ): UthanaMotion3dAdapter<TModel> {
   return new UthanaMotion3dAdapter(model, config)
 }

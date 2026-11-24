@@ -10,6 +10,7 @@ export {
   TypesafeEvaluateAdapter,
   createTypesafeDecider,
   typesafeDecider,
+  type TypesafeEvaluateConfig,
 } from './adapters/evaluate'
 
 export {

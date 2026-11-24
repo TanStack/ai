@@ -8,7 +8,7 @@ import { buildFalUsage, takeBillableUnits } from '../utils/billing'
 import { mapSizeToFalFormat } from '../image/image-provider-options'
 import { mapImageInputsToFalFields } from '../image/image-inputs'
 import type { OutputType, Result } from '@fal-ai/client'
-import type { FalClientConfig } from '../utils/client'
+import type { FalAdapterConfig } from '../utils/client'
 import type { FalClient } from '../client/index'
 import type {
   GeneratedImage,
@@ -54,12 +54,17 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
   override readonly kind = 'image' as const
   readonly name = 'fal' as const
   private readonly client: FalClient
+  readonly defaultModelOptions: FalImageProviderOptions<TModel> | undefined
   // Consumes fal storage URLs uploaded via falFiles().
   override readonly supportsFileSources = true
 
-  constructor(model: TModel, config?: FalClientConfig) {
+  constructor(
+    model: TModel,
+    config?: FalAdapterConfig<FalImageProviderOptions<TModel>>,
+  ) {
     super(model, {})
     this.client = createAdapterFalClient(config)
+    this.defaultModelOptions = config?.defaultModelOptions
   }
 
   async generateImages(
@@ -209,14 +214,14 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
 
 export function createFalImage<TModel extends FalModel>(
   model: TModel,
-  config?: FalClientConfig,
+  config?: FalAdapterConfig<FalImageProviderOptions<TModel>>,
 ): FalImageAdapter<TModel> {
   return new FalImageAdapter(model, config)
 }
 
 export function falImage<TModel extends FalModel>(
   model: TModel,
-  config?: FalClientConfig,
+  config?: FalAdapterConfig<FalImageProviderOptions<TModel>>,
 ): FalImageAdapter<TModel> {
   return createFalImage(model, config)
 }

@@ -18,7 +18,14 @@ import type { OpenAIClientConfig } from '../utils/client'
 /**
  * Configuration for OpenAI TTS adapter
  */
-export interface OpenAITTSConfig extends OpenAIClientConfig {}
+export interface OpenAITTSConfig extends OpenAIClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: OpenAITTSProviderOptions
+}
 
 /**
  * OpenAI Text-to-Speech Adapter
@@ -37,10 +44,13 @@ export class OpenAITTSAdapter<
   readonly name = 'openai' as const
 
   protected client: OpenAIClientLike
+  readonly defaultModelOptions: OpenAITTSProviderOptions | undefined
 
   constructor(config: OpenAITTSConfig, model: TModel) {
     super(model, {})
-    this.client = createOpenAIClient(config)
+    const { defaultModelOptions, ...clientConfig } = config
+    this.client = createOpenAIClient(clientConfig)
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async generateSpeech(

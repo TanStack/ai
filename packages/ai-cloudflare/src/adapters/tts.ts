@@ -4,7 +4,11 @@ import { generateId } from '@tanstack/ai-utils'
 import { resolveConfigFromEnv } from '../utils/config'
 import { outputToBase64, runModel } from '../utils/run'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
-import type { CloudflareConfig, CloudflareConfigInput } from '../utils/config'
+import type {
+  CloudflareAdapterConfig,
+  CloudflareConfig,
+  CloudflareConfigInput,
+} from '../utils/config'
 import type { CloudflareTTSModel } from '../utils/models'
 
 /** Text-to-speech inputs forwarded to the model (Deepgram Aura fields). */
@@ -36,11 +40,19 @@ export class CloudflareTTSAdapter<
 > extends BaseTTSAdapter<TModel, CloudflareTTSProviderOptions> {
   readonly name = 'cloudflare' as const
 
+  private readonly cfConfig: CloudflareConfig
+  readonly defaultModelOptions: CloudflareTTSProviderOptions | undefined
+
   constructor(
-    private readonly cfConfig: CloudflareConfig,
+    {
+      defaultModelOptions,
+      ...cfConfig
+    }: CloudflareAdapterConfig<CloudflareConfig, CloudflareTTSProviderOptions>,
     model: TModel,
   ) {
     super(model, {})
+    this.cfConfig = cfConfig
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async generateSpeech(
@@ -87,14 +99,26 @@ export class CloudflareTTSAdapter<
 
 export function createCloudflareTTS<TModel extends CloudflareTTSModel>(
   model: TModel,
-  config: CloudflareConfig,
+  config: CloudflareAdapterConfig<
+    CloudflareConfig,
+    CloudflareTTSProviderOptions
+  >,
 ): CloudflareTTSAdapter<TModel> {
   return new CloudflareTTSAdapter(config, model)
 }
 
 export function cloudflareTTS<TModel extends CloudflareTTSModel>(
   model: TModel,
-  config?: CloudflareConfigInput,
+  config?: CloudflareAdapterConfig<
+    CloudflareConfigInput,
+    CloudflareTTSProviderOptions
+  >,
 ): CloudflareTTSAdapter<TModel> {
-  return new CloudflareTTSAdapter(resolveConfigFromEnv(config), model)
+  return new CloudflareTTSAdapter(
+    {
+      ...resolveConfigFromEnv(config),
+      defaultModelOptions: config?.defaultModelOptions,
+    },
+    model,
+  )
 }

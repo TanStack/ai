@@ -27,8 +27,8 @@ export type { NeonAnthropicTextAdapter } from './anthropic-text'
  * Config for a Claude model. It goes to the Anthropic Messages route, so it
  * takes the Anthropic SDK's client options. `baseURL` is the branch host.
  */
-export type NeonAnthropicTextConfig = Omit<
-  AnthropicTextConfig,
+export type NeonAnthropicTextConfig<TModel extends string = string> = Omit<
+  AnthropicTextConfig<TModel>,
   'apiKey' | 'auth' | 'baseURL' | 'provider'
 > & { baseURL?: string; api?: never }
 
@@ -60,12 +60,12 @@ type ChatCompletionsModel = Exclude<
 export type NeonDefaultTextConfig<TModel extends NeonChatModel> = [
   TModel,
 ] extends [NeonAnthropicModel]
-  ? NeonAnthropicTextConfig
+  ? NeonAnthropicTextConfig<TModel>
   : [TModel] extends [NeonResponsesOnlyModel]
     ? Omit<NeonResponsesApiConfig, 'api'> & { api?: 'responses' }
     : [TModel] extends [ChatCompletionsModel]
       ? NeonChatApiConfig
-      : Omit<NeonChatApiConfig, 'api'> & NeonAnthropicTextConfig
+      : Omit<NeonChatApiConfig, 'api'> & NeonAnthropicTextConfig<TModel>
 
 /** Each member of a model union keeps the adapter of its default route. */
 export type NeonDefaultTextAdapter<TModel extends NeonChatModel> =

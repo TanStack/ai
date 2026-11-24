@@ -11,6 +11,7 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
+import { withDefaultModelOptions } from '../default-model-options'
 import {
   applyGenerationResultTransforms,
   createGenerationContext,
@@ -175,6 +176,8 @@ async function runGenerateLiveVideo<
 >(
   options: LiveVideoActivityOptions<TAdapter, boolean>,
 ): Promise<LiveVideoGenerationResult> {
+  // Merge the adapter defaults once here, so middleware, devtools events and
+  // the adapter all read the same `modelOptions`.
   const {
     adapter,
     stream: _stream,
@@ -185,7 +188,7 @@ async function runGenerateLiveVideo<
     timeout,
     abortSignal: callerAbortSignal,
     ...rest
-  } = options
+  } = withDefaultModelOptions(options)
   const model = adapter.model
   const requestId = createId('liveVideo')
   const startTime = Date.now()

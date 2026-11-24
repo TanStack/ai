@@ -13,6 +13,7 @@ import type {
   ResolveProviderOptions,
 } from '../model-meta'
 import type { LovableMessageMetadataByModality } from '../message-types'
+import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type { LovableClientConfig } from '../utils/client'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
@@ -31,8 +32,17 @@ type ResolveToolCapabilities<TModel extends string> =
     ? NonNullable<LovableChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
-export interface LovableTextConfig
-  extends LovableClientConfig, OpenAIBaseTextAdapterOptions {}
+export interface LovableTextConfig<
+  TProviderOptions = ExternalTextProviderOptions,
+>
+  extends LovableClientConfig, OpenAIBaseTextAdapterOptions {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
 
 export type { ExternalTextProviderOptions as LovableTextProviderOptions } from '../text/text-provider-options'
 
@@ -60,13 +70,14 @@ export class LovableTextAdapter<
   override readonly kind = 'text' as const
   override readonly name = 'lovable' as const
 
-  constructor(config: LovableTextConfig, model: TModel) {
-    super(
-      model,
-      'lovable',
-      createOpenAIClient(withLovableDefaults(config)),
-      config,
-    )
+  constructor(
+    { defaultModelOptions, ...config }: LovableTextConfig<TProviderOptions>,
+    model: TModel,
+  ) {
+    super(model, 'lovable', createOpenAIClient(withLovableDefaults(config)), {
+      ...config,
+      defaultModelOptions,
+    })
   }
 
   protected override modelReasoning(model: string) {

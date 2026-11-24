@@ -3,6 +3,7 @@ import {
   resolveMistralVertexAccessToken,
   resolveMistralVertexModelUrl,
 } from './auth'
+import type { MistralTextConfig } from '../adapters/text'
 import type { MistralVertexChatModel } from '../model-meta'
 import type { MistralVertexConfig } from './auth'
 
@@ -28,7 +29,8 @@ export {
  */
 export function mistralVertexText<TModel extends MistralVertexChatModel>(
   model: TModel,
-  config: MistralVertexConfig = {},
+  config: MistralVertexConfig &
+    Pick<MistralTextConfig<TModel>, 'defaultModelOptions'> = {},
 ): MistralTextAdapter<TModel> {
   const resolveRequestUrl =
     config.resolveRequestUrl ??
@@ -44,6 +46,7 @@ export function mistralVertexText<TModel extends MistralVertexChatModel>(
       resolveRequestUrl,
       requestModel: model,
       defaultHeaders: config.defaultHeaders,
+      defaultModelOptions: config.defaultModelOptions,
     },
     model,
   )

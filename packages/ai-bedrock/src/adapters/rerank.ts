@@ -15,6 +15,12 @@ export interface BedrockRerankConfig {
   defaultHeaders?: Record<string, string>
   /** Custom transport; requests are still SigV4-signed. */
   fetch?: typeof fetch
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: BedrockRerankProviderOptions
 }
 
 /** Additional inference fields for the selected Bedrock rerank model. */
@@ -57,10 +63,18 @@ export class BedrockRerankAdapter<
   readonly name = 'bedrock' as const
   private readonly region: string
   private readonly baseURL: string
-  private readonly clientConfig: BedrockRerankConfig
+  private readonly clientConfig: Omit<
+    BedrockRerankConfig,
+    'defaultModelOptions'
+  >
+  readonly defaultModelOptions: BedrockRerankProviderOptions | undefined
 
-  constructor(config: BedrockRerankConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: BedrockRerankConfig,
+    model: TModel,
+  ) {
     super({}, model)
+    this.defaultModelOptions = defaultModelOptions
     this.clientConfig = config
     this.region = config.region ?? 'us-east-1'
     this.baseURL = (

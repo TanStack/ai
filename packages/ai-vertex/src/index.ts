@@ -9,11 +9,17 @@ import {
 } from '@tanstack/ai-gemini'
 import { resolveVertexGeminiOptions } from './auth'
 import type {
+  GeminiAudioConfig,
   GeminiAudioModel,
+  GeminiEmbeddingConfig,
   GeminiEmbeddingModel,
+  GeminiImageConfig,
   GeminiImageModel,
+  GeminiTTSConfig,
   GeminiTTSModels,
+  GeminiTextConfig,
   GeminiTextModel,
+  GeminiVideoConfig,
   GeminiVideoModel,
 } from '@tanstack/ai-gemini'
 import type { VertexClientConfig, VertexVideoConfig } from './auth'
@@ -27,89 +33,89 @@ export {
 
 type GeminiTTSModel = (typeof GeminiTTSModels)[number]
 
-function createVertex(config: VertexClientConfig = {}) {
-  const resolved = resolveVertexGeminiOptions(config)
-  return {
-    text<TModel extends GeminiTextModel>(model: TModel) {
-      return new GeminiTextAdapter(resolved, model)
-    },
-    summarize<TModel extends GeminiTextModel>(model: TModel) {
-      return new ChatStreamSummarizeAdapter(
-        new GeminiTextAdapter(resolved, model),
-        model,
-        'gemini',
-      )
-    },
-    image<TModel extends GeminiImageModel>(model: TModel) {
-      return new GeminiImageAdapter(resolved, model)
-    },
-    embedding<TModel extends GeminiEmbeddingModel>(model: TModel) {
-      return new GeminiEmbeddingAdapter(resolved, model)
-    },
-    speech<TModel extends GeminiTTSModel>(model: TModel) {
-      return new GeminiTTSAdapter(resolved, model)
-    },
-    audio<TModel extends GeminiAudioModel>(model: TModel) {
-      return new GeminiAudioAdapter(resolved, model)
-    },
-    video<TModel extends GeminiVideoModel>(
-      model: TModel,
-      videoConfig?: Pick<VertexVideoConfig, 'allowUrlFetch'>,
-    ) {
-      return new GeminiVideoAdapter(
-        { ...resolved, allowUrlFetch: videoConfig?.allowUrlFetch },
-        model,
-      )
-    },
-  }
-}
+/** A Vertex factory config plus the `defaultModelOptions` of its adapter. */
+type VertexAdapterConfig<
+  TAdapterConfig extends { defaultModelOptions?: unknown },
+> = VertexClientConfig & Pick<TAdapterConfig, 'defaultModelOptions'>
 
 export function vertexText<TModel extends GeminiTextModel>(
   model: TModel,
-  config: VertexClientConfig = {},
+  config: VertexAdapterConfig<GeminiTextConfig<TModel>> = {},
 ): GeminiTextAdapter<TModel> {
-  return createVertex(config).text(model)
+  const { defaultModelOptions, ...client } = config
+  return new GeminiTextAdapter(
+    { ...resolveVertexGeminiOptions(client), defaultModelOptions },
+    model,
+  )
 }
 
 export function vertexSummarize<TModel extends GeminiTextModel>(
   model: TModel,
   config: VertexClientConfig = {},
 ): ChatStreamSummarizeAdapter<TModel> {
-  return createVertex(config).summarize(model)
+  return new ChatStreamSummarizeAdapter(
+    new GeminiTextAdapter(resolveVertexGeminiOptions(config), model),
+    model,
+    'gemini',
+  )
 }
 
 export function vertexImage<TModel extends GeminiImageModel>(
   model: TModel,
-  config: VertexClientConfig = {},
+  config: VertexAdapterConfig<GeminiImageConfig> = {},
 ): GeminiImageAdapter<TModel> {
-  return createVertex(config).image(model)
+  const { defaultModelOptions, ...client } = config
+  return new GeminiImageAdapter(
+    { ...resolveVertexGeminiOptions(client), defaultModelOptions },
+    model,
+  )
 }
 
 export function vertexEmbedding<TModel extends GeminiEmbeddingModel>(
   model: TModel,
-  config: VertexClientConfig = {},
+  config: VertexAdapterConfig<GeminiEmbeddingConfig> = {},
 ): GeminiEmbeddingAdapter<TModel> {
-  return createVertex(config).embedding(model)
+  const { defaultModelOptions, ...client } = config
+  return new GeminiEmbeddingAdapter(
+    { ...resolveVertexGeminiOptions(client), defaultModelOptions },
+    model,
+  )
 }
 
 export function vertexSpeech<TModel extends GeminiTTSModel>(
   model: TModel,
-  config: VertexClientConfig = {},
+  config: VertexAdapterConfig<GeminiTTSConfig> = {},
 ): GeminiTTSAdapter<TModel> {
-  return createVertex(config).speech(model)
+  const { defaultModelOptions, ...client } = config
+  return new GeminiTTSAdapter(
+    { ...resolveVertexGeminiOptions(client), defaultModelOptions },
+    model,
+  )
 }
 
 export function vertexAudio<TModel extends GeminiAudioModel>(
   model: TModel,
-  config: VertexClientConfig = {},
+  config: VertexAdapterConfig<GeminiAudioConfig> = {},
 ): GeminiAudioAdapter<TModel> {
-  return createVertex(config).audio(model)
+  const { defaultModelOptions, ...client } = config
+  return new GeminiAudioAdapter(
+    { ...resolveVertexGeminiOptions(client), defaultModelOptions },
+    model,
+  )
 }
 
 export function vertexVideo<TModel extends GeminiVideoModel>(
   model: TModel,
-  config: VertexVideoConfig = {},
+  config: VertexVideoConfig &
+    VertexAdapterConfig<GeminiVideoConfig<TModel>> = {},
 ): GeminiVideoAdapter<TModel> {
-  const { allowUrlFetch, ...client } = config
-  return createVertex(client).video(model, { allowUrlFetch })
+  const { allowUrlFetch, defaultModelOptions, ...client } = config
+  return new GeminiVideoAdapter(
+    {
+      ...resolveVertexGeminiOptions(client),
+      allowUrlFetch,
+      defaultModelOptions,
+    },
+    model,
+  )
 }

@@ -3,7 +3,10 @@ export {
   worldlabsWorld,
   createWorldLabsWorld,
 } from './adapters/world'
-export type { WorldLabsClientConfig } from './adapters/world'
+export type {
+  WorldLabsClientConfig,
+  WorldLabsWorldConfig,
+} from './adapters/world'
 
 export { WORLDLABS_WORLD_MODELS, isWorldLabsWorldModel } from './model-meta'
 export type {

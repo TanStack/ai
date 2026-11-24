@@ -930,7 +930,7 @@
           "label": "Generations",
           "to": "media/generations",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-19"
+          "updatedAt": "2026-11-24"
         },
         {
           "label": "Realtime Voice Chat",
@@ -1043,7 +1043,7 @@
           "label": "Embeddings",
           "to": "embeddings",
           "addedAt": "2026-07-10",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-24"
         }
       ],
       "tab": "guides"
@@ -1737,7 +1737,7 @@
           "label": "Typed Pre-Configured Options",
           "to": "advanced/typed-options",
           "addedAt": "2026-05-25",
-          "updatedAt": "2026-11-23"
+          "updatedAt": "2026-11-24"
         },
         {
           "label": "Test with a Fake Model",

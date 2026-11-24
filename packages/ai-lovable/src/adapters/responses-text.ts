@@ -17,8 +17,17 @@ import type { ExternalResponsesProviderOptions } from '../text/responses-provide
 import type { LovableClientConfig } from '../utils/client'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
-export interface LovableResponsesTextConfig
-  extends LovableClientConfig, OpenAIBaseTextAdapterOptions {}
+export interface LovableResponsesTextConfig<
+  TProviderOptions = ExternalResponsesProviderOptions,
+>
+  extends LovableClientConfig, OpenAIBaseTextAdapterOptions {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
 
 export type LovableResponsesTextProviderOptions =
   ExternalResponsesProviderOptions
@@ -62,13 +71,17 @@ export class LovableResponsesTextAdapter<
   override readonly kind = 'text' as const
   override readonly name = 'lovable' as const
 
-  constructor(config: LovableResponsesTextConfig, model: TModel) {
-    super(
-      model,
-      'lovable',
-      createOpenAIClient(withLovableDefaults(config)),
-      config,
-    )
+  constructor(
+    {
+      defaultModelOptions,
+      ...config
+    }: LovableResponsesTextConfig<TProviderOptions>,
+    model: TModel,
+  ) {
+    super(model, 'lovable', createOpenAIClient(withLovableDefaults(config)), {
+      ...config,
+      defaultModelOptions,
+    })
   }
 
   protected override modelReasoning(model: string) {
@@ -79,14 +92,20 @@ export class LovableResponsesTextAdapter<
 export function createLovableResponsesText<TModel extends LovableModelId>(
   model: TModel,
   apiKey: string,
-  config?: Omit<LovableResponsesTextConfig, 'apiKey'>,
+  config?: Omit<
+    LovableResponsesTextConfig<ResolveProviderOptions<TModel>>,
+    'apiKey'
+  >,
 ): LovableResponsesTextAdapter<TModel> {
   return new LovableResponsesTextAdapter({ apiKey, ...config }, model)
 }
 
 export function lovableResponsesText<TModel extends LovableModelId>(
   model: TModel,
-  config?: Omit<LovableResponsesTextConfig, 'apiKey'>,
+  config?: Omit<
+    LovableResponsesTextConfig<ResolveProviderOptions<TModel>>,
+    'apiKey'
+  >,
 ): LovableResponsesTextAdapter<TModel> {
   return createLovableResponsesText(model, getLovableApiKeyFromEnv(), config)
 }

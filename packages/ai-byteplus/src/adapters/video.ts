@@ -56,7 +56,14 @@ import type { BytePlusArkConfig } from '../utils/client'
 /**
  * Configuration for the BytePlus Seedance video adapter.
  */
-export interface BytePlusVideoConfig extends BytePlusArkConfig {}
+export interface BytePlusVideoConfig extends BytePlusArkConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: BytePlusVideoProviderOptions
+}
 
 /** Path of the Seedance task API, relative to the Ark base URL. */
 const TASKS_PATH = '/contents/generations/tasks'
@@ -199,12 +206,17 @@ export class BytePlusVideoAdapter<
   readonly name = 'byteplus' as const
 
   /** Config with the Ark base URL resolved and its trailing slashes trimmed. */
-  private readonly clientConfig: Omit<BytePlusVideoConfig, 'baseURL'> & {
+  private readonly clientConfig: Omit<BytePlusArkConfig, 'baseURL'> & {
     baseURL: string
   }
+  readonly defaultModelOptions: BytePlusVideoProviderOptions | undefined
 
-  constructor(config: BytePlusVideoConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: BytePlusVideoConfig,
+    model: TModel,
+  ) {
     super({}, model)
+    this.defaultModelOptions = defaultModelOptions
     this.clientConfig = withBytePlusArkDefaults(config)
   }
 

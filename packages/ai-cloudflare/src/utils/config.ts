@@ -55,6 +55,16 @@ export type CloudflareTextConfig = (
 ) &
   OpenAIBaseTextAdapterOptions
 
+/** A Cloudflare config plus the options of one adapter. */
+export type CloudflareAdapterConfig<TConfig, TProviderOptions> = TConfig & {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under the
+   * call's `modelOptions`. A key the call sets replaces the default key in
+   * full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
+
 /**
  * What the env-reading factories accept: a binding, or REST fields with any
  * missing ones read from `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`.

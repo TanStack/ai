@@ -17,7 +17,10 @@ import type {
   TTSTurn,
 } from '@tanstack/ai'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { BytePlusVoiceConfig } from '../utils/client'
+import type {
+  BytePlusAdapterConfig,
+  BytePlusVoiceConfig,
+} from '../utils/client'
 import type { BytePlusTTSModel } from '../model-meta'
 import type {
   BytePlusTTSAudioConfig,
@@ -144,8 +147,17 @@ export class BytePlusTTSAdapter<
   private readonly defaultHeaders: Record<string, string>
   private readonly fetchImpl: typeof fetch
 
-  constructor(model: TModel, config: BytePlusVoiceConfig) {
+  readonly defaultModelOptions: BytePlusTTSProviderOptions | undefined
+
+  constructor(
+    model: TModel,
+    {
+      defaultModelOptions,
+      ...config
+    }: BytePlusAdapterConfig<BytePlusVoiceConfig, BytePlusTTSProviderOptions>,
+  ) {
     super(model, config)
+    this.defaultModelOptions = defaultModelOptions
     const resolved = withBytePlusVoiceDefaults(config)
     this.apiKey = resolved.apiKey
     this.baseURL = resolved.baseURL ?? BYTEPLUS_VOICE_BASE_URL
@@ -549,7 +561,10 @@ export function createBytePlusSpeech<
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<BytePlusVoiceConfig, 'apiKey'>,
+  config?: Omit<
+    BytePlusAdapterConfig<BytePlusVoiceConfig, BytePlusTTSProviderOptions>,
+    'apiKey'
+  >,
 ): BytePlusTTSAdapter<TModel> {
   return new BytePlusTTSAdapter(model, { ...config, apiKey })
 }
@@ -564,7 +579,10 @@ export function byteplusSpeech<
   TModel extends BytePlusTTSModel = BytePlusTTSModel,
 >(
   model: TModel,
-  config?: Omit<BytePlusVoiceConfig, 'apiKey'>,
+  config?: Omit<
+    BytePlusAdapterConfig<BytePlusVoiceConfig, BytePlusTTSProviderOptions>,
+    'apiKey'
+  >,
 ): BytePlusTTSAdapter<TModel> {
   return createBytePlusSpeech(model, getBytePlusVoiceApiKeyFromEnv(), config)
 }

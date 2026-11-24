@@ -46,6 +46,12 @@ export interface AzureOpenAITextConfig
   apiVersion?: string
   deploymentName?: string
   deploymentNameMap?: Readonly<Record<string, string>>
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: ExternalTextProviderOptions
 }
 
 function normalizeAzureBaseURL(baseURL: string): string {
@@ -87,6 +93,7 @@ export class AzureOpenAITextAdapter<
       apiVersion,
       deploymentName,
       deploymentNameMap,
+      defaultModelOptions: _defaultModelOptions,
       ...clientOptions
     } = config
     const resource = resourceName?.trim()

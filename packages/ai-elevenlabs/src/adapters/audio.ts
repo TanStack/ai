@@ -17,7 +17,7 @@ import type {
   AudioGenerationOptions,
   AudioGenerationResult,
 } from '@tanstack/ai'
-import type { ElevenLabsClientConfig } from '../utils/client'
+import type { ElevenLabsAdapterConfig } from '../utils/client'
 import type {
   ElevenLabsAudioModel,
   ElevenLabsMusicModel,
@@ -109,10 +109,16 @@ export class ElevenLabsAudioAdapter<
   readonly name = 'elevenlabs' as const
 
   private readonly client: ElevenLabsClient
+  readonly defaultModelOptions: ElevenLabsAudioProviderOptions | undefined
 
-  constructor(model: TModel, config?: ElevenLabsClientConfig) {
-    super(model, config ?? {})
-    this.client = createElevenLabsClient(config)
+  constructor(
+    model: TModel,
+    config: ElevenLabsAdapterConfig<ElevenLabsAudioProviderOptions> = {},
+  ) {
+    const { defaultModelOptions, ...clientConfig } = config
+    super(model, clientConfig)
+    this.client = createElevenLabsClient(clientConfig)
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async generateAudio(
@@ -249,7 +255,7 @@ function toMusicPrompt(plan: ElevenLabsMusicCompositionPlan) {
  */
 export function elevenlabsAudio<TModel extends ElevenLabsAudioModel>(
   model: TModel,
-  config?: ElevenLabsClientConfig,
+  config?: ElevenLabsAdapterConfig<ElevenLabsAudioProviderOptions>,
 ): ElevenLabsAudioAdapter<TModel> {
   return new ElevenLabsAudioAdapter(model, config)
 }
@@ -260,7 +266,10 @@ export function elevenlabsAudio<TModel extends ElevenLabsAudioModel>(
 export function createElevenLabsAudio<TModel extends ElevenLabsAudioModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<ElevenLabsClientConfig, 'apiKey'>,
+  config?: Omit<
+    ElevenLabsAdapterConfig<ElevenLabsAudioProviderOptions>,
+    'apiKey'
+  >,
 ): ElevenLabsAudioAdapter<TModel> {
   return new ElevenLabsAudioAdapter(model, { apiKey, ...config })
 }

@@ -49,6 +49,12 @@ export interface LovableVideoConfig extends LovableClientConfig {
    * URL image inputs throw.
    */
   allowUrlFetch?: boolean
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: LovableVideoProviderOptions
 }
 
 export class LovableVideoAdapter<
@@ -64,11 +70,16 @@ export class LovableVideoAdapter<
   readonly name = 'lovable' as const
 
   protected client: OpenAIClientLike
-  protected clientConfig: LovableVideoConfig
+  protected clientConfig: Omit<LovableVideoConfig, 'defaultModelOptions'>
+  readonly defaultModelOptions: LovableVideoProviderOptions | undefined
 
-  constructor(config: LovableVideoConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: LovableVideoConfig,
+    model: TModel,
+  ) {
     super({}, model)
     this.clientConfig = config
+    this.defaultModelOptions = defaultModelOptions
     const { allowUrlFetch: _allowUrlFetch, ...clientOptions } = config
     this.client = createOpenAIClient(withLovableDefaults(clientOptions))
   }

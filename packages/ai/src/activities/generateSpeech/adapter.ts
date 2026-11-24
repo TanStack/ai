@@ -60,6 +60,13 @@ export interface TTSAdapter<
   readonly capabilities?: TTSCapabilities
 
   /**
+   * Default `modelOptions` for every call made with this adapter. `generateSpeech()`
+   * merges them under the call's `modelOptions`, one level deep: a key the
+   * call sets replaces the default key in full.
+   */
+  readonly defaultModelOptions?: TProviderOptions | undefined
+
+  /**
    * @internal Type-only properties for inference. Not assigned at runtime.
    */
   '~types': {

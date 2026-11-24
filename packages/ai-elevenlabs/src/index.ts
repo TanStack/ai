@@ -86,5 +86,6 @@ export {
 
 export {
   getElevenLabsApiKeyFromEnv,
+  type ElevenLabsAdapterConfig,
   type ElevenLabsClientConfig,
 } from './utils/index'

@@ -14,7 +14,14 @@ import type { GroqClientConfig } from '../utils/client'
 /**
  * Configuration for Groq TTS adapter
  */
-export interface GroqTTSConfig extends GroqClientConfig {}
+export interface GroqTTSConfig extends GroqClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: GroqTTSProviderOptions
+}
 
 /**
  * Groq Text-to-Speech Adapter
@@ -41,9 +48,14 @@ export class GroqTTSAdapter<TModel extends GroqTTSModel> extends BaseTTSAdapter<
   readonly name = 'groq' as const
 
   protected client: OpenAIClientLike
+  readonly defaultModelOptions: GroqTTSProviderOptions | undefined
 
-  constructor(config: GroqTTSConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: GroqTTSConfig,
+    model: TModel,
+  ) {
     super(model, {})
+    this.defaultModelOptions = defaultModelOptions
     this.client = createOpenAIClient(withGroqDefaults(config))
   }
 

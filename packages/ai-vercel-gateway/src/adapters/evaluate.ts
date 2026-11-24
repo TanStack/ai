@@ -14,12 +14,19 @@ import type {
 import type { VercelGatewayClientConfig } from '../utils/client'
 import type { VercelGatewayRoutingOptions } from '../text/text-provider-options'
 
-export interface VercelGatewayEvaluateConfig extends VercelGatewayClientConfig {}
-
 export type VercelGatewayEvaluateModel = 'typesafe-ai/jev'
 
 export type VercelGatewayEvaluateProviderOptions = Record<string, unknown> & {
   gateway?: VercelGatewayRoutingOptions
+}
+
+export interface VercelGatewayEvaluateConfig extends VercelGatewayClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: VercelGatewayEvaluateProviderOptions
 }
 
 /**
@@ -260,8 +267,14 @@ export class VercelGatewayEvaluateAdapter<
   private readonly evaluateUrl: string
   private readonly extraHeaders: Record<string, string>
 
-  constructor(config: VercelGatewayEvaluateConfig, model: TModel) {
+  readonly defaultModelOptions: VercelGatewayEvaluateProviderOptions | undefined
+
+  constructor(
+    { defaultModelOptions, ...config }: VercelGatewayEvaluateConfig,
+    model: TModel,
+  ) {
     super({}, model)
+    this.defaultModelOptions = defaultModelOptions
     const defaults = withVercelGatewayDefaults(config)
     this.apiKey = config.apiKey
     this.evaluateUrl = resolveEvaluateUrl(defaults.baseURL)

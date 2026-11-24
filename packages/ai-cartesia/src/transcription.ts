@@ -2,7 +2,7 @@ import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
 import { createCartesiaClient, toAudioFile } from './client'
 import type { Cartesia } from '@cartesia/cartesia-js'
 import type { TranscriptionOptions, TranscriptionResult } from '@tanstack/ai'
-import type { CartesiaConfig } from './client'
+import type { CartesiaAdapterConfig } from './client'
 import type { CartesiaTranscriptionModel } from './model-meta'
 
 /** Transcribe recorded audio with a Cartesia model. */
@@ -11,11 +11,17 @@ export class CartesiaTranscriptionAdapter<
 > extends BaseTranscriptionAdapter<TModel> {
   readonly name = 'cartesia' as const
   private readonly client: Cartesia
+  readonly defaultModelOptions: Record<string, unknown> | undefined
 
   /** Configure the model and API connection for transcription. */
-  constructor(model: TModel, config?: CartesiaConfig) {
+  constructor(
+    model: TModel,
+    config: CartesiaAdapterConfig<Record<string, unknown>> = {},
+  ) {
     super(model)
-    this.client = createCartesiaClient(config)
+    const { defaultModelOptions, ...clientConfig } = config
+    this.client = createCartesiaClient(clientConfig)
+    this.defaultModelOptions = defaultModelOptions
   }
 
   /** Transcribe audio and return text and available word timings. */
@@ -81,7 +87,7 @@ export function cartesiaTranscription<
   TModel extends CartesiaTranscriptionModel,
 >(
   model: TModel,
-  config?: CartesiaConfig,
+  config?: CartesiaAdapterConfig<Record<string, unknown>>,
 ): CartesiaTranscriptionAdapter<TModel> {
   return new CartesiaTranscriptionAdapter(model, config)
 }
@@ -92,7 +98,7 @@ export function createCartesiaTranscription<
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<CartesiaConfig, 'apiKey'>,
+  config?: Omit<CartesiaAdapterConfig<Record<string, unknown>>, 'apiKey'>,
 ): CartesiaTranscriptionAdapter<TModel> {
   return new CartesiaTranscriptionAdapter(model, { ...config, apiKey })
 }

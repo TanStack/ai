@@ -34,7 +34,9 @@ const EDIT_MAX_IMAGES = 16
 /**
  * Configuration for OpenAI image adapter
  */
-export interface OpenAIImageConfig extends OpenAIClientConfig {
+export interface OpenAIImageConfig<
+  TModel extends OpenAIImageModel = OpenAIImageModel,
+> extends OpenAIClientConfig {
   /**
    * Opt into fetching HTTP(S) image URL inputs for image edits. OpenAI's
    * `/images/edits` endpoint requires uploaded file bytes (no URL
@@ -44,6 +46,12 @@ export interface OpenAIImageConfig extends OpenAIClientConfig {
    * URI, or set this to `true` to opt into buffering.
    */
   allowUrlFetch?: boolean
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: OpenAIImageModelProviderOptionsByName[TModel]
 }
 
 /**
@@ -73,12 +81,16 @@ export class OpenAIImageAdapter<
 
   protected client: OpenAIClientLike
   private readonly allowUrlFetch: boolean
+  readonly defaultModelOptions:
+    | OpenAIImageModelProviderOptionsByName[TModel]
+    | undefined
 
-  constructor(config: OpenAIImageConfig, model: TModel) {
+  constructor(config: OpenAIImageConfig<TModel>, model: TModel) {
     super(model, {})
-    const { allowUrlFetch, ...clientOptions } = config
+    const { allowUrlFetch, defaultModelOptions, ...clientOptions } = config
     this.client = createOpenAIClient(clientOptions)
     this.allowUrlFetch = allowUrlFetch ?? false
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async generateImages(
@@ -351,7 +363,7 @@ export class OpenAIImageAdapter<
 export function createOpenaiImage<TModel extends OpenAIImageModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<OpenAIImageConfig, 'apiKey'>,
+  config?: Omit<OpenAIImageConfig<TModel>, 'apiKey'>,
 ): OpenAIImageAdapter<TModel> {
   return new OpenAIImageAdapter({ apiKey, ...config }, model)
 }
@@ -382,7 +394,7 @@ export function createOpenaiImage<TModel extends OpenAIImageModel>(
  */
 export function openaiImage<TModel extends OpenAIImageModel>(
   model: TModel,
-  config?: Omit<OpenAIImageConfig, 'apiKey'>,
+  config?: Omit<OpenAIImageConfig<TModel>, 'apiKey'>,
 ): OpenAIImageAdapter<TModel> {
   const apiKey = getOpenAIApiKeyFromEnv()
   return createOpenaiImage(model, apiKey, config)

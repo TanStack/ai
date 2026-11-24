@@ -37,7 +37,14 @@ import type { GrokClientConfig } from '../utils/client'
 /**
  * Configuration for Grok image adapter
  */
-export interface GrokImageConfig extends GrokClientConfig {}
+export interface GrokImageConfig extends GrokClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: GrokImagineImageProviderOptions
+}
 
 /** Maximum source images accepted by xAI's image edit endpoint. */
 const MAX_EDIT_IMAGES = 3
@@ -105,10 +112,15 @@ export class GrokImageAdapter<
   readonly name = 'grok' as const
 
   protected client: OpenAIClientLike
-  private readonly clientConfig: GrokImageConfig
+  private readonly clientConfig: GrokClientConfig
+  readonly defaultModelOptions: GrokImagineImageProviderOptions | undefined
 
-  constructor(config: GrokImageConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: GrokImageConfig,
+    model: TModel,
+  ) {
     super(model, {})
+    this.defaultModelOptions = defaultModelOptions
     this.clientConfig = withGrokDefaults(config)
     this.client = createOpenAIClient(this.clientConfig)
   }

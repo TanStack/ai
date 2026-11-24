@@ -21,7 +21,14 @@ import type { MistralClientConfig } from '../utils/client'
 /**
  * Configuration for Mistral embedding adapter.
  */
-export type MistralEmbeddingConfig = MistralClientConfig
+export type MistralEmbeddingConfig = MistralClientConfig & {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: MistralEmbeddingProviderOptions
+}
 
 /**
  * Mistral Embedding Adapter
@@ -46,9 +53,14 @@ export class MistralEmbeddingAdapter<
   readonly name = 'mistral' as const
 
   protected client: MistralClient
+  readonly defaultModelOptions: MistralEmbeddingProviderOptions | undefined
 
-  constructor(config: MistralEmbeddingConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: MistralEmbeddingConfig,
+    model: TModel,
+  ) {
     super(model, {})
+    this.defaultModelOptions = defaultModelOptions
     this.client = createMistralClient(config)
   }
 

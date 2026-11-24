@@ -10,7 +10,7 @@ import type {
   AudioGenerationOptions,
   AudioGenerationResult,
 } from '@tanstack/ai'
-import type { FalClientConfig } from '../utils/client'
+import type { FalAdapterConfig } from '../utils/client'
 import type { FalClient } from '../client/index'
 import type { FalModel, FalModelInput } from '../model-meta'
 
@@ -69,10 +69,15 @@ export class FalAudioAdapter<TModel extends FalModel> extends BaseAudioAdapter<
 > {
   readonly name = 'fal' as const
   private readonly client: FalClient
+  readonly defaultModelOptions: FalAudioProviderOptions<TModel> | undefined
 
-  constructor(model: TModel, config?: FalClientConfig) {
+  constructor(
+    model: TModel,
+    config?: FalAdapterConfig<FalAudioProviderOptions<TModel>>,
+  ) {
     super(model, {})
     this.client = createAdapterFalClient(config)
+    this.defaultModelOptions = config?.defaultModelOptions
   }
 
   async generateAudio(
@@ -164,7 +169,7 @@ export class FalAudioAdapter<TModel extends FalModel> extends BaseAudioAdapter<
 
 export function falAudio<TModel extends FalModel>(
   model: TModel,
-  config?: FalClientConfig,
+  config?: FalAdapterConfig<FalAudioProviderOptions<TModel>>,
 ): FalAudioAdapter<TModel> {
   return new FalAudioAdapter(model, config)
 }

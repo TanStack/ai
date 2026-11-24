@@ -21,7 +21,10 @@ import type {
   TranscriptionWord,
 } from '@tanstack/ai'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { BytePlusVoiceConfig } from '../utils/client'
+import type {
+  BytePlusAdapterConfig,
+  BytePlusVoiceConfig,
+} from '../utils/client'
 import type { BytePlusTranscriptionModel } from '../model-meta'
 import type {
   BytePlusASRAudio,
@@ -96,8 +99,20 @@ export class BytePlusTranscriptionAdapter<
   private readonly defaultHeaders: Record<string, string>
   private readonly fetchImpl: typeof fetch
 
-  constructor(model: TModel, config: BytePlusVoiceConfig) {
+  readonly defaultModelOptions: BytePlusTranscriptionProviderOptions | undefined
+
+  constructor(
+    model: TModel,
+    {
+      defaultModelOptions,
+      ...config
+    }: BytePlusAdapterConfig<
+      BytePlusVoiceConfig,
+      BytePlusTranscriptionProviderOptions
+    >,
+  ) {
     super(model, config)
+    this.defaultModelOptions = defaultModelOptions
     const resolved = withBytePlusVoiceDefaults(config)
     this.apiKey = resolved.apiKey
     this.baseURL = resolved.baseURL ?? BYTEPLUS_VOICE_BASE_URL
@@ -455,7 +470,13 @@ export function createBytePlusTranscription<
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<BytePlusVoiceConfig, 'apiKey'>,
+  config?: Omit<
+    BytePlusAdapterConfig<
+      BytePlusVoiceConfig,
+      BytePlusTranscriptionProviderOptions
+    >,
+    'apiKey'
+  >,
 ): BytePlusTranscriptionAdapter<TModel> {
   return new BytePlusTranscriptionAdapter(model, { ...config, apiKey })
 }
@@ -470,7 +491,13 @@ export function byteplusTranscription<
   TModel extends BytePlusTranscriptionModel = BytePlusTranscriptionModel,
 >(
   model: TModel,
-  config?: Omit<BytePlusVoiceConfig, 'apiKey'>,
+  config?: Omit<
+    BytePlusAdapterConfig<
+      BytePlusVoiceConfig,
+      BytePlusTranscriptionProviderOptions
+    >,
+    'apiKey'
+  >,
 ): BytePlusTranscriptionAdapter<TModel> {
   return createBytePlusTranscription(
     model,

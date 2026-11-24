@@ -8,7 +8,7 @@ import type {
   TranscriptionSegment,
   TranscriptionWord,
 } from '@tanstack/ai'
-import type { ElevenLabsClientConfig } from '../utils/client'
+import type { ElevenLabsAdapterConfig } from '../utils/client'
 import type { ElevenLabsTranscriptionModel } from '../model-meta'
 
 /**
@@ -80,10 +80,18 @@ export class ElevenLabsTranscriptionAdapter<
   readonly name = 'elevenlabs' as const
 
   private readonly client: ElevenLabsClient
+  readonly defaultModelOptions:
+    | ElevenLabsTranscriptionProviderOptions
+    | undefined
 
-  constructor(model: TModel, config?: ElevenLabsClientConfig) {
-    super(model, config ?? {})
-    this.client = createElevenLabsClient(config)
+  constructor(
+    model: TModel,
+    config: ElevenLabsAdapterConfig<ElevenLabsTranscriptionProviderOptions> = {},
+  ) {
+    const { defaultModelOptions, ...clientConfig } = config
+    super(model, clientConfig)
+    this.client = createElevenLabsClient(clientConfig)
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async transcribe(
@@ -320,7 +328,7 @@ export function elevenlabsTranscription<
   TModel extends ElevenLabsTranscriptionModel,
 >(
   model: TModel,
-  config?: ElevenLabsClientConfig,
+  config?: ElevenLabsAdapterConfig<ElevenLabsTranscriptionProviderOptions>,
 ): ElevenLabsTranscriptionAdapter<TModel> {
   return new ElevenLabsTranscriptionAdapter(model, config)
 }
@@ -333,7 +341,10 @@ export function createElevenLabsTranscription<
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<ElevenLabsClientConfig, 'apiKey'>,
+  config?: Omit<
+    ElevenLabsAdapterConfig<ElevenLabsTranscriptionProviderOptions>,
+    'apiKey'
+  >,
 ): ElevenLabsTranscriptionAdapter<TModel> {
   return new ElevenLabsTranscriptionAdapter(model, { apiKey, ...config })
 }

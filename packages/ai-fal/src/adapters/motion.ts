@@ -13,7 +13,7 @@ import type {
   Motion3dStatusResult,
 } from '@tanstack/ai'
 import type { FalModelInput } from '../model-meta'
-import type { FalClientConfig } from '../utils/client'
+import type { FalAdapterConfig } from '../utils/client'
 import type { FalClient } from '../client/index'
 
 /**
@@ -103,10 +103,15 @@ export class FalMotion3dAdapter<
 > extends BaseMotion3dAdapter<TModel, FalMotion3dProviderOptions<TModel>> {
   readonly name = 'fal' as const
   private readonly client: FalClient
+  readonly defaultModelOptions: FalMotion3dProviderOptions<TModel> | undefined
 
-  constructor(model: TModel, config?: FalClientConfig) {
+  constructor(
+    model: TModel,
+    config?: FalAdapterConfig<FalMotion3dProviderOptions<TModel>>,
+  ) {
     super(model)
     this.client = createAdapterFalClient(config)
+    this.defaultModelOptions = config?.defaultModelOptions
   }
 
   async create3dMotionJob(
@@ -234,7 +239,7 @@ export class FalMotion3dAdapter<
  */
 export function fal3dMotion<TModel extends FalMotion3dModel>(
   model: TModel,
-  config?: FalClientConfig,
+  config?: FalAdapterConfig<FalMotion3dProviderOptions<TModel>>,
 ): FalMotion3dAdapter<TModel> {
   return new FalMotion3dAdapter(model, config)
 }

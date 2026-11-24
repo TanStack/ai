@@ -9,6 +9,7 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { resolveDebugOption } from '../../logger/resolve'
 import { isAbortShapedError } from '../error-payload'
+import { withDefaultModelOptions } from '../default-model-options'
 import {
   createActivityAbortControls,
   isActivityAbortError,
@@ -518,7 +519,8 @@ export async function decide<
   TAdapter extends EvaluateAdapter<string, EvaluateProviderOptions<TAdapter>>,
   TQuestions extends Record<string, WireQuestion>,
 >(options: EvaluateActivityOptions<TAdapter, TQuestions>) {
-  const { adapter, state, questions, modelOptions, middleware, debug } = options
+  const { adapter, state, questions, modelOptions, middleware, debug } =
+    withDefaultModelOptions(options)
   const model = adapter.model
   const keys = assertQuestions(questions)
   const requestId = createId('evaluate')

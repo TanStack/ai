@@ -8,6 +8,16 @@ import {
 import type { TypesafeClientConfig } from '../utils/client'
 import type { TypesafeEvaluateModel } from '../model-meta'
 
+/** Configuration for the TypeSafe evaluate adapter. */
+export interface TypesafeEvaluateConfig extends TypesafeClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: Record<string, unknown>
+}
+
 /** Shape of the TypeSafe `POST /v1/systemone` response we depend on. */
 interface TypesafeEvaluateResponse {
   model: string
@@ -50,14 +60,17 @@ export class TypesafeEvaluateAdapter<
   private readonly baseUrl: string
   private readonly headers: Record<string, string>
   private readonly fetchFn: typeof fetch | undefined
+  readonly defaultModelOptions: Record<string, unknown> | undefined
 
-  constructor(config: TypesafeClientConfig, model: TModel) {
+  constructor(config: TypesafeEvaluateConfig, model: TModel) {
     super({}, model)
-    this.apiKey = config.apiKey
-    const transport = resolveTypesafeTransport(config)
+    const { defaultModelOptions, ...clientConfig } = config
+    this.apiKey = clientConfig.apiKey
+    const transport = resolveTypesafeTransport(clientConfig)
     this.baseUrl = transport.baseUrl
     this.headers = transport.headers
-    this.fetchFn = config.fetch
+    this.fetchFn = clientConfig.fetch
+    this.defaultModelOptions = defaultModelOptions
   }
 
   /**
@@ -146,7 +159,7 @@ export class TypesafeEvaluateAdapter<
 export function createTypesafeDecider<TModel extends TypesafeEvaluateModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<TypesafeClientConfig, 'apiKey'>,
+  config?: Omit<TypesafeEvaluateConfig, 'apiKey'>,
 ) {
   return new TypesafeEvaluateAdapter({ apiKey, ...config }, model)
 }
@@ -175,7 +188,7 @@ export function createTypesafeDecider<TModel extends TypesafeEvaluateModel>(
  */
 export function typesafeDecider<TModel extends TypesafeEvaluateModel>(
   model: TModel,
-  config?: Omit<TypesafeClientConfig, 'apiKey'>,
+  config?: Omit<TypesafeEvaluateConfig, 'apiKey'>,
 ) {
   return createTypesafeDecider(model, getTypesafeApiKeyFromEnv(), config)
 }

@@ -39,6 +39,12 @@ export interface GrokTranscriptionConfig {
   baseURL?: string
   /** Additional headers to merge into every request (e.g., test IDs). */
   defaultHeaders?: Record<string, string>
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: GrokTranscriptionProviderOptions
 }
 
 /**
@@ -75,9 +81,14 @@ export class GrokTranscriptionAdapter<
   private readonly apiKey: string
   private readonly baseURL: string
   private readonly defaultHeaders: Record<string, string>
+  readonly defaultModelOptions: GrokTranscriptionProviderOptions | undefined
 
-  constructor(config: GrokTranscriptionConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: GrokTranscriptionConfig,
+    model: TModel,
+  ) {
     super(model, config)
+    this.defaultModelOptions = defaultModelOptions
     this.apiKey = config.apiKey
     this.baseURL = (config.baseURL ?? DEFAULT_GROK_BASE_URL).replace(/\/+$/, '')
     this.defaultHeaders = config.defaultHeaders ?? {}

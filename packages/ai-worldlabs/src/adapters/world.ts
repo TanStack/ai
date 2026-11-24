@@ -28,6 +28,16 @@ import type { WorldLabsClientConfig } from '../utils/client'
 
 export type { WorldLabsClientConfig }
 
+/** Configuration for the World Labs world adapter. */
+export interface WorldLabsWorldConfig extends WorldLabsClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: WorldLabsWorldProviderOptions
+}
+
 type WorldOperation =
   | GenerateWorldResponse
   | GetOperationResponseUnionWorldPanoDepthToRgbResultExportWorldResult
@@ -55,10 +65,13 @@ export class WorldLabsWorldAdapter<
 > extends BaseWorldAdapter<TModel, WorldLabsWorldProviderOptions> {
   readonly name = 'worldlabs' as const
   private readonly client: Client
+  readonly defaultModelOptions: WorldLabsWorldProviderOptions | undefined
 
-  constructor(model: TModel, config: WorldLabsClientConfig = {}) {
+  constructor(model: TModel, config: WorldLabsWorldConfig = {}) {
     super(model, {})
-    this.client = createWorldLabsClient(config).client
+    const { defaultModelOptions, ...clientConfig } = config
+    this.client = createWorldLabsClient(clientConfig).client
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async createWorld(
@@ -212,7 +225,7 @@ export class WorldLabsWorldAdapter<
  */
 export function worldlabsWorld<TModel extends WorldLabsWorldModel>(
   model: TModel,
-  config?: WorldLabsClientConfig,
+  config?: WorldLabsWorldConfig,
 ): WorldLabsWorldAdapter<TModel> {
   const apiKey = config?.apiKey ?? getWorldLabsApiKeyFromEnv()
   return createWorldLabsWorld(model, apiKey, config)
@@ -224,7 +237,7 @@ export function worldlabsWorld<TModel extends WorldLabsWorldModel>(
 export function createWorldLabsWorld<TModel extends WorldLabsWorldModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<WorldLabsClientConfig, 'apiKey'>,
+  config?: Omit<WorldLabsWorldConfig, 'apiKey'>,
 ): WorldLabsWorldAdapter<TModel> {
   return new WorldLabsWorldAdapter(model, { ...config, apiKey })
 }

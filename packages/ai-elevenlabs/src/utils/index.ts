@@ -6,5 +6,6 @@ export {
   getElevenLabsApiKeyFromEnv,
   parseOutputFormat,
   readStreamToArrayBuffer,
+  type ElevenLabsAdapterConfig,
   type ElevenLabsClientConfig,
 } from './client'

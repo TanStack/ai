@@ -32,6 +32,17 @@ export interface ElevenLabsClientConfig {
   headers?: Record<string, string>
 }
 
+/** `ElevenLabsClientConfig` plus the options of one adapter. */
+export type ElevenLabsAdapterConfig<TProviderOptions> =
+  ElevenLabsClientConfig & {
+    /**
+     * Default `modelOptions` for every call. The activity merges them under the
+     * call's `modelOptions`. A key the call sets replaces the default key in
+     * full.
+     */
+    defaultModelOptions?: TProviderOptions
+  }
+
 interface EnvObject {
   ELEVENLABS_API_KEY?: string
   ELEVENLABS_AGENT_ID?: string

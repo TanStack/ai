@@ -10,6 +10,7 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { toRunErrorPayload } from '../error-payload'
 import { resolveDebugOption } from '../../logger/resolve'
+import { withDefaultModelOptions } from '../default-model-options'
 import { assertPromptFileSourceSupport } from '../../utilities/content-source'
 import {
   applyGenerationResultTransforms,
@@ -462,6 +463,8 @@ function videoRunIdForJob(provider: string, jobId: string): string {
 async function runCreateVideoJob<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
 >(options: VideoCreateOptions<TAdapter, boolean>): Promise<VideoJobResult> {
+  // Merge the adapter defaults once here, so middleware, devtools events and
+  // the adapter all read the same `modelOptions`.
   const {
     adapter,
     prompt,
@@ -471,7 +474,7 @@ async function runCreateVideoJob<
     middleware,
     timeout,
     abortSignal: callerAbortSignal,
-  } = options
+  } = withDefaultModelOptions(options)
   // Fail closed on `{ type: 'file' }` sources for adapters that haven't
   // declared support (see assertPromptFileSourceSupport).
   assertPromptFileSourceSupport(adapter, prompt)
@@ -569,6 +572,8 @@ async function runCreateVideoJob<
 async function* runStreamingVideoGeneration<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
 >(options: VideoCreateOptions<TAdapter, true>): AsyncIterable<StreamChunk> {
+  // Merge the adapter defaults once here, so middleware, devtools events and
+  // the adapter all read the same `modelOptions`.
   const {
     adapter,
     prompt,
@@ -578,7 +583,7 @@ async function* runStreamingVideoGeneration<
     middleware,
     timeout,
     abortSignal: callerAbortSignal,
-  } = options
+  } = withDefaultModelOptions(options)
   // Fail closed on `{ type: 'file' }` sources for adapters that haven't
   // declared support (see assertPromptFileSourceSupport).
   assertPromptFileSourceSupport(adapter, prompt)

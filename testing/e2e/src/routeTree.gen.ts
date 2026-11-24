@@ -181,6 +181,7 @@ import { Route as ApiOpenaiApplyPatchWireRouteImport } from './routes/api.openai
 import { Route as ApiOpenaiCompletedResponseTextRouteImport } from './routes/api.openai-completed-response-text'
 import { Route as ApiOpenaiComputerUseWireRouteImport } from './routes/api.openai-computer-use-wire'
 import { Route as ApiOpenaiImage25ModelsRouteImport } from './routes/api.openai-image-2-5-models'
+import { Route as ApiOpenaiImageDefaultModelOptionsWireRouteImport } from './routes/api.openai-image-default-model-options-wire'
 import { Route as ApiOpenaiMalformedToolArgumentsRouteImport } from './routes/api.openai-malformed-tool-arguments'
 import { Route as ApiOpenaiResponsesUsageRouteImport } from './routes/api.openai-responses-usage'
 import { Route as ApiOpenaiShellSkillsWireRouteImport } from './routes/api.openai-shell-skills-wire'
@@ -1140,6 +1141,12 @@ const ApiOpenaiImage25ModelsRoute = ApiOpenaiImage25ModelsRouteImport.update({
   path: '/api/openai-image-2-5-models',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOpenaiImageDefaultModelOptionsWireRoute =
+  ApiOpenaiImageDefaultModelOptionsWireRouteImport.update({
+    id: '/api/openai-image-default-model-options-wire',
+    path: '/api/openai-image-default-model-options-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOpenaiMalformedToolArgumentsRoute =
   ApiOpenaiMalformedToolArgumentsRouteImport.update({
     id: '/api/openai-malformed-tool-arguments',
@@ -1650,6 +1657,7 @@ export interface FileRoutesByFullPath {
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
+  '/api/openai-image-default-model-options-wire': typeof ApiOpenaiImageDefaultModelOptionsWireRoute
   '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
   '/api/openai-responses-usage': typeof ApiOpenaiResponsesUsageRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
@@ -1887,6 +1895,7 @@ export interface FileRoutesByTo {
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
+  '/api/openai-image-default-model-options-wire': typeof ApiOpenaiImageDefaultModelOptionsWireRoute
   '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
   '/api/openai-responses-usage': typeof ApiOpenaiResponsesUsageRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
@@ -2125,6 +2134,7 @@ export interface FileRoutesById {
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
+  '/api/openai-image-default-model-options-wire': typeof ApiOpenaiImageDefaultModelOptionsWireRoute
   '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
   '/api/openai-responses-usage': typeof ApiOpenaiResponsesUsageRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
@@ -2364,6 +2374,7 @@ export interface FileRouteTypes {
     | '/api/openai-completed-response-text'
     | '/api/openai-computer-use-wire'
     | '/api/openai-image-2-5-models'
+    | '/api/openai-image-default-model-options-wire'
     | '/api/openai-malformed-tool-arguments'
     | '/api/openai-responses-usage'
     | '/api/openai-shell-skills-wire'
@@ -2601,6 +2612,7 @@ export interface FileRouteTypes {
     | '/api/openai-completed-response-text'
     | '/api/openai-computer-use-wire'
     | '/api/openai-image-2-5-models'
+    | '/api/openai-image-default-model-options-wire'
     | '/api/openai-malformed-tool-arguments'
     | '/api/openai-responses-usage'
     | '/api/openai-shell-skills-wire'
@@ -2838,6 +2850,7 @@ export interface FileRouteTypes {
     | '/api/openai-completed-response-text'
     | '/api/openai-computer-use-wire'
     | '/api/openai-image-2-5-models'
+    | '/api/openai-image-default-model-options-wire'
     | '/api/openai-malformed-tool-arguments'
     | '/api/openai-responses-usage'
     | '/api/openai-shell-skills-wire'
@@ -3076,6 +3089,7 @@ export interface RootRouteChildren {
   ApiOpenaiCompletedResponseTextRoute: typeof ApiOpenaiCompletedResponseTextRoute
   ApiOpenaiComputerUseWireRoute: typeof ApiOpenaiComputerUseWireRoute
   ApiOpenaiImage25ModelsRoute: typeof ApiOpenaiImage25ModelsRoute
+  ApiOpenaiImageDefaultModelOptionsWireRoute: typeof ApiOpenaiImageDefaultModelOptionsWireRoute
   ApiOpenaiMalformedToolArgumentsRoute: typeof ApiOpenaiMalformedToolArgumentsRoute
   ApiOpenaiResponsesUsageRoute: typeof ApiOpenaiResponsesUsageRoute
   ApiOpenaiShellSkillsWireRoute: typeof ApiOpenaiShellSkillsWireRoute
@@ -4343,6 +4357,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpenaiImage25ModelsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/openai-image-default-model-options-wire': {
+      id: '/api/openai-image-default-model-options-wire'
+      path: '/api/openai-image-default-model-options-wire'
+      fullPath: '/api/openai-image-default-model-options-wire'
+      preLoaderRoute: typeof ApiOpenaiImageDefaultModelOptionsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/openai-malformed-tool-arguments': {
       id: '/api/openai-malformed-tool-arguments'
       path: '/api/openai-malformed-tool-arguments'
@@ -5022,6 +5043,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenaiCompletedResponseTextRoute: ApiOpenaiCompletedResponseTextRoute,
   ApiOpenaiComputerUseWireRoute: ApiOpenaiComputerUseWireRoute,
   ApiOpenaiImage25ModelsRoute: ApiOpenaiImage25ModelsRoute,
+  ApiOpenaiImageDefaultModelOptionsWireRoute:
+    ApiOpenaiImageDefaultModelOptionsWireRoute,
   ApiOpenaiMalformedToolArgumentsRoute: ApiOpenaiMalformedToolArgumentsRoute,
   ApiOpenaiResponsesUsageRoute: ApiOpenaiResponsesUsageRoute,
   ApiOpenaiShellSkillsWireRoute: ApiOpenaiShellSkillsWireRoute,

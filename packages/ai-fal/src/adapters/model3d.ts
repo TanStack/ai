@@ -13,7 +13,7 @@ import type {
   Fal3dModelProviderOptions,
   Fal3dPromptModalitiesFor,
 } from '../model-meta'
-import type { FalClientConfig } from '../utils/client'
+import type { FalAdapterConfig } from '../utils/client'
 import type { FalClient } from '../client/index'
 
 /**
@@ -62,10 +62,15 @@ export class Fal3dModelAdapter<
   // Consumes fal storage URLs uploaded via falFiles().
   override readonly supportsFileSources = true
   private readonly client: FalClient
+  readonly defaultModelOptions: Fal3dModelProviderOptions<TModel> | undefined
 
-  constructor(model: TModel, config?: FalClientConfig) {
+  constructor(
+    model: TModel,
+    config?: FalAdapterConfig<Fal3dModelProviderOptions<TModel>>,
+  ) {
     super({}, model)
     this.client = createAdapterFalClient(config)
+    this.defaultModelOptions = config?.defaultModelOptions
   }
 
   async create3dModelJob(
@@ -213,7 +218,7 @@ export class Fal3dModelAdapter<
  */
 export function fal3dModel<TModel extends Fal3dModel>(
   model: TModel,
-  config?: FalClientConfig,
+  config?: FalAdapterConfig<Fal3dModelProviderOptions<TModel>>,
 ) {
   return new Fal3dModelAdapter(model, config)
 }

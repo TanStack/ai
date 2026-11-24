@@ -14,6 +14,16 @@ export interface FalClientConfig {
   fetch?: typeof fetch
 }
 
+/** `FalClientConfig` plus the options of one adapter. */
+export type FalAdapterConfig<TProviderOptions> = FalClientConfig & {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under the
+   * call's `modelOptions`. A key the call sets replaces the default key in
+   * full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
+
 export function getFalApiKeyFromEnv(): string {
   return getApiKeyFromEnv('FAL_KEY')
 }

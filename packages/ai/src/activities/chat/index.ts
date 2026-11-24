@@ -10,6 +10,7 @@ import { undoNullWidening } from '@tanstack/ai-utils'
 import { streamToText } from '../../stream-to-response.js'
 import { normalizeReasoning } from '../../reasoning'
 import { resolveDebugOption } from '../../logger/resolve'
+import { withDefaultModelOptions } from '../default-model-options'
 import { EventType } from '../../types'
 import {
   INTERRUPT_BINDING_METADATA_KEY,
@@ -6580,16 +6581,12 @@ function toRuntimeTextActivityOptions<
   >,
   overrides: { outputSchema: TOutputSchema; stream: TOutputStream },
 ): RuntimeTextActivityOptions<TAdapter, TOutputSchema, TOutputStream> {
-  const { middleware, ...rest } = options
-  const defaultModelOptions = rest.adapter.defaultModelOptions
+  // Merge the adapter defaults once here, so the engine, middleware and
+  // adapter all read the same value.
+  const { middleware, ...rest } = withDefaultModelOptions(options)
   return {
     ...rest,
     ...overrides,
-    // Merged once here, so the engine, middleware and adapter all read the
-    // same value. One level deep, like TanStack Query's `defaultOptions`.
-    ...(defaultModelOptions
-      ? { modelOptions: { ...defaultModelOptions, ...rest.modelOptions } }
-      : {}),
     promptCache: resolvePromptCache(rest),
     ...(middleware === undefined
       ? {}

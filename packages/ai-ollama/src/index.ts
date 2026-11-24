@@ -8,6 +8,7 @@ export {
   createOllamaChat,
   ollamaText,
   type OllamaTextAdapterOptions,
+  type OllamaTextConfig,
   type OllamaTextModel,
 } from './adapters/text'
 export { OLLAMA_TEXT_MODELS as OllamaTextModels } from './model-meta'

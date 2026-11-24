@@ -22,8 +22,17 @@ import type {
 import type { ExternalResponsesProviderOptions } from '../text/responses-provider-options'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
-export interface BedrockResponsesConfig
-  extends BedrockClientConfig, OpenAIBaseTextAdapterOptions {}
+export interface BedrockResponsesConfig<
+  TProviderOptions = ExternalResponsesProviderOptions,
+>
+  extends BedrockClientConfig, OpenAIBaseTextAdapterOptions {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
 
 export type { ExternalResponsesProviderOptions as BedrockResponsesProviderOptions } from '../text/responses-provider-options'
 
@@ -71,13 +80,20 @@ export class BedrockResponsesTextAdapter<
   override readonly provider = 'amazon-bedrock'
   override readonly inputModalities = BEDROCK_MODEL_INPUT_MODALITIES[this.model]
 
-  constructor(config: BedrockResponsesConfig, model: TModel) {
+  constructor(
+    {
+      defaultModelOptions,
+      ...config
+    }: BedrockResponsesConfig<TProviderOptions>,
+    model: TModel,
+  ) {
     // Responses is mantle-only — force the mantle base URL (an explicit
     // config.baseURL still wins, e.g. E2E pointing at aimock).
     const options = withBedrockDefaults(config, 'mantle', model)
     super(model, 'bedrock-responses', createOpenAIClient(options), {
       ...config,
       fetch: options.fetch,
+      defaultModelOptions,
     })
   }
 

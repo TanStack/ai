@@ -73,6 +73,12 @@ import type { GrokBuildStreamEvent } from '../stream/sdk-types'
 const DEFAULT_WORKDIR = '/workspace'
 
 export interface GrokBuildTextConfig {
+  /**
+   * Default `modelOptions` for every call. `chat()` merges them under the
+   * call's `modelOptions`. A key the call sets replaces the default key in
+   * full.
+   */
+  defaultModelOptions?: GrokBuildTextProviderOptions
   /** Working directory inside the sandbox. Defaults to `/workspace`. */
   cwd?: string
   /** Path/name of the grok executable inside the sandbox. Defaults to `grok`. */
@@ -171,9 +177,13 @@ export class GrokBuildTextAdapter<
   /** `toolChoice` warnings that this instance already logged. */
   private readonly toolChoiceWarnings = new Set<string>()
 
+  readonly defaultModelOptions: GrokBuildTextProviderOptions | undefined
+
   constructor(config: GrokBuildTextConfig, model: TModel) {
     super({}, model)
-    this.adapterConfig = config
+    const { defaultModelOptions, ...adapterConfig } = config
+    this.adapterConfig = adapterConfig
+    this.defaultModelOptions = defaultModelOptions
   }
 
   /**

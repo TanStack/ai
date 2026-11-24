@@ -15,7 +15,14 @@ import type { GroqClientConfig } from '../utils/client'
 /**
  * Configuration for the Groq Transcription adapter.
  */
-export interface GroqTranscriptionConfig extends GroqClientConfig {}
+export interface GroqTranscriptionConfig extends GroqClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: GroqTranscriptionProviderOptions
+}
 
 // Shape of Groq's verbose_json transcription response
 interface GroqVerboseTranscriptionResponse {
@@ -66,9 +73,14 @@ export class GroqTranscriptionAdapter<
   private readonly apiKey: string
   private readonly baseURL: string
   private readonly defaultHeaders: Record<string, string>
+  readonly defaultModelOptions: GroqTranscriptionProviderOptions | undefined
 
-  constructor(config: GroqTranscriptionConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: GroqTranscriptionConfig,
+    model: TModel,
+  ) {
     super(model, {})
+    this.defaultModelOptions = defaultModelOptions
     const resolved = withGroqDefaults(config)
     this.apiKey = resolved.apiKey
     this.baseURL = resolved.baseURL ?? 'https://api.groq.com/openai/v1'

@@ -14,7 +14,14 @@ import type { LovableTTSModel } from '../model-meta'
 import type { LovableTTSProviderOptions } from '../audio/tts-provider-options'
 import type { LovableClientConfig } from '../utils/client'
 
-export interface LovableTTSConfig extends LovableClientConfig {}
+export interface LovableTTSConfig extends LovableClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: LovableTTSProviderOptions
+}
 
 const CONTENT_TYPES: Record<string, string> = {
   mp3: 'audio/mpeg',
@@ -31,10 +38,15 @@ export class LovableTTSAdapter<
   readonly name = 'lovable' as const
 
   protected client: OpenAIClientLike
+  readonly defaultModelOptions: LovableTTSProviderOptions | undefined
 
-  constructor(config: LovableTTSConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: LovableTTSConfig,
+    model: TModel,
+  ) {
     super(model, {})
     this.client = createOpenAIClient(withLovableDefaults(config))
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async generateSpeech(

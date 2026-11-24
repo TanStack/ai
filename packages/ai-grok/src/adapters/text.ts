@@ -13,6 +13,7 @@ import { convertToolsToProviderFormat } from '../tools'
 import type {
   GROK_CHAT_MODELS,
   GrokChatModelToolCapabilitiesByName,
+  GrokProviderOptions,
   GrokModelReasoningByName,
   GrokTextAdapterModel,
   ResolveInputModalities,
@@ -43,7 +44,16 @@ type ResolveToolCapabilities<TModel extends string> =
 /**
  * Configuration for Grok text adapter
  */
-export interface GrokTextConfig extends GrokClientConfig {}
+export interface GrokTextConfig<
+  TProviderOptions = GrokProviderOptions,
+> extends GrokClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
 
 /**
  * Alias for TextProviderOptions for external use
@@ -87,9 +97,15 @@ export class GrokTextAdapter<
   override readonly supportsFileSources = true
   override readonly inputModalities = GROK_MODEL_INPUT_MODALITIES[this.model]
 
-  constructor(config: GrokTextConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: GrokTextConfig<TProviderOptions>,
+    model: TModel,
+  ) {
     const options = withGrokDefaults(config)
-    super(model, 'grok', createOpenAIClient(options), { fetch: options.fetch })
+    super(model, 'grok', createOpenAIClient(options), {
+      fetch: options.fetch,
+      defaultModelOptions,
+    })
   }
 
   /**
@@ -193,7 +209,7 @@ export function createGrokText<
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<GrokTextConfig, 'apiKey'>,
+  config?: Omit<GrokTextConfig<ResolveProviderOptions<TModel>>, 'apiKey'>,
 ): GrokTextAdapter<TModel> {
   return new GrokTextAdapter({ apiKey, ...config }, model)
 }
@@ -224,7 +240,7 @@ export function createGrokText<
  */
 export function grokText<TModel extends (typeof GROK_CHAT_MODELS)[number]>(
   model: TModel,
-  config?: Omit<GrokTextConfig, 'apiKey'>,
+  config?: Omit<GrokTextConfig<ResolveProviderOptions<TModel>>, 'apiKey'>,
 ): GrokTextAdapter<TModel> {
   const apiKey = getGrokApiKeyFromEnv()
   return createGrokText(model, apiKey, config)

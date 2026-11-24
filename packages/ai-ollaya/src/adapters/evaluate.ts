@@ -5,6 +5,16 @@ import { resolveOllayaTransport } from '../utils/client'
 import type { OllayaClientConfig } from '../utils/client'
 import type { OllayaEvaluateModel } from '../model-meta'
 
+/** Configuration for the Ollaya evaluate adapter. */
+export interface OllayaEvaluateConfig extends OllayaClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: Record<string, unknown>
+}
+
 /** Shape of the Ollaya `POST /v1/systemone` response we depend on. */
 interface OllayaEvaluateResponse {
   model: string
@@ -48,14 +58,17 @@ export class OllayaEvaluateAdapter<
   private readonly baseUrl: string
   private readonly headers: Record<string, string>
   private readonly fetchFn: typeof fetch | undefined
+  readonly defaultModelOptions: Record<string, unknown> | undefined
 
-  constructor(config: OllayaClientConfig, model: TModel) {
+  constructor(config: OllayaEvaluateConfig, model: TModel) {
     super({}, model)
-    this.apiKey = config.apiKey
-    const transport = resolveOllayaTransport(config)
+    const { defaultModelOptions, ...clientConfig } = config
+    this.apiKey = clientConfig.apiKey
+    const transport = resolveOllayaTransport(clientConfig)
     this.baseUrl = transport.baseUrl
     this.headers = transport.headers
-    this.fetchFn = config.fetch
+    this.fetchFn = clientConfig.fetch
+    this.defaultModelOptions = defaultModelOptions
   }
 
   /**
@@ -158,7 +171,7 @@ export class OllayaEvaluateAdapter<
  */
 export function ollayaDecider<TModel extends OllayaEvaluateModel>(
   model: TModel,
-  config?: OllayaClientConfig,
+  config?: OllayaEvaluateConfig,
 ) {
   return new OllayaEvaluateAdapter({ ...config }, model)
 }

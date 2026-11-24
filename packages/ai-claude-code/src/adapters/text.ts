@@ -74,6 +74,12 @@ const DEFAULT_WORKDIR = '/workspace'
 
 export interface ClaudeCodeTextConfig {
   /**
+   * Default `modelOptions` for every call. `chat()` merges them under the
+   * call's `modelOptions`. A key the call sets replaces the default key in
+   * full.
+   */
+  defaultModelOptions?: ClaudeCodeTextProviderOptions
+  /**
    * Working directory inside the sandbox where `claude` runs. Defaults to
    * `/workspace` (the conventional sandbox workspace root).
    */
@@ -235,9 +241,13 @@ export class ClaudeCodeTextAdapter<
   /** Set after the first `toolChoice: 'required'` warning. */
   private warnedRequired = false
 
+  readonly defaultModelOptions: ClaudeCodeTextProviderOptions | undefined
+
   constructor(config: ClaudeCodeTextConfig, model: TModel) {
     super({}, model)
-    this.adapterConfig = config
+    const { defaultModelOptions, ...adapterConfig } = config
+    this.adapterConfig = adapterConfig
+    this.defaultModelOptions = defaultModelOptions
   }
 
   private sandboxFrom(

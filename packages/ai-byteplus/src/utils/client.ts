@@ -77,6 +77,16 @@ export interface BytePlusVoiceConfig {
   fetch?: typeof fetch
 }
 
+/** A BytePlus config plus the options of one adapter. */
+export type BytePlusAdapterConfig<TConfig, TProviderOptions> = TConfig & {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
+
 /**
  * Gets the BytePlus Ark API key from environment variables, preferring
  * `ARK_API_KEY` and falling back to `BYTEPLUS_API_KEY`.

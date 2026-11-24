@@ -16,6 +16,16 @@ import type {
   ReactorWorldProviderOptions,
 } from '../model-meta'
 
+/** Configuration for the Reactor world adapter. */
+export interface ReactorWorldConfig extends ReactorClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: ReactorWorldProviderOptions
+}
+
 export type { ReactorClientConfig }
 
 /**
@@ -39,11 +49,14 @@ export class ReactorWorldAdapter<
   readonly name = 'reactor' as const
   private readonly clientConfig: ReactorClientConfig
   private readonly apiKey: string
+  readonly defaultModelOptions: ReactorWorldProviderOptions | undefined
 
-  constructor(model: TModel, config: ReactorClientConfig = {}) {
+  constructor(model: TModel, config: ReactorWorldConfig = {}) {
     super(model, {})
-    this.apiKey = resolveReactorApiKey(config)
-    this.clientConfig = config
+    const { defaultModelOptions, ...clientConfig } = config
+    this.apiKey = resolveReactorApiKey(clientConfig)
+    this.clientConfig = clientConfig
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async createWorld(
@@ -98,7 +111,7 @@ export class ReactorWorldAdapter<
  */
 export function reactorWorld<TModel extends ReactorWorldModel>(
   model: TModel,
-  config?: ReactorClientConfig,
+  config?: ReactorWorldConfig,
 ): ReactorWorldAdapter<TModel> {
   return new ReactorWorldAdapter(model, config ?? {})
 }
@@ -109,7 +122,7 @@ export function reactorWorld<TModel extends ReactorWorldModel>(
 export function createReactorWorld<TModel extends ReactorWorldModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<ReactorClientConfig, 'apiKey'>,
+  config?: Omit<ReactorWorldConfig, 'apiKey'>,
 ): ReactorWorldAdapter<TModel> {
   return new ReactorWorldAdapter(model, { ...config, apiKey })
 }

@@ -83,6 +83,12 @@ function withoutApiKeys(env: Record<string, string>) {
 }
 
 export interface CodexTextConfig {
+  /**
+   * Default `modelOptions` for every call. `chat()` merges them under the
+   * call's `modelOptions`. A key the call sets replaces the default key in
+   * full.
+   */
+  defaultModelOptions?: CodexTextProviderOptions
   /** Working directory inside the sandbox. Defaults to `/workspace`. */
   cwd?: string
   /**
@@ -167,9 +173,13 @@ export class CodexTextAdapter<
   /** `toolChoice` warnings that this instance already logged. */
   private readonly toolChoiceWarnings = new Set<string>()
 
+  readonly defaultModelOptions: CodexTextProviderOptions | undefined
+
   constructor(config: CodexTextConfig, model: TModel) {
     super({}, model)
-    this.adapterConfig = config
+    const { defaultModelOptions, ...adapterConfig } = config
+    this.adapterConfig = adapterConfig
+    this.defaultModelOptions = defaultModelOptions
   }
 
   /**

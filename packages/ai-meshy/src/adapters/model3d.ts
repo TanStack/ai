@@ -17,7 +17,7 @@ import type {
   Model3dGenerationOptions,
   Model3dPart,
 } from '@tanstack/ai'
-import type { MeshyClient, MeshyClientConfig, MeshyTask } from '../client'
+import type { MeshyAdapterConfig, MeshyClient, MeshyTask } from '../client'
 import type {
   MeshyAiModelFor,
   MeshyInlineMeshData,
@@ -413,15 +413,17 @@ export class MeshyModel3dAdapter<
   override readonly supportsFileSources = true
   private readonly client: MeshyClient
   private readonly aiModel: MeshyAiModelFor<E> | undefined
+  readonly defaultModelOptions: MeshyModel3dProviderOptions<E> | undefined
 
   constructor(
     endpoint: E,
     aiModel: MeshyAiModelFor<E> | undefined,
-    config?: MeshyClientConfig,
+    config?: MeshyAdapterConfig<MeshyModel3dProviderOptions<E>>,
   ) {
     super({}, endpoint)
     this.aiModel = aiModel
     this.client = createMeshyClient(config)
+    this.defaultModelOptions = config?.defaultModelOptions
   }
 
   private taskPath(jobId: string) {
@@ -515,8 +517,11 @@ export class MeshyModel3dAdapter<
 }
 
 type MeshyModel3dArgs<E extends MeshyModel3dEndpoint> =
-  | [aiModel?: MeshyAiModelFor<E>, config?: MeshyClientConfig]
-  | [config?: MeshyClientConfig]
+  | [
+      aiModel?: MeshyAiModelFor<E>,
+      config?: MeshyAdapterConfig<MeshyModel3dProviderOptions<E>>,
+    ]
+  | [config?: MeshyAdapterConfig<MeshyModel3dProviderOptions<E>>]
 
 /**
  * Create a Meshy 3D model adapter. It reads the API key from
@@ -524,9 +529,10 @@ type MeshyModel3dArgs<E extends MeshyModel3dEndpoint> =
  *
  * @param endpoint - The Meshy endpoint, for example `'image-to-3d'` or
  *   `'rigging'`. It types `modelOptions` and the prompt parts.
- * @param args - An optional Meshy `ai_model`, then an optional client config
- *   (API key, base URL, headers, fetch). Only endpoints with an `ai_model`
- *   take the model. Without a model, the config can be the second argument.
+ * @param args - An optional Meshy `ai_model`, then an optional config (API
+ *   key, base URL, headers, fetch, `defaultModelOptions`). Only endpoints
+ *   with an `ai_model` take the model. Without a model, the config can be the
+ *   second argument.
  *
  * @example
  * ```ts

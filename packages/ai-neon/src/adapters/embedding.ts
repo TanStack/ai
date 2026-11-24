@@ -14,10 +14,17 @@ import type { OpenAIClientLike } from '@tanstack/openai-base'
 import type { NeonEmbeddingModel } from '../model-meta'
 import type { NeonClientConfig } from '../utils/client'
 
-export interface NeonEmbeddingConfig extends NeonClientConfig {}
-
 export interface NeonEmbeddingProviderOptions {
   user?: string
+}
+
+export interface NeonEmbeddingConfig extends NeonClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: NeonEmbeddingProviderOptions
 }
 
 type ByName<T> = { [K in NeonEmbeddingModel]: T }
@@ -39,10 +46,15 @@ export class NeonEmbeddingAdapter<
   readonly name = 'neon' as const
 
   protected client: OpenAIClientLike
+  readonly defaultModelOptions: NeonEmbeddingProviderOptions | undefined
 
-  constructor(config: NeonEmbeddingConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: NeonEmbeddingConfig,
+    model: TModel,
+  ) {
     super(model, {})
     this.client = createOpenAIClient(withNeonDefaults(config, 'chat'))
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async createEmbeddings(

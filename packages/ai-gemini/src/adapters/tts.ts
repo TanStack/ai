@@ -99,7 +99,14 @@ export interface GeminiTTSProviderOptions {
  *
  * @experimental Gemini TTS is an experimental feature.
  */
-export interface GeminiTTSConfig extends GeminiClientConfig {}
+export interface GeminiTTSConfig extends GeminiClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: GeminiTTSProviderOptions
+}
 
 /** Model type for Gemini TTS */
 export type GeminiTTSModel = (typeof GEMINI_TTS_MODELS)[number]
@@ -129,9 +136,14 @@ export class GeminiTTSAdapter<
   override readonly capabilities: TTSCapabilities = { maxSpeakers: 2 }
 
   private readonly client: GeminiClient
+  readonly defaultModelOptions: GeminiTTSProviderOptions | undefined
 
-  constructor(config: GeminiTTSConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: GeminiTTSConfig,
+    model: TModel,
+  ) {
     super(model, config)
+    this.defaultModelOptions = defaultModelOptions
     this.client = createGeminiClient(config)
   }
 

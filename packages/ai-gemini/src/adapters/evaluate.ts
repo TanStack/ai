@@ -28,6 +28,12 @@ export interface GeminiEvaluateConfig {
   baseURL?: string
   /** Extra headers sent with the request. */
   defaultHeaders?: Record<string, string>
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: GeminiEvaluateProviderOptions
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -209,11 +215,19 @@ export class GeminiEvaluateAdapter<
 > extends BaseEvaluateAdapter<TModel, GeminiEvaluateProviderOptions> {
   readonly name = 'gemini' as const
 
-  private readonly clientConfig: GeminiEvaluateConfig
+  private readonly clientConfig: Omit<
+    GeminiEvaluateConfig,
+    'defaultModelOptions'
+  >
+  readonly defaultModelOptions: GeminiEvaluateProviderOptions | undefined
 
-  constructor(config: GeminiEvaluateConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: GeminiEvaluateConfig,
+    model: TModel,
+  ) {
     super({}, model)
     this.clientConfig = config
+    this.defaultModelOptions = defaultModelOptions
   }
 
   private url(): string {

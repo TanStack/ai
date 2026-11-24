@@ -165,6 +165,32 @@ const result = await embed({
 });
 ```
 
+To set the document type once, put it on the adapter with `defaultModelOptions`. A query call sets its own `taskType`, which replaces the default:
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { geminiEmbedding } from "@tanstack/ai-gemini";
+
+const adapter = geminiEmbedding("gemini-embedding-001", {
+  defaultModelOptions: { taskType: "RETRIEVAL_DOCUMENT" },
+});
+
+// Index time: uses RETRIEVAL_DOCUMENT
+const docs = await embed({
+  adapter,
+  input: ["doc one", "doc two"],
+});
+
+// Query time: uses RETRIEVAL_QUERY
+const query = await embed({
+  adapter,
+  input: "which doc mentions one?",
+  modelOptions: { taskType: "RETRIEVAL_QUERY" },
+});
+```
+
+Every embedding adapter takes `defaultModelOptions`. For Cohere, the types require `modelOptions` with an `inputType` on each `embed()` call, also when the adapter has a default.
+
 ## Embed images
 
 Multimodal models embed images, or an image and text together as one vector. Image items use the same content-part shape as chat messages.

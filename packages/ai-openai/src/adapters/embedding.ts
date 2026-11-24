@@ -22,7 +22,14 @@ import type { OpenAIClientConfig } from '../utils/client'
 /**
  * Configuration for OpenAI Embedding adapter
  */
-export interface OpenAIEmbeddingConfig extends OpenAIClientConfig {}
+export interface OpenAIEmbeddingConfig extends OpenAIClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: OpenAIEmbeddingProviderOptions
+}
 
 /**
  * The embeddings endpoint rejects requests with more than 2048 inputs, so
@@ -54,10 +61,13 @@ export class OpenAIEmbeddingAdapter<
   readonly name = 'openai' as const
 
   protected client: OpenAIClientLike
+  readonly defaultModelOptions: OpenAIEmbeddingProviderOptions | undefined
 
   constructor(config: OpenAIEmbeddingConfig, model: TModel) {
     super(model, {})
-    this.client = createOpenAIClient(config)
+    const { defaultModelOptions, ...clientConfig } = config
+    this.client = createOpenAIClient(clientConfig)
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async createEmbeddings(

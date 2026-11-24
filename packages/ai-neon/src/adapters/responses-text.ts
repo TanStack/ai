@@ -19,8 +19,17 @@ import type { ResolveInputModalities, ResolveReasoning } from './text'
 import type { NeonClientConfig } from '../utils/client'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
-export interface NeonResponsesTextConfig
-  extends NeonClientConfig, OpenAIBaseTextAdapterOptions {}
+export interface NeonResponsesTextConfig<
+  TProviderOptions = NeonResponsesProviderOptions,
+>
+  extends NeonClientConfig, OpenAIBaseTextAdapterOptions {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
 
 /**
  * Neon AI Gateway adapter for the OpenAI Responses route
@@ -46,12 +55,18 @@ export class NeonResponsesTextAdapter<
   /** The output cap on this route, for `summarize({ maxLength })`. */
   readonly maxTokensKey = 'max_output_tokens'
 
-  constructor(config: NeonResponsesTextConfig, model: TModel) {
+  constructor(
+    {
+      defaultModelOptions,
+      ...config
+    }: NeonResponsesTextConfig<TProviderOptions>,
+    model: TModel,
+  ) {
     super(
       model,
       'neon',
       createOpenAIClient(withNeonDefaults(config, 'responses')),
-      config,
+      { ...config, defaultModelOptions },
     )
   }
 

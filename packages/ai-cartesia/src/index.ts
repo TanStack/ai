@@ -14,5 +14,5 @@ export {
 } from './model-meta'
 export { getCartesiaApiKeyFromEnv } from './client'
 export type { CartesiaSpeechOptions } from './speech'
-export type { CartesiaConfig } from './client'
+export type { CartesiaAdapterConfig, CartesiaConfig } from './client'
 export type { CartesiaTTSModel, CartesiaTranscriptionModel } from './model-meta'

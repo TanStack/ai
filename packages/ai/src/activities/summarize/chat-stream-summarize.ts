@@ -67,9 +67,14 @@ function throwRunError(
  * acceptable. Summarize-level type safety is enforced via
  * `SummarizationOptions<TProviderOptions>` on the wrapper itself.
  */
-export interface ChatStreamCapable {
+export interface ChatStreamCapable<TProviderOptions extends object = object> {
   /** Native token-limit option for adapters whose provider name is user-defined. */
   readonly maxTokensKey?: string
+  /**
+   * The text adapter's default `modelOptions`. The summarize wrapper exposes
+   * them as its own, so `summarize()` merges them under the call's options.
+   */
+  readonly defaultModelOptions?: TProviderOptions | undefined
   chatStream: (options: TextOptions<any>) => AsyncIterable<AdapterYieldChunk>
 }
 
@@ -235,17 +240,20 @@ export class ChatStreamSummarizeAdapter<
   TProviderOptions extends object = Record<string, unknown>,
 > extends BaseSummarizeAdapter<TModel, TProviderOptions> {
   readonly name: string
+  /** The wrapped text adapter's default `modelOptions`. */
+  readonly defaultModelOptions: TProviderOptions | undefined
 
-  private readonly textAdapter: ChatStreamCapable
+  private readonly textAdapter: ChatStreamCapable<TProviderOptions>
 
   constructor(
-    textAdapter: ChatStreamCapable,
+    textAdapter: ChatStreamCapable<TProviderOptions>,
     model: TModel,
     name: string = 'chat-stream-summarize',
   ) {
     super({}, model)
     this.name = name
     this.textAdapter = textAdapter
+    this.defaultModelOptions = textAdapter.defaultModelOptions
   }
 
   async summarize(

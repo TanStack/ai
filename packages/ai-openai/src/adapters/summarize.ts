@@ -8,7 +8,16 @@ import type { OpenAIClientConfig } from '../utils/client'
 /**
  * Configuration for OpenAI summarize adapter
  */
-export interface OpenAISummarizeConfig extends OpenAIClientConfig {}
+export interface OpenAISummarizeConfig<
+  TModel extends OpenAIChatModel = OpenAIChatModel,
+> extends OpenAIClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: InferTextProviderOptions<OpenAITextAdapter<TModel>>
+}
 
 /**
  * Creates an OpenAI summarize adapter with explicit API key.
@@ -27,7 +36,7 @@ export interface OpenAISummarizeConfig extends OpenAIClientConfig {}
 export function createOpenaiSummarize<TModel extends OpenAIChatModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<OpenAISummarizeConfig, 'apiKey'>,
+  config?: Omit<OpenAISummarizeConfig<TModel>, 'apiKey'>,
 ): ChatStreamSummarizeAdapter<
   TModel,
   InferTextProviderOptions<OpenAITextAdapter<TModel>>
@@ -65,7 +74,7 @@ export function createOpenaiSummarize<TModel extends OpenAIChatModel>(
  */
 export function openaiSummarize<TModel extends OpenAIChatModel>(
   model: TModel,
-  config?: Omit<OpenAISummarizeConfig, 'apiKey'>,
+  config?: Omit<OpenAISummarizeConfig<TModel>, 'apiKey'>,
 ): ChatStreamSummarizeAdapter<
   TModel,
   InferTextProviderOptions<OpenAITextAdapter<TModel>>

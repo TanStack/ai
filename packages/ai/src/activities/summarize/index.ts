@@ -10,6 +10,7 @@ import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
 import { readErrorUsage, rebuildTokenUsage } from '../../utilities/ag-ui-usage'
 import { tanstackMetadata } from '../../utilities/merge-metadata'
+import { withDefaultModelOptions } from '../default-model-options'
 import {
   applyGenerationResultTransforms,
   createGenerationContext,
@@ -216,16 +217,18 @@ export function summarize<
 >(
   options: SummarizeActivityOptions<TAdapter, TStream>,
 ): SummarizeActivityResult<TStream> {
-  const { stream } = options
+  // Merge the adapter defaults once here. Both paths below, and the
+  // streaming fallback to `runSummarize`, read the merged value.
+  const merged = withDefaultModelOptions(options)
 
-  if (stream) {
+  if (merged.stream) {
     return runStreamingSummarize(
-      options as SummarizeActivityOptions<TAdapter, true>,
+      merged as SummarizeActivityOptions<TAdapter, true>,
     ) as SummarizeActivityResult<TStream>
   }
 
   return runSummarize(
-    options as SummarizeActivityOptions<TAdapter, false>,
+    merged as SummarizeActivityOptions<TAdapter, false>,
   ) as SummarizeActivityResult<TStream>
 }
 
