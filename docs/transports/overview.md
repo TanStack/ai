@@ -152,18 +152,7 @@ export function ChatError() {
 
 If the connection drops in the middle of a line, the stream transports throw `StreamTruncatedError`.
 
-A failed HTTP response throws `StreamHttpError`. Its `status` property is the HTTP status code. Its `retryAfterMs` property is the wait from the `Retry-After` header, in milliseconds. It is `undefined` when the server does not send that header. Import the class from `@tanstack/ai-client`, or from your framework package (for example `@tanstack/ai-react`), then check the error with `instanceof`:
-
-```ts
-import { StreamHttpError } from "@tanstack/ai-client";
-
-function describeError(err: unknown): string {
-  if (err instanceof StreamHttpError && err.status === 401) {
-    return "The session ended. Sign in again.";
-  }
-  return "The chat failed.";
-}
-```
+A failed HTTP response can throw `StreamHttpError`. It has a `status` property with the HTTP status code, and a `retryAfterMs` property with the `Retry-After` delay in milliseconds. Import it from `@tanstack/ai-client`, or from your framework package, such as `@tanstack/ai-react`.
 
 In a custom transport, do not catch and hide an `AbortError`. Let it propagate, so that the client knows that the abort worked.
 
