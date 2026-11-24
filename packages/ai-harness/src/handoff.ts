@@ -13,7 +13,7 @@ import type {
   ToolCallHookContext,
 } from '@tanstack/ai'
 import type { MessageStore } from '@tanstack/ai-persistence'
-import type { AnyAgent } from './agents'
+import type { AnyAgent, HarnessAgentContext } from './agents'
 import type { HandoffToolContext, HarnessRouterPick } from './define'
 import type { HandoffRecord, HumanTarget } from './log-records'
 
@@ -193,6 +193,8 @@ export class TurnHandoffs {
       tool: boolean
       /** `routing.handoffTool`: makes the handoff tool of each speaker. */
       handoffTool?: (ctx: HandoffToolContext) => AnyTool
+      /** `ctx.harness.state`: the shared state that the handoff tool gets. */
+      state: HarnessAgentContext['state']
       /**
        * Append the record. A handoff to a person opens its `human` wait in
        * the same append. Resolves with the record as the log keeps it.
@@ -337,6 +339,7 @@ export class TurnHandoffs {
       targets,
       allowHuman: this.options.humans,
       handoff: (options) => this.handoff(options, from, 'tool'),
+      state: this.options.state,
     }
     const tool = this.options.handoffTool?.(ctx) ?? defaultHandoffTool(ctx)
     this.tools.set(from, tool)

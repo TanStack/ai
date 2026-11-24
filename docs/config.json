@@ -1394,7 +1394,7 @@
           "label": "Hand off a conversation",
           "to": "harness/handoffs",
           "addedAt": "2026-10-18",
-          "updatedAt": "2026-11-12"
+          "updatedAt": "2026-11-24"
         },
         {
           "label": "Add skills",
