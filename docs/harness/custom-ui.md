@@ -120,7 +120,7 @@ Call `subscription.unsubscribe()` to stop.
 The conversation:
 
 - `messages`: the lines to show. Each message has a `role`: `user`, `assistant`, or `notice`.
-- `status`: `idle`, `running`, or `requires_action`. Only the host that owns the thread runs turns. On another host, `idle` does not mean that no turn runs.
+- `status`: `idle`, `running`, or `requires_action`. Only the host that owns the thread runs turns. Another host reads the status from the log, so it is `running` there too while a turn runs.
 - `connection`: `open`, `reconnecting`, or `closed`.
 
 What waits for the user. Each item is a [wait](./waits) of the session:

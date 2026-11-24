@@ -95,6 +95,7 @@ import { Route as ApiChatConsumerStopRouteImport } from './routes/api.chat-consu
 import { Route as ApiClientToolResumeStoreRouteImport } from './routes/api.client-tool-resume-store'
 import { Route as ApiCloudflareBindingHeadersWireRouteImport } from './routes/api.cloudflare-binding-headers-wire'
 import { Route as ApiCloudflareBindingWireRouteImport } from './routes/api.cloudflare-binding-wire'
+import { Route as ApiCloudflareEvaluateWireRouteImport } from './routes/api.cloudflare-evaluate-wire'
 import { Route as ApiCodingToolsRouteImport } from './routes/api.coding-tools'
 import { Route as ApiCodingWorkspaceRouteImport } from './routes/api.coding-workspace'
 import { Route as ApiCompactionUsageWireRouteImport } from './routes/api.compaction-usage-wire'
@@ -187,6 +188,7 @@ import { Route as ApiOpenaiResponsesUsageRouteImport } from './routes/api.openai
 import { Route as ApiOpenaiShellSkillsWireRouteImport } from './routes/api.openai-shell-skills-wire'
 import { Route as ApiOpenaiStrictToolNullWireRouteImport } from './routes/api.openai-strict-tool-null-wire'
 import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
+import { Route as ApiOpencodeEventsRouteImport } from './routes/api.opencode-events'
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
 import { Route as ApiOpenrouterDefaultModelOptionsWireRouteImport } from './routes/api.openrouter-default-model-options-wire'
 import { Route as ApiOpenrouterJsonObjectWireRouteImport } from './routes/api.openrouter-json-object-wire'
@@ -697,6 +699,12 @@ const ApiCloudflareBindingWireRoute =
     path: '/api/cloudflare-binding-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiCloudflareEvaluateWireRoute =
+  ApiCloudflareEvaluateWireRouteImport.update({
+    id: '/api/cloudflare-evaluate-wire',
+    path: '/api/cloudflare-evaluate-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiCodingToolsRoute = ApiCodingToolsRouteImport.update({
   id: '/api/coding-tools',
   path: '/api/coding-tools',
@@ -1175,6 +1183,11 @@ const ApiOpenaiUsageDetailsRoute = ApiOpenaiUsageDetailsRouteImport.update({
   path: '/api/openai-usage-details',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOpencodeEventsRoute = ApiOpencodeEventsRouteImport.update({
+  id: '/api/opencode-events',
+  path: '/api/opencode-events',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOpenrouterCostRoute = ApiOpenrouterCostRouteImport.update({
   id: '/api/openrouter-cost',
   path: '/api/openrouter-cost',
@@ -1571,6 +1584,7 @@ export interface FileRoutesByFullPath {
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/cloudflare-evaluate-wire': typeof ApiCloudflareEvaluateWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
   '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
@@ -1663,6 +1677,7 @@ export interface FileRoutesByFullPath {
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
+  '/api/opencode-events': typeof ApiOpencodeEventsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-default-model-options-wire': typeof ApiOpenrouterDefaultModelOptionsWireRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
@@ -1809,6 +1824,7 @@ export interface FileRoutesByTo {
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/cloudflare-evaluate-wire': typeof ApiCloudflareEvaluateWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
   '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
@@ -1901,6 +1917,7 @@ export interface FileRoutesByTo {
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
+  '/api/opencode-events': typeof ApiOpencodeEventsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-default-model-options-wire': typeof ApiOpenrouterDefaultModelOptionsWireRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
@@ -2048,6 +2065,7 @@ export interface FileRoutesById {
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/cloudflare-evaluate-wire': typeof ApiCloudflareEvaluateWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
   '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
@@ -2140,6 +2158,7 @@ export interface FileRoutesById {
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
+  '/api/opencode-events': typeof ApiOpencodeEventsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-default-model-options-wire': typeof ApiOpenrouterDefaultModelOptionsWireRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
@@ -2288,6 +2307,7 @@ export interface FileRouteTypes {
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-headers-wire'
     | '/api/cloudflare-binding-wire'
+    | '/api/cloudflare-evaluate-wire'
     | '/api/coding-tools'
     | '/api/coding-workspace'
     | '/api/compaction-usage-wire'
@@ -2380,6 +2400,7 @@ export interface FileRouteTypes {
     | '/api/openai-shell-skills-wire'
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
+    | '/api/opencode-events'
     | '/api/openrouter-cost'
     | '/api/openrouter-default-model-options-wire'
     | '/api/openrouter-json-object-wire'
@@ -2526,6 +2547,7 @@ export interface FileRouteTypes {
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-headers-wire'
     | '/api/cloudflare-binding-wire'
+    | '/api/cloudflare-evaluate-wire'
     | '/api/coding-tools'
     | '/api/coding-workspace'
     | '/api/compaction-usage-wire'
@@ -2618,6 +2640,7 @@ export interface FileRouteTypes {
     | '/api/openai-shell-skills-wire'
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
+    | '/api/opencode-events'
     | '/api/openrouter-cost'
     | '/api/openrouter-default-model-options-wire'
     | '/api/openrouter-json-object-wire'
@@ -2764,6 +2787,7 @@ export interface FileRouteTypes {
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-headers-wire'
     | '/api/cloudflare-binding-wire'
+    | '/api/cloudflare-evaluate-wire'
     | '/api/coding-tools'
     | '/api/coding-workspace'
     | '/api/compaction-usage-wire'
@@ -2856,6 +2880,7 @@ export interface FileRouteTypes {
     | '/api/openai-shell-skills-wire'
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
+    | '/api/opencode-events'
     | '/api/openrouter-cost'
     | '/api/openrouter-default-model-options-wire'
     | '/api/openrouter-json-object-wire'
@@ -3003,6 +3028,7 @@ export interface RootRouteChildren {
   ApiClientToolResumeStoreRoute: typeof ApiClientToolResumeStoreRoute
   ApiCloudflareBindingHeadersWireRoute: typeof ApiCloudflareBindingHeadersWireRoute
   ApiCloudflareBindingWireRoute: typeof ApiCloudflareBindingWireRoute
+  ApiCloudflareEvaluateWireRoute: typeof ApiCloudflareEvaluateWireRoute
   ApiCodingToolsRoute: typeof ApiCodingToolsRoute
   ApiCodingWorkspaceRoute: typeof ApiCodingWorkspaceRoute
   ApiCompactionUsageWireRoute: typeof ApiCompactionUsageWireRoute
@@ -3095,6 +3121,7 @@ export interface RootRouteChildren {
   ApiOpenaiShellSkillsWireRoute: typeof ApiOpenaiShellSkillsWireRoute
   ApiOpenaiStrictToolNullWireRoute: typeof ApiOpenaiStrictToolNullWireRoute
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
+  ApiOpencodeEventsRoute: typeof ApiOpencodeEventsRoute
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
   ApiOpenrouterDefaultModelOptionsWireRoute: typeof ApiOpenrouterDefaultModelOptionsWireRoute
   ApiOpenrouterJsonObjectWireRoute: typeof ApiOpenrouterJsonObjectWireRoute
@@ -3755,6 +3782,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCloudflareBindingWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cloudflare-evaluate-wire': {
+      id: '/api/cloudflare-evaluate-wire'
+      path: '/api/cloudflare-evaluate-wire'
+      fullPath: '/api/cloudflare-evaluate-wire'
+      preLoaderRoute: typeof ApiCloudflareEvaluateWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/coding-tools': {
       id: '/api/coding-tools'
       path: '/api/coding-tools'
@@ -4399,6 +4433,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpenaiUsageDetailsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/opencode-events': {
+      id: '/api/opencode-events'
+      path: '/api/opencode-events'
+      fullPath: '/api/opencode-events'
+      preLoaderRoute: typeof ApiOpencodeEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/openrouter-cost': {
       id: '/api/openrouter-cost'
       path: '/api/openrouter-cost'
@@ -4957,6 +4998,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiClientToolResumeStoreRoute: ApiClientToolResumeStoreRoute,
   ApiCloudflareBindingHeadersWireRoute: ApiCloudflareBindingHeadersWireRoute,
   ApiCloudflareBindingWireRoute: ApiCloudflareBindingWireRoute,
+  ApiCloudflareEvaluateWireRoute: ApiCloudflareEvaluateWireRoute,
   ApiCodingToolsRoute: ApiCodingToolsRoute,
   ApiCodingWorkspaceRoute: ApiCodingWorkspaceRoute,
   ApiCompactionUsageWireRoute: ApiCompactionUsageWireRoute,
@@ -5050,6 +5092,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenaiShellSkillsWireRoute: ApiOpenaiShellSkillsWireRoute,
   ApiOpenaiStrictToolNullWireRoute: ApiOpenaiStrictToolNullWireRoute,
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,
+  ApiOpencodeEventsRoute: ApiOpencodeEventsRoute,
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
   ApiOpenrouterDefaultModelOptionsWireRoute:
     ApiOpenrouterDefaultModelOptionsWireRoute,

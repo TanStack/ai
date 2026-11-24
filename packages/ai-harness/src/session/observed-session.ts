@@ -4,7 +4,7 @@ import { agentRunThread } from '../log-records'
 import { createMediaStore } from '../media'
 import { InputRejectedError } from '../types'
 import { untilRevoked } from './handle'
-import { jobsOf, loggedChildWaits, snapshotFrom } from './helpers'
+import { jobsOf, loggedChildWaits, loggedTurn, snapshotFrom } from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
   BlobRange,
@@ -71,9 +71,10 @@ export interface ObservedSession<THarness extends AnyHarness = AnyHarness> {
    * no plugin setup, so the status rule and the shape are the same. What
    * only an open session knows is not there:
    *
-   * - `status` is never `running`: a turn runs in memory. It is
-   *   `requires_action` while the last turn waits for interrupts, else
-   *   `idle`.
+   * - `status` comes from the log: `running` while a turn runs on the
+   *   host that owns the thread, `requires_action` while the last turn
+   *   waits for interrupts, else `idle`. The waits that a running `resolve`
+   *   answered are not in `pendingWaits`.
    * - There are no active operations, queued turns, or waiting inputs. The
    *   waits of `harnessAgent` children come from the log.
    * - `plugins` has only the plugin state that the log keeps. The state of
@@ -288,14 +289,20 @@ export function observedSession<THarness extends AnyHarness>(
         (harness.plugins?.() ?? []).map((plugin) => plugin.name),
       )
       return fromLog((reader) => {
-        const { thread } = reader.state
+        const { thread, inputs } = reader.state
         const saved = [...thread.plugins].filter(([name]) => names.has(name))
+        // The running turn, as the owner sees it. A resolve that runs
+        // answered the interrupts of the stopped turn: they leave the log
+        // only when it ends, so they are not pending waits until then.
+        const running = loggedTurn(inputs)
         // The same builder as `session.snapshot()`, with no live part.
         return structuredClone(
           snapshotFrom({
             threadId,
             thread,
             stopped: thread.interrupted,
+            ...(running?.input.op === 'resolve' ? { interrupts: [] } : {}),
+            running: running !== undefined,
             // fromEntries defines own keys, so a plugin named `__proto__`
             // stays a key.
             plugins: Object.fromEntries(saved),

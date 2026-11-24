@@ -11,6 +11,7 @@ Choose an example based on your use case:
 - **Want an image from a prompt?** → [Generate Image](#generate-image)
 - **Want animation clips for a game ability?** → [Generate Motion](react/generate-motion/README.md)
 - **Want a game-ready 3D model from text?** → [Game Asset Pipeline](#game-asset-pipeline)
+- **Want a walking 3D character from text?** → [Tripo Animated Character](#tripo-animated-character)
 - **Want a table that fills as JSON streams?** → [Streaming Structured Table](#streaming-structured-table)
 - **Want typed ticket routing?** → [Evaluate](#evaluate)
 - **Want a blog desk with three agents?** → [Subagents](#subagents)
@@ -96,6 +97,24 @@ pnpm --filter game-asset-pipeline dev
 Open http://localhost:3100. Paste a fal key. Click each step in order. Each 3D step takes a few minutes.
 
 📖 [Full Documentation](react/game-asset-pipeline/README.md)
+
+---
+
+### Tripo Animated Character
+
+A slim TanStack Start app that turns one line of text into a 3D character that walks. One provider (Tripo). Three steps: a model, a skeleton, and the walk animation. The server reads `TRIPO_API_KEY`.
+
+**Path:** `examples/react/tripo-animated-character`
+
+**Getting Started:**
+
+```bash
+pnpm --filter tripo-animated-character dev
+```
+
+Set `TRIPO_API_KEY` in `.env` first. Open http://localhost:3100. Describe a character, then click **Make character**. The steps take a few minutes.
+
+📖 [Full Documentation](react/tripo-animated-character/README.md)
 
 ---
 

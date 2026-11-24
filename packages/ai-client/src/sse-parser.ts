@@ -13,6 +13,15 @@ async function* readStreamLines(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   abortSignal?: AbortSignal,
 ): AsyncGenerator<string> {
+  const cancel = () => {
+    try {
+      // Custom cancellation hooks must not delay errors or iterator return.
+      void reader.cancel().catch(() => {})
+    } catch {
+      // Preserve the original error if cancellation throws synchronously.
+    }
+  }
+  abortSignal?.addEventListener('abort', cancel, { once: true })
   try {
     const decoder = createResponseStreamTextDecoder()
     let buffer = ''
@@ -37,12 +46,8 @@ async function* readStreamLines(
       yield buffer
     }
   } finally {
-    try {
-      // Custom cancellation hooks must not delay errors or iterator return.
-      void reader.cancel().catch(() => {})
-    } catch {
-      // Preserve the original error if cancellation throws synchronously.
-    }
+    abortSignal?.removeEventListener('abort', cancel)
+    cancel()
     reader.releaseLock()
   }
 }

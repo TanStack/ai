@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { createCloudflareDecider } from '../src/adapters/evaluate'
 import type { WireQuestion } from '@tanstack/ai'
+import type { Ai } from '@cloudflare/workers-types'
 import type { CloudflareGatewayOptions } from '../src/utils/config'
 
 const logger = resolveDebugOption(false)
@@ -72,14 +73,17 @@ function evaluate(adapter: ReturnType<typeof createRestDecider>) {
 }
 
 describe('evaluate adapter', () => {
-  it('maps TypeSafe answers and usage from a REST 200 and forwards gateway headers', async () => {
+  it('runs on /ai/run, unwraps the run result, and forwards gateway headers', async () => {
     const fetchMock = vi.fn<typeof fetch>(async () =>
       Response.json({
         success: true,
         result: {
-          model: 'jev-1.13.0',
-          answers,
-          usage: { input_tokens: 12, output_tokens: 4 },
+          state: 'Completed',
+          result: {
+            model: 'jev-1.13.0',
+            answers,
+            usage: { input_tokens: 12, output_tokens: 4 },
+          },
         },
       }),
     )
@@ -125,7 +129,7 @@ describe('evaluate adapter', () => {
     }
     const [url, init] = call
     expect(String(url)).toBe(
-      'https://api.cloudflare.com/client/v4/accounts/acc/ai/run/typesafe/jev',
+      'https://api.cloudflare.com/client/v4/accounts/acc/ai/run',
     )
     expect(init?.method).toBe('POST')
     const body = init?.body
@@ -133,24 +137,27 @@ describe('evaluate adapter', () => {
       throw new Error('expected a JSON string body')
     }
     expect(JSON.parse(body)).toEqual({
-      state: { subject: 'Invoice 1842' },
-      questions: {
-        queue: {
-          type: 'choice',
-          instructions: 'Which team should handle this ticket?',
-          criteria: {
-            billing: 'Payments, invoices, refunds',
-            tech: 'Bugs, outages, integrations',
+      model: 'typesafe/jev',
+      input: {
+        state: { subject: 'Invoice 1842' },
+        questions: {
+          queue: {
+            type: 'choice',
+            instructions: 'Which team should handle this ticket?',
+            criteria: {
+              billing: 'Payments, invoices, refunds',
+              tech: 'Bugs, outages, integrations',
+            },
           },
-        },
-        urgency: {
-          type: 'score',
-          instructions: 'How urgent is this ticket?',
-          criteria: ['low', 'medium', 'high'],
-        },
-        refund: {
-          type: 'noul',
-          instructions: 'Is the customer asking for a refund?',
+          urgency: {
+            type: 'score',
+            instructions: 'How urgent is this ticket?',
+            criteria: ['low', 'medium', 'high'],
+          },
+          refund: {
+            type: 'noul',
+            instructions: 'Is the customer asking for a refund?',
+          },
         },
       },
     })
@@ -158,6 +165,35 @@ describe('evaluate adapter', () => {
     expect(headers.get('authorization')).toBe('Bearer tok')
     expect(headers.get('cf-aig-gateway-id')).toBe('g1')
     expect(headers.get('cf-aig-skip-cache')).toBe('true')
+  })
+
+  it('unwraps the run result from the binding', async () => {
+    const run = vi.fn(async () => ({
+      state: 'Completed',
+      result: {
+        model: 'jev-1.13.0',
+        answers,
+        usage: { input_tokens: 12, output_tokens: 4 },
+      },
+    }))
+    const adapter = createCloudflareDecider(MODEL, {
+      binding: { run } as unknown as Ai,
+    })
+
+    const result = await adapter.evaluate({
+      model: MODEL,
+      state,
+      questions,
+      logger,
+    })
+
+    expect(run).toHaveBeenCalledWith(MODEL, { state, questions }, undefined)
+    expect(result.answers).toEqual(answers)
+    expect(result.usage).toEqual({
+      promptTokens: 12,
+      completionTokens: 4,
+      totalTokens: 16,
+    })
   })
 
   it('throws when Workers AI returns an error status', async () => {

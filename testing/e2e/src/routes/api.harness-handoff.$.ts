@@ -33,8 +33,9 @@ import type { SessionView } from '@tanstack/ai-harness/view'
  *     to `billing` with `ctx.harness.handoff`. The main model never runs.
  *   - `'history'`: the main model hands off to `billing`. On turn 1,
  *     `billing` calls `refund`, then answers. On turn 2, `billing` answers.
- *   - `'custom-tool'`: the harness has `routing.handoffTool`. Its tool adds
- *     `from <speaker>: ` before the note, and the main model calls it.
+ *   - `'custom-tool'`: the harness has `routing.handoffTool`. Its tool counts
+ *     the handoffs in the shared state, and adds `from <speaker> #<count>: `
+ *     before the note. The main model calls it.
  * - `POST .../control?runId=` and `GET .../snapshot?runId=` go to the
  *   harness handler. The `authorization` header names the user.
  * - `GET .../settled?runId=&inputId=` waits until an input ends, and
@@ -204,19 +205,23 @@ const refund = toolDefinition({
 }).server(async ({ orderId }) => `Refund R-${orderId} issued.`)
 
 /**
- * The handoff tool of the `'custom-tool'` harness. It adds the speaker
- * before the note, and gives a fixed result.
+ * The handoff tool of the `'custom-tool'` harness. It counts the handoffs
+ * in the shared state, and puts the speaker and the count before the note.
+ * It gives a fixed result.
  */
 const prefixedHandoff: NonNullable<HarnessRouting['handoffTool']> = ({
   from,
   handoff,
+  state,
 }) =>
   toolDefinition({
     name: 'handoff',
     description: 'Hand the user to another agent',
     inputSchema: z.object({ to: z.string(), note: z.string() }),
   }).server(async ({ to, note }) => {
-    await handoff({ to, note: `from ${from ?? 'main'}: ${note}` })
+    const count = state({ key: 'handoffs', initial: 0 })
+    const n = await count.update((value) => value + 1)
+    await handoff({ to, note: `from ${from ?? 'main'} #${n}: ${note}` })
     return 'Passed to the next desk.'
   })
 
