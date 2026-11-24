@@ -857,7 +857,9 @@ export function createSubagentRunRecorder(stores: {
       answered.delete(runId)
     } else {
       const filter = new Set(interruptIds)
-      const remaining = entries.filter((entry) => !filter.has(entry.interruptId))
+      const remaining = entries.filter(
+        (entry) => !filter.has(entry.interruptId),
+      )
       if (remaining.length > 0) answered.set(runId, remaining)
       else answered.delete(runId)
     }

@@ -729,9 +729,7 @@ function messagesField(body: unknown): Array<UIMessage | ModelMessage> {
     return []
   }
   const value: unknown = (body as Record<string, unknown>).messages
-  return Array.isArray(value)
-    ? (value as Array<UIMessage | ModelMessage>)
-    : []
+  return Array.isArray(value) ? (value as Array<UIMessage | ModelMessage>) : []
 }
 
 function resumeField(body: unknown): Array<RunAgentResumeItem> | undefined {

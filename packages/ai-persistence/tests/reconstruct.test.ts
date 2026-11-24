@@ -603,7 +603,11 @@ describe('reconstructChat paging', () => {
       runId: 'run-foreign',
       threadId: 't1',
       requestedAt: 1,
-      payload: { id: 'foreign-1', reason: 'workflow_wait', message: 'External' },
+      payload: {
+        id: 'foreign-1',
+        reason: 'workflow_wait',
+        message: 'External',
+      },
     })
     await persistence.stores.interrupts!.create({
       interruptId: 'approval_tc1',

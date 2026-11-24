@@ -194,9 +194,7 @@ function PersistenceDurabilityPage() {
         <button
           type="button"
           data-testid="switch-thread"
-          onClick={() =>
-            setThreadSlot((prev) => (prev === 'a' ? 'b' : 'a'))
-          }
+          onClick={() => setThreadSlot((prev) => (prev === 'a' ? 'b' : 'a'))}
         >
           Switch thread ({threadSlot})
         </button>

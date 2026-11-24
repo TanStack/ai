@@ -896,7 +896,9 @@ function isTerminalStreamChunk(chunk: StreamChunk): boolean {
   if (tanstack?.loopStopped === true) return true
   const extra = chunk as StreamChunk & { finishReason?: unknown }
   const finishReason =
-    extra.finishReason !== undefined ? extra.finishReason : tanstack?.finishReason
+    extra.finishReason !== undefined
+      ? extra.finishReason
+      : tanstack?.finishReason
   return finishReason !== 'tool_calls'
 }
 

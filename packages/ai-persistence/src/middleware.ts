@@ -2551,7 +2551,10 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
             const prevMessages = threadMessages(
               await messageStore.loadThread(ctx.threadId),
             )
-            await messageStore.saveThread(ctx.threadId, runMessages(ctx, current))
+            await messageStore.saveThread(
+              ctx.threadId,
+              runMessages(ctx, current),
+            )
             try {
               await commitPendingResumes(current, persistence.stores.interrupts)
             } catch (error) {
@@ -2656,7 +2659,11 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           }
         }
 
-        const storedUsage = await createOrResumeRun(runs, ctx.runId, ctx.threadId)
+        const storedUsage = await createOrResumeRun(
+          runs,
+          ctx.runId,
+          ctx.threadId,
+        )
 
         // A continuation has a fresh middleware context but resumes the same run.
         if (state && storedUsage) state.usage = storedUsage

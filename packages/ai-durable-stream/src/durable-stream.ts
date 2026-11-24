@@ -732,7 +732,10 @@ export function durableStream(
             dataStartOffset = backendOffset
             sawControl = true
             dataAwaitingControl = false
-            if (stopWhenUpToDate && (control.streamClosed === true || control.upToDate === true)) {
+            if (
+              stopWhenUpToDate &&
+              (control.streamClosed === true || control.upToDate === true)
+            ) {
               appendTailOffset = backendOffset
             }
             if (control.streamClosed === true) return

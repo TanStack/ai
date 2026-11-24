@@ -1516,7 +1516,10 @@ export function modelMessagesToUIMessages(
             !Array.isArray(parsed) &&
             (parsed as Record<string, unknown>).pendingExecution === true
           ) {
-            if (toolCallPart && (parsed as Record<string, unknown>).approved === true) {
+            if (
+              toolCallPart &&
+              (parsed as Record<string, unknown>).approved === true
+            ) {
               toolCallPart.state = 'approval-responded'
               toolCallPart.approval = {
                 id: `approval_${msg.toolCallId}`,

@@ -2032,7 +2032,8 @@ describe('interrupt persistence', () => {
     const captureCompletion = defineChatMiddleware({
       name: 'capture-completion',
       onStart(ctx) {
-        completionPromise = getPersistenceCompletion(ctx)?.waitForRunCompletion()
+        completionPromise =
+          getPersistenceCompletion(ctx)?.waitForRunCompletion()
       },
     })
 
@@ -2310,7 +2311,9 @@ describe('interrupt persistence', () => {
         middleware: [withPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
-    expect(await persistence.stores.interrupts!.listPending('t-mcp')).toEqual([])
+    expect(await persistence.stores.interrupts!.listPending('t-mcp')).toEqual(
+      [],
+    )
     expect(
       (await persistence.stores.interrupts!.get('mcp_input_tc-mcp_2'))?.status,
     ).toBe('resolved')

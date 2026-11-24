@@ -3,11 +3,7 @@ import {
   isTerminalRunStatus,
   modelMessagesToUIMessages,
 } from '@tanstack/ai'
-import type {
-  ModelMessage,
-  TerminalRunStatus,
-  UIMessage,
-} from '@tanstack/ai'
+import type { ModelMessage, TerminalRunStatus, UIMessage } from '@tanstack/ai'
 import { isChatOwnedPendingInterrupt } from './interrupt-ownership'
 import { attachSubagentCards } from './subagent-runs'
 import { validateReconstructChatStores } from './types'

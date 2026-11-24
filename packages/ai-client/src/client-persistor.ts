@@ -77,7 +77,9 @@ export class ChatPersistor {
     private readonly adapter: ChatClientPersistence,
     private readonly id: string,
     private readonly applyMessages: (messages: Array<UIMessage>) => void,
-    private readonly applyResume?: (snapshot: ChatResumeSnapshot | null) => void,
+    private readonly applyResume?: (
+      snapshot: ChatResumeSnapshot | null,
+    ) => void,
   ) {}
 
   /** Persist the current state as one combined `{ messages, resume? }` record. */

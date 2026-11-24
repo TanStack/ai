@@ -2166,7 +2166,10 @@ export class ChatClient<
         )
         this.processor.setMessages(reverted)
       }
-      if (this.lastResume && this.interruptManager.getDescriptors().length > 0) {
+      if (
+        this.lastResume &&
+        this.interruptManager.getDescriptors().length > 0
+      ) {
         this.persistResumeSnapshot(this.lastResume)
       }
       if (failure !== undefined) {
@@ -2329,8 +2332,8 @@ export class ChatClient<
     // submitting so a mid-continuation reload rejoins the new run instead.
     const skipPersistDuringResumableSubmit = Boolean(
       this.connection.joinRun &&
-        (this.activeInterruptSubmission !== undefined ||
-          this.interruptManager.isSubmitting()),
+      (this.activeInterruptSubmission !== undefined ||
+        this.interruptManager.isSubmitting()),
     )
     if (!skipPersistDuringResumableSubmit) {
       this.persistResumeSnapshot(resumeState)
@@ -2759,9 +2762,12 @@ export class ChatClient<
       chunk.outcome?.type === 'interrupt' &&
       Boolean(
         (this.currentRunId ?? getChunkRunId(chunk) ?? this.activeResumeRunId) &&
-          this.supersededInterruptRunIds.has(
-            this.currentRunId ?? getChunkRunId(chunk) ?? this.activeResumeRunId ?? '',
-          ),
+        this.supersededInterruptRunIds.has(
+          this.currentRunId ??
+            getChunkRunId(chunk) ??
+            this.activeResumeRunId ??
+            '',
+        ),
       )
     const processorChunk = supersededInterruptReplay
       ? { ...chunk, outcome: undefined }

@@ -1715,8 +1715,8 @@ describe('durableStream exact-once resume', () => {
       chunks.push(event.chunk)
     }
     expect(getAttempts).toBe(1)
-    expect(chunks.map((c) => (c.type === 'TEXT_MESSAGE_CONTENT' ? c.delta : ''))).toEqual([
-      'first',
-    ])
+    expect(
+      chunks.map((c) => (c.type === 'TEXT_MESSAGE_CONTENT' ? c.delta : '')),
+    ).toEqual(['first'])
   })
 })
