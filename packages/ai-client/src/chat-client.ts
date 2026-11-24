@@ -2151,14 +2151,15 @@ export class ChatClient<
         this.activeInterruptSubmission = undefined
       }
     })
-    if (
-      continuationGeneration !== this.continuationGeneration ||
-      detachGeneration !== this.detachGeneration
-    ) {
+    if (continuationGeneration !== this.continuationGeneration) {
       return
     }
     const failure = this.takeInterruptSubmissionFailure()
-    if (failure !== undefined || !resumed) {
+    if (
+      failure !== undefined ||
+      !resumed ||
+      detachGeneration !== this.detachGeneration
+    ) {
       if (approvalSnapshots.length > 0) {
         const reverted = revertApprovalParts(
           this.processor.getMessages(),
@@ -2600,7 +2601,6 @@ export class ChatClient<
       let attached = false
       let refused = false
       let sawInterrupt = false
-      let sawTerminal = false
       let sawRunError = false
       let streamCompletedNaturally = false
       const connectTimer = setTimeout(() => {
@@ -2623,13 +2623,9 @@ export class ChatClient<
           }
           if (chunk.type === 'RUN_ERROR') {
             sawRunError = true
-            sawTerminal = true
           } else if (chunk.type === 'RUN_FINISHED') {
             if (chunk.outcome?.type === 'interrupt') {
               sawInterrupt = true
-              sawTerminal = true
-            } else if (!isIntermediateToolTurn(chunk)) {
-              sawTerminal = true
             }
           }
           this.processIncomingChunk(chunk)
@@ -2661,7 +2657,7 @@ export class ChatClient<
           const shouldRestoreFallback =
             fallbackInterrupts !== undefined &&
             fallbackInterrupts.pending.length > 0 &&
-            (refused || sawRunError || (!sawInterrupt && !sawTerminal))
+            (refused || sawRunError)
           if (shouldRestoreFallback) {
             this.rejoinRunId = null
             this.applyResumeSnapshot({
