@@ -87,4 +87,45 @@ describe('finishMCPOAuthRedirect', () => {
       tokens: { access_token: 'issued-token', token_type: 'Bearer' },
     })
   })
+
+  it('rejects saveTokens when access_token is empty', async () => {
+    const { createMCPClientWithOAuthRedirect } = await import(
+      '../src/oauth-redirect'
+    )
+
+    let stored: McpTokenSet | undefined
+    const tokenStore = {
+      load: async () => stored,
+      save: async (tokens: McpTokenSet) => {
+        stored = tokens
+      },
+      clear: async () => {
+        stored = undefined
+      },
+      loadPending: async () => undefined,
+      savePending: async () => {},
+      clearPending: async () => {},
+    }
+
+    createMCPClient.mockImplementation(
+      async (opts: { transport: { authProvider: AuthProvider } }) => {
+        const provider = opts.transport.authProvider
+        provider.saveClientInformation({ client_id: 'client-1' })
+        await provider.saveTokens({
+          access_token: '',
+          token_type: 'Bearer',
+        })
+        return {}
+      },
+    )
+
+    await expect(
+      createMCPClientWithOAuthRedirect({
+        url: 'https://mcp.example/mcp',
+        callbackUrl: 'https://app.example/callback',
+        tokenStore,
+      }),
+    ).rejects.toThrow(/missing access_token/)
+    expect(stored).toBeUndefined()
+  })
 })

@@ -81,7 +81,10 @@ export function mcpResourceToContentPart(
   }
 
   if (typeof content.blob === 'string') {
-    const mime = content.mimeType?.toLowerCase() ?? ''
+    const mime =
+      typeof content.mimeType === 'string'
+        ? content.mimeType.toLowerCase()
+        : ''
     if (decodedByteLength(content.blob) > maxBytes) {
       return reject(content.uri, 'over maxBytes', onReject)
     }

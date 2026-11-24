@@ -6704,7 +6704,8 @@ async function applyMcpToTextOptions(
   } catch (error) {
     if (signal?.aborted) return
     // discover() already disposed on its own failures; resolveContext does not.
-    await mcpManager.dispose()
+    // Never let dispose mask the resolveContext failure.
+    await mcpManager.dispose().catch(() => {})
     throw error
   }
 }

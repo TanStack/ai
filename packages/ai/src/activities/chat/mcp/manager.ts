@@ -369,7 +369,10 @@ export class MCPManager {
   /** Close sources iff policy is 'close'. Idempotent; never throws. */
   async dispose(): Promise<void> {
     if (!this.#shouldClose || this.#sources.length === 0) return
-    await Promise.allSettled(this.#sources.map((s) => s.close()))
+    // Wrap so a sync throw from close() becomes a rejection allSettled swallows.
+    await Promise.allSettled(
+      this.#sources.map((s) => Promise.resolve().then(() => s.close())),
+    )
   }
 }
 

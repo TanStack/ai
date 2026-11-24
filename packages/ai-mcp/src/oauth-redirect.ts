@@ -167,6 +167,14 @@ async function tokenStoreProvider(
       if (!information) {
         throw new Error('The MCP SDK saved OAuth tokens before the client.')
       }
+      // SDK parses OAuthTokensSchema (access_token: string); still reject empty
+      // so we never persist a McpTokenSet that cannot authorize.
+      if (
+        typeof tokens.access_token !== 'string' ||
+        tokens.access_token.length === 0
+      ) {
+        throw new Error('MCP OAuth token response is missing access_token')
+      }
       await options.tokenStore.save({
         accessToken: tokens.access_token,
         ...(tokens.refresh_token

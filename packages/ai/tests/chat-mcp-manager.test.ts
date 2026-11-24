@@ -4,6 +4,7 @@ import {
   MCPManager,
   mergeMcpContextIntoMessages,
 } from '../src/activities/chat/mcp/manager'
+import { mcpResourceToContentPart } from '../src/activities/chat/mcp/resource-parts'
 import {
   executeServerTool,
   type ToolResult,
@@ -140,6 +141,18 @@ describe('MCPManager', () => {
     await m.discover()
     await m.dispose()
     expect(a.closed).toBe(false)
+  })
+
+  it('dispose() does not throw when close() throws synchronously', async () => {
+    const a = {
+      tools: async () => [tool('a')],
+      close: () => {
+        throw new Error('sync close boom')
+      },
+    }
+    const m = MCPManager.from({ clients: [a] })
+    await m.discover()
+    await expect(m.dispose()).resolves.toBeUndefined()
   })
 
   it('rethrows by default on discovery failure and self-cleans (close policy)', async () => {
@@ -619,6 +632,20 @@ describe('MCPManager resolveContext', () => {
         errors: [expect.objectContaining({ message: 'network down' })],
       }),
     })
+  })
+})
+
+describe('mcpResourceToContentPart (internal)', () => {
+  it('treats a non-string mimeType as missing (no toLowerCase crash)', () => {
+    const part = mcpResourceToContentPart({
+      uri: 'file:///img.png',
+      blob: 'abc123',
+      mimeType: 42 as unknown as string,
+    })
+    expect(part?.type).toBe('text')
+    expect((part as { type: 'text'; content: string }).content).toBe(
+      '[binary resource file:///img.png]',
+    )
   })
 })
 

@@ -61,6 +61,18 @@ describe('mcpResourceToContentPart', () => {
     )
   })
 
+  it('treats a non-string mimeType as missing (no toLowerCase crash)', () => {
+    const part = mcpResourceToContentPart({
+      uri: 'file:///img.png',
+      blob: 'abc123',
+      mimeType: 42 as unknown as string,
+    })
+    expect(part?.type).toBe('text')
+    expect((part as { type: 'text'; content: string }).content).toBe(
+      '[binary resource file:///img.png]',
+    )
+  })
+
   it('omits rejected blobs when onReject is omit', () => {
     const part = mcpResourceToContentPart(
       { uri: 'file:///x.bin', blob: 'abc', mimeType: 'application/octet-stream' },
