@@ -22,6 +22,7 @@ import {
 import type {
   ChatClientPersistence,
   ConnectConnectionAdapter,
+  ConnectionAdapter,
   ResumableConnectConnectionAdapter,
   SubscribeConnectionAdapter,
 } from '@tanstack/ai-client'
@@ -3428,6 +3429,90 @@ describe('useChat', () => {
 
       await waitFor(() => expect(result.current.isHydrating).toBe(false))
       expect(result.current.messages).toEqual([])
+    })
+
+    it('preserves pending interrupts in client persistence when unmounting or switching threadId', async () => {
+      const storage = new Map<string, any>()
+      const persistence = {
+        getItem: (key: string) => storage.get(key),
+        setItem: (key: string, value: any) => {
+          storage.set(key, structuredClone(value))
+        },
+        removeItem: (key: string) => {
+          storage.delete(key)
+        },
+      }
+      const adapter: ConnectionAdapter = {
+        async *connect(_messages, _data, _abortSignal, context) {
+          yield {
+            type: 'RUN_STARTED',
+            runId: context?.runId ?? 'r-int',
+            threadId: context?.threadId ?? 't-int-1',
+            timestamp: Date.now(),
+          } as StreamChunk
+          yield {
+            type: 'RUN_FINISHED',
+            runId: context?.runId ?? 'r-int',
+            threadId: context?.threadId ?? 't-int-1',
+            timestamp: Date.now(),
+            outcome: {
+              type: 'interrupt',
+              interrupts: [
+                {
+                  id: 'intr-keep-1',
+                  reason: 'confirm',
+                  message: 'Keep me?',
+                  metadata: {
+                    'tanstack:interruptBinding': {
+                      v: 1,
+                      kind: 'generic',
+                      interruptId: 'intr-keep-1',
+                      interruptedRunId: context?.runId ?? 'r-int',
+                      generation: 0,
+                    },
+                  },
+                },
+              ],
+            },
+          } as StreamChunk
+        },
+      }
+
+      const first = renderHook(
+        ({ threadId }) =>
+          useChat({
+            threadId,
+            connection: adapter,
+            persistence,
+          }),
+        { initialProps: { threadId: 't-int-1' } },
+      )
+      await act(async () => {
+        await first.result.current.sendMessage('pause please')
+      })
+      await waitFor(() =>
+        expect(first.result.current.interrupts).toHaveLength(1),
+      )
+
+      // Switch threadId and wait for deferred disposal of the first client.
+      first.rerender({ threadId: 't-int-2' })
+      await outlastDisposal()
+      first.unmount()
+      await outlastDisposal()
+
+      // Remounting the original thread must restore the pending interrupt.
+      const second = renderHook(() =>
+        useChat({
+          threadId: 't-int-1',
+          connection: adapter,
+          persistence,
+        }),
+      )
+      await waitFor(() =>
+        expect(second.result.current.interrupts).toHaveLength(1),
+      )
+      expect(second.result.current.interrupts[0]?.id).toBe('intr-keep-1')
+      second.unmount()
     })
   })
 })

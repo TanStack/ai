@@ -42,7 +42,7 @@ export function useChat<
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
 
-  const subscribedRef = useRef(false)
+  const subscribedClientRef = useRef<ChatClient | null>(null)
   const activeClientRef = useRef<ChatClient | null>(null)
   const cleanupInvalidationRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -74,12 +74,43 @@ export function useChat<
   const { client, initialization, serverSnapshot, startPersistenceHydration } =
     useMemo(() => {
       const disposed = disposedClientRef.current
-      const messagesToUse =
+      const sameThreadDisposed =
         disposed && disposed.threadId === options.threadId
-          ? disposed.client.getMessages()
-          : options.initialMessages || []
+          ? disposed.client
+          : undefined
+      const messagesToUse = sameThreadDisposed
+        ? sameThreadDisposed.getMessages()
+        : options.initialMessages || []
 
       const initialOptions = optionsRef.current
+      const carriedResumeState = sameThreadDisposed?.getResumeState() ?? null
+      const carriedPendingInterrupts = sameThreadDisposed
+        ? sameThreadDisposed.getInterrupts().map((item) => ({
+            id: item.id,
+            reason: item.reason,
+            ...(item.message !== undefined ? { message: item.message } : {}),
+            ...(item.responseSchema !== undefined
+              ? { responseSchema: item.responseSchema }
+              : {}),
+            ...(item.expiresAt !== undefined
+              ? { expiresAt: item.expiresAt }
+              : {}),
+            ...(item.metadata !== undefined ? { metadata: item.metadata } : {}),
+            ...('toolCallId' in item && typeof item.toolCallId === 'string'
+              ? { toolCallId: item.toolCallId }
+              : {}),
+          }))
+        : []
+      const resumeSnapshotToUse = sameThreadDisposed
+        ? carriedResumeState
+          ? {
+              resumeState: carriedResumeState,
+              ...(carriedPendingInterrupts.length > 0
+                ? { pendingInterrupts: carriedPendingInterrupts }
+                : {}),
+            }
+          : undefined
+        : initialOptions.initialResumeSnapshot
       const { persistence, release: releasePersistenceHydration } =
         gatePersistence(initialOptions.persistence)
       const transport = initialOptions.connection
@@ -135,8 +166,8 @@ export function useChat<
         }),
         ...(initialOptions.byok !== undefined && { byok: initialOptions.byok }),
         byokProvider: () => optionsRef.current.byokProvider?.(),
-        ...(initialOptions.initialResumeSnapshot !== undefined && {
-          initialResumeSnapshot: initialOptions.initialResumeSnapshot,
+        ...(resumeSnapshotToUse !== undefined && {
+          initialResumeSnapshot: resumeSnapshotToUse,
         }),
         ...(initialOptions.context !== undefined && {
           context: initialOptions.context,
@@ -268,17 +299,13 @@ export function useChat<
   useEffect(() => {
     if (options.live) {
       client.subscribe()
-      subscribedRef.current = true
-    } else if (subscribedRef.current) {
-      // Only tear down a subscription we actually started. Calling
-      // `unsubscribe()` on initial mount (when `live` was never enabled) would
-      // abort an in-flight delivery resume — `resumeInFlightRun` is kicked off
-      // in the client constructor, and `unsubscribe()` cancels the shared
-      // in-flight stream — so a mid-stream reload would drop its rejoin before
-      // it delivers a single chunk. This is exactly why a reload froze instead
-      // of continuing.
+      subscribedClientRef.current = client
+    } else if (subscribedClientRef.current === client) {
+      // Only tear down a subscription we actually started on this client.
+      // Calling `unsubscribe()` on initial mount (when `live` was never enabled)
+      // would abort an in-flight delivery resume.
       client.unsubscribe()
-      subscribedRef.current = false
+      subscribedClientRef.current = null
     }
   }, [client, options.live])
 
@@ -337,10 +364,13 @@ export function useChat<
       const disposal = {
         client,
         timeout: setTimeout(() => {
-          if (optionsRef.current.live) {
+          // Detach already ran synchronously above. Dispose tears down the
+          // local stream and listeners without calling `stop()`, so durable
+          // runs and pending interrupts survive navigation, thread switches,
+          // and `<Activity>` hide/show cycles.
+          if (subscribedClientRef.current === client) {
             client.unsubscribe()
-          } else {
-            client.stop()
+            subscribedClientRef.current = null
           }
           client.dispose()
           // Replace it only if the hook has no newer client: on a new
