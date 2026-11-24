@@ -38,7 +38,7 @@ function words(text: string): Set<string> {
     text
       .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
       .toLowerCase()
-      .split(/[^a-z0-9]+/)
+      .split(/[^\p{L}\p{N}]+/u)
       .filter(Boolean),
   )
 }

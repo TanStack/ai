@@ -89,4 +89,12 @@ describe('searchLazyTools', () => {
   it('returns at most `limit` tools', () => {
     expect(searchLazyTools(tools, 'guitar', 1)).toHaveLength(1)
   })
+  it('matches Unicode letters in a query and description', () => {
+    expect(
+      searchLazyTools(
+        [{ name: 'weather', description: 'Прогноз погоды' }],
+        'погоды',
+      ).map((t) => t.name),
+    ).toEqual(['weather'])
+  })
 })
