@@ -75,4 +75,16 @@ describe('durableAnswers', () => {
     expect(await answers.has('call_0')).toBe(false)
     expect((await answers.take(['call_0'])).present).toEqual([])
   })
+
+  it('keeps the answer of a call that another agent runs', async () => {
+    const memory = memoryState()
+    const answers = durableAnswers(memory)
+    const other = callTurn('call_other', 'a')
+    await answers.setMany(other, [['call_other', 'call_other', true]])
+
+    // This agent's transcript does not have the other agent's call.
+    await answers.retain(callTurn('call_mine', 'b'), ['call_mine'])
+
+    expect(await answers.has('call_other')).toBe(true)
+  })
 })

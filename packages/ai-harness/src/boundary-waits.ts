@@ -254,8 +254,8 @@ function isStoredAnswer(value: unknown): value is StoredAnswer {
  *
  * Each answer belongs to one occurrence of its tool call. Call `retain` at
  * each boundary: it drops the answers of calls that are no longer pending,
- * and the answers of an earlier call that had the same id. So an answer never
- * stays in the thread, and never approves a later call that reuses the id.
+ * and the answers of an earlier call that had the same id. So an answer does
+ * not stay after its turn, and never approves a later call that reuses the id.
  */
 export function durableAnswers(ctx: Pick<PluginSetupContext, 'state'>) {
   const state = ctx.state<Record<string, unknown>>({})
@@ -283,16 +283,23 @@ export function durableAnswers(ctx: Pick<PluginSetupContext, 'state'>) {
         return next
       })
     },
-    /** Keep only the answers of these pending calls, as they are now. */
+    /**
+     * Drop the answers of calls in `messages` that are no longer pending, or
+     * that an earlier call with the same id made. An answer of a call that is
+     * not in `messages` stays: it belongs to the run of another agent that
+     * shares this plugin state.
+     */
     retain: async (
       messages: ReadonlyArray<ModelMessage>,
       pendingToolCallIds: ReadonlyArray<string>,
     ) => {
       const pending = new Set(pendingToolCallIds)
-      const keep = (entry: unknown) =>
-        isStoredAnswer(entry) &&
-        pending.has(entry.toolCallId) &&
-        entry.occurrence === occurrenceOf(messages, entry.toolCallId)
+      const keep = (entry: unknown) => {
+        if (!isStoredAnswer(entry)) return false
+        const occurrence = occurrenceOf(messages, entry.toolCallId)
+        if (occurrence === 0) return true
+        return pending.has(entry.toolCallId) && entry.occurrence === occurrence
+      }
       const stored = await state.get()
       if (Object.values(stored).every(keep)) return
       await state.update((current) =>
