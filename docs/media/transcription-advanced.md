@@ -159,13 +159,12 @@ export function Transcriber() {
 
 ### Server function that streams
 
-When `stream` is `true`, `gpt-transcribe`, `gpt-4o-transcribe`, and `gpt-4o-mini-transcribe` send AG-UI text deltas.
+`generateTranscription({ stream: true })` sends AG-UI text events and the final `generation:result` event.
 
-If the format is `json` or you omit it, `gpt-transcribe` sends each text delta as the model writes it. If the format is not `json`, `gpt-transcribe` waits for the full result and sends one text delta. `gpt-4o-transcribe` and `gpt-4o-mini-transcribe` accept only `json`. A different format is an API error.
-
-If you pass `middleware`, the stream sends one text delta after the middleware completes.
-
-Whisper does not send text deltas. When the request completes, the full text arrives. When an adapter implements `transcribeStream`, that adapter sends text deltas.
+- For `json` or no format, `gpt-transcribe` sends text deltas as it transcribes. For another format, it sends one final delta.
+- `gpt-4o-transcribe` and `gpt-4o-mini-transcribe` accept only `json`. Another format returns an API error.
+- An adapter without `transcribeStream`, including `whisper-1`, sends the completed text in one delta.
+- If you pass `middleware`, the activity sends one delta after the middleware completes.
 
 ```typescript ignore
 // lib/server-functions.ts
@@ -201,13 +200,15 @@ const threadId = 'transcription'
 
 export function Transcriber() {
   const [transcript, setTranscript] = useState('')
-  const { generate, result, isLoading, error } = useTranscription({
+  const [isReading, setIsReading] = useState(false)
+  const [fileError, setFileError] = useState('')
+  const { generate, result, isLoading, error, reset } = useTranscription({
     fetcher: (input, { threadId }) => {
       if (typeof input.audio !== 'string') {
         throw new Error('Expected base64 or data URL audio')
       }
       return transcribeStreamFn({
-        data: { ...input, threadId },
+        data: { ...input, audio: input.audio, threadId },
       })
     },
     threadId,
@@ -219,20 +220,39 @@ export function Transcriber() {
       }
     },
   })
-  const displayedTranscript = isLoading || error
-    ? transcript
-    : (result?.text ?? transcript)
+  const displayedTranscript =
+    isReading || isLoading || error || fileError
+      ? transcript
+      : (result?.text ?? transcript)
 
   function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file) return
 
+    reset()
+    setTranscript('')
+    setFileError('')
+    setIsReading(true)
     const reader = new FileReader()
     reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setTranscript('')
-        void generate({ audio: reader.result, language: 'en' })
+      const audio = reader.result
+      if (typeof audio !== 'string') {
+        setFileError('Audio file read failed.')
+        setIsReading(false)
+        return
       }
+      void generate({ audio, language: 'en' })
+      setIsReading(false)
+    }
+    reader.onerror = () => {
+      setFileError(
+        reader.error?.message || 'Audio file read failed.',
+      )
+      setIsReading(false)
+    }
+    reader.onabort = () => {
+      setFileError('The browser stopped reading the audio file.')
+      setIsReading(false)
     }
     reader.readAsDataURL(file)
   }
@@ -243,9 +263,11 @@ export function Transcriber() {
         type="file"
         accept="audio/*"
         onChange={handleFile}
-        disabled={isLoading}
+        disabled={isReading || isLoading}
       />
+      {isReading && <p>Reading audio file...</p>}
       {isLoading && <p>Transcribing...</p>}
+      {fileError && <p role="alert">{fileError}</p>}
       {error && <p role="alert">{error.message}</p>}
       {displayedTranscript && <p>{displayedTranscript}</p>}
     </div>

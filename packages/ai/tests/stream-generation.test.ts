@@ -796,6 +796,7 @@ describe('generateTranscription({ stream: true })', () => {
   it('does not invoke the adapter if onStart returns after cancellation', async () => {
     let releaseOnStart!: () => void
     let signalOnStart!: () => void
+    const onAbort = vi.fn()
     const onStartEntered = new Promise<void>((resolve) => {
       signalOnStart = resolve
     })
@@ -822,6 +823,7 @@ describe('generateTranscription({ stream: true })', () => {
             signalOnStart()
             await onStartGate
           },
+          onAbort,
         },
       ],
       stream: true,
@@ -850,11 +852,12 @@ describe('generateTranscription({ stream: true })', () => {
     expect(settledBeforeOnStart).toBe(true)
     expect(pendingChunk.value).toMatchObject({ type: 'RUN_ERROR' })
     expect(cancellationResult).toMatchObject({ done: true })
+    expect(onAbort).toHaveBeenCalledOnce()
     expect(adapter.transcribeStream).not.toHaveBeenCalled()
     expect(adapter.transcribe).not.toHaveBeenCalled()
   })
 
-  it('should emit RUN_STARTED, CUSTOM result, and RUN_FINISHED', async () => {
+  it('emits the completed text when the adapter does not stream', async () => {
     const adapter = createMockTranscriptionAdapter()
 
     const chunks = await collectChunks(
@@ -866,28 +869,69 @@ describe('generateTranscription({ stream: true })', () => {
       }),
     )
 
-    expect(chunks).toHaveLength(3)
+    expect(
+      chunks.map((chunk) =>
+        chunk.type === 'CUSTOM' ? `CUSTOM:${chunk.name}` : chunk.type,
+      ),
+    ).toEqual([
+      'RUN_STARTED',
+      'TEXT_MESSAGE_START',
+      'TEXT_MESSAGE_CONTENT',
+      'TEXT_MESSAGE_END',
+      'CUSTOM:generation:result',
+      'RUN_FINISHED',
+    ])
+    expect(chunks[2]).toMatchObject({
+      type: 'TEXT_MESSAGE_CONTENT',
+      delta: 'Hello, this is a transcription.',
+    })
 
-    expect(chunks[0]!.type).toBe('RUN_STARTED')
-    expect(chunks[0]!).toHaveProperty('runId')
-
-    expect(chunks[1]!.type).toBe('CUSTOM')
-    if (chunks[1]!.type === 'CUSTOM') {
-      expect(chunks[1]!.name).toBe('generation:result')
-      expect(chunks[1]!.value).toEqual({
+    const result = chunks.find(
+      (chunk) => chunk.type === 'CUSTOM' && chunk.name === 'generation:result',
+    )
+    expect(result).toMatchObject({
+      value: {
         id: 'txn-1',
         model: 'test-model',
         text: 'Hello, this is a transcription.',
         language: 'en',
         duration: 5.0,
-      })
+      },
+    })
+    const finished = chunks.at(-1)
+    expect(finished?.type).toBe('RUN_FINISHED')
+    if (finished?.type === 'RUN_FINISHED') {
+      expect(finished).not.toHaveProperty('finishReason')
+      expect(tanstackMetadata(finished)?.finishReason).toBe('stop')
     }
+  })
 
-    expect(chunks[2]!.type).toBe('RUN_FINISHED')
-    if (chunks[2]!.type === 'RUN_FINISHED') {
-      expect(chunks[2]!).not.toHaveProperty('finishReason')
-      expect(tanstackMetadata(chunks[2]!)?.finishReason).toBe('stop')
-    }
+  it('reports a startup error without calling onAbort', async () => {
+    const onAbort = vi.fn()
+    const adapter = createMockTranscriptionAdapter()
+    const chunks = await collectChunks(
+      generateTranscription({
+        threadId: 'thread-1',
+        adapter,
+        audio: 'base64-audio-data',
+        middleware: [
+          {
+            onStart: () => {
+              throw new Error('Startup failed')
+            },
+            onAbort,
+          },
+        ],
+        stream: true,
+      }),
+    )
+
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'RUN_ERROR',
+      message: 'Startup failed',
+    })
+    expect(onAbort).not.toHaveBeenCalled()
+    expect(adapter.transcribe).not.toHaveBeenCalled()
   })
 
   it('should emit RUN_ERROR when adapter throws', async () => {
@@ -906,14 +950,15 @@ describe('generateTranscription({ stream: true })', () => {
       }),
     )
 
-    expect(chunks).toHaveLength(2)
-
-    expect(chunks[0]!.type).toBe('RUN_STARTED')
-
-    expect(chunks[1]!.type).toBe('RUN_ERROR')
-    if (chunks[1]!.type === 'RUN_ERROR') {
-      expect(chunks[1]!.message).toBe('Transcription failed')
-    }
+    expect(
+      chunks.map((chunk) =>
+        chunk.type === 'CUSTOM' ? `CUSTOM:${chunk.name}` : chunk.type,
+      ),
+    ).toEqual(['RUN_STARTED', 'TEXT_MESSAGE_START', 'RUN_ERROR'])
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'RUN_ERROR',
+      message: 'Transcription failed',
+    })
   })
 
   it('emits RUN_ERROR when a streaming adapter fails after a delta', async () => {

@@ -702,7 +702,7 @@ test.describe('Middleware Lifecycle', () => {
     ])
   })
 
-  test('otel middleware emits the self-describing billed quantity for a duration-billed activity', async ({
+  test('otel middleware preserves streamed transcription text and duration billing', async ({
     request,
     testId,
     aimockPort,
@@ -721,9 +721,12 @@ test.describe('Middleware Lifecycle', () => {
       },
     })
     expect(res.ok()).toBe(true)
-    const { ok, error, spans } = await res.json()
+    const { ok, error, spans, streamedText } = await res.json()
     expect(error ?? null).toBeNull()
     expect(ok).toBe(true)
+    expect(streamedText).toBe(
+      'I would like to buy a Fender Stratocaster please',
+    )
 
     const mediaSpans = spans.filter(
       (s: any) => s.attributes['gen_ai.operation.name'] === 'transcription',

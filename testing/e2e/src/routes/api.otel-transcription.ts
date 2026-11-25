@@ -41,14 +41,20 @@ export const Route = createFileRoute('/api/otel-transcription')({
           )
           const { tracer, spans } = createLocalCaptureTracer()
 
-          await generateTranscription({
+          let streamedText = ''
+          for await (const chunk of generateTranscription({
             threadId: 'otel-transcription',
             adapter,
             audio,
             middleware: [otelMiddleware({ tracer, captureContent: true })],
-          })
+            stream: true,
+          })) {
+            if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+              streamedText += chunk.delta
+            }
+          }
 
-          return new Response(JSON.stringify({ ok: true, spans }), {
+          return new Response(JSON.stringify({ ok: true, spans, streamedText }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
           })

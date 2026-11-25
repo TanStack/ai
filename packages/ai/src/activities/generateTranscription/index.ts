@@ -219,7 +219,7 @@ export function generateTranscription<
         ).finally(combinedAbort.dispose)
       },
       options,
-      { text: typeof options.adapter.transcribeStream === 'function' },
+      { text: true },
     ) as TranscriptionActivityResult<TStream>
   }
 
@@ -292,6 +292,12 @@ async function runGenerateTranscription<
     )
   } catch (error: unknown) {
     abortControls.clear()
+    if (isActivityAbortError(error, abortControls.signal)) {
+      await runGenerationAbort(middleware, mwCtx, {
+        reason: abortReasonMessage(error, abortControls.signal),
+        duration: Date.now() - startTime,
+      })
+    }
     throw error
   }
 
@@ -323,11 +329,17 @@ async function runGenerateTranscription<
       ...(abortControls.signal ? { abortSignal: abortControls.signal } : {}),
     }
     const hasMiddleware = (middleware?.length ?? 0) > 0
+    let emittedTextDelta = false
+    const emitStreamedTextDelta = (delta: string) => {
+      if (!emitTextDelta) return
+      emittedTextDelta = true
+      emitTextDelta(delta)
+    }
     const transcription =
       emitTextDelta && adapter.transcribeStream
         ? readTranscriptionStream(
             adapter.transcribeStream(transcriptionOptions),
-            hasMiddleware ? undefined : emitTextDelta,
+            hasMiddleware ? undefined : emitStreamedTextDelta,
             abortControls.signal,
           )
         : adapter.transcribe(transcriptionOptions)
@@ -336,8 +348,8 @@ async function runGenerateTranscription<
       applyGenerationResultTransforms(mwCtx, rawResult),
       abortControls.signal,
     )
-    if (emitTextDelta && hasMiddleware) {
-      // ponytail: hold text until result transforms can safely be applied.
+    if (emitTextDelta && !emittedTextDelta && result.text) {
+      // ponytail: emit the full result when no deltas were safe to stream.
       emitTextDelta(result.text)
     }
     const duration = Date.now() - startTime

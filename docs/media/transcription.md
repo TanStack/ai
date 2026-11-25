@@ -64,7 +64,7 @@ export async function POST(request: Request) {
 }
 ```
 
-When the adapter supports streaming, the route sends text deltas as they arrive. If you pass `middleware`, the route sends one text delta after the middleware completes.
+An adapter with `transcribeStream` sends text deltas as they arrive. An adapter without it sends the completed text in one delta. If you pass `middleware`, the route sends one delta after the middleware completes.
 
 4. Add a component that reads a file and sends it:
 
@@ -75,7 +75,9 @@ import { fetchServerSentEvents, useTranscription } from '@tanstack/ai-react'
 
 export function Transcriber() {
   const [transcript, setTranscript] = useState('')
-  const { generate, result, isLoading, error } = useTranscription({
+  const [isReading, setIsReading] = useState(false)
+  const [fileError, setFileError] = useState('')
+  const { generate, result, isLoading, error, reset } = useTranscription({
     connection: fetchServerSentEvents('/api/transcribe'),
     threadId: 'transcription',
     onChunk(chunk) {
@@ -86,28 +88,54 @@ export function Transcriber() {
       }
     },
   })
-  const displayedTranscript = isLoading || error
-    ? transcript
-    : (result?.text ?? transcript)
+  const displayedTranscript =
+    isReading || isLoading || error || fileError
+      ? transcript
+      : (result?.text ?? transcript)
 
   function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file) return
 
+    reset()
+    setTranscript('')
+    setFileError('')
+    setIsReading(true)
     const reader = new FileReader()
     reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setTranscript('')
-        void generate({ audio: reader.result, language: 'en' })
+      const audio = reader.result
+      if (typeof audio !== 'string') {
+        setFileError('Audio file read failed.')
+        setIsReading(false)
+        return
       }
+      void generate({ audio, language: 'en' })
+      setIsReading(false)
+    }
+    reader.onerror = () => {
+      setFileError(
+        reader.error?.message || 'Audio file read failed.',
+      )
+      setIsReading(false)
+    }
+    reader.onabort = () => {
+      setFileError('The browser stopped reading the audio file.')
+      setIsReading(false)
     }
     reader.readAsDataURL(file)
   }
 
   return (
     <div>
-      <input type="file" accept="audio/*" onChange={handleFile} />
+      <input
+        type="file"
+        accept="audio/*"
+        onChange={handleFile}
+        disabled={isReading || isLoading}
+      />
+      {isReading && <p>Reading audio file...</p>}
       {isLoading && <p>Transcribing...</p>}
+      {fileError && <p role="alert">{fileError}</p>}
       {error && <p role="alert">Error: {error.message}</p>}
       {displayedTranscript && <p>{displayedTranscript}</p>}
     </div>
