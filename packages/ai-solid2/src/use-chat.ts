@@ -147,7 +147,9 @@ export function useChat<
     return () => {
       unsubscribe()
       target.detach()
-      target.unsubscribe()
+      // Only drop a live subscription. An in-flight resumed run must survive
+      // navigation, matching the Solid 1 adapter.
+      if (target.getSnapshot().isSubscribed) target.unsubscribe()
       target.dispose()
     }
   })

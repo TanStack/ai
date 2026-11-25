@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { createGeneration } from '../src/create-generation.svelte'
 import { createGenerateImage } from '../src/create-generate-image.svelte'
-import { createGenerate3DModel } from '../src/create-generate-3d-model.svelte'
+import { createGenerate3dModel } from '../src/create-generate-3d-model.svelte'
 import { createGenerateSpeech } from '../src/create-generate-speech.svelte'
 import { createTranscription } from '../src/create-transcription.svelte'
 import { createSummarize } from '../src/create-summarize.svelte'
@@ -9,7 +9,7 @@ import { createGenerateVideo } from '../src/create-generate-video.svelte'
 import { createMockConnectionAdapter } from './test-utils'
 import { EventType, type StreamChunk } from '@tanstack/ai'
 import type {
-  Model3DResult,
+  Model3dResult,
   PersistedArtifactRef,
   TTSResult,
   TranscriptionResult,
@@ -460,13 +460,13 @@ describe('createGenerateImage', () => {
   })
 })
 
-describe('createGenerate3DModel', () => {
+describe('createGenerate3dModel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
   it('reports each poll as progress, then stores the finished model', async () => {
-    const model: Model3DResult = {
+    const model: Model3dResult = {
       jobId: 'job-3d',
       url: 'https://example.com/robot.glb',
       format: 'glb',
@@ -496,7 +496,7 @@ describe('createGenerate3DModel', () => {
     const onProgress = vi.fn()
     const onResult = vi.fn()
 
-    const gen = createGenerate3DModel({
+    const gen = createGenerate3dModel({
       threadId: 'thread-1',
       connection: createMockConnectionAdapter({ chunks }),
       onProgress,
@@ -518,7 +518,7 @@ describe('createGenerate3DModel', () => {
   it('surfaces a stream error and keeps the result empty', async () => {
     const onError = vi.fn()
 
-    const gen = createGenerate3DModel({
+    const gen = createGenerate3dModel({
       threadId: 'thread-1',
       connection: createMockConnectionAdapter({
         chunks: createErrorChunks('3D generation failed'),

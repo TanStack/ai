@@ -34,6 +34,13 @@ const EFFORT_LOW_TO_MAX = {
  * `(string & {})` escape hatch in {@link ClaudeCodeModel}.
  */
 export const CLAUDE_CODE_MODELS = [
+  'claude-fable-5-1',
+  'claude-fable-5',
+  'claude-opus-5-5',
+  'claude-opus-5',
+  'claude-sonnet-5-5',
+  'claude-sonnet-5',
+  'claude-haiku-5-5',
   'claude-opus-4-8',
   'claude-opus-4-7',
   'claude-opus-4-6',
@@ -57,6 +64,13 @@ export type ClaudeCodeModel = KnownClaudeCodeModel | (string & {})
 // catalog later. Until then, edit these entries by hand.
 
 const CLAUDE_CODE_REASONING = {
+  'claude-fable-5-1': EFFORT_LOW_TO_MAX,
+  'claude-fable-5': EFFORT_LOW_TO_MAX,
+  'claude-opus-5-5': EFFORT_LOW_TO_MAX,
+  'claude-opus-5': EFFORT_LOW_TO_MAX,
+  'claude-sonnet-5-5': EFFORT_LOW_TO_MAX,
+  'claude-sonnet-5': EFFORT_LOW_TO_MAX,
+  'claude-haiku-5-5': EFFORT_LOW_TO_MAX,
   'claude-opus-4-8': EFFORT_LOW_TO_MAX,
   'claude-opus-4-7': EFFORT_LOW_TO_MAX,
   'claude-opus-4-6': BUDGET_LOW_TO_HIGH_MAX,

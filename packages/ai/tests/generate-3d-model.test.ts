@@ -1,19 +1,19 @@
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import {
-  BaseModel3DAdapter,
-  generate3DModel,
-  get3DModelJobStatus,
+  BaseModel3dAdapter,
+  generate3dModel,
+  get3dModelJobStatus,
 } from '../src/index'
 import { collectChunks } from './test-utils'
 import type {
-  Model3DResult,
-  Model3DStatusResult,
+  Model3dResult,
+  Model3dStatusResult,
   StreamChunk,
 } from '../src/types'
 
-type ScriptedStatus = Omit<Model3DStatusResult, 'jobId'>
+type ScriptedStatus = Omit<Model3dStatusResult, 'jobId'>
 
-const MODEL: Model3DResult = {
+const MODEL: Model3dResult = {
   jobId: 'job-1',
   url: 'https://cdn.example.com/robot.glb',
   format: 'glb',
@@ -26,7 +26,7 @@ const MODEL: Model3DResult = {
  * A provider stand-in. Each status poll returns the next scripted status.
  * The last status repeats when the script runs out.
  */
-class FakeModel3DAdapter extends BaseModel3DAdapter {
+class FakeModel3dAdapter extends BaseModel3dAdapter {
   readonly name = 'fake-3d'
   createCalls = 0
   statusCalls = 0
@@ -36,31 +36,31 @@ class FakeModel3DAdapter extends BaseModel3DAdapter {
     super({}, 'fake-model')
   }
 
-  async create3DModelJob() {
+  async create3dModelJob() {
     this.createCalls += 1
     return { jobId: 'job-1', model: this.model }
   }
 
-  async get3DModelStatus(jobId: string) {
+  async get3dModelStatus(jobId: string) {
     const index = Math.min(this.statusCalls, this.statuses.length - 1)
     this.statusCalls += 1
     return { jobId, ...this.statuses[index]! }
   }
 
-  async get3DModel() {
+  async get3dModel() {
     return MODEL
   }
 
-  async cancel3DModelJob(jobId: string) {
+  async cancel3dModelJob(jobId: string) {
     this.cancelled.push(jobId)
   }
 }
 
 function waitFor(
-  adapter: FakeModel3DAdapter,
+  adapter: FakeModel3dAdapter,
   extra: { timeout?: number; abortSignal?: AbortSignal } = {},
 ) {
-  return generate3DModel({
+  return generate3dModel({
     adapter,
     prompt: 'a small robot',
     threadId: 'thread-1',
@@ -72,10 +72,10 @@ function waitFor(
 }
 
 function streamFrom(
-  adapter: FakeModel3DAdapter,
+  adapter: FakeModel3dAdapter,
   extra: { abortSignal?: AbortSignal } = {},
 ) {
-  return generate3DModel({
+  return generate3dModel({
     adapter,
     prompt: 'a small robot',
     threadId: 'thread-1',
@@ -96,11 +96,11 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-describe('generate3DModel', () => {
+describe('generate3dModel', () => {
   it('submits the job and returns its id without polling', async () => {
-    const adapter = new FakeModel3DAdapter([{ status: 'completed' }])
+    const adapter = new FakeModel3dAdapter([{ status: 'completed' }])
 
-    const job = await generate3DModel({
+    const job = await generate3dModel({
       adapter,
       prompt: 'a small robot',
       threadId: 'thread-1',
@@ -113,7 +113,7 @@ describe('generate3DModel', () => {
 
   it('waits through pending and processing and returns the model', async () => {
     vi.useFakeTimers()
-    const adapter = new FakeModel3DAdapter([
+    const adapter = new FakeModel3dAdapter([
       { status: 'pending' },
       { status: 'processing', progress: 50 },
       { status: 'completed' },
@@ -128,7 +128,7 @@ describe('generate3DModel', () => {
 
   it('rejects with the provider message when the job fails', async () => {
     vi.useFakeTimers()
-    const adapter = new FakeModel3DAdapter([
+    const adapter = new FakeModel3dAdapter([
       { status: 'processing' },
       { status: 'failed', error: 'mesh too complex' },
     ])
@@ -143,7 +143,7 @@ describe('generate3DModel', () => {
 
   it('cancels the job and rejects when the timeout fires', async () => {
     vi.useFakeTimers()
-    const adapter = new FakeModel3DAdapter([{ status: 'processing' }])
+    const adapter = new FakeModel3dAdapter([{ status: 'processing' }])
 
     const result = waitFor(adapter, { timeout: 2500 })
     const assertion = expect(result).rejects.toThrow(
@@ -156,10 +156,10 @@ describe('generate3DModel', () => {
   })
 
   it('cancels a job whose id arrives after abort during create', async () => {
-    const adapter = new FakeModel3DAdapter([{ status: 'processing' }])
+    const adapter = new FakeModel3dAdapter([{ status: 'processing' }])
     let started = false
     let finishCreate!: (value: { jobId: string; model: string }) => void
-    adapter.create3DModelJob = () => {
+    adapter.create3dModelJob = () => {
       started = true
       return new Promise((resolve) => {
         finishCreate = resolve
@@ -180,7 +180,7 @@ describe('generate3DModel', () => {
   })
 
   it('creates no job when the signal is already aborted', async () => {
-    const adapter = new FakeModel3DAdapter([{ status: 'processing' }])
+    const adapter = new FakeModel3dAdapter([{ status: 'processing' }])
     const controller = new AbortController()
     controller.abort(new Error('user stopped'))
 
@@ -192,7 +192,7 @@ describe('generate3DModel', () => {
 
   it('cancels the job and leaves no timers when aborted during the poll sleep', async () => {
     vi.useFakeTimers()
-    const adapter = new FakeModel3DAdapter([{ status: 'processing' }])
+    const adapter = new FakeModel3dAdapter([{ status: 'processing' }])
     const controller = new AbortController()
 
     const result = waitFor(adapter, { abortSignal: controller.signal })
@@ -208,29 +208,29 @@ describe('generate3DModel', () => {
   })
 
   it('types stream and wait as exclusive and picks the result per mode', () => {
-    const adapter = new FakeModel3DAdapter([{ status: 'completed' }])
+    const adapter = new FakeModel3dAdapter([{ status: 'completed' }])
     const base = { adapter, prompt: 'x', threadId: 't' }
     // Type-only: these calls are never run.
     const calls = () => ({
-      submit: generate3DModel(base),
-      wait: generate3DModel({ ...base, wait: true }),
-      stream: generate3DModel({ ...base, stream: true }),
+      submit: generate3dModel(base),
+      wait: generate3dModel({ ...base, wait: true }),
+      stream: generate3dModel({ ...base, stream: true }),
       // @ts-expect-error - stream and wait cannot both be true
-      both: generate3DModel({ ...base, stream: true, wait: true }),
+      both: generate3dModel({ ...base, stream: true, wait: true }),
     })
     type Calls = ReturnType<typeof calls>
     expectTypeOf<Calls['submit']>().toEqualTypeOf<
       Promise<{ jobId: string; model: string }>
     >()
-    expectTypeOf<Calls['wait']>().toEqualTypeOf<Promise<Model3DResult>>()
+    expectTypeOf<Calls['wait']>().toEqualTypeOf<Promise<Model3dResult>>()
     expectTypeOf<Calls['stream']>().toEqualTypeOf<AsyncIterable<StreamChunk>>()
   })
 
   it('rejects a file source before it creates a job', async () => {
-    const adapter = new FakeModel3DAdapter([{ status: 'completed' }])
+    const adapter = new FakeModel3dAdapter([{ status: 'completed' }])
 
     await expect(
-      generate3DModel({
+      generate3dModel({
         adapter,
         prompt: [{ type: 'image', source: { type: 'file', value: 'file-1' } }],
         threadId: 'thread-1',
@@ -241,7 +241,7 @@ describe('generate3DModel', () => {
   })
 
   it('streams progress per poll, then the result', async () => {
-    const adapter = new FakeModel3DAdapter([
+    const adapter = new FakeModel3dAdapter([
       { status: 'pending' },
       { status: 'processing', progress: 40 },
       { status: 'completed' },
@@ -269,7 +269,7 @@ describe('generate3DModel', () => {
   })
 
   it('ends the stream with RUN_ERROR when the job fails', async () => {
-    const adapter = new FakeModel3DAdapter([
+    const adapter = new FakeModel3dAdapter([
       { status: 'failed', error: 'mesh too complex' },
     ])
 
@@ -287,7 +287,7 @@ describe('generate3DModel', () => {
   })
 
   it('cancels the job when the consumer stops reading the stream', async () => {
-    const adapter = new FakeModel3DAdapter([{ status: 'processing' }])
+    const adapter = new FakeModel3dAdapter([{ status: 'processing' }])
 
     for await (const chunk of streamFrom(adapter)) {
       if (chunk.type === 'CUSTOM') break
@@ -297,7 +297,7 @@ describe('generate3DModel', () => {
   })
 
   it('cancels the job at abort while the stream consumer is paused', async () => {
-    const adapter = new FakeModel3DAdapter([{ status: 'processing' }])
+    const adapter = new FakeModel3dAdapter([{ status: 'processing' }])
     const controller = new AbortController()
     const stream = streamFrom(adapter, { abortSignal: controller.signal })[
       Symbol.asyncIterator
@@ -316,13 +316,13 @@ describe('generate3DModel', () => {
   })
 })
 
-describe('get3DModelJobStatus', () => {
+describe('get3dModelJobStatus', () => {
   it('returns the status without a result while the job runs', async () => {
-    const adapter = new FakeModel3DAdapter([
+    const adapter = new FakeModel3dAdapter([
       { status: 'processing', progress: 30 },
     ])
 
-    const status = await get3DModelJobStatus({ adapter, jobId: 'job-1' })
+    const status = await get3dModelJobStatus({ adapter, jobId: 'job-1' })
 
     expect(status).toEqual({
       jobId: 'job-1',
@@ -332,9 +332,9 @@ describe('get3DModelJobStatus', () => {
   })
 
   it('adds the finished model once the job is completed', async () => {
-    const adapter = new FakeModel3DAdapter([{ status: 'completed' }])
+    const adapter = new FakeModel3dAdapter([{ status: 'completed' }])
 
-    const status = await get3DModelJobStatus({ adapter, jobId: 'job-1' })
+    const status = await get3dModelJobStatus({ adapter, jobId: 'job-1' })
 
     expect(status).toEqual({
       jobId: 'job-1',

@@ -1,4 +1,5 @@
-import { EventType } from '@tanstack/ai'
+import { EventType, toolDefinition } from '@tanstack/ai'
+import { hashSchemaInput } from '@tanstack/ai/client'
 import { ChatClient } from '@tanstack/ai-client'
 import { act, render, renderHook, waitFor } from '@testing-library/react'
 import {
@@ -22,7 +23,9 @@ import {
 import type {
   ChatClientPersistence,
   ConnectConnectionAdapter,
+  ConnectionAdapter,
   ResumableConnectConnectionAdapter,
+  RunAgentInputContext,
   SubscribeConnectionAdapter,
 } from '@tanstack/ai-client'
 import type { UIMessage, UseChatOptions } from '../src/types'
@@ -3368,6 +3371,124 @@ describe('useChat', () => {
       await waitFor(() => expect(result.current.isHydrating).toBe(false))
     })
 
+    it('runs a pending client tool again after a hide disposes the client', async () => {
+      const outputSchemaHash = hashSchemaInput(undefined)
+      const connectContexts: Array<RunAgentInputContext | undefined> = []
+      let firstRunId = ''
+      const connection: ConnectConnectionAdapter = {
+        async *connect(_messages, _data, _signal, context) {
+          connectContexts.push(context)
+          const runId = context?.runId ?? 'run'
+          if (connectContexts.length === 1) {
+            firstRunId = runId
+            yield {
+              type: EventType.RUN_STARTED,
+              runId,
+              threadId: 't1',
+              timestamp: 1,
+            }
+            yield {
+              type: EventType.TOOL_CALL_START,
+              toolCallId: 'call-1',
+              toolCallName: 'lookup',
+              timestamp: 2,
+            }
+            yield {
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: 'call-1',
+              delta: '{}',
+              timestamp: 3,
+            }
+            yield {
+              type: EventType.RUN_FINISHED,
+              runId,
+              threadId: 't1',
+              timestamp: 4,
+              outcome: {
+                type: 'interrupt',
+                interrupts: [
+                  {
+                    id: 'client-1',
+                    reason: 'tanstack:client_tool_execution',
+                    toolCallId: 'call-1',
+                    metadata: {
+                      kind: 'client_tool',
+                      toolName: 'lookup',
+                      input: {},
+                      'tanstack:interruptBinding': {
+                        kind: 'client-tool-execution',
+                        interruptId: 'client-1',
+                        interruptedRunId: runId,
+                        generation: 0,
+                        toolName: 'lookup',
+                        toolCallId: 'call-1',
+                        outputSchemaHash,
+                        responseSchemaHash: outputSchemaHash,
+                      },
+                    },
+                  },
+                ],
+              },
+            } as StreamChunk
+            return
+          }
+          yield {
+            type: EventType.RUN_STARTED,
+            runId,
+            threadId: 't1',
+            timestamp: 5,
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId: 't1',
+            timestamp: 6,
+            finishReason: 'stop',
+          }
+        },
+      }
+      let calls = 0
+      const lookup = toolDefinition({
+        name: 'lookup',
+        description: 'Look up',
+      }).client(() => {
+        calls++
+        // The first run never ends: the hide disposes the client under it.
+        return calls === 1 ? new Promise(() => {}) : { found: true }
+      })
+      let mode: 'visible' | 'hidden' = 'visible'
+      const { result, rerender } = renderHook(
+        () => useChat({ connection, threadId: 't1', tools: [lookup] }),
+        {
+          wrapper: ({ children }) =>
+            createElement(Activity, { mode, children }),
+        },
+      )
+      act(() => {
+        void result.current.sendMessage('hi')
+      })
+      await waitFor(() => expect(calls).toBe(1))
+
+      mode = 'hidden'
+      rerender()
+      await outlastDisposal()
+      mode = 'visible'
+      rerender()
+
+      await waitFor(() => expect(connectContexts).toHaveLength(2))
+      expect(calls).toBe(2)
+      expect(connectContexts[1]).toMatchObject({
+        parentRunId: firstRunId,
+        resume: [
+          {
+            interruptId: 'client-1',
+            status: 'resolved',
+            payload: { found: true },
+          },
+        ],
+      })
+    })
+
     it('keeps the transcript on screen after an idle hide', async () => {
       const server = createRunServer()
       const { result, show } = renderInActivity(server.connection)
@@ -3428,6 +3549,90 @@ describe('useChat', () => {
 
       await waitFor(() => expect(result.current.isHydrating).toBe(false))
       expect(result.current.messages).toEqual([])
+    })
+
+    it('preserves pending interrupts in client persistence when unmounting or switching threadId', async () => {
+      const storage = new Map<string, any>()
+      const persistence = {
+        getItem: (key: string) => storage.get(key),
+        setItem: (key: string, value: any) => {
+          storage.set(key, structuredClone(value))
+        },
+        removeItem: (key: string) => {
+          storage.delete(key)
+        },
+      }
+      const adapter: ConnectionAdapter = {
+        async *connect(_messages, _data, _abortSignal, context) {
+          yield {
+            type: 'RUN_STARTED',
+            runId: context?.runId ?? 'r-int',
+            threadId: context?.threadId ?? 't-int-1',
+            timestamp: Date.now(),
+          } as StreamChunk
+          yield {
+            type: 'RUN_FINISHED',
+            runId: context?.runId ?? 'r-int',
+            threadId: context?.threadId ?? 't-int-1',
+            timestamp: Date.now(),
+            outcome: {
+              type: 'interrupt',
+              interrupts: [
+                {
+                  id: 'intr-keep-1',
+                  reason: 'confirm',
+                  message: 'Keep me?',
+                  metadata: {
+                    'tanstack:interruptBinding': {
+                      v: 1,
+                      kind: 'generic',
+                      interruptId: 'intr-keep-1',
+                      interruptedRunId: context?.runId ?? 'r-int',
+                      generation: 0,
+                    },
+                  },
+                },
+              ],
+            },
+          } as StreamChunk
+        },
+      }
+
+      const first = renderHook(
+        ({ threadId }) =>
+          useChat({
+            threadId,
+            connection: adapter,
+            persistence,
+          }),
+        { initialProps: { threadId: 't-int-1' } },
+      )
+      await act(async () => {
+        await first.result.current.sendMessage('pause please')
+      })
+      await waitFor(() =>
+        expect(first.result.current.interrupts).toHaveLength(1),
+      )
+
+      // Switch threadId and wait for deferred disposal of the first client.
+      first.rerender({ threadId: 't-int-2' })
+      await outlastDisposal()
+      first.unmount()
+      await outlastDisposal()
+
+      // Remounting the original thread must restore the pending interrupt.
+      const second = renderHook(() =>
+        useChat({
+          threadId: 't-int-1',
+          connection: adapter,
+          persistence,
+        }),
+      )
+      await waitFor(() =>
+        expect(second.result.current.interrupts).toHaveLength(1),
+      )
+      expect(second.result.current.interrupts[0]?.id).toBe('intr-keep-1')
+      second.unmount()
     })
   })
 })

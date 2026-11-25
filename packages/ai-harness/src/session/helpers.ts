@@ -1,6 +1,7 @@
 import {
   ConsoleLogger,
   EventType,
+  INTERRUPT_PAYLOAD_METADATA_KEY,
   compactForModel,
   genericInterruptContinuationFromDescriptor,
   provideDetachableRun,
@@ -38,6 +39,7 @@ import type {
 } from '../log-records'
 import type { MountedPlugins } from '../plugins'
 import type {
+  HarnessInput,
   OfferedHarnessInput,
   MediaKind,
   OperationStatus,
@@ -100,6 +102,7 @@ export function snapshotFrom({
   usage,
   cursor,
   childWaits = [],
+  running = false,
   live,
 }: {
   threadId: string
@@ -116,6 +119,8 @@ export function snapshotFrom({
   cursor: SessionSnapshot['cursor']
   /** The waits of the `harnessAgent` children that the log has. See {@link loggedChildWaits}. */
   childWaits?: SessionSnapshot['pendingWaits']
+  /** A turn runs, as the log says. With `live`, `live.isRunning` says it. */
+  running?: boolean
   live?: {
     isRunning: boolean
     activeOperations: SessionSnapshot['activeOperations']
@@ -130,7 +135,11 @@ export function snapshotFrom({
   const seen = new Set(liveChildWaits.map((wait) => wait.waitId))
   return {
     threadId,
-    status: live?.isRunning ? 'running' : stopped ? 'requires_action' : 'idle',
+    status: (live ? live.isRunning : running)
+      ? 'running'
+      : stopped
+        ? 'requires_action'
+        : 'idle',
     activeOperations: live?.activeOperations ?? [],
     queuedTurns: live?.queuedTurns ?? 0,
     waitingInputs: live?.waitingInputs ?? [],
@@ -159,6 +168,34 @@ function threadWaits(
     waits: thread?.waits,
     records: thread?.interrupts,
   })
+}
+
+/** The input ops that run as a turn of the session: one at a time. */
+const TURN_OPS = new Set<HarnessInput['op']>([
+  'prompt',
+  'followUp',
+  'steer',
+  'continue',
+  'resolve',
+  'reset',
+  'tool',
+])
+
+/**
+ * @internal The input of the turn that runs, as the log has it: applied,
+ * and not settled yet. A host that does not own the thread reads its
+ * snapshot from the log, so it reads the running turn here. The owner reads
+ * its own `activeTurn`.
+ */
+export function loggedTurn(
+  inputs: ReadonlyMap<string, InputState>,
+): InputState | undefined {
+  for (const input of inputs.values()) {
+    if (input.status === 'applied' && TURN_OPS.has(input.input.op)) {
+      return input
+    }
+  }
+  return undefined
 }
 
 /**
@@ -498,10 +535,15 @@ export const scopeOf = (
   ...(user?.tenantId ? { tenantId: user.tenantId } : {}),
 })
 
-/** The tool call an interrupt waits on: an approval or a client tool. */
+/** The tool call an interrupt waits on: an approval, a client tool, or a boundary wait. */
 export const toolCallOf = (interrupt: Interrupt) => {
   const binding = readInterruptBinding(interrupt)
-  return binding && 'toolCallId' in binding ? binding.toolCallId : undefined
+  if (binding && 'toolCallId' in binding) return binding.toolCallId
+  if (typeof interrupt.toolCallId === 'string') return interrupt.toolCallId
+  const payload = interrupt.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY]
+  return isRecord(payload) && typeof payload.toolCallId === 'string'
+    ? payload.toolCallId
+    : undefined
 }
 
 /**

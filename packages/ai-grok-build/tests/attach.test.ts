@@ -22,7 +22,7 @@
  * translated chunk sequence…` fails outright if the wrap is moved to the ACP
  * merge, because that leaves this path unaligned.
  */
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as fsp from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -45,6 +45,24 @@ import type {
   AdapterYieldChunk,
   StreamDurability,
 } from '@tanstack/ai'
+
+// Records how the adapter mounts and releases the host login.
+const hostLogin = vi.hoisted(() => ({
+  mounts: [] as Array<{ adopt?: boolean }>,
+  releases: [] as Array<{ keep?: boolean } | undefined>,
+}))
+vi.mock('@tanstack/ai-sandbox/host-login', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  mountHostLogin: (_sandbox: unknown, options: { adopt?: boolean }) => {
+    hostLogin.mounts.push(options)
+    return Promise.resolve({
+      release: (releaseOptions?: { keep?: boolean }) => {
+        hostLogin.releases.push(releaseOptions)
+        return Promise.resolve()
+      },
+    })
+  },
+}))
 
 const baseDir = path.join(
   os.tmpdir(),
@@ -480,6 +498,179 @@ describe(
       // alignable against the stored log.
       expect(threadIdsOf(chunks)).toEqual([threadId])
 
+      await sbx.destroy()
+    })
+  },
+)
+
+/** A grok that writes its first event, then the rest after a short time. */
+const SLOW_FAKE_GROK = [
+  `const w = (s) => process.stdout.write(s + '\\n')`,
+  `w(${JSON.stringify(JOURNAL_EVENTS[0])})`,
+  `setTimeout(() => {`,
+  ...JOURNAL_EVENTS.slice(1).map((line) => `  w(${JSON.stringify(line)})`),
+  `}, 300)`,
+].join('\n')
+
+function hostRun(
+  sbx: SandboxHandle,
+  runId: string,
+  durability: SandboxRunDurability,
+  abortController?: AbortController,
+): AsyncIterable<AdapterYieldChunk> {
+  return grokBuildText('grok-build', {
+    grokExecutable: 'node fake-grok.mjs',
+    protocol: 'streaming-json',
+    emitDiff: false,
+    authMode: 'host',
+  }).chatStream({
+    threadId: THREAD_ID,
+    model: 'grok-build',
+    messages: [{ role: 'user', content: 'say pong' }],
+    logger: noopLogger,
+    capabilities: contextWith(sbx, durability),
+    runId,
+    ...(abortController && { abortController }),
+  })
+}
+
+describe(
+  "grok-build durable runs with authMode 'host'",
+  { timeout: SANDBOX_TEST_TIMEOUT },
+  () => {
+    beforeEach(() => {
+      hostLogin.mounts.length = 0
+      hostLogin.releases.length = 0
+    })
+
+    it('an attach keeps the login in the sandbox, and removes it at the end', async () => {
+      const sbx = await provider.create({})
+      const runId = `r-host-attach-${randomUUID()}`
+      await seedJournal(sbx, runId)
+      const chunks = await collect(
+        hostRun(sbx, runId, durabilityWith(fakeLog(), true)),
+      )
+      expect(chunks.find((c) => c.type === 'RUN_ERROR')).toBeUndefined()
+      expect(hostLogin.mounts).toMatchObject([{ adopt: true }])
+      expect(hostLogin.releases).toEqual([{ keep: false }])
+      await sbx.destroy()
+    })
+
+    it('a host that stops reading leaves the login for the next host', async () => {
+      const sbx = await provider.create({})
+      await sbx.fs.write('/workspace/fake-grok.mjs', SLOW_FAKE_GROK)
+      const runId = `r-host-leave-${randomUUID()}`
+      // The host stops with the abort signal, and reads to the end.
+      const controller = new AbortController()
+      const types: Array<string> = []
+      for await (const chunk of hostRun(
+        sbx,
+        runId,
+        durabilityWith(fakeLog(), false),
+        controller,
+      )) {
+        types.push(chunk.type)
+        controller.abort()
+      }
+      expect(types).not.toContain('RUN_ERROR')
+      expect(hostLogin.mounts).toMatchObject([{ adopt: false }])
+      expect(hostLogin.releases).toEqual([{ keep: true }])
+      await sbx.destroy()
+    })
+
+    it('an attach setup failure releases with keep: true', async () => {
+      const sbx = await provider.create({})
+      const failing = {
+        ...sbx,
+        provider: 'docker',
+        process: {
+          ...sbx.process,
+          exec: () => Promise.reject(new Error('attach setup failed')),
+        },
+      }
+      const chunks = await collect(
+        grokBuildText('grok-build', {
+          protocol: 'streaming-json',
+          emitDiff: false,
+          authMode: 'host',
+        }).chatStream({
+          threadId: THREAD_ID,
+          model: 'grok-build',
+          messages: [{ role: 'user', content: 'say pong' }],
+          logger: noopLogger,
+          capabilities: contextWith(failing, durabilityWith(fakeLog(), true)),
+          runId: `r-host-attach-setup-${randomUUID()}`,
+        }),
+      )
+      expect(chunks.find((c) => c.type === 'RUN_ERROR')).toMatchObject({
+        message: 'attach setup failed',
+      })
+      expect(hostLogin.mounts).toMatchObject([{ adopt: true }])
+      expect(hostLogin.releases).toEqual([{ keep: true }])
+      await sbx.destroy()
+    })
+
+    it('a durable host-auth run with a non-zero CLI exit releases with keep: false', async () => {
+      const sbx = await provider.create({})
+      await sbx.fs.write('/workspace/fake-grok.mjs', 'process.exit(3)')
+      const chunks = await collect(
+        hostRun(
+          sbx,
+          `r-host-fail-${randomUUID()}`,
+          durabilityWith(fakeLog(), false),
+        ),
+      )
+      expect(chunks.find((c) => c.type === 'RUN_ERROR')).toMatchObject({
+        message: expect.stringMatching(/code 3/),
+      })
+      expect(hostLogin.mounts).toMatchObject([{ adopt: false }])
+      expect(hostLogin.releases).toEqual([{ keep: false }])
+      await sbx.destroy()
+    })
+
+    it('a stalled journal read keeps the login for the agent that may still run', async () => {
+      const sbx = await provider.create({})
+      // Writes nothing past the first-byte wait, then exits by itself.
+      await sbx.fs.write(
+        '/workspace/fake-grok.mjs',
+        'setTimeout(() => process.exit(0), 12000)',
+      )
+      const chunks = await collect(
+        hostRun(
+          sbx,
+          `r-host-stall-${randomUUID()}`,
+          durabilityWith(fakeLog(), false),
+        ),
+      )
+      expect(chunks.find((c) => c.type === 'RUN_ERROR')).toBeDefined()
+      expect(hostLogin.releases).toEqual([{ keep: true }])
+      await sbx.destroy()
+    })
+
+    it('an aborted run that is not durable removes the login', async () => {
+      const sbx = await provider.create({})
+      // The CLI fails after the abort, so the run ends in the catch.
+      await sbx.fs.write(
+        '/workspace/fake-grok.mjs',
+        SLOW_FAKE_GROK.replace('}, 300)', 'process.exit(3) }, 300)'),
+      )
+      const controller = new AbortController()
+      for await (const _chunk of grokBuildText('grok-build', {
+        grokExecutable: 'node fake-grok.mjs',
+        protocol: 'streaming-json',
+        emitDiff: false,
+        authMode: 'host',
+      }).chatStream({
+        threadId: THREAD_ID,
+        model: 'grok-build',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        capabilities: contextWith(sbx),
+        abortController: controller,
+      })) {
+        controller.abort()
+      }
+      expect(hostLogin.releases).toEqual([{ keep: false }])
       await sbx.destroy()
     })
   },

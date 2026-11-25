@@ -376,7 +376,13 @@ export function createTestEventsServer(options: TestEventsServerOptions = {}) {
         data,
       }
       if (opts && 'cursor' in opts) body.cursor = opts.cursor
-      const result = await deliverWithRetries(sub, eventId, body)
+      // SEP-3415: one webhook-id per delivery, not derived from eventId,
+      // reused on retries.
+      const result = await deliverWithRetries(
+        sub,
+        `msg_${crypto.randomUUID()}`,
+        body,
+      )
       results.push(result)
     }
     return results

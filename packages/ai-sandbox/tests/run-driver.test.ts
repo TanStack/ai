@@ -609,6 +609,77 @@ describe('pipeToRunLog failure absorption', () => {
       true,
     )
   })
+
+  it('records status interrupted without finishedAt when the stream ends on an interrupt', async () => {
+    const runs = new InMemoryRunStore()
+    const { durability, calls } = recordingDurability('f-int')
+    async function* interruptedStream(): AsyncIterable<StreamChunk> {
+      yield {
+        type: EventType.RUN_STARTED,
+        runId: 'f-int',
+        threadId: 't1',
+        timestamp: 1,
+      }
+      yield {
+        type: EventType.RUN_FINISHED,
+        runId: 'f-int',
+        threadId: 't1',
+        finishReason: 'tool_calls',
+        timestamp: 2,
+        outcome: {
+          type: 'interrupt',
+          interrupts: [
+            { id: 'approval_c1', reason: 'tool_approval', toolCallId: 'c1' },
+          ],
+        },
+      }
+    }
+
+    const record = await pipeToRunLog(interruptedStream(), {
+      runs,
+      durability: () => durability,
+      runId: 'f-int',
+      threadId: 't1',
+    })
+
+    expect(calls.closes).toBe(1)
+    expect(record.status).toBe('interrupted')
+    expect(record.finishedAt).toBeUndefined()
+    expect((await runs.get('f-int'))?.status).toBe('interrupted')
+  })
+
+  it('records status interrupted when the interrupt arrives only as a stored replay chunk', async () => {
+    const runs = new InMemoryRunStore()
+    const { durability, calls } = recordingDurability('f-replay')
+    async function* replayedStream(): AsyncIterable<StreamChunk> {
+      // A takeover stream: the whole interrupted run is already in the log.
+      yield {
+        type: EventType.RUN_FINISHED,
+        runId: 'f-replay',
+        threadId: 't1',
+        finishReason: 'tool_calls',
+        timestamp: 2,
+        outcome: {
+          type: 'interrupt',
+          interrupts: [
+            { id: 'approval_c1', reason: 'tool_approval', toolCallId: 'c1' },
+          ],
+        },
+        tanstackStoredReplay: true,
+      } as StreamChunk
+    }
+
+    const record = await pipeToRunLog(replayedStream(), {
+      runs,
+      durability: () => durability,
+      runId: 'f-replay',
+      threadId: 't1',
+    })
+
+    expect(calls.appends).toBe(0)
+    expect(record.status).toBe('interrupted')
+    expect(record.finishedAt).toBeUndefined()
+  })
 })
 
 describe('RunController', () => {

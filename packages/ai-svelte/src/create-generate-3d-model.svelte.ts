@@ -3,34 +3,34 @@ import type {
   CreateGenerationOptions,
   CreateGenerationReturn,
 } from './create-generation.svelte'
-import type { Model3DResult, StreamChunk } from '@tanstack/ai'
+import type { Model3dResult, StreamChunk } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
   InferGenerationOutputFromReturn,
-  Model3DGenerateInput,
+  Model3dGenerateInput,
 } from '@tanstack/ai-client'
 
 /**
- * Options for the createGenerate3DModel function.
+ * Options for the createGenerate3dModel function.
  *
  * @experimental 3D model generation is experimental. The shape can change in
  * a minor release.
  *
- * @template TOutput - The output type after optional transform (defaults to Model3DResult)
+ * @template TOutput - The output type after optional transform (defaults to Model3dResult)
  */
-export interface CreateGenerate3DModelOptions<
-  TOutput = Model3DResult,
+export interface CreateGenerate3dModelOptions<
+  TOutput = Model3dResult,
 > extends Pick<
-  CreateGenerationOptions<Model3DGenerateInput, Model3DResult, TOutput>,
+  CreateGenerationOptions<Model3dGenerateInput, Model3dResult, TOutput>,
   'threadId' | 'byok' | 'byokProvider'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for 3D model generation */
-  fetcher?: GenerationFetcher<Model3DGenerateInput, Model3DResult>
+  fetcher?: GenerationFetcher<Model3dGenerateInput, Model3dResult>
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
@@ -42,7 +42,7 @@ export interface CreateGenerate3DModelOptions<
    * - Return `null` to keep the previous result unchanged
    * - Return nothing (`void`) to store the raw result as-is
    */
-  onResult?: (result: Model3DResult) => TOutput | null | void
+  onResult?: (result: Model3dResult) => TOutput | null | void
   /** Callback when an error occurs */
   onError?: (error: Error) => void
   /**
@@ -55,15 +55,15 @@ export interface CreateGenerate3DModelOptions<
 }
 
 /**
- * Return type for the createGenerate3DModel function.
+ * Return type for the createGenerate3dModel function.
  *
  * @experimental 3D model generation is experimental. The shape can change in
  * a minor release.
  *
  * @template TOutput - The output type (after optional transform)
  */
-export interface CreateGenerate3DModelReturn<
-  TOutput = Model3DResult,
+export interface CreateGenerate3dModelReturn<
+  TOutput = Model3dResult,
 > extends Omit<CreateGenerationReturn<TOutput>, 'generate'> {
   /** The finished 3D model, or null */
   readonly result: TOutput | null
@@ -74,7 +74,7 @@ export interface CreateGenerate3DModelReturn<
   /** Current state of the generation */
   readonly status: GenerationClientState
   /** Trigger 3D model generation */
-  generate: (input: Model3DGenerateInput) => Promise<void>
+  generate: (input: Model3dGenerateInput) => Promise<void>
 }
 
 /**
@@ -85,7 +85,7 @@ export interface CreateGenerate3DModelReturn<
  * - **Fetcher** -- Direct async function call
  *
  * The server sends one `generation:progress` event per poll and then one
- * `generation:result` event with the `Model3DResult`.
+ * `generation:result` event with the `Model3dResult`.
  *
  * @experimental 3D model generation is experimental. The shape can change in
  * a minor release.
@@ -93,9 +93,9 @@ export interface CreateGenerate3DModelReturn<
  * @example
  * ```svelte
  * <script>
- *   import { createGenerate3DModel, fetchServerSentEvents } from '@tanstack/ai-svelte'
+ *   import { createGenerate3dModel, fetchServerSentEvents } from '@tanstack/ai-svelte'
  *
- *   const modelGen = createGenerate3DModel({
+ *   const modelGen = createGenerate3dModel({
  *     threadId: 'robot-model',
  *     connection: fetchServerSentEvents('/api/generate/3d-model'),
  *     onProgress: (progress, status) => console.log(status, progress),
@@ -118,21 +118,21 @@ export interface CreateGenerate3DModelReturn<
  * </div>
  * ```
  */
-export function createGenerate3DModel<TTransformed = void>(
-  options: Omit<CreateGenerate3DModelOptions, 'onResult'> & {
-    onResult?: (result: Model3DResult) => TTransformed
+export function createGenerate3dModel<TTransformed = void>(
+  options: Omit<CreateGenerate3dModelOptions, 'onResult'> & {
+    onResult?: (result: Model3dResult) => TTransformed
   },
-): CreateGenerate3DModelReturn<
-  InferGenerationOutputFromReturn<Model3DResult, TTransformed>
+): CreateGenerate3dModelReturn<
+  InferGenerationOutputFromReturn<Model3dResult, TTransformed>
 > {
   const devtools = {
     ...options.devtools,
     framework: 'svelte',
-    hookName: 'createGenerate3DModel',
+    hookName: 'createGenerate3dModel',
   }
   const gen = createGeneration<
-    Model3DGenerateInput,
-    Model3DResult,
+    Model3dGenerateInput,
+    Model3dResult,
     TTransformed
   >({
     ...options,

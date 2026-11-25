@@ -846,7 +846,7 @@ export function applySnapshot(
       kind: waitKind(interrupt),
     })),
     ...runWaits.map((wait) => ({
-      interrupt: interruptOfWait(wait),
+      interrupt: wait.interrupt ?? interruptOfWait(wait),
       kind: wait.kind,
     })),
   ]
@@ -897,15 +897,36 @@ export function applySnapshot(
     state.usage?.total.calls === snapshot.usage.total.calls
       ? state.usage
       : snapshot.usage
-  // In the snapshot too, so a sign-in that a turn waits for shows after a reload.
-  const newSignIns = turnInterrupts
-    .flatMap((interrupt) => signInOf(interrupt) ?? [])
-    .filter(
-      (signIn) =>
-        !state.signIns.some((item) => item.connector === signIn.connector),
-    )
+  // In the snapshot too, so a sign-in that a turn or run waits for shows after
+  // a reload, and disappears once that wait resolves, cancels, or expires.
+  const currentWaitSignIns = [
+    ...turnInterrupts,
+    ...runWaits.flatMap((wait) => (wait.interrupt ? [wait.interrupt] : [])),
+  ].flatMap((interrupt) => signInOf(interrupt) ?? [])
+  const currentWaitConnectors = new Set(
+    currentWaitSignIns.map((signIn) => signIn.connector),
+  )
+  const previousWaitConnectors = new Set(
+    state.waits.flatMap((wait) => {
+      const interrupt =
+        'interrupt' in wait ? (wait as PendingWait).interrupt : undefined
+      const signIn = interrupt ? signInOf(interrupt) : undefined
+      return signIn ? [signIn.connector] : []
+    }),
+  )
+  const keptSignIns = state.signIns.filter(
+    (item) =>
+      !previousWaitConnectors.has(item.connector) ||
+      currentWaitConnectors.has(item.connector),
+  )
+  const newSignIns = currentWaitSignIns.filter(
+    (signIn) =>
+      !keptSignIns.some((item) => item.connector === signIn.connector),
+  )
   const signIns =
-    newSignIns.length > 0 ? [...state.signIns, ...newSignIns] : state.signIns
+    keptSignIns.length === state.signIns.length && newSignIns.length === 0
+      ? state.signIns
+      : [...keptSignIns, ...newSignIns]
   const questions = keep(
     state.questions,
     pendingWaits.flatMap((wait) =>

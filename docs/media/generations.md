@@ -118,7 +118,7 @@ To make a different media type, swap the server function and the hook for anothe
 | Video generation | `generateVideo()` | `useGenerateVideo()` | [Video Generation](./video-generation) |
 | Live generation | `generateLiveVideo()` | - | [Live Generation](./live-generation) |
 | World generation | `generateWorld()` | - | [World Generation](./world-generation) |
-| Motion generation | `generateMotion()` | `useGeneration()` | [Motion Generation](./motion-generation) |
+| Motion generation | `generate3dMotion()` | `useGeneration()` | [Motion Generation](./motion-generation) |
 
 Four types work a little differently:
 
@@ -148,7 +148,7 @@ On TanStack Start, the third transport gives you both: the input is typed and th
 
 The server passes `stream: true` to the generation function and sends the events as SSE. The hook reads them with `fetchServerSentEvents()`. This is the quick setup above.
 
-The hook sends its input inside an AG-UI request body. `generationParamsFromRequest(kind, request)` reads that body and returns `{ input, threadId, runId }`. The `kind` is one of `'image'`, `'audio'`, `'tts'`, `'voice'`, `'video'`, `'transcription'`, `'world'`, `'liveVideo'`, or `'motion'`.
+The hook sends its input inside an AG-UI request body. `generationParamsFromRequest(kind, request)` reads that body and returns `{ input, threadId, runId }`. The `kind` is one of `'image'`, `'audio'`, `'tts'`, `'voice'`, `'video'`, `'transcription'`, `'world'`, `'liveVideo'`, or `'motion3d'`.
 
 #### Direct (fetcher)
 
@@ -162,7 +162,7 @@ import { generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 export const generateImageFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: string; threadId: string }) => data)
+  .validator((data: { prompt: string; threadId: string }) => data)
   .handler(async ({ data }) => {
     return generateImage({
       adapter: openaiImage('gpt-image-2.5-flare'),
@@ -202,7 +202,7 @@ import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 export const generateImageStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: string; threadId: string }) => data)
+  .validator((data: { prompt: string; threadId: string }) => data)
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       generateImage({

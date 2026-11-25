@@ -8,7 +8,7 @@ import { useGenerateAudio } from '../src/use-generate-audio'
 import { useGenerateSpeech } from '../src/use-generate-speech'
 import { useTranscription } from '../src/use-transcription'
 import { useSummarize } from '../src/use-summarize'
-import { useGenerate3DModel } from '../src/use-generate-3d-model'
+import { useGenerate3dModel } from '../src/use-generate-3d-model'
 
 // Each specialised hook wraps useGeneration. A spread of the caller's options
 // would freeze a `get body()` getter at setup time.
@@ -23,8 +23,8 @@ const hooks: Array<[string, Hook, Record<string, unknown>]> = [
   ['useTranscription', useTranscription as unknown as Hook, { audio: 'p' }],
   ['useSummarize', useSummarize as unknown as Hook, { text: 'p' }],
   [
-    'useGenerate3DModel',
-    useGenerate3DModel as unknown as Hook,
+    'useGenerate3dModel',
+    useGenerate3dModel as unknown as Hook,
     { prompt: 'p' },
   ],
 ]

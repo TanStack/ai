@@ -1,12 +1,12 @@
 export {
-  UthanaMotionAdapter,
-  uthanaMotion,
+  UthanaMotion3dAdapter,
+  uthana3dMotion,
   UTHANA_DEFAULT_CHARACTER_ID,
 } from './adapters/motion'
 export type {
-  UthanaMotionModel,
-  UthanaMotionFormat,
-  UthanaMotionProviderOptions,
+  UthanaMotion3dModel,
+  UthanaMotion3dFormat,
+  UthanaMotion3dProviderOptions,
 } from './adapters/motion'
 export { createUthanaCharacter } from './character'
 export type { CreateUthanaCharacterOptions, UthanaCharacter } from './character'

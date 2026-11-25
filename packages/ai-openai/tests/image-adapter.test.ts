@@ -160,7 +160,12 @@ describe('OpenAI Image Adapter', () => {
       })
     })
 
-    it.each(['gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'] as const)(
+    it.each([
+      'gpt-image-2.6-flare',
+      'gpt-image-2.6-sunburst',
+      'gpt-image-2.5-flare',
+      'gpt-image-2.5-sunburst',
+    ] as const)(
       'sends %s with a listed size and the xhigh quality',
       async (model) => {
         const adapter = new TestOpenAIImageAdapter(

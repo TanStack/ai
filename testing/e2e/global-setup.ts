@@ -49,6 +49,8 @@ export default async function globalSetup() {
   // pattern above.
   mock.mount('/v1/text-to-speech', elevenLabsTTSMount())
   mock.mount('/v1/speech-to-text', elevenLabsSTTMount())
+  mock.mount('/tts/bytes', cartesiaTTSMount())
+  mock.mount('/stt', cartesiaSTTMount())
 
   // Gemini TTS hits the standard Gemini generateContent endpoint
   // (POST /v1beta/models/{model}:generateContent) with
@@ -202,6 +204,11 @@ export default async function globalSetup() {
   // aimock has no OpenAI Decisions API route, so this mount answers
   // `/v1/decisions` with a refusal plus usage for the evaluate-refusal spec.
   mock.mount('/evaluate-refusal', evaluateRefusalMount())
+
+  // aimock has no Gemini Decisions API route, so this mount answers
+  // `/v1beta/decisions` with a happy-path choice/score/boolean answer plus
+  // Gemini-shaped usage for the evaluate-gemini spec.
+  mock.mount('/evaluate-gemini', geminiDecisionsMount())
 
   // BytePlus. Ark (chat, Seedream image, Seedance video) serves its whole data
   // plane under /api/v3, and Seed Speech (TTS/ASR) mounts its own endpoints at
@@ -1180,9 +1187,9 @@ const FAKE_AUDIO_BY_FORMAT: Record<string, Buffer> = {
 
 /**
  * Minimal RIFF/WAV container: a 44-byte header describing 16-bit mono PCM at
- * 24 kHz, followed by silence.
+ * the requested sample rate, followed by silence.
  */
-function buildSilentWav(): Buffer {
+function buildSilentWav(sampleRate = 24000): Buffer {
   const samples = Buffer.alloc(64)
   const header = Buffer.alloc(44)
   header.write('RIFF', 0, 'ascii')
@@ -1192,8 +1199,8 @@ function buildSilentWav(): Buffer {
   header.writeUInt32LE(16, 16) // PCM chunk size
   header.writeUInt16LE(1, 20) // format: PCM
   header.writeUInt16LE(1, 22) // channels
-  header.writeUInt32LE(24000, 24) // sample rate
-  header.writeUInt32LE(24000 * 2, 28) // byte rate
+  header.writeUInt32LE(sampleRate, 24) // sample rate
+  header.writeUInt32LE(sampleRate * 2, 28) // byte rate
   header.writeUInt16LE(2, 32) // block align
   header.writeUInt16LE(16, 34) // bits per sample
   header.write('data', 36, 'ascii')
@@ -1662,6 +1669,79 @@ function byteplusASRMount(): Mountable {
               },
             ],
           },
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/** Validate Cartesia speech requests and return audio in the requested format. */
+function cartesiaTTSMount(): Mountable {
+  return {
+    async handleRequest(req, res, pathname): Promise<boolean> {
+      if (pathname !== '/' || req.method !== 'POST') return false
+      const body = await readJsonRequestBody(req)
+      const output = asRecord(body?.output_format)
+      if (
+        body?.model_id !== 'sonic-3.6' ||
+        body.transcript !== 'welcome to the guitar store' ||
+        typeof body.voice !== 'string' ||
+        (output?.container !== 'mp3' &&
+          output?.container !== 'wav' &&
+          output?.container !== 'raw') ||
+        req.headers['cartesia-version'] !== '2026-08-14'
+      ) {
+        return rejectVoiceRequest(res, 'Invalid Cartesia speech request')
+      }
+      res.statusCode = 200
+      const format = output.container === 'raw' ? 'pcm' : output.container
+      res.setHeader(
+        'Content-Type',
+        format === 'mp3' ? 'audio/mpeg' : `audio/${format}`,
+      )
+      res.end(
+        format === 'wav' ? buildSilentWav(44100) : FAKE_AUDIO_BY_FORMAT[format],
+      )
+      return true
+    },
+  }
+}
+
+/** Validate Cartesia transcription uploads and return a fixed transcript. */
+function cartesiaSTTMount(): Mountable {
+  return {
+    async handleRequest(req, res, pathname): Promise<boolean> {
+      if (pathname !== '/' || req.method !== 'POST') return false
+      const chunks: Array<Buffer> = []
+      for await (const chunk of req) chunks.push(Buffer.from(chunk))
+      const contentType = req.headers['content-type'] ?? ''
+      let form: FormData
+      try {
+        form = await new Response(Buffer.concat(chunks), {
+          headers: { 'content-type': contentType },
+        }).formData()
+      } catch {
+        return rejectVoiceRequest(res, 'Invalid Cartesia transcription request')
+      }
+      const file = form.get('file')
+      if (
+        !(file instanceof File) ||
+        !Buffer.from(await file.arrayBuffer()).equals(Buffer.from('Hello')) ||
+        form.get('model') !== 'ink-whisper' ||
+        req.headers['cartesia-version'] !== '2026-08-14'
+      ) {
+        return rejectVoiceRequest(res, 'Invalid Cartesia transcription request')
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          type: 'transcript',
+          text: 'I would like to buy a Fender Stratocaster please',
+          request_id: 'cartesia-e2e',
+          language: 'en',
+          duration: 2.4,
         }),
       )
       return true
@@ -2428,6 +2508,56 @@ function evaluateRefusalMount(): Mountable {
             output_tokens: 5,
             output_tokens_details: { reasoning_tokens: 0 },
             total_tokens: 45,
+          },
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts the Gemini Decisions `/v1beta/decisions` response for the
+ * `evaluate-gemini` spec: a choice, a score, and a boolean answer plus the
+ * endpoint's `total_*` usage shape (output tokens are always 0). The Gemini
+ * evaluate adapter maps these to the unified `decide()` result.
+ */
+function geminiDecisionsMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST' || pathname !== '/v1beta/decisions') {
+        return false
+      }
+      await drainBody(req)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          model: 'gemini-decision-1',
+          answers: {
+            queue: {
+              type: 'choice',
+              choice: 'billing',
+              probabilities: { billing: 0.82, tech: 0.12, sales: 0.06 },
+              confidence: 0.88,
+            },
+            urgency: {
+              type: 'score',
+              score: 1.5,
+              legend: { '0': 'low', '1': 'medium', '2': 'high' },
+              probabilities: { '0': 0.1, '1': 0.4, '2': 0.5 },
+              confidence: 0.77,
+            },
+            refund: { type: 'noul', noul: 0.93 },
+          },
+          usage: {
+            total_input_tokens: 48,
+            total_output_tokens: 0,
+            total_tokens: 48,
           },
         }),
       )

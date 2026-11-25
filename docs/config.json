@@ -70,6 +70,11 @@
           "addedAt": "2026-11-18"
         },
         {
+          "label": "Tripo Animated Character",
+          "to": "tutorials/tripo-animated-character",
+          "addedAt": "2026-11-23"
+        },
+        {
           "label": "Streaming Structured Table",
           "to": "tutorials/streaming-structured-table",
           "addedAt": "2026-09-17",
@@ -103,7 +108,13 @@
           "label": "Computer Use",
           "to": "tutorials/computer-use",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-03"
+        },
+        {
+          "label": "Sign In Without the Model",
+          "to": "tutorials/computer-use-login",
+          "addedAt": "2026-11-03",
+          "updatedAt": "2026-11-06"
         },
         {
           "label": "Subscribe to MCP Events",
@@ -142,6 +153,11 @@
           "addedAt": "2026-11-18"
         },
         {
+          "label": "Tripo Animated Character",
+          "to": "framework/react/examples/tripo-animated-character",
+          "addedAt": "2026-11-23"
+        },
+        {
           "label": "Streaming Structured Table",
           "to": "framework/react/examples/streaming-structured-table",
           "addedAt": "2026-09-17"
@@ -170,6 +186,11 @@
           "label": "Computer Use",
           "to": "framework/react/examples/computer-use",
           "addedAt": "2026-10-21"
+        },
+        {
+          "label": "Computer Use Login",
+          "to": "framework/react/examples/computer-use-login",
+          "addedAt": "2026-11-03"
         },
         {
           "label": "MCP Events",
@@ -427,7 +448,7 @@
           "label": "Lazy Tool Discovery",
           "to": "tools/lazy-tool-discovery",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-17"
         },
         {
           "label": "Tool Architecture",
@@ -482,6 +503,12 @@
           "to": "advanced/compaction-advanced",
           "addedAt": "2026-10-21",
           "updatedAt": "2026-11-09"
+        },
+        {
+          "label": "Context Optimization",
+          "to": "advanced/context-optimization",
+          "addedAt": "2026-11-12",
+          "updatedAt": "2026-11-19"
         }
       ],
       "tab": "guides"
@@ -930,13 +957,13 @@
           "label": "Text-to-Speech",
           "to": "media/text-to-speech",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "Transcription",
           "to": "media/transcription",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "Transcription: Advanced",
@@ -970,7 +997,8 @@
         {
           "label": "Image Generation: Advanced",
           "to": "media/image-generation-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "Video Generation",
@@ -1000,17 +1028,19 @@
           "label": "Motion Generation",
           "to": "media/motion-generation",
           "addedAt": "2026-11-19",
-          "updatedAt": "2026-11-19"
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "3D Model Generation",
           "to": "media/3d-model-generation",
-          "addedAt": "2026-11-18"
+          "addedAt": "2026-11-18",
+          "updatedAt": "2026-11-23"
         },
         {
           "label": "3D Model Generation: Advanced",
           "to": "media/3d-model-generation-advanced",
-          "addedAt": "2026-11-18"
+          "addedAt": "2026-11-18",
+          "updatedAt": "2026-11-23"
         },
         {
           "label": "Generation Hooks",
@@ -1052,7 +1082,7 @@
           "label": "Evaluate",
           "to": "evaluate/evaluate",
           "addedAt": "2026-09-18",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-13"
         }
       ],
       "tab": "guides"
@@ -1106,7 +1136,7 @@
           "label": "Drivers",
           "to": "computer-use/drivers",
           "addedAt": "2026-10-20",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-03"
         },
         {
           "label": "Safety Checks",
@@ -1334,7 +1364,12 @@
           "label": "Connect model providers",
           "to": "harness/provider-keys",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-20"
+          "updatedAt": "2026-11-19"
+        },
+        {
+          "label": "Sign in with a ChatGPT or SuperGrok plan",
+          "to": "harness/plan-sign-in",
+          "addedAt": "2026-11-19"
         },
         {
           "label": "Build your own UI",
@@ -1358,13 +1393,13 @@
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-12"
         },
         {
           "label": "Hand off a conversation",
           "to": "harness/handoffs",
           "addedAt": "2026-10-18",
-          "updatedAt": "2026-10-20"
+          "updatedAt": "2026-11-24"
         },
         {
           "label": "Add skills",
@@ -1429,7 +1464,7 @@
           "label": "Harness Auth",
           "to": "sandbox/auth",
           "addedAt": "2026-08-18",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "Workspace",
@@ -1774,7 +1809,7 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-11"
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "OpenAI: Advanced",
@@ -1786,7 +1821,7 @@
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-09"
+          "updatedAt": "2026-11-23"
         },
         {
           "label": "Anthropic: Advanced",
@@ -1798,7 +1833,7 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-09"
+          "updatedAt": "2026-11-13"
         },
         {
           "label": "Google Gemini: Advanced",
@@ -1861,6 +1896,12 @@
           "updatedAt": "2026-10-22"
         },
         {
+          "label": "Cartesia",
+          "to": "adapters/cartesia",
+          "addedAt": "2026-11-05",
+          "updatedAt": "2026-11-21"
+        },
+        {
           "label": "fal.ai",
           "to": "adapters/fal",
           "addedAt": "2026-04-15",
@@ -1882,6 +1923,26 @@
           "label": "Uthana",
           "to": "adapters/uthana",
           "addedAt": "2026-11-19"
+        },
+        {
+          "label": "Meshy",
+          "to": "adapters/meshy",
+          "addedAt": "2026-11-20"
+        },
+        {
+          "label": "Meshy: Advanced",
+          "to": "adapters/meshy-advanced",
+          "addedAt": "2026-11-20"
+        },
+        {
+          "label": "Tripo",
+          "to": "adapters/tripo",
+          "addedAt": "2026-11-23"
+        },
+        {
+          "label": "Tripo: Advanced",
+          "to": "adapters/tripo-advanced",
+          "addedAt": "2026-11-23"
         },
         {
           "label": "OpenRouter Adapter",
@@ -1952,7 +2013,7 @@
           "label": "Codex",
           "to": "adapters/codex",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "OpenCode",
@@ -1964,7 +2025,7 @@
           "label": "Grok Build",
           "to": "adapters/grok-build",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "ACP-Compatible",
@@ -2128,7 +2189,7 @@
           "label": "@tanstack/ai-client",
           "to": "api/ai-client",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-24"
         },
         {
           "label": "@tanstack/ai-react",

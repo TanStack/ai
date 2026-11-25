@@ -8,10 +8,10 @@ import { useGenerateSpeech } from '../src/use-generate-speech'
 import { useTranscription } from '../src/use-transcription'
 import { useSummarize } from '../src/use-summarize'
 import { useGenerateVideo } from '../src/use-generate-video'
-import { useGenerate3DModel } from '../src/use-generate-3d-model'
+import { useGenerate3dModel } from '../src/use-generate-3d-model'
 import { createMockConnectionAdapter } from '../../ai-client/tests/test-utils'
 import type {
-  Model3DResult,
+  Model3dResult,
   PersistedArtifactRef,
   StreamChunk,
   TTSResult,
@@ -811,8 +811,8 @@ describe('useGenerateImage', () => {
   })
 })
 
-describe('useGenerate3DModel', () => {
-  const model3DResult: Model3DResult = {
+describe('useGenerate3dModel', () => {
+  const model3DResult: Model3dResult = {
     jobId: 'job-3d-1',
     url: 'https://example.com/robot.glb',
     format: 'glb',
@@ -863,7 +863,7 @@ describe('useGenerate3DModel', () => {
     })
 
     const { result } = renderHook(() =>
-      useGenerate3DModel({
+      useGenerate3dModel({
         threadId: 'thread-1',
         connection: adapter,
         onProgress,
@@ -889,7 +889,7 @@ describe('useGenerate3DModel', () => {
     })
 
     const { result } = renderHook(() =>
-      useGenerate3DModel({
+      useGenerate3dModel({
         threadId: 'thread-1',
         connection: adapter,
         onError,

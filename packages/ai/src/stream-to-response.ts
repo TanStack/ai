@@ -9,6 +9,7 @@ import { notifyRunDisconnected } from './delivery-disconnect'
 import { resolveResumeRunId } from './stream-durability'
 import { EventType } from './types'
 import { toWireChunk } from './strip-to-spec-middleware'
+import { tanstackMetadata } from './utilities/merge-metadata'
 import {
   isDurabilityBatchedCustom,
   stripDurabilityBatchHint,
@@ -665,6 +666,24 @@ export const RUN_ACCEPTED_EVENT = 'run.accepted'
  * The returned `getId` maps each forwarded chunk to the exact opaque offset
  * returned by the durability adapter for the SSE `id:` line.
  */
+/**
+ * True when a chunk ends the durable run. An intermediate `tool_calls`
+ * `RUN_FINISHED` without an interrupt or loop stop continues in a later model
+ * turn, so the durable log is not terminal yet.
+ */
+function isFinalRunTerminal(chunk: StreamChunk): boolean {
+  if (chunk.type === 'RUN_ERROR') return true
+  if (chunk.type !== 'RUN_FINISHED') return false
+  if (chunk.outcome?.type === 'interrupt') return true
+  const tanstack = tanstackMetadata(chunk)
+  if (tanstack?.loopStopped === true) return true
+  const finishReason =
+    'finishReason' in chunk && chunk.finishReason !== undefined
+      ? chunk.finishReason
+      : tanstack?.finishReason
+  return finishReason !== 'tool_calls'
+}
+
 export function durableStreamSource<TOffset extends string>(
   stream: AsyncIterable<StreamChunk>,
   durability: StreamDurability<TOffset>,
@@ -756,16 +775,11 @@ export function durableStreamSource<TOffset extends string>(
         validateOffset(offset)
         idByChunk.set(chunk, offset)
       })
-      if (
-        toForward.some(
-          (chunk) =>
-            chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR',
-        )
-      ) {
+      if (toForward.some(isFinalRunTerminal)) {
         terminalPersisted = true
       }
       for (const chunk of toForward) {
-        if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+        if (isFinalRunTerminal(chunk)) {
           terminalForwarded = true
         }
         yield chunk

@@ -7,7 +7,7 @@ keywords:
   - tanstack ai
   - tutorial
   - generate motion
-  - generateMotion
+  - generate3dMotion
   - useGeneration
   - fbx
   - animation
@@ -150,7 +150,7 @@ For passkeys or other storage, open [Bring Your Own Key](../advanced/byok).
 
 ## 3. Stream one clip
 
-Each clip is one generation. There is no motion hook, so the page uses the generic `useGeneration` hook with `MotionGenerationResult`.
+Each clip is one generation. There is no motion hook, so the page uses the generic `useGeneration` hook with `Motion3dGenerationResult`.
 
 Replace `src/routes/index.tsx`. Start with the imports:
 
@@ -159,20 +159,20 @@ import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useGeneration } from '@tanstack/ai-react'
 import { falByok } from '@tanstack/ai-fal/byok'
-import type { MotionGenerationResult, MotionStatusResult } from '@tanstack/ai'
+import type { Motion3dGenerationResult, Motion3dStatusResult } from '@tanstack/ai'
 import { FalKeyForm } from '@/components/fal-key-form'
 import { byok } from '@/lib/byok'
 ```
 
 Then add a hook for one clip slot. `onChunk` reads two `CUSTOM` events from the stream:
 
-- `motion:job:created` gives the fal job id. The cancel button needs it.
-- `motion:status` gives the queue state after each status check.
+- `motion3d:job:created` gives the fal job id. The cancel button needs it.
+- `motion3d:status` gives the queue state after each status check.
 
 `stop()` closes the stream in this tab only. The fal job keeps running.
 
 ```tsx ignore
-type MotionInput = { prompt: string; duration: number }
+type Motion3dInput = { prompt: string; duration: number }
 
 function hasJobId(value: unknown): value is { jobId: string } {
   return (
@@ -183,7 +183,7 @@ function hasJobId(value: unknown): value is { jobId: string } {
   )
 }
 
-function isMotionStatus(value: unknown): value is MotionStatusResult {
+function isMotionStatus(value: unknown): value is Motion3dStatusResult {
   return (
     hasJobId(value) && 'status' in value && typeof value.status === 'string'
   )
@@ -193,18 +193,18 @@ function isMotionStatus(value: unknown): value is MotionStatusResult {
 // onChunk reads the fal job id and the queue status from CUSTOM events.
 function useMotionClip(threadId: string) {
   const [jobId, setJobId] = useState<string | null>(null)
-  const [jobStatus, setJobStatus] = useState<MotionStatusResult | null>(null)
+  const [jobStatus, setJobStatus] = useState<Motion3dStatusResult | null>(null)
   const [stopped, setStopped] = useState(false)
-  const generation = useGeneration<MotionInput, MotionGenerationResult>({
+  const generation = useGeneration<Motion3dInput, Motion3dGenerationResult>({
     connection: fetchServerSentEvents('/api/generate/motion'),
     threadId,
     byok,
     onChunk: (chunk) => {
       if (chunk.type !== 'CUSTOM') return
-      if (chunk.name === 'motion:job:created' && hasJobId(chunk.value)) {
+      if (chunk.name === 'motion3d:job:created' && hasJobId(chunk.value)) {
         setJobId(chunk.value.jobId)
       }
-      if (chunk.name === 'motion:status' && isMotionStatus(chunk.value)) {
+      if (chunk.name === 'motion3d:status' && isMotionStatus(chunk.value)) {
         setJobStatus(chunk.value)
       }
     },
@@ -215,7 +215,7 @@ function useMotionClip(threadId: string) {
     jobId,
     jobStatus,
     stopped,
-    generate: (input: MotionInput) => {
+    generate: (input: Motion3dInput) => {
       generation.reset()
       setJobId(null)
       setJobStatus(null)
@@ -238,7 +238,7 @@ A fal job waits in a queue, then runs. Turn each state into a line that your tea
 ```tsx ignore
 type MotionClip = ReturnType<typeof useMotionClip>
 
-function describeJob(status: MotionStatusResult) {
+function describeJob(status: Motion3dStatusResult) {
   switch (status.status) {
     case 'pending':
       return status.queuePosition === undefined
@@ -321,14 +321,14 @@ const IMPACT_TIME_SECONDS = 1.6
 Build the manifest from the two finished clips:
 
 ```tsx ignore
-function fbxUrl(motion: MotionGenerationResult) {
+function fbxUrl(motion: Motion3dGenerationResult) {
   return motion.assets.find((asset) => asset.format === 'fbx')?.url ?? null
 }
 
 // The JSON a game imports. Clips come from fal. Timing and effects are yours.
 function buildManifest(
-  attacker: MotionGenerationResult,
-  reaction: MotionGenerationResult,
+  attacker: Motion3dGenerationResult,
+  reaction: Motion3dGenerationResult,
 ) {
   return {
     ability: 'orc-leap-slam',
@@ -381,18 +381,18 @@ Create `src/routes/api.generate.motion.ts`, next to `index.tsx`. Start maps this
 ```typescript ignore
 import { createFileRoute } from '@tanstack/react-router'
 import {
-  generateMotion,
+  generate3dMotion,
   generationParamsFromRequest,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { falMotion } from '@tanstack/ai-fal'
+import { fal3dMotion } from '@tanstack/ai-fal'
 import { falByok } from '@tanstack/ai-fal/byok'
 import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 
 export async function POST({ request }: { request: Request }) {
   // Unwrap the prompt and duration the hook POSTed. Then read the fal key.
   const { input, threadId, runId } = await generationParamsFromRequest(
-    'motion',
+    'motion3d',
     request,
   )
   const apiKey = getByokKey(request, falByok)
@@ -405,8 +405,8 @@ export async function POST({ request }: { request: Request }) {
 
   // Submit the job to fal Hunyuan Motion. stream: true polls the job and
   // sends each status to the page over SSE. The last event holds the files.
-  const stream = generateMotion({
-    adapter: falMotion('fal-ai/hunyuan-motion', { apiKey }),
+  const stream = generate3dMotion({
+    adapter: fal3dMotion('fal-ai/hunyuan-motion', { apiKey }),
     prompt: input.prompt,
     duration: typeof input.duration === 'number' ? input.duration : undefined,
     stream: true,
@@ -425,9 +425,9 @@ export const Route = createFileRoute('/api/generate/motion')({
 })
 ```
 
-- `generationParamsFromRequest('motion', request)` reads the prompt and the duration from the POST body.
+- `generationParamsFromRequest('motion3d', request)` reads the prompt and the duration from the POST body.
 - `getByokKey` reads the `x-byok-fal` header first. If the header is empty, it reads `FAL_KEY` from the environment. If both are empty, `byokMissing` returns HTTP 401.
-- `stream: true` makes `generateMotion` submit the job, check it every 2 seconds, and stream each status. The last event holds the files.
+- `stream: true` makes `generate3dMotion` submit the job, check it every 2 seconds, and stream each status. The last event holds the files.
 
 ## 8. Add the cancel route
 
@@ -435,8 +435,8 @@ Create `src/routes/api.motion.cancel.ts`. It maps to `/api/motion/cancel`.
 
 ```typescript ignore
 import { createFileRoute } from '@tanstack/react-router'
-import { cancelMotionJob } from '@tanstack/ai'
-import { falMotion } from '@tanstack/ai-fal'
+import { cancel3dMotionJob } from '@tanstack/ai'
+import { fal3dMotion } from '@tanstack/ai-fal'
 import { falByok } from '@tanstack/ai-fal/byok'
 import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 
@@ -460,8 +460,8 @@ export async function POST({ request }: { request: Request }) {
   // Ask fal to stop the job. This is a remote cancel. The hook's stop()
   // only closes the stream in this tab.
   try {
-    await cancelMotionJob({
-      adapter: falMotion('fal-ai/hunyuan-motion', { apiKey }),
+    await cancel3dMotionJob({
+      adapter: fal3dMotion('fal-ai/hunyuan-motion', { apiKey }),
       jobId: body.jobId,
     })
     return Response.json({ ok: true })

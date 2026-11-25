@@ -127,6 +127,8 @@ The listener runs on the computer of the harness. So the sign-in works when the 
 
 OpenAI and Anthropic have no sign-in for other apps, so users paste a key.
 
+For Codex and Grok Build in a CLI or desktop app, users can sign in with their ChatGPT or SuperGrok plan and need no key. See [Sign in with a ChatGPT or SuperGrok plan](./plan-sign-in).
+
 ## When a key is missing
 
 If a turn needs a key that the user did not connect, the turn stops before the model call:

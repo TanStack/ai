@@ -15,9 +15,9 @@ interface TTSUIProps {
   aimockPort?: number
 }
 
-// ElevenLabs requires a voice on every TTS call. The other providers infer
-// one from their adapter config, so we only attach this when needed.
+// ElevenLabs and Cartesia require a voice on every TTS call.
 const ELEVENLABS_DEFAULT_VOICE = '21m00Tcm4TlvDq8ikWAM'
+const CARTESIA_DEFAULT_VOICE = 'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4'
 
 // Deliberately synthetic voice ids: the dialogue mounts only check that each
 // turn carries *a* voice, and fake-but-plausible provider ids get copied into
@@ -27,10 +27,15 @@ const DIALOGUE_TURNS: Array<TTSTurn> = [
   { text: 'what can I play for you', voice: 'e2e-voice-b' },
 ]
 
+/** Render the speech generation test UI for the selected provider and transport. */
 export function TTSUI({ provider, mode, testId, aimockPort }: TTSUIProps) {
   const [text, setText] = useState('')
   const defaultVoice =
-    provider === 'elevenlabs' ? ELEVENLABS_DEFAULT_VOICE : undefined
+    provider === 'elevenlabs'
+      ? ELEVENLABS_DEFAULT_VOICE
+      : provider === 'cartesia'
+        ? CARTESIA_DEFAULT_VOICE
+        : undefined
 
   const connectionOptions = () => {
     const body = { provider, testId, aimockPort }

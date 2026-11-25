@@ -17,11 +17,30 @@ const isEffort = (value: string): value is AnthropicEffort =>
  */
 const ADAPTIVE_THINKING = /opus-4-[6-9]|sonnet-4-[6-9]|opus-5|sonnet-5|fable-5/
 
+/**
+ * Drop a signed thinking block when the history before it no longer matches.
+ * Compaction rewrites that prefix. The beta is `thinking-binding-controls-2026-08-01`.
+ */
+export const ANTHROPIC_THINKING_BINDING_BETA =
+  'thinking-binding-controls-2026-08-01'
+
+const DROP_BLOCK = {
+  prefix_mismatch_behavior: 'drop_block',
+} as const
+
 /** The Messages API thinking fields for one request. */
 export interface AnthropicThinkingFields {
   thinking?:
-    | { type: 'adaptive'; display: 'summarized' | 'omitted' }
-    | { type: 'enabled'; budget_tokens: number }
+    | {
+        type: 'adaptive'
+        display: 'summarized' | 'omitted'
+        block_binding: typeof DROP_BLOCK
+      }
+    | {
+        type: 'enabled'
+        budget_tokens: number
+        block_binding: typeof DROP_BLOCK
+      }
     | { type: 'disabled' }
   output_config?: { effort: AnthropicEffort }
 }
@@ -58,11 +77,13 @@ export function anthropicThinking(
             ? { budgetTokens: resolved.budgetTokens }
             : {}),
         }),
+        block_binding: DROP_BLOCK,
       },
     }
   const thinking = {
     type: 'adaptive' as const,
     display: resolved.summary ? ('summarized' as const) : ('omitted' as const),
+    block_binding: DROP_BLOCK,
   }
   const effort = resolved.value
   if (!isEffort(effort)) return { thinking }

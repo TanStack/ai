@@ -3,35 +3,35 @@ import type {
   UseGenerationOptions,
   UseGenerationReturn,
 } from './use-generation'
-import type { Model3DResult, StreamChunk } from '@tanstack/ai'
+import type { Model3dResult, StreamChunk } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
   InferGenerationOutputFromReturn,
-  Model3DGenerateInput,
+  Model3dGenerateInput,
 } from '@tanstack/ai-client'
 import type { Accessor } from 'solid-js'
 
 /**
- * Options for the useGenerate3DModel hook.
+ * Options for the useGenerate3dModel hook.
  *
  * @experimental 3D model generation is experimental. The shape can change in
  * a minor release.
  *
- * @template TOutput - The transformed output type (defaults to Model3DResult)
+ * @template TOutput - The transformed output type (defaults to Model3dResult)
  */
-export interface UseGenerate3DModelOptions<
-  TOutput = Model3DResult,
+export interface UseGenerate3dModelOptions<
+  TOutput = Model3dResult,
 > extends Pick<
-  UseGenerationOptions<Model3DGenerateInput, Model3DResult, TOutput>,
+  UseGenerationOptions<Model3dGenerateInput, Model3dResult, TOutput>,
   'threadId' | 'byok' | 'byokProvider' | 'body'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for 3D model generation */
-  fetcher?: GenerationFetcher<Model3DGenerateInput, Model3DResult>
+  fetcher?: GenerationFetcher<Model3dGenerateInput, Model3dResult>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /**
@@ -41,7 +41,7 @@ export interface UseGenerate3DModelOptions<
    * - Return `null` to keep the previous result unchanged
    * - Return nothing (`void`) to store the raw result as-is
    */
-  onResult?: (result: Model3DResult) => TOutput | null | void
+  onResult?: (result: Model3dResult) => TOutput | null | void
   /** Callback when an error occurs */
   onError?: (error: Error) => void
   /**
@@ -54,19 +54,19 @@ export interface UseGenerate3DModelOptions<
 }
 
 /**
- * Return type for the useGenerate3DModel hook.
+ * Return type for the useGenerate3dModel hook.
  *
  * @experimental 3D model generation is experimental. The shape can change in
  * a minor release.
  *
- * @template TOutput - The transformed output type (defaults to Model3DResult)
+ * @template TOutput - The transformed output type (defaults to Model3dResult)
  */
-export interface UseGenerate3DModelReturn<TOutput = Model3DResult> extends Omit<
+export interface UseGenerate3dModelReturn<TOutput = Model3dResult> extends Omit<
   UseGenerationReturn<TOutput>,
   'generate'
 > {
   /** Trigger 3D model generation */
-  generate: (input: Model3DGenerateInput) => Promise<void>
+  generate: (input: Model3dGenerateInput) => Promise<void>
   /** The finished 3D model, or null */
   result: Accessor<TOutput | null>
   /** Whether generation is in progress */
@@ -92,11 +92,11 @@ export interface UseGenerate3DModelReturn<TOutput = Model3DResult> extends Omit<
  *
  * @example
  * ```tsx
- * import { useGenerate3DModel } from '@tanstack/ai-solid2'
+ * import { useGenerate3dModel } from '@tanstack/ai-solid2'
  * import { fetchServerSentEvents } from '@tanstack/ai-client'
  *
  * function ModelGenerator() {
- *   const { generate, result, isLoading, error } = useGenerate3DModel({
+ *   const { generate, result, isLoading, error } = useGenerate3dModel({
  *     threadId: 'robot-model',
  *     connection: fetchServerSentEvents('/api/generate/3d-model'),
  *   })
@@ -114,19 +114,19 @@ export interface UseGenerate3DModelReturn<TOutput = Model3DResult> extends Omit<
  * }
  * ```
  */
-export function useGenerate3DModel<TTransformed = void>(
-  options: Omit<UseGenerate3DModelOptions, 'onResult'> & {
-    onResult?: (result: Model3DResult) => TTransformed
+export function useGenerate3dModel<TTransformed = void>(
+  options: Omit<UseGenerate3dModelOptions, 'onResult'> & {
+    onResult?: (result: Model3dResult) => TTransformed
   },
-): UseGenerate3DModelReturn<
-  InferGenerationOutputFromReturn<Model3DResult, TTransformed>
+): UseGenerate3dModelReturn<
+  InferGenerationOutputFromReturn<Model3dResult, TTransformed>
 > {
   const devtools = {
     ...options.devtools,
     framework: 'solid',
-    hookName: 'useGenerate3DModel',
+    hookName: 'useGenerate3dModel',
   }
-  return useGeneration<Model3DGenerateInput, Model3DResult, TTransformed>({
+  return useGeneration<Model3dGenerateInput, Model3dResult, TTransformed>({
     ...options,
     // The spread above would freeze a caller-supplied `get body()`. Re-expose
     // it so useGeneration keeps tracking the current body.

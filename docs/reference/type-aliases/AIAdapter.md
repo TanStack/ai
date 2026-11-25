@@ -12,7 +12,7 @@ type AIAdapter =
   | AnyImageAdapter
   | AnyAudioAdapter
   | AnyVideoAdapter
-  | AnyModel3DAdapter
+  | AnyModel3dAdapter
   | AnyTTSAdapter
   | AnyVoiceAdapter
   | AnyTranscriptionAdapter
@@ -20,7 +20,7 @@ type AIAdapter =
   | AnyRerankAdapter
   | AnyEvaluateAdapter
   | AnyWorldAdapter
-  | AnyMotionAdapter
+  | AnyMotion3dAdapter
   | AnyLiveVideoAdapter
   | AnyFilesAdapter;
 ```

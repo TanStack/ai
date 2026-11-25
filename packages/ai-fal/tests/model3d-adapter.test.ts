@@ -1,11 +1,11 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
-import { fal3DModel } from '../src/adapters/model3d'
+import { fal3dModel } from '../src/adapters/model3d'
 import type { MediaPrompt } from '@tanstack/ai'
 import type {
-  Fal3DModel,
-  Fal3DModelProviderOptions,
-  Fal3DPromptModalitiesFor,
+  Fal3dModel,
+  Fal3dModelProviderOptions,
+  Fal3dPromptModalitiesFor,
 } from '../src/model-meta'
 
 const logger = resolveDebugOption(false)
@@ -44,21 +44,21 @@ function falQueue(answers: { status?: unknown; result?: Response } = {}) {
   return { fetch, submitted, cancels }
 }
 
-function adapterFor<TModel extends Fal3DModel>(
+function adapterFor<TModel extends Fal3dModel>(
   model: TModel,
   queue: ReturnType<typeof falQueue>,
 ) {
-  return fal3DModel(model, { apiKey: 'test-key', fetch: queue.fetch })
+  return fal3dModel(model, { apiKey: 'test-key', fetch: queue.fetch })
 }
 
 /** Submits `prompt` to `model` and returns the input body fal received. */
-async function submittedInput<TModel extends Fal3DModel>(
+async function submittedInput<TModel extends Fal3dModel>(
   model: TModel,
   prompt: MediaPrompt,
-  modelOptions?: Fal3DModelProviderOptions<TModel>,
+  modelOptions?: Fal3dModelProviderOptions<TModel>,
 ) {
   const queue = falQueue()
-  const job = await adapterFor(model, queue).create3DModelJob({
+  const job = await adapterFor(model, queue).create3dModelJob({
     model,
     prompt,
     modelOptions,
@@ -71,7 +71,7 @@ async function submittedInput<TModel extends Fal3DModel>(
 /** Reads a finished job whose result body is `output`. */
 function resultFor(output: unknown, init?: ResponseInit) {
   const queue = falQueue({ result: json(output, init) })
-  return adapterFor('fal-ai/hunyuan3d-v3/image-to-3d', queue).get3DModel(
+  return adapterFor('fal-ai/hunyuan3d-v3/image-to-3d', queue).get3dModel(
     'req-1',
   )
 }
@@ -81,36 +81,36 @@ const image = (value: string) =>
 const mesh = (value: string) =>
   ({ type: 'model3d', source: { type: 'url', value } }) as const
 
-describe('fal3DModel types', () => {
+describe('fal3dModel types', () => {
   it('removes the prompt-routed fields from modelOptions', () => {
     expectTypeOf<
-      Fal3DModelProviderOptions<'fal-ai/hunyuan3d-v3/image-to-3d'>
+      Fal3dModelProviderOptions<'fal-ai/hunyuan3d-v3/image-to-3d'>
     >().not.toHaveProperty('input_image_url')
     expectTypeOf<
-      Fal3DModelProviderOptions<'fal-ai/hunyuan3d-v3/image-to-3d'>
+      Fal3dModelProviderOptions<'fal-ai/hunyuan3d-v3/image-to-3d'>
     >().toHaveProperty('face_count')
     expectTypeOf<
-      Fal3DModelProviderOptions<'fal-ai/trellis-2/retexture'>
+      Fal3dModelProviderOptions<'fal-ai/trellis-2/retexture'>
     >().not.toHaveProperty('mesh_url')
     expectTypeOf<
-      Fal3DModelProviderOptions<'fal-ai/trellis-2/retexture'>
+      Fal3dModelProviderOptions<'fal-ai/trellis-2/retexture'>
     >().not.toHaveProperty('image_url')
   })
 
   it('derives the prompt modalities from the endpoint input', () => {
     expectTypeOf<
-      Fal3DPromptModalitiesFor<'fal-ai/hunyuan3d-v3/image-to-3d'>
+      Fal3dPromptModalitiesFor<'fal-ai/hunyuan3d-v3/image-to-3d'>
     >().toEqualTypeOf<ReadonlyArray<'image'>>()
     expectTypeOf<
-      Fal3DPromptModalitiesFor<'fal-ai/trellis-2/retexture'>
+      Fal3dPromptModalitiesFor<'fal-ai/trellis-2/retexture'>
     >().toEqualTypeOf<ReadonlyArray<'image' | 'model3d'>>()
     expectTypeOf<
-      Fal3DPromptModalitiesFor<'meshy/v7/retexture'>
+      Fal3dPromptModalitiesFor<'meshy/v7/retexture'>
     >().toEqualTypeOf<ReadonlyArray<'image' | 'model3d'>>()
   })
 })
 
-describe('fal3DModel create3DModelJob', () => {
+describe('fal3dModel create3dModelJob', () => {
   it('sends an image-to-3D image as input_image_url next to modelOptions', async () => {
     const input = await submittedInput(
       'fal-ai/hunyuan3d-v3/image-to-3d',
@@ -168,7 +168,7 @@ describe('fal3DModel create3DModelJob', () => {
     expect(input).toEqual({ input_image_url: expected })
   })
 
-  const rejectedPrompts: Array<[string, Fal3DModel, MediaPrompt, RegExp]> = [
+  const rejectedPrompts: Array<[string, Fal3dModel, MediaPrompt, RegExp]> = [
     [
       'a text prompt to an endpoint with no text field',
       'fal-ai/hunyuan3d-v3/image-to-3d',
@@ -237,7 +237,7 @@ describe('fal3DModel create3DModelJob', () => {
     'rejects %s without a request',
     async (_name, model, prompt, message) => {
       const queue = falQueue()
-      const run = adapterFor(model, queue).create3DModelJob({
+      const run = adapterFor(model, queue).create3dModelJob({
         model,
         prompt,
         logger,
@@ -273,7 +273,7 @@ describe('fal3DModel create3DModelJob', () => {
   })
 })
 
-describe('fal3DModel get3DModelStatus', () => {
+describe('fal3dModel get3dModelStatus', () => {
   it.each([
     [{ status: 'IN_QUEUE', queue_position: 2 }, { status: 'pending' }],
     [{ status: 'IN_PROGRESS', logs: [] }, { status: 'processing' }],
@@ -284,14 +284,14 @@ describe('fal3DModel get3DModelStatus', () => {
     ],
   ])('maps fal status %o', async (falStatus, expected) => {
     const queue = falQueue({ status: falStatus })
-    const status = await adapterFor('fal-ai/trellis-2', queue).get3DModelStatus(
+    const status = await adapterFor('fal-ai/trellis-2', queue).get3dModelStatus(
       'req-1',
     )
     expect(status).toEqual({ jobId: 'req-1', ...expected })
   })
 })
 
-describe('fal3DModel get3DModel', () => {
+describe('fal3dModel get3dModel', () => {
   it('maps a Hunyuan3D v3 output with model_glb and model_urls', async () => {
     const result = await resultFor({
       model_glb: {
@@ -550,10 +550,10 @@ describe('fal3DModel get3DModel', () => {
   })
 })
 
-describe('fal3DModel cancel3DModelJob', () => {
+describe('fal3dModel cancel3dModelJob', () => {
   it('cancels the job with the fal queue cancel endpoint', async () => {
     const queue = falQueue()
-    await adapterFor('fal-ai/hunyuan3d-v3/image-to-3d', queue).cancel3DModelJob(
+    await adapterFor('fal-ai/hunyuan3d-v3/image-to-3d', queue).cancel3dModelJob(
       'req-1',
     )
     expect(queue.cancels).toEqual([

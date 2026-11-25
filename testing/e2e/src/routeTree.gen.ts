@@ -95,6 +95,7 @@ import { Route as ApiChatConsumerStopRouteImport } from './routes/api.chat-consu
 import { Route as ApiClientToolResumeStoreRouteImport } from './routes/api.client-tool-resume-store'
 import { Route as ApiCloudflareBindingHeadersWireRouteImport } from './routes/api.cloudflare-binding-headers-wire'
 import { Route as ApiCloudflareBindingWireRouteImport } from './routes/api.cloudflare-binding-wire'
+import { Route as ApiCloudflareEvaluateWireRouteImport } from './routes/api.cloudflare-evaluate-wire'
 import { Route as ApiCodingToolsRouteImport } from './routes/api.coding-tools'
 import { Route as ApiCodingWorkspaceRouteImport } from './routes/api.coding-workspace'
 import { Route as ApiCompactionUsageWireRouteImport } from './routes/api.compaction-usage-wire'
@@ -110,6 +111,7 @@ import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-tak
 import { Route as ApiEffectChatRouteImport } from './routes/api.effect-chat'
 import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
 import { Route as ApiEmbeddingAbortRouteImport } from './routes/api.embedding-abort'
+import { Route as ApiEvaluateGeminiRouteImport } from './routes/api.evaluate-gemini'
 import { Route as ApiEvaluateHttpStatusRouteImport } from './routes/api.evaluate-http-status'
 import { Route as ApiEvaluateRefusalRouteImport } from './routes/api.evaluate-refusal'
 import { Route as ApiEvaluateUsageOnFailureRouteImport } from './routes/api.evaluate-usage-on-failure'
@@ -185,6 +187,7 @@ import { Route as ApiOpenaiResponsesUsageRouteImport } from './routes/api.openai
 import { Route as ApiOpenaiShellSkillsWireRouteImport } from './routes/api.openai-shell-skills-wire'
 import { Route as ApiOpenaiStrictToolNullWireRouteImport } from './routes/api.openai-strict-tool-null-wire'
 import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
+import { Route as ApiOpencodeEventsRouteImport } from './routes/api.opencode-events'
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
 import { Route as ApiOpenrouterJsonObjectWireRouteImport } from './routes/api.openrouter-json-object-wire'
 import { Route as ApiOpenrouterReasoningWireRouteImport } from './routes/api.openrouter-reasoning-wire'
@@ -209,6 +212,7 @@ import { Route as ApiResponsesAnswerItemsWireRouteImport } from './routes/api.re
 import { Route as ApiRetryAfterRouteImport } from './routes/api.retry-after'
 import { Route as ApiSandboxDurabilityRouteImport } from './routes/api.sandbox-durability'
 import { Route as ApiSandboxFilePersistenceRouteImport } from './routes/api.sandbox-file-persistence'
+import { Route as ApiSandboxLocalProcessExecRouteImport } from './routes/api.sandbox-local-process-exec'
 import { Route as ApiSandboxToolHistoryRouteImport } from './routes/api.sandbox-tool-history'
 import { Route as ApiServerToolStoreWireRouteImport } from './routes/api.server-tool-store-wire'
 import { Route as ApiStructuredOutputLengthWireRouteImport } from './routes/api.structured-output-length-wire'
@@ -693,6 +697,12 @@ const ApiCloudflareBindingWireRoute =
     path: '/api/cloudflare-binding-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiCloudflareEvaluateWireRoute =
+  ApiCloudflareEvaluateWireRouteImport.update({
+    id: '/api/cloudflare-evaluate-wire',
+    path: '/api/cloudflare-evaluate-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiCodingToolsRoute = ApiCodingToolsRouteImport.update({
   id: '/api/coding-tools',
   path: '/api/coding-tools',
@@ -767,6 +777,11 @@ const ApiEmbeddingRoute = ApiEmbeddingRouteImport.update({
 const ApiEmbeddingAbortRoute = ApiEmbeddingAbortRouteImport.update({
   id: '/api/embedding-abort',
   path: '/api/embedding-abort',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiEvaluateGeminiRoute = ApiEvaluateGeminiRouteImport.update({
+  id: '/api/evaluate-gemini',
+  path: '/api/evaluate-gemini',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiEvaluateHttpStatusRoute = ApiEvaluateHttpStatusRouteImport.update({
@@ -1160,6 +1175,11 @@ const ApiOpenaiUsageDetailsRoute = ApiOpenaiUsageDetailsRouteImport.update({
   path: '/api/openai-usage-details',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOpencodeEventsRoute = ApiOpencodeEventsRouteImport.update({
+  id: '/api/opencode-events',
+  path: '/api/opencode-events',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOpenrouterCostRoute = ApiOpenrouterCostRouteImport.update({
   id: '/api/openrouter-cost',
   path: '/api/openrouter-cost',
@@ -1290,6 +1310,12 @@ const ApiSandboxFilePersistenceRoute =
   ApiSandboxFilePersistenceRouteImport.update({
     id: '/api/sandbox-file-persistence',
     path: '/api/sandbox-file-persistence',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiSandboxLocalProcessExecRoute =
+  ApiSandboxLocalProcessExecRouteImport.update({
+    id: '/api/sandbox-local-process-exec',
+    path: '/api/sandbox-local-process-exec',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiSandboxToolHistoryRoute = ApiSandboxToolHistoryRouteImport.update({
@@ -1544,6 +1570,7 @@ export interface FileRoutesByFullPath {
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/cloudflare-evaluate-wire': typeof ApiCloudflareEvaluateWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
   '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
@@ -1559,6 +1586,7 @@ export interface FileRoutesByFullPath {
   '/api/effect-chat': typeof ApiEffectChatRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/embedding-abort': typeof ApiEmbeddingAbortRoute
+  '/api/evaluate-gemini': typeof ApiEvaluateGeminiRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
   '/api/evaluate-refusal': typeof ApiEvaluateRefusalRoute
   '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
@@ -1634,6 +1662,7 @@ export interface FileRoutesByFullPath {
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
+  '/api/opencode-events': typeof ApiOpencodeEventsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
@@ -1658,6 +1687,7 @@ export interface FileRoutesByFullPath {
   '/api/retry-after': typeof ApiRetryAfterRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
+  '/api/sandbox-local-process-exec': typeof ApiSandboxLocalProcessExecRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/server-tool-store-wire': typeof ApiServerToolStoreWireRoute
   '/api/structured-output-length-wire': typeof ApiStructuredOutputLengthWireRoute
@@ -1778,6 +1808,7 @@ export interface FileRoutesByTo {
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/cloudflare-evaluate-wire': typeof ApiCloudflareEvaluateWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
   '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
@@ -1793,6 +1824,7 @@ export interface FileRoutesByTo {
   '/api/effect-chat': typeof ApiEffectChatRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/embedding-abort': typeof ApiEmbeddingAbortRoute
+  '/api/evaluate-gemini': typeof ApiEvaluateGeminiRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
   '/api/evaluate-refusal': typeof ApiEvaluateRefusalRoute
   '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
@@ -1868,6 +1900,7 @@ export interface FileRoutesByTo {
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
+  '/api/opencode-events': typeof ApiOpencodeEventsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
@@ -1892,6 +1925,7 @@ export interface FileRoutesByTo {
   '/api/retry-after': typeof ApiRetryAfterRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
+  '/api/sandbox-local-process-exec': typeof ApiSandboxLocalProcessExecRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/server-tool-store-wire': typeof ApiServerToolStoreWireRoute
   '/api/structured-output-length-wire': typeof ApiStructuredOutputLengthWireRoute
@@ -2013,6 +2047,7 @@ export interface FileRoutesById {
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/cloudflare-evaluate-wire': typeof ApiCloudflareEvaluateWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
   '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
@@ -2028,6 +2063,7 @@ export interface FileRoutesById {
   '/api/effect-chat': typeof ApiEffectChatRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/embedding-abort': typeof ApiEmbeddingAbortRoute
+  '/api/evaluate-gemini': typeof ApiEvaluateGeminiRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
   '/api/evaluate-refusal': typeof ApiEvaluateRefusalRoute
   '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
@@ -2103,6 +2139,7 @@ export interface FileRoutesById {
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
+  '/api/opencode-events': typeof ApiOpencodeEventsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
@@ -2127,6 +2164,7 @@ export interface FileRoutesById {
   '/api/retry-after': typeof ApiRetryAfterRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
+  '/api/sandbox-local-process-exec': typeof ApiSandboxLocalProcessExecRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/server-tool-store-wire': typeof ApiServerToolStoreWireRoute
   '/api/structured-output-length-wire': typeof ApiStructuredOutputLengthWireRoute
@@ -2249,6 +2287,7 @@ export interface FileRouteTypes {
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-headers-wire'
     | '/api/cloudflare-binding-wire'
+    | '/api/cloudflare-evaluate-wire'
     | '/api/coding-tools'
     | '/api/coding-workspace'
     | '/api/compaction-usage-wire'
@@ -2264,6 +2303,7 @@ export interface FileRouteTypes {
     | '/api/effect-chat'
     | '/api/embedding'
     | '/api/embedding-abort'
+    | '/api/evaluate-gemini'
     | '/api/evaluate-http-status'
     | '/api/evaluate-refusal'
     | '/api/evaluate-usage-on-failure'
@@ -2339,6 +2379,7 @@ export interface FileRouteTypes {
     | '/api/openai-shell-skills-wire'
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
+    | '/api/opencode-events'
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
     | '/api/openrouter-reasoning-wire'
@@ -2363,6 +2404,7 @@ export interface FileRouteTypes {
     | '/api/retry-after'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
+    | '/api/sandbox-local-process-exec'
     | '/api/sandbox-tool-history'
     | '/api/server-tool-store-wire'
     | '/api/structured-output-length-wire'
@@ -2483,6 +2525,7 @@ export interface FileRouteTypes {
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-headers-wire'
     | '/api/cloudflare-binding-wire'
+    | '/api/cloudflare-evaluate-wire'
     | '/api/coding-tools'
     | '/api/coding-workspace'
     | '/api/compaction-usage-wire'
@@ -2498,6 +2541,7 @@ export interface FileRouteTypes {
     | '/api/effect-chat'
     | '/api/embedding'
     | '/api/embedding-abort'
+    | '/api/evaluate-gemini'
     | '/api/evaluate-http-status'
     | '/api/evaluate-refusal'
     | '/api/evaluate-usage-on-failure'
@@ -2573,6 +2617,7 @@ export interface FileRouteTypes {
     | '/api/openai-shell-skills-wire'
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
+    | '/api/opencode-events'
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
     | '/api/openrouter-reasoning-wire'
@@ -2597,6 +2642,7 @@ export interface FileRouteTypes {
     | '/api/retry-after'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
+    | '/api/sandbox-local-process-exec'
     | '/api/sandbox-tool-history'
     | '/api/server-tool-store-wire'
     | '/api/structured-output-length-wire'
@@ -2717,6 +2763,7 @@ export interface FileRouteTypes {
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-headers-wire'
     | '/api/cloudflare-binding-wire'
+    | '/api/cloudflare-evaluate-wire'
     | '/api/coding-tools'
     | '/api/coding-workspace'
     | '/api/compaction-usage-wire'
@@ -2732,6 +2779,7 @@ export interface FileRouteTypes {
     | '/api/effect-chat'
     | '/api/embedding'
     | '/api/embedding-abort'
+    | '/api/evaluate-gemini'
     | '/api/evaluate-http-status'
     | '/api/evaluate-refusal'
     | '/api/evaluate-usage-on-failure'
@@ -2807,6 +2855,7 @@ export interface FileRouteTypes {
     | '/api/openai-shell-skills-wire'
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
+    | '/api/opencode-events'
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
     | '/api/openrouter-reasoning-wire'
@@ -2831,6 +2880,7 @@ export interface FileRouteTypes {
     | '/api/retry-after'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
+    | '/api/sandbox-local-process-exec'
     | '/api/sandbox-tool-history'
     | '/api/server-tool-store-wire'
     | '/api/structured-output-length-wire'
@@ -2952,6 +3002,7 @@ export interface RootRouteChildren {
   ApiClientToolResumeStoreRoute: typeof ApiClientToolResumeStoreRoute
   ApiCloudflareBindingHeadersWireRoute: typeof ApiCloudflareBindingHeadersWireRoute
   ApiCloudflareBindingWireRoute: typeof ApiCloudflareBindingWireRoute
+  ApiCloudflareEvaluateWireRoute: typeof ApiCloudflareEvaluateWireRoute
   ApiCodingToolsRoute: typeof ApiCodingToolsRoute
   ApiCodingWorkspaceRoute: typeof ApiCodingWorkspaceRoute
   ApiCompactionUsageWireRoute: typeof ApiCompactionUsageWireRoute
@@ -2967,6 +3018,7 @@ export interface RootRouteChildren {
   ApiEffectChatRoute: typeof ApiEffectChatRoute
   ApiEmbeddingRoute: typeof ApiEmbeddingRoute
   ApiEmbeddingAbortRoute: typeof ApiEmbeddingAbortRoute
+  ApiEvaluateGeminiRoute: typeof ApiEvaluateGeminiRoute
   ApiEvaluateHttpStatusRoute: typeof ApiEvaluateHttpStatusRoute
   ApiEvaluateRefusalRoute: typeof ApiEvaluateRefusalRoute
   ApiEvaluateUsageOnFailureRoute: typeof ApiEvaluateUsageOnFailureRoute
@@ -3042,6 +3094,7 @@ export interface RootRouteChildren {
   ApiOpenaiShellSkillsWireRoute: typeof ApiOpenaiShellSkillsWireRoute
   ApiOpenaiStrictToolNullWireRoute: typeof ApiOpenaiStrictToolNullWireRoute
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
+  ApiOpencodeEventsRoute: typeof ApiOpencodeEventsRoute
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
   ApiOpenrouterJsonObjectWireRoute: typeof ApiOpenrouterJsonObjectWireRoute
   ApiOpenrouterReasoningWireRoute: typeof ApiOpenrouterReasoningWireRoute
@@ -3066,6 +3119,7 @@ export interface RootRouteChildren {
   ApiRetryAfterRoute: typeof ApiRetryAfterRoute
   ApiSandboxDurabilityRoute: typeof ApiSandboxDurabilityRoute
   ApiSandboxFilePersistenceRoute: typeof ApiSandboxFilePersistenceRoute
+  ApiSandboxLocalProcessExecRoute: typeof ApiSandboxLocalProcessExecRoute
   ApiSandboxToolHistoryRoute: typeof ApiSandboxToolHistoryRoute
   ApiServerToolStoreWireRoute: typeof ApiServerToolStoreWireRoute
   ApiStructuredOutputLengthWireRoute: typeof ApiStructuredOutputLengthWireRoute
@@ -3700,6 +3754,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCloudflareBindingWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cloudflare-evaluate-wire': {
+      id: '/api/cloudflare-evaluate-wire'
+      path: '/api/cloudflare-evaluate-wire'
+      fullPath: '/api/cloudflare-evaluate-wire'
+      preLoaderRoute: typeof ApiCloudflareEvaluateWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/coding-tools': {
       id: '/api/coding-tools'
       path: '/api/coding-tools'
@@ -3803,6 +3864,13 @@ declare module '@tanstack/react-router' {
       path: '/api/embedding-abort'
       fullPath: '/api/embedding-abort'
       preLoaderRoute: typeof ApiEmbeddingAbortRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/evaluate-gemini': {
+      id: '/api/evaluate-gemini'
+      path: '/api/evaluate-gemini'
+      fullPath: '/api/evaluate-gemini'
+      preLoaderRoute: typeof ApiEvaluateGeminiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/evaluate-http-status': {
@@ -4330,6 +4398,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpenaiUsageDetailsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/opencode-events': {
+      id: '/api/opencode-events'
+      path: '/api/opencode-events'
+      fullPath: '/api/opencode-events'
+      preLoaderRoute: typeof ApiOpencodeEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/openrouter-cost': {
       id: '/api/openrouter-cost'
       path: '/api/openrouter-cost'
@@ -4496,6 +4571,13 @@ declare module '@tanstack/react-router' {
       path: '/api/sandbox-file-persistence'
       fullPath: '/api/sandbox-file-persistence'
       preLoaderRoute: typeof ApiSandboxFilePersistenceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/sandbox-local-process-exec': {
+      id: '/api/sandbox-local-process-exec'
+      path: '/api/sandbox-local-process-exec'
+      fullPath: '/api/sandbox-local-process-exec'
+      preLoaderRoute: typeof ApiSandboxLocalProcessExecRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/sandbox-tool-history': {
@@ -4874,6 +4956,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiClientToolResumeStoreRoute: ApiClientToolResumeStoreRoute,
   ApiCloudflareBindingHeadersWireRoute: ApiCloudflareBindingHeadersWireRoute,
   ApiCloudflareBindingWireRoute: ApiCloudflareBindingWireRoute,
+  ApiCloudflareEvaluateWireRoute: ApiCloudflareEvaluateWireRoute,
   ApiCodingToolsRoute: ApiCodingToolsRoute,
   ApiCodingWorkspaceRoute: ApiCodingWorkspaceRoute,
   ApiCompactionUsageWireRoute: ApiCompactionUsageWireRoute,
@@ -4889,6 +4972,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiEffectChatRoute: ApiEffectChatRoute,
   ApiEmbeddingRoute: ApiEmbeddingRoute,
   ApiEmbeddingAbortRoute: ApiEmbeddingAbortRoute,
+  ApiEvaluateGeminiRoute: ApiEvaluateGeminiRoute,
   ApiEvaluateHttpStatusRoute: ApiEvaluateHttpStatusRoute,
   ApiEvaluateRefusalRoute: ApiEvaluateRefusalRoute,
   ApiEvaluateUsageOnFailureRoute: ApiEvaluateUsageOnFailureRoute,
@@ -4964,6 +5048,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenaiShellSkillsWireRoute: ApiOpenaiShellSkillsWireRoute,
   ApiOpenaiStrictToolNullWireRoute: ApiOpenaiStrictToolNullWireRoute,
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,
+  ApiOpencodeEventsRoute: ApiOpencodeEventsRoute,
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
   ApiOpenrouterJsonObjectWireRoute: ApiOpenrouterJsonObjectWireRoute,
   ApiOpenrouterReasoningWireRoute: ApiOpenrouterReasoningWireRoute,
@@ -4989,6 +5074,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiRetryAfterRoute: ApiRetryAfterRoute,
   ApiSandboxDurabilityRoute: ApiSandboxDurabilityRoute,
   ApiSandboxFilePersistenceRoute: ApiSandboxFilePersistenceRoute,
+  ApiSandboxLocalProcessExecRoute: ApiSandboxLocalProcessExecRoute,
   ApiSandboxToolHistoryRoute: ApiSandboxToolHistoryRoute,
   ApiServerToolStoreWireRoute: ApiServerToolStoreWireRoute,
   ApiStructuredOutputLengthWireRoute: ApiStructuredOutputLengthWireRoute,

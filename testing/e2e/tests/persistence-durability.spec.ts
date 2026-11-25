@@ -430,3 +430,205 @@ test.describe('server persistence', () => {
     )
   })
 })
+
+test.describe('durable interrupt edge cases', () => {
+  test('preserves tool-call approval state across reload and executes approved tool once', async ({
+    page,
+  }) => {
+    const threadId = `approval-reload-${crypto.randomUUID()}`
+    const approvalId = `approval_call-delete-${threadId}`
+    await page.goto(
+      `/persistence-durability?scenario=approval-reload&threadId=${encodeURIComponent(threadId)}`,
+    )
+
+    await sendMessage(page, 'delete order 77')
+    await expect(page.getByTestId(`interrupt-${approvalId}`)).toBeVisible({
+      timeout: 15_000,
+    })
+
+    // Reload while approval is pending: ToolCallPart keeps approval-requested and approval.id.
+    await page.reload()
+    await expect(page.getByTestId(`interrupt-${approvalId}`)).toBeVisible({
+      timeout: 15_000,
+    })
+    const toolCall = page.getByTestId('tool-call-delete_order')
+    await expect(toolCall).toHaveAttribute('data-state', 'approval-requested')
+    await expect(toolCall).toHaveAttribute('data-approval-id', approvalId)
+
+    // Approve and verify single execution.
+    await page.getByTestId(`approve-${approvalId}`).click()
+    await expect(page.getByTestId('message-list')).toContainText(
+      'DELETED_ONCE count=1',
+      { timeout: 15_000 },
+    )
+    await expect.poll(() => interruptCount(page)).toBe(0)
+
+    // Reload after completion: stays approved, never re-prompts.
+    await page.reload()
+    await expect(page.getByTestId('message-list')).toContainText(
+      'DELETED_ONCE count=1',
+      { timeout: 15_000 },
+    )
+    await expect.poll(() => interruptCount(page)).toBe(0)
+  })
+
+  test('reload mid-continuation preserves run-1 tool call and never resurrects the approval', async ({
+    page,
+    request,
+  }) => {
+    const threadId = `approval-mid-${crypto.randomUUID()}`
+    const approvalId = `approval_call-slow-${threadId}`
+    await page.goto(
+      `/persistence-durability?scenario=approval-mid-continuation&threadId=${encodeURIComponent(threadId)}`,
+    )
+
+    await sendMessage(page, 'delete order 55')
+    await expect(page.getByTestId(`interrupt-${approvalId}`)).toBeVisible({
+      timeout: 15_000,
+    })
+
+    // Approve the gated tool and wait until the server tool has started executing.
+    await page.getByTestId(`approve-${approvalId}`).click()
+    await expect
+      .poll(
+        async () => {
+          const res = await request.get(
+            `/api/persistence-durability?scenario=approval-mid-continuation&action=status&threadId=${encodeURIComponent(threadId)}`,
+          )
+          const json = (await res.json()) as { toolStarted: boolean }
+          return json.toolStarted
+        },
+        { timeout: 15_000 },
+      )
+      .toBe(true)
+
+    // Reload while the continuation run is still in flight.
+    await page.reload()
+    await expect(page.getByTestId('loading-indicator')).toBeVisible({
+      timeout: 15_000,
+    })
+    await expect.poll(() => interruptCount(page)).toBe(0)
+
+    // Release the server tool and confirm Run 1's tool call survives joinRun replay.
+    const releaseRes = await request.get(
+      `/api/persistence-durability?scenario=approval-mid-continuation&action=release&threadId=${encodeURIComponent(threadId)}`,
+    )
+    expect(releaseRes.ok()).toBe(true)
+
+    await expect(page.getByTestId('message-list')).toContainText(
+      'MID_CONT_DONE',
+      { timeout: 15_000 },
+    )
+    await expect(page.getByTestId('tool-call-slow_delete')).toBeVisible()
+    await expect.poll(() => interruptCount(page)).toBe(0)
+  })
+
+  test('declined approval stays declined after follow-up model error and reload', async ({
+    page,
+    request,
+  }) => {
+    const threadId = `decline-fail-${crypto.randomUUID()}`
+    const approvalId = `approval_call-charge-${threadId}`
+    await page.goto(
+      `/persistence-durability?scenario=decline-llm-fail&threadId=${encodeURIComponent(threadId)}`,
+    )
+
+    await sendMessage(page, 'charge 99')
+    await expect(page.getByTestId(`interrupt-${approvalId}`)).toBeVisible({
+      timeout: 15_000,
+    })
+
+    // Deny: follow-up model fails with 500.
+    await page.getByTestId(`deny-${approvalId}`).click()
+    await expect(page.getByTestId('chat-error')).toBeVisible({
+      timeout: 15_000,
+    })
+
+    // Reload: declined approval must stay resolved and never execute.
+    await page.reload()
+    await expect(page.getByTestId('persistence-durability-page')).toBeVisible()
+    await expect(page.getByTestId('tool-call-charge_card')).toBeVisible({
+      timeout: 15_000,
+    })
+    await expect.poll(() => interruptCount(page)).toBe(0)
+
+    const status = await request.get(
+      `/api/persistence-durability?scenario=decline-llm-fail&action=status&threadId=${encodeURIComponent(threadId)}`,
+    )
+    const { execCount } = (await status.json()) as { execCount: number }
+    expect(execCount).toBe(0)
+  })
+
+  test('hydrates a pending client-tool interrupt, auto-executes, and keeps chat usable', async ({
+    page,
+    request,
+  }) => {
+    const threadId = `client-tool-${crypto.randomUUID()}`
+    const seed = await request.post(
+      '/api/persistence-durability?scenario=client-tool-reload&seed=1',
+      { data: { threadId, runId: `seed-${threadId}` } },
+    )
+    expect(seed.ok()).toBe(true)
+
+    await page.goto(
+      `/persistence-durability?scenario=client-tool-reload&threadId=${encodeURIComponent(threadId)}`,
+    )
+
+    // Client hydrates pending client_tool interrupt, runs .client(), and finishes.
+    await expect(page.getByTestId('message-list')).toContainText(
+      'TZ_RESOLVED UTC',
+      { timeout: 15_000 },
+    )
+    await expect.poll(() => interruptCount(page)).toBe(0)
+
+    // Subsequent messages must work without throwing.
+    await sendMessage(page, 'ping')
+    await expect(page.getByTestId('message-list')).toContainText('PONG_OK', {
+      timeout: 15_000,
+    })
+  })
+
+  test('switching threads preserves a pending client-persisted interrupt', async ({
+    page,
+  }) => {
+    const threadId = `thread-switch-${crypto.randomUUID()}`
+    await page.goto(
+      `/persistence-durability?scenario=thread-switch&threadId=${encodeURIComponent(threadId)}`,
+    )
+
+    await sendMessage(page, 'ship order')
+    await expect(page.getByTestId('interrupt-confirm-shipment')).toBeVisible({
+      timeout: 15_000,
+    })
+
+    // Switch to thread B, then switch back to thread A.
+    await page.getByTestId('switch-thread').click()
+    await expect(page.getByTestId('active-thread')).toHaveText(`${threadId}-b`)
+    await expect.poll(() => interruptCount(page)).toBe(0)
+
+    await page.getByTestId('switch-thread').click()
+    await expect(page.getByTestId('active-thread')).toHaveText(`${threadId}-a`)
+    await expect(page.getByTestId('interrupt-confirm-shipment')).toBeVisible({
+      timeout: 15_000,
+    })
+    await expect(page.getByTestId('interrupt-can-resolve')).toHaveText('true')
+  })
+
+  test('reconnects after clean socket cut on intermediate RUN_FINISHED(tool_calls)', async ({
+    page,
+  }) => {
+    const threadId = `multi-iter-${crypto.randomUUID()}`
+    const approvalId = `approval_call-buy-${threadId}`
+    await page.goto(
+      `/persistence-durability?scenario=multi-iter-cut&threadId=${encodeURIComponent(threadId)}`,
+    )
+
+    await sendMessage(page, 'buy guitar')
+    // Iteration 1 closes cleanly on RUN_FINISHED(tool_calls); client reconnects
+    // and receives Iteration 2's buy_item approval interrupt.
+    await expect(page.getByTestId(`interrupt-${approvalId}`)).toBeVisible({
+      timeout: 15_000,
+    })
+    await expect(page.getByTestId('interrupt-can-resolve')).toHaveText('true')
+  })
+})

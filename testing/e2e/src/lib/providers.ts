@@ -115,6 +115,7 @@ const defaultModels: Record<Provider, string> = {
   // it out of text features, but we still need an entry to satisfy the
   // Record<Provider, …> constraint.
   elevenlabs: '',
+  cartesia: '',
   llmgateway: 'gpt-5.6-terra',
   cloudflare: '@cf/zai-org/glm-5.3-flash',
   neon: 'gemini-3-8-flash',
@@ -123,6 +124,7 @@ const defaultModels: Record<Provider, string> = {
   muse: 'muse-ember-1.0',
 }
 
+/** Create the selected chat adapter with the test mock configuration. */
 export function createTextAdapter(
   provider: Provider,
   modelOverride?: string,
@@ -397,6 +399,11 @@ export function createTextAdapter(
     elevenlabs: () => {
       throw new Error(
         'ElevenLabs has no text/chat adapter — use createTTSAdapter or createTranscriptionAdapter.',
+      )
+    },
+    cartesia: () => {
+      throw new Error(
+        'Cartesia has no text/chat adapter — use createTTSAdapter or createTranscriptionAdapter.',
       )
     },
     llmgateway: () =>

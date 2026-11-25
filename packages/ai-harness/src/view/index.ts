@@ -774,7 +774,7 @@ export function createSessionView(source: SessionViewSource) {
     commit(withoutItems((item) => !runWaits.has(item)))
     void source
       .resolve({ resume })
-      .then(undefined, fail)
+      .then(refused, fail)
       .finally(() => {
         resolving = false
         refreshSnapshot()
@@ -898,6 +898,15 @@ export function createSessionView(source: SessionViewSource) {
     )
     const before = get()
     const next = applySnapshot(before, snapshot, factory, { initial })
+    // Drop staged answers for turn interrupts that are no longer open.
+    const openTurnIds = new Set(
+      [...next.approvals, ...next.clientTools, ...next.interrupts]
+        .filter((item) => !runWaits.has(item.id))
+        .map((item) => item.id),
+    )
+    for (const id of decisions.keys()) {
+      if (!openTurnIds.has(id)) decisions.delete(id)
+    }
     commit(next)
     for (const approval of next.approvals)
       if (!before.approvals.includes(approval)) emit('approval', approval)

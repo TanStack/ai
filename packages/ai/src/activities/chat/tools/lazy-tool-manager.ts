@@ -25,6 +25,8 @@ export class LazyToolManager {
   private hasNewDiscoveries: boolean
   private readonly discoveryTool: Tool | null
   private readonly lazyToolsConfig: LazyToolsConfig
+  /** Tools offered to the model this turn, set by `getExecutableTools()`. */
+  private offeredTools = new Map<string, AnyTool>()
 
   constructor(
     tools: ReadonlyArray<Tool>,
@@ -117,6 +119,13 @@ export class LazyToolManager {
     activeTools: ReadonlyArray<AnyTool>,
     pendingToolCallNames: ReadonlyArray<string>,
   ): ReadonlyArray<AnyTool> {
+    // `activeTools` is the set after middleware. The discovery tool reads it
+    // so it does not call an offered tool "Unknown".
+    this.offeredTools = new Map(
+      activeTools
+        .filter((t) => t.name !== DISCOVERY_TOOL_NAME)
+        .map((t) => [t.name, t]),
+    )
     if (
       this.discoveryTool &&
       pendingToolCallNames.includes(DISCOVERY_TOOL_NAME) &&
@@ -263,13 +272,16 @@ export class LazyToolManager {
         const errors: Array<string> = []
 
         for (const name of args.toolNames) {
-          const tool = lazyToolMap.get(name)
+          const lazyTool = lazyToolMap.get(name)
+          // A tool already offered this turn (eager, discovered, or added by
+          // middleware) returns its schema like a re-discovered lazy tool.
+          const tool = lazyTool ?? manager.offeredTools.get(name)
           if (tool) {
             // Only flag a refresh for genuinely new discoveries. Re-requesting
             // an already-discovered tool still returns its schema below (the
             // model asked for it), but must not trigger a redundant tool-list
             // refresh + continue in the agent loop.
-            if (!manager.discoveredTools.has(name)) {
+            if (lazyTool && !manager.discoveredTools.has(name)) {
               manager.discoveredTools.add(name)
               manager.hasNewDiscoveries = true
             }

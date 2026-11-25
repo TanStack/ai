@@ -2,23 +2,24 @@
 title: Motion Generation
 id: motion-generation
 order: 7.5
-description: "Make a skeletal animation clip (FBX) from a prompt with generateMotion(). Download it and import it into Unity, Unreal, Godot, or Blender. Works with fal Hunyuan Motion and Uthana."
+description: "Make a skeletal animation clip (FBX) from a prompt with generate3dMotion(). Download it and import it into Unity, Unreal, Godot, or Blender. Works with fal Hunyuan Motion, Uthana, and Meshy."
 keywords:
   - tanstack ai
   - motion generation
-  - generateMotion
-  - getMotionJobStatus
-  - cancelMotionJob
+  - generate3dMotion
+  - get3dMotionJobStatus
+  - cancel3dMotionJob
   - animation
   - fbx
   - hunyuan motion
   - fal
   - uthana
+  - meshy
   - game assets
   - experimental
 ---
 
-You need an attack clip for a character, and keyframing it by hand takes hours. `generateMotion()` turns a prompt into a skeletal animation file. You download the FBX and import it into your engine.
+You need an attack clip for a character, and keyframing it by hand takes hours. `generate3dMotion()` turns a prompt into a skeletal animation file. You download the FBX and import it into your engine.
 
 > [!WARNING]
 > Motion generation is experimental. The API can change. The provider bills for each generation.
@@ -52,12 +53,12 @@ FAL_KEY=your-fal-key
 
 ```ts
 import { writeFile } from 'node:fs/promises'
-import { generateMotion, getMotionJobStatus } from '@tanstack/ai'
-import { falMotion } from '@tanstack/ai-fal'
+import { generate3dMotion, get3dMotionJobStatus } from '@tanstack/ai'
+import { fal3dMotion } from '@tanstack/ai-fal'
 
-const adapter = falMotion('fal-ai/hunyuan-motion')
+const adapter = fal3dMotion('fal-ai/hunyuan-motion')
 
-const { jobId } = await generateMotion({
+const { jobId } = await generate3dMotion({
   adapter,
   threadId: 'orc-attacks',
   prompt:
@@ -65,10 +66,10 @@ const { jobId } = await generateMotion({
   duration: 3,
 })
 
-let status = await getMotionJobStatus({ adapter, jobId })
+let status = await get3dMotionJobStatus({ adapter, jobId })
 while (status.status === 'pending' || status.status === 'processing') {
   await new Promise((resolve) => setTimeout(resolve, 2000))
-  status = await getMotionJobStatus({ adapter, jobId })
+  status = await get3dMotionJobStatus({ adapter, jobId })
 }
 
 if (!status.motion) {
@@ -102,15 +103,17 @@ The FBX holds a humanoid skeleton and its animation. Clip length and frame rate 
 A fal clip is on fal's skeleton, so you retarget it in your engine. Uthana can make the clip on your own character:
 
 1. Upload a humanoid FBX or GLB with `createUthanaCharacter()` from `@tanstack/ai-uthana`.
-2. Pass the character id as `modelOptions.character_id` to `uthanaMotion()`.
+2. Pass the character id as `modelOptions.character_id` to `uthana3dMotion()`.
 
 See [Uthana: use your own character](../adapters/uthana#use-your-own-character).
+
+Meshy puts a `meshy3dMotion()` clip on a character that Meshy rigged. See [Meshy: put the clip on your rig](../adapters/meshy#put-the-clip-on-your-rig).
 
 ## What you get back
 
 The result has only what the provider returns. fal returns the files, the seed, and the billed units.
 
-`MotionGenerationResult`:
+`Motion3dGenerationResult`:
 
 | Field | What it is |
 | --- | --- |
@@ -120,7 +123,7 @@ The result has only what the provider returns. fal returns the files, the seed, 
 | `seed` | The seed the provider used. Send it again in `modelOptions` to repeat a take. |
 | `usage` | Billing usage, when the adapter can read it |
 
-Each `MotionAsset`:
+Each `Motion3dAsset`:
 
 | Field | What it is |
 | --- | --- |
@@ -133,7 +136,7 @@ fal does not return clip length, frame rate, skeleton names, root motion, or con
 
 ## Build an ability from two clips
 
-A "Leap Slam" needs two clips: the orc attack, and the enemy reaction. Make each one with its own `generateMotion()` call. Then link them in a manifest that your game reads:
+A "Leap Slam" needs two clips: the orc attack, and the enemy reaction. Make each one with its own `generate3dMotion()` call. Then link them in a manifest that your game reads:
 
 ```json
 {
@@ -164,23 +167,23 @@ Server route at `/api/generate/motion`:
 
 ```ts
 import {
-  generateMotion,
+  generate3dMotion,
   generationParamsFromRequest,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { falMotion } from '@tanstack/ai-fal'
+import { fal3dMotion } from '@tanstack/ai-fal'
 
 export async function POST(request: Request) {
   const { input, threadId, runId } = await generationParamsFromRequest(
-    'motion',
+    'motion3d',
     request,
   )
   if (typeof input.prompt !== 'string') {
     return new Response('Send a text prompt.', { status: 400 })
   }
 
-  const stream = generateMotion({
-    adapter: falMotion('fal-ai/hunyuan-motion'),
+  const stream = generate3dMotion({
+    adapter: fal3dMotion('fal-ai/hunyuan-motion'),
     prompt: input.prompt,
     duration: typeof input.duration === 'number' ? input.duration : undefined,
     stream: true,
@@ -191,25 +194,25 @@ export async function POST(request: Request) {
 }
 ```
 
-React component. There is no motion hook, so use the generic `useGeneration` hook with `MotionGenerationResult`:
+React component. There is no motion hook, so use the generic `useGeneration` hook with `Motion3dGenerationResult`:
 
 ```tsx
 import { useState } from 'react'
 import { fetchServerSentEvents, useGeneration } from '@tanstack/ai-react'
-import type { MotionGenerationResult } from '@tanstack/ai'
+import type { Motion3dGenerationResult } from '@tanstack/ai'
 
-type MotionInput = { prompt: string; duration: number }
+type Motion3dInput = { prompt: string; duration: number }
 
 export function MotionClip() {
   const [jobStatus, setJobStatus] = useState('Not started')
   const { generate, result, isLoading, error } = useGeneration<
-    MotionInput,
-    MotionGenerationResult
+    Motion3dInput,
+    Motion3dGenerationResult
   >({
     connection: fetchServerSentEvents('/api/generate/motion'),
     threadId: 'orc-leap-slam',
     onChunk: (chunk) => {
-      if (chunk.type !== 'CUSTOM' || chunk.name !== 'motion:status') return
+      if (chunk.type !== 'CUSTOM' || chunk.name !== 'motion3d:status') return
       const value: unknown = chunk.value
       if (
         typeof value === 'object' &&
@@ -246,9 +249,9 @@ The stream sends these events:
 | Event | When | Value |
 | --- | --- | --- |
 | `RUN_STARTED` | The run starts | |
-| `CUSTOM` `motion:job:created` | The provider accepted the job | `{ jobId, model }` |
-| `CUSTOM` `motion:status` | After each status check | `{ jobId, status, progress?, queuePosition?, error? }` |
-| `CUSTOM` `generation:result` | The files are ready | `MotionGenerationResult` |
+| `CUSTOM` `motion3d:job:created` | The provider accepted the job | `{ jobId, model }` |
+| `CUSTOM` `motion3d:status` | After each status check | `{ jobId, status, progress?, queuePosition?, error? }` |
+| `CUSTOM` `generation:result` | The files are ready | `Motion3dGenerationResult` |
 | `RUN_FINISHED` | The run ends | |
 
 `status` is `'pending'`, `'processing'`, `'completed'`, or `'failed'`. If the job fails, the stream sends `RUN_ERROR`. `generation:progress` comes only when the provider reports a real number. fal does not.
@@ -263,14 +266,14 @@ Stream options:
 Stop and cancel are two different things:
 
 - **Stop watching.** `abortSignal`, `timeout`, or a closed stream stops the local work only. The provider job keeps running, and you still pay for it.
-- **Cancel on the provider.** `cancelMotionJob()` asks the provider to stop the job.
+- **Cancel on the provider.** `cancel3dMotionJob()` asks the provider to stop the job.
 
 ```ts
-import { cancelMotionJob } from '@tanstack/ai'
-import { falMotion } from '@tanstack/ai-fal'
+import { cancel3dMotionJob } from '@tanstack/ai'
+import { fal3dMotion } from '@tanstack/ai-fal'
 
-await cancelMotionJob({
-  adapter: falMotion('fal-ai/hunyuan-motion'),
+await cancel3dMotionJob({
+  adapter: fal3dMotion('fal-ai/hunyuan-motion'),
   jobId: 'the-job-id',
 })
 ```
@@ -279,9 +282,9 @@ On fal:
 
 - fal removes a job that waits in the queue.
 - A job that already runs gets the cancel request, but it can still finish.
-- fal refuses a cancel for a job that is complete. Then `cancelMotionJob()` throws.
+- fal refuses a cancel for a job that is complete. Then `cancel3dMotionJob()` throws.
 
-If an adapter has no cancel API, `cancelMotionJob()` throws.
+If an adapter has no cancel API, `cancel3dMotionJob()` throws.
 
 ## Let an agent make clips
 
@@ -290,14 +293,14 @@ An agent can make clips with two tools. One tool starts a job, and one tool chec
 ```ts
 // tools.ts
 import {
-  generateMotion,
-  getMotionJobStatus,
+  generate3dMotion,
+  get3dMotionJobStatus,
   toolDefinition,
 } from '@tanstack/ai'
-import { falMotion } from '@tanstack/ai-fal'
+import { fal3dMotion } from '@tanstack/ai-fal'
 import { z } from 'zod'
 
-const motionAdapter = falMotion('fal-ai/hunyuan-motion')
+const motionAdapter = fal3dMotion('fal-ai/hunyuan-motion')
 
 export const generateMotionClip = toolDefinition({
   name: 'generate_motion_clip',
@@ -315,7 +318,7 @@ export const generateMotionClip = toolDefinition({
       .meta({ description: 'Clip length in seconds' }),
   }),
 }).server(async ({ prompt, duration }) => {
-  const { jobId } = await generateMotion({
+  const { jobId } = await generate3dMotion({
     adapter: motionAdapter,
     threadId: 'motion-agent',
     prompt,
@@ -330,7 +333,7 @@ export const checkMotionClip = toolDefinition({
     'Check a motion clip job. Returns the status, and the file URLs when the clip is done.',
   inputSchema: z.object({ jobId: z.string() }),
 }).server(async ({ jobId }) => {
-  const status = await getMotionJobStatus({ adapter: motionAdapter, jobId })
+  const status = await get3dMotionJobStatus({ adapter: motionAdapter, jobId })
   return {
     status: status.status,
     error: status.error,
@@ -376,28 +379,28 @@ Ask the agent for "an orc attack clip". It calls `generate_motion_clip`, then `c
 
 | Provider | Files | Notes | In TanStack AI |
 | --- | --- | --- | --- |
-| fal Hunyuan Motion | FBX, JSON | Seed control. Cancel for queued jobs. No input for your own character. | `falMotion()`. See [fal.ai](../adapters/fal#motion). |
-| Meshy text-to-motion | FBX (prime mode), BVH (swift mode) | 2 to 10 second clips. A running task cannot be cancelled. Needs a paid plan. | Not built in yet |
-| Uthana | FBX, GLB | Upload your own character, and Uthana makes the clip on it. 3.0 takes the motion from a generated video. No seed. No cancel. | `uthanaMotion()`. See [Uthana](../adapters/uthana). |
+| fal Hunyuan Motion | FBX, JSON | Seed control. Cancel for queued jobs. No input for your own character. | `fal3dMotion()`. See [fal.ai](../adapters/fal#motion). |
+| Meshy text-to-motion | FBX (`'prime'`), BVH (`'swift'`) | `duration` is required: 2 to 10 seconds, in steps of 0.5. Cancel only for queued jobs. Puts the clip on a rig that Meshy made. | `meshy3dMotion()`. See [Meshy](../adapters/meshy#make-a-motion-clip). |
+| Uthana | FBX, GLB | Upload your own character, and Uthana makes the clip on it. 3.0 takes the motion from a generated video. No seed. No cancel. | `uthana3dMotion()`. See [Uthana](../adapters/uthana). |
 
 To use a provider that is not built in, write an adapter.
 
 ## Write a motion adapter
 
-An adapter connects `generateMotion()` to a provider. Extend `BaseMotionAdapter` and add three methods:
+An adapter connects `generate3dMotion()` to a provider. Extend `BaseMotion3dAdapter` and add three methods:
 
-- `createMotionJob`: submit the prompt and return the job id.
-- `getMotionStatus`: return `'pending'`, `'processing'`, `'completed'`, or `'failed'`.
-- `getMotion`: return the finished files.
-- `cancelMotionJob` (optional): add it only when the provider has a cancel API.
+- `create3dMotionJob`: submit the prompt and return the job id.
+- `get3dMotionStatus`: return `'pending'`, `'processing'`, `'completed'`, or `'failed'`.
+- `get3dMotion`: return the finished files.
+- `cancel3dMotionJob` (optional): add it only when the provider has a cancel API.
 
 ```ts
-import { BaseMotionAdapter } from '@tanstack/ai/adapters'
+import { BaseMotion3dAdapter } from '@tanstack/ai/adapters'
 import type {
-  MotionGenerationOptions,
-  MotionGenerationResult,
-  MotionJobResult,
-  MotionStatusResult,
+  Motion3dGenerationOptions,
+  Motion3dGenerationResult,
+  Motion3dJobResult,
+  Motion3dStatusResult,
 } from '@tanstack/ai'
 
 // Your provider client. Replace it with real HTTP or SDK calls.
@@ -420,16 +423,16 @@ interface StudioMotionOptions {
   seed?: number
 }
 
-export class StudioMotionAdapter extends BaseMotionAdapter<
+export class StudioMotionAdapter extends BaseMotion3dAdapter<
   'studio-motion-1',
   StudioMotionOptions
 > {
   readonly name = 'studio'
 
-  async createMotionJob(
-    options: MotionGenerationOptions<StudioMotionOptions>,
-  ): Promise<MotionJobResult> {
-    options.logger.request(`activity=generateMotion provider=studio`, {
+  async create3dMotionJob(
+    options: Motion3dGenerationOptions<StudioMotionOptions>,
+  ): Promise<Motion3dJobResult> {
+    options.logger.request(`activity=generate3dMotion provider=studio`, {
       provider: 'studio',
       model: this.model,
     })
@@ -444,10 +447,10 @@ export class StudioMotionAdapter extends BaseMotionAdapter<
     return { jobId: job.id, model: this.model }
   }
 
-  async getMotionStatus(
+  async get3dMotionStatus(
     jobId: string,
     options?: { abortSignal?: AbortSignal },
-  ): Promise<MotionStatusResult> {
+  ): Promise<Motion3dStatusResult> {
     const job = await studio.status(jobId, options?.abortSignal)
     switch (job.state) {
       case 'queued':
@@ -461,10 +464,10 @@ export class StudioMotionAdapter extends BaseMotionAdapter<
     }
   }
 
-  async getMotion(
+  async get3dMotion(
     jobId: string,
     options?: { abortSignal?: AbortSignal },
-  ): Promise<MotionGenerationResult> {
+  ): Promise<Motion3dGenerationResult> {
     const files = await studio.files(jobId, options?.abortSignal)
     return {
       jobId,
@@ -475,29 +478,29 @@ export class StudioMotionAdapter extends BaseMotionAdapter<
 }
 ```
 
-Use it like any other adapter: `generateMotion({ adapter: new StudioMotionAdapter('studio-motion-1'), ... })`.
+Use it like any other adapter: `generate3dMotion({ adapter: new StudioMotionAdapter('studio-motion-1'), ... })`.
 
 Rules for an adapter:
 
 - Return only the metadata that the provider sends. Do not guess a clip length or a frame rate.
 - Set `progress` only when the provider reports a real number.
-- If the provider answers at once, do the work in `createMotionJob`. Then return `'completed'` on the first `getMotionStatus` call.
+- If the provider answers at once, do the work in `create3dMotionJob`. Then return `'completed'` on the first `get3dMotionStatus` call.
 - Pass `abortSignal` to the HTTP call. It stops the request, not the provider job.
 
 ## Advanced
 
 ### Check a job from another request
 
-`getMotionJobStatus()` needs only the adapter and the job id. You can submit in one request and check in another request, or in another process. When the job is complete, `status.motion` holds the files.
+`get3dMotionJobStatus()` needs only the adapter and the job id. You can submit in one request and check in another request, or in another process. When the job is complete, `status.motion` holds the files.
 
 ### Middleware, tracing, and devtools
 
 A job that you submit and check later is one middleware run:
 
-- The `generateMotion()` call without `stream` opens the run.
-- The `getMotionJobStatus()` call that sees `'completed'` or `'failed'` closes it.
+- The `generate3dMotion()` call without `stream` opens the run.
+- The `get3dMotionJobStatus()` call that sees `'completed'` or `'failed'` closes it.
 - Pass the same `middleware` array and the same `threadId` to both calls.
 
 With `stream: true`, one call is one run from submit to result.
 
-`otelMiddleware()` names the span operation `motion_generation`. See [OpenTelemetry](../advanced/otel). The devtools show `motion:request:started`, `motion:request:completed`, `motion:request:error`, and `motion:usage` events.
+`otelMiddleware()` names the span operation `motion_generation`. See [OpenTelemetry](../advanced/otel). The devtools show `motion3d:request:started`, `motion3d:request:completed`, `motion3d:request:error`, and `motion3d:usage` events.

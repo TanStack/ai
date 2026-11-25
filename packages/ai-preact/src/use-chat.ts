@@ -35,6 +35,7 @@ export function useChat<
   // restores the same conversation.
   const clientId = options.threadId
 
+  const subscribedClientRef = useRef<ChatClient | null>(null)
   const activeClientRef = useRef<ChatClient | null>(null)
   const cleanupInvalidationRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -218,8 +219,10 @@ export function useChat<
   useEffect(() => {
     if (options.live) {
       client.subscribe()
-    } else {
+      subscribedClientRef.current = client
+    } else if (subscribedClientRef.current === client) {
       client.unsubscribe()
+      subscribedClientRef.current = null
     }
   }, [client, options.live])
 
@@ -239,10 +242,9 @@ export function useChat<
     }
   }, [client])
 
-  // Cleanup on unmount: stop any in-flight requests
-  // Note: We only cleanup when client changes or component unmounts.
-  // DO NOT include isLoading in dependencies - that would cause the cleanup
-  // to run when isLoading changes, aborting continuation requests.
+  // Cleanup on unmount or client swap: detach happened synchronously above,
+  // and deferred disposal tears down the client without calling `stop()` so
+  // durable runs and pending interrupts survive navigation and thread switches.
   useEffect(() => {
     if (cleanupDisposalRef.current?.client === client) {
       clearTimeout(cleanupDisposalRef.current.timeout)
@@ -261,18 +263,13 @@ export function useChat<
         }
         cleanupInvalidationRef.current = null
       }, 0)
-      // Subscribe/unsubscribe on `options.live` is owned by the dedicated
-      // effect above. This cleanup only fires on unmount or client swap,
-      // so read `live` through the ref to avoid disposing the client every
-      // time `live` toggles.
-      if (optionsRef.current.live) {
-        client.unsubscribe()
-      } else {
-        client.stop()
-      }
       const disposal = {
         client,
         timeout: setTimeout(() => {
+          if (subscribedClientRef.current === client) {
+            client.unsubscribe()
+            subscribedClientRef.current = null
+          }
           client.dispose()
           if (cleanupDisposalRef.current === disposal) {
             cleanupDisposalRef.current = null

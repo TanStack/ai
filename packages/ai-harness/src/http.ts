@@ -970,18 +970,13 @@ export function createHarnessHandler<U extends HarnessUser = HarnessUser>(
           }
           if (!receipt.operationId) return json({ error: 'rejected' }, 409)
           const { operationId } = receipt
-          // Without a cursor, from the start of the resumed run, not from
-          // the start of the log.
-          const from =
-            lastEventId ??
-            session
-              .snapshot()
-              .activeOperations.find((item) => item.id === operationId)
-              ?.startedCursor
           return cursorResponse(
             (signal) =>
               followOperation(
-                session.events({ ...(from ? { from } : {}), signal }),
+                session.operationEvents(operationId, {
+                  ...(lastEventId ? { from: lastEventId } : {}),
+                  signal,
+                }),
                 operationId,
               ),
             stream,
