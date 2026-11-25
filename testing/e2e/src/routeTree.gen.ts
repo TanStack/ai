@@ -131,6 +131,7 @@ import { Route as ApiHarnessContinueRouteImport } from './routes/api.harness-con
 import { Route as ApiHarnessFirstPartyRouteImport } from './routes/api.harness-first-party'
 import { Route as ApiHarnessForwardingRouteImport } from './routes/api.harness-forwarding'
 import { Route as ApiHarnessRetryAfterRouteImport } from './routes/api.harness-retry-after'
+import { Route as ApiHarnessToolResultMetadataRouteImport } from './routes/api.harness-tool-result-metadata'
 import { Route as ApiHarnessTransferRouteImport } from './routes/api.harness-transfer'
 import { Route as ApiHarnessWorkerRouteImport } from './routes/api.harness-worker'
 import { Route as ApiImageRouteImport } from './routes/api.image'
@@ -885,6 +886,12 @@ const ApiHarnessRetryAfterRoute = ApiHarnessRetryAfterRouteImport.update({
   path: '/api/harness-retry-after',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHarnessToolResultMetadataRoute =
+  ApiHarnessToolResultMetadataRouteImport.update({
+    id: '/api/harness-tool-result-metadata',
+    path: '/api/harness-tool-result-metadata',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiHarnessTransferRoute = ApiHarnessTransferRouteImport.update({
   id: '/api/harness-transfer',
   path: '/api/harness-transfer',
@@ -1606,6 +1613,7 @@ export interface FileRoutesByFullPath {
   '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
   '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
+  '/api/harness-tool-result-metadata': typeof ApiHarnessToolResultMetadataRoute
   '/api/harness-transfer': typeof ApiHarnessTransferRoute
   '/api/harness-worker': typeof ApiHarnessWorkerRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -1844,6 +1852,7 @@ export interface FileRoutesByTo {
   '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
   '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
+  '/api/harness-tool-result-metadata': typeof ApiHarnessToolResultMetadataRoute
   '/api/harness-transfer': typeof ApiHarnessTransferRoute
   '/api/harness-worker': typeof ApiHarnessWorkerRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -2083,6 +2092,7 @@ export interface FileRoutesById {
   '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
   '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
+  '/api/harness-tool-result-metadata': typeof ApiHarnessToolResultMetadataRoute
   '/api/harness-transfer': typeof ApiHarnessTransferRoute
   '/api/harness-worker': typeof ApiHarnessWorkerRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -2323,6 +2333,7 @@ export interface FileRouteTypes {
     | '/api/harness-first-party'
     | '/api/harness-forwarding'
     | '/api/harness-retry-after'
+    | '/api/harness-tool-result-metadata'
     | '/api/harness-transfer'
     | '/api/harness-worker'
     | '/api/image'
@@ -2561,6 +2572,7 @@ export interface FileRouteTypes {
     | '/api/harness-first-party'
     | '/api/harness-forwarding'
     | '/api/harness-retry-after'
+    | '/api/harness-tool-result-metadata'
     | '/api/harness-transfer'
     | '/api/harness-worker'
     | '/api/image'
@@ -2799,6 +2811,7 @@ export interface FileRouteTypes {
     | '/api/harness-first-party'
     | '/api/harness-forwarding'
     | '/api/harness-retry-after'
+    | '/api/harness-tool-result-metadata'
     | '/api/harness-transfer'
     | '/api/harness-worker'
     | '/api/image'
@@ -3038,6 +3051,7 @@ export interface RootRouteChildren {
   ApiHarnessFirstPartyRoute: typeof ApiHarnessFirstPartyRoute
   ApiHarnessForwardingRoute: typeof ApiHarnessForwardingRoute
   ApiHarnessRetryAfterRoute: typeof ApiHarnessRetryAfterRoute
+  ApiHarnessToolResultMetadataRoute: typeof ApiHarnessToolResultMetadataRoute
   ApiHarnessTransferRoute: typeof ApiHarnessTransferRoute
   ApiHarnessWorkerRoute: typeof ApiHarnessWorkerRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
@@ -4004,6 +4018,13 @@ declare module '@tanstack/react-router' {
       path: '/api/harness-retry-after'
       fullPath: '/api/harness-retry-after'
       preLoaderRoute: typeof ApiHarnessRetryAfterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-tool-result-metadata': {
+      id: '/api/harness-tool-result-metadata'
+      path: '/api/harness-tool-result-metadata'
+      fullPath: '/api/harness-tool-result-metadata'
+      preLoaderRoute: typeof ApiHarnessToolResultMetadataRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/harness-transfer': {
@@ -4992,6 +5013,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHarnessFirstPartyRoute: ApiHarnessFirstPartyRoute,
   ApiHarnessForwardingRoute: ApiHarnessForwardingRoute,
   ApiHarnessRetryAfterRoute: ApiHarnessRetryAfterRoute,
+  ApiHarnessToolResultMetadataRoute: ApiHarnessToolResultMetadataRoute,
   ApiHarnessTransferRoute: ApiHarnessTransferRoute,
   ApiHarnessWorkerRoute: ApiHarnessWorkerRoute,
   ApiImageRoute: ApiImageRouteWithChildren,

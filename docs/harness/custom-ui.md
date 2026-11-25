@@ -152,7 +152,7 @@ In a harness with `routing`, an assistant message also has `agent`: the name of 
 An assistant message has `parts`. Each part is one of these:
 
 - `text` or `reasoning`: the text, which grows while it streams.
-- `tool-call`: a tool call with its `name`, `args`, and `status` (`running`, `done`, `failed`, or `needs-approval`).
+- `tool-call`: a tool call with its `name`, `args`, and `status` (`running`, `done`, `failed`, or `needs-approval`). It also has `resultMetadata` when the server tool set [result metadata](../tools/tool-result-metadata), also after a reload.
 - `agent`: a child agent, with its own `parts`, its `status`, and its `result` when it gives one. See [Show subagents](#show-subagents).
 - `media`: a file that an agent made. See [Show media](#show-media).
 

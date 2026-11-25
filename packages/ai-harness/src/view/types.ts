@@ -21,6 +21,11 @@ export interface ToolCallPart {
   args: unknown
   status: ToolCallStatus
   result?: unknown
+  /**
+   * App data that the server tool set with `setResultMetadata`. The model
+   * never sees it. `undefined` when the tool set none.
+   */
+  resultMetadata?: Record<string, unknown>
 }
 
 /** A child agent, with its own text and tool calls. */

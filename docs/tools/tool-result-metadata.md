@@ -406,6 +406,10 @@ A server tool that runs through the sandbox tool bridge (the ACP and Claude Code
 
 The `tool-result` part of the same call has the raw value in `part.metadata`. It has the app keys and the reserved `tanstack` key. Use `part.resultMetadata` on the `tool-call` part for your UI, because it has only the app keys and it is typed.
 
+### Harness session view
+
+In a [harness session view](../harness/custom-ui#2-show-the-state), a `tool-call` part has the same `resultMetadata`, also after a reload. It is not typed.
+
 ### MCP and middleware
 
 - An MCP tool gets its result metadata from the `_meta` of the MCP result. See [Read the result `_meta`](./mcp-managed#read-the-result-_meta).

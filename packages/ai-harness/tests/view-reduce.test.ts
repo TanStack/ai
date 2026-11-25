@@ -163,6 +163,27 @@ describe('view reducer', () => {
     ])
   })
 
+  it('keeps the app keys of a tool result metadata, as useChat does', () => {
+    const state = fold([
+      at({
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'c1',
+        toolCallName: 'search_docs',
+      }),
+      at({ type: EventType.TOOL_CALL_END, toolCallId: 'c1', input: {} }),
+      at({
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: 'c1',
+        messageId: 'x',
+        content: '{"answer":"42"}',
+        metadata: { tanstack: { state: 'complete' }, sources: ['a'] },
+      }),
+    ])
+    expect(assistantParts(state)).toMatchObject([
+      { id: 'c1', status: 'done', resultMetadata: { sources: ['a'] } },
+    ])
+  })
+
   it('ignores a tool result it has no call for', () => {
     const start = emptyState()
     const state = fold(
@@ -586,6 +607,35 @@ describe('view reducer', () => {
           },
         ],
       },
+    ])
+  })
+
+  it('keeps the app keys of a saved tool result metadata, not the reserved ones', () => {
+    const call = (id: string) => ({
+      id,
+      type: 'function' as const,
+      function: { name: 'search_docs', arguments: '{}' },
+    })
+    const messages = messagesFromTranscript([
+      { role: 'assistant', content: null, toolCalls: [call('c1'), call('c2')] },
+      {
+        role: 'tool',
+        content: '"found"',
+        toolCallId: 'c1',
+        metadata: { tanstack: { state: 'complete' }, sources: ['a'] },
+      },
+      // A handoff result has only the keys of the harness.
+      {
+        role: 'tool',
+        content: '"handed off"',
+        toolCallId: 'c2',
+        metadata: { harness: { handoff: { by: 'tool' } } },
+      },
+    ])
+    const [message] = messages
+    expect(message?.role === 'assistant' && message.parts).toEqual([
+      expect.objectContaining({ id: 'c1', resultMetadata: { sources: ['a'] } }),
+      expect.not.objectContaining({ resultMetadata: expect.anything() }),
     ])
   })
 
