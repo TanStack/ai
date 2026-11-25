@@ -1,4 +1,5 @@
-import { OpenRouter } from '@openrouter/sdk'
+import { createOpenRouterResponsesClient } from '../client/index'
+import type { OpenRouterClient } from '../client/index'
 import {
   EventType,
   isFileSource,
@@ -15,7 +16,7 @@ import {
   toRunErrorRawEvent,
   transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
-import { generateId } from '@tanstack/ai-utils'
+import { drainAfterTerminal, generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
 import { clientForCall } from '../internal/wrap-fetch'
 import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
@@ -49,6 +50,7 @@ import type {
   ReasoningEffort,
   ResponsesRequest,
   StreamEvents,
+  Usage,
 } from '@openrouter/sdk/models'
 import type {
   StructuredOutputOptions,
@@ -61,9 +63,11 @@ import type {
   ModelMessage,
   AdapterYieldChunk,
   TextOptions,
+  TokenUsage,
   ToolChoice,
 } from '@tanstack/ai'
 import type { ExternalResponsesProviderOptions } from '../text/responses-provider-options'
+import type { OpenRouterProviderUsageDetails } from '../usage'
 import type {
   OPENROUTER_CHAT_MODELS,
   OpenRouterChatModelToolCapabilitiesByName,
@@ -125,9 +129,21 @@ function toOpenRouterResponsesToolChoice(
 }
 
 /**
+ * OpenRouter's SDK raises a proprietary `RequestAbortedError` on a caller
+ * abort. It and a DOM `AbortError` map to `code: 'aborted'`.
+ */
+function isOpenRouterAbort(error: unknown): boolean {
+  const name =
+    error && typeof error === 'object'
+      ? (error as { name?: unknown }).name
+      : undefined
+  return name === 'AbortError' || name === 'RequestAbortedError'
+}
+
+/**
  * OpenRouter Responses (beta) Adapter — standalone implementation that talks
- * to OpenRouter's `/v1/responses` (beta) endpoint via the `@openrouter/sdk`
- * SDK.
+ * to OpenRouter's `/v1/responses` (beta) endpoint via a fetch client with the
+ * `@openrouter/sdk` API and wire format.
  *
  * The wire format is OpenAI-Responses-compatible (so OpenRouter can route
  * Responses requests to GPT, Claude, Gemini, etc.) but the SDK exposes the
@@ -162,13 +178,13 @@ export class OpenRouterResponsesTextAdapter<
   override readonly inputModalities =
     OPENROUTER_MODEL_INPUT_MODALITIES[this.model]
 
-  protected orClient: OpenRouter
+  protected orClient: Pick<OpenRouterClient, 'beta'>
   private readonly sdkOptions: SDKOptions
 
   constructor(config: OpenRouterResponsesConfig, model: TModel) {
     super({}, model)
     this.sdkOptions = config
-    this.orClient = new OpenRouter(config)
+    this.orClient = createOpenRouterResponsesClient(config)
   }
 
   async *chatStream(
@@ -220,6 +236,7 @@ export class OpenRouterResponsesTextAdapter<
         this.orClient,
         this.sdkOptions,
         options.wrapFetch,
+        createOpenRouterResponsesClient,
       ).beta.responses.send(
         { responsesRequest: { ...responsesRequest, stream: true } },
         {
@@ -303,6 +320,7 @@ export class OpenRouterResponsesTextAdapter<
         this.orClient,
         this.sdkOptions,
         chatOptions.wrapFetch,
+        createOpenRouterResponsesClient,
       ).beta.responses.send(
         {
           responsesRequest: {
@@ -319,10 +337,32 @@ export class OpenRouterResponsesTextAdapter<
         },
       )
 
-      const rawText = this.extractTextFromResponse(response)
+      // Responses API reports usage as inputTokens/outputTokens. A failure
+      // below still carries it: core reads `error.usage`.
+      const usage = buildResponsesUsage(response.usage)
+      const fail = (message: string) =>
+        Object.assign(new Error(message), usage && { usage })
+
+      // A cut-off response is a truncated JSON document. Report the cutoff
+      // instead of the parse error it would cause.
+      if (response.status === 'incomplete') {
+        throw fail(
+          `${this.name}.structuredOutput: the response ended incomplete (${response.incompleteDetails?.reason ?? 'unknown reason'})`,
+        )
+      }
+
+      let rawText: string
+      try {
+        rawText = this.extractTextFromResponse(response)
+      } catch (error: unknown) {
+        // A refusal or an unsupported part: the call was still billed.
+        throw error instanceof Error
+          ? Object.assign(error, usage && { usage })
+          : error
+      }
 
       if (rawText.length === 0) {
-        throw new Error(
+        throw fail(
           `${this.name}.structuredOutput: response contained no content`,
         )
       }
@@ -331,7 +371,7 @@ export class OpenRouterResponsesTextAdapter<
       try {
         parsed = JSON.parse(rawText)
       } catch {
-        throw new Error(
+        throw fail(
           `Failed to parse structured output as JSON. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
         )
       }
@@ -339,33 +379,12 @@ export class OpenRouterResponsesTextAdapter<
       // OpenRouter override: pass nulls through unchanged.
       const transformed = this.transformStructuredOutput(parsed)
 
-      // Responses API reports usage as inputTokens/outputTokens (not the
-      // chat-completions promptTokens/completionTokens shape). Map to
-      // TokenUsage and attach OpenRouter cost when present — same contract
-      // as structuredOutputStream / processStreamChunks. Cost-only usage
-      // (finite cost, no token fields) still forwards with zeroed tokens.
-      const usage = response.usage
-      const cost = extractUsageCost(usage)
-      const hasUsage =
-        usage != null &&
-        (usage.inputTokens != null ||
-          usage.outputTokens != null ||
-          usage.totalTokens != null ||
-          cost.cost !== undefined)
       return {
         data: transformed,
         rawText,
         ...(response.id && { responseId: response.id }),
         ...(response.model && { model: response.model }),
-        ...(hasUsage && {
-          usage: {
-            promptTokens: usage.inputTokens ?? 0,
-            completionTokens: usage.outputTokens ?? 0,
-            totalTokens: usage.totalTokens ?? 0,
-            ...cachedTokensDetails(usage),
-            ...cost,
-          },
-        }),
+        ...(usage && { usage }),
       }
     } catch (error: unknown) {
       chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
@@ -436,15 +455,23 @@ export class OpenRouterResponsesTextAdapter<
     let model: string = chatOptions.model
     let responseId: string | undefined
     let reportedModel: string | undefined
-    let usage:
-      | {
-          inputTokens?: number
-          inputTokensDetails?: { cachedTokens?: number }
-          outputTokens?: number
-          totalTokens?: number
-        }
-      | undefined
+    let usage: TokenUsage<OpenRouterProviderUsageDetails> | undefined
+    // A refusal is reported once the terminal event brings the usage.
+    let refusal: string | undefined
     let responseCompleted = false
+    const refusalError = (text: string): AdapterYieldChunk => {
+      const message = `Model refused: ${text}`
+      return {
+        type: EventType.RUN_ERROR,
+        ...(usage && { usage }),
+        runId: aguiState.runId,
+        model,
+        timestamp: Date.now(),
+        message,
+        code: 'refusal',
+        error: { message, code: 'refusal' },
+      }
+    }
 
     const closeReasoning = function* (this: {
       name: string
@@ -498,6 +525,7 @@ export class OpenRouterResponsesTextAdapter<
         this.orClient,
         this.sdkOptions,
         chatOptions.wrapFetch,
+        createOpenRouterResponsesClient,
       ).beta.responses.send(
         {
           responsesRequest: {
@@ -514,7 +542,10 @@ export class OpenRouterResponsesTextAdapter<
         },
       )
 
-      for await (const rawEvent of rawStream) {
+      for await (const rawEvent of drainAfterTerminal(
+        rawStream,
+        (e) => normalizeStreamEvent(e).type,
+      )) {
         const chunk = normalizeStreamEvent(rawEvent)
         if (chunk.response?.id) responseId = chunk.response.id
         if (chunk.response?.model) {
@@ -549,16 +580,8 @@ export class OpenRouterResponsesTextAdapter<
 
         if (chunk.type === 'response.refusal.delta') {
           const delta = typeof chunk.delta === 'string' ? chunk.delta : ''
-          yield {
-            type: EventType.RUN_ERROR,
-            runId: aguiState.runId,
-            model,
-            timestamp: Date.now(),
-            message: `Model refused: ${delta}`,
-            code: 'refusal',
-            error: { message: `Model refused: ${delta}`, code: 'refusal' },
-          }
-          return
+          refusal = (refusal ?? '') + delta
+          continue
         }
 
         if (
@@ -621,7 +644,7 @@ export class OpenRouterResponsesTextAdapter<
         if (chunk.type === 'response.completed') {
           responseCompleted = true
           if (chunk.response?.model) model = chunk.response.model
-          if (chunk.response?.usage) usage = chunk.response.usage
+          usage = buildResponsesUsage(chunk.response?.usage)
           // Terminal event: do not wait for the HTTP body to close (#1445).
           break
         }
@@ -640,8 +663,11 @@ export class OpenRouterResponsesTextAdapter<
             normalizeCode(chunk.response?.error?.code) ??
             (chunk.response?.incompleteDetails ? 'incomplete' : undefined)
           const rawError = chunk.response?.error
+          usage = buildResponsesUsage(chunk.response?.usage)
+          if (refusal !== undefined) break
           yield {
             type: EventType.RUN_ERROR,
+            ...(usage && { usage }),
             runId: aguiState.runId,
             model,
             timestamp: Date.now(),
@@ -688,6 +714,11 @@ export class OpenRouterResponsesTextAdapter<
         }
       }
 
+      if (refusal !== undefined) {
+        yield refusalError(refusal)
+        return
+      }
+
       if (!responseCompleted) {
         const message = 'Response stream ended before response.completed'
         yield {
@@ -705,6 +736,7 @@ export class OpenRouterResponsesTextAdapter<
       if (accumulatedContent.length === 0) {
         yield {
           type: EventType.RUN_ERROR,
+          ...(usage && { usage }),
           runId: aguiState.runId,
           model,
           timestamp: Date.now(),
@@ -724,6 +756,7 @@ export class OpenRouterResponsesTextAdapter<
       } catch {
         yield {
           type: EventType.RUN_ERROR,
+          ...(usage && { usage }),
           runId: aguiState.runId,
           model,
           timestamp: Date.now(),
@@ -765,15 +798,7 @@ export class OpenRouterResponsesTextAdapter<
         model,
         timestamp: Date.now(),
         finishReason: 'stop',
-        ...(usage && {
-          usage: {
-            promptTokens: usage.inputTokens ?? 0,
-            completionTokens: usage.outputTokens ?? 0,
-            totalTokens: usage.totalTokens ?? 0,
-            ...cachedTokensDetails(usage),
-            ...extractUsageCost(usage),
-          },
-        }),
+        ...(usage && { usage }),
       }
     } catch (error: unknown) {
       if (!aguiState.hasEmittedRunStarted) {
@@ -788,25 +813,31 @@ export class OpenRouterResponsesTextAdapter<
         }
       }
 
-      // OpenRouter SDK raises a proprietary `RequestAbortedError` on
-      // caller-initiated abort. Map it (plus DOM `AbortError`) to
-      // `code: 'aborted'` so consumers can distinguish abort from a real
-      // upstream failure.
-      const errName =
-        error && typeof error === 'object'
-          ? ((error as { name?: unknown }).name ?? '')
-          : ''
-      const isAbort =
-        errName === 'AbortError' || errName === 'RequestAbortedError'
+      const isAbort = isOpenRouterAbort(error)
       const errorPayload = toOpenRouterRunErrorPayload(
         error,
         `${this.name}.structuredOutputStream failed`,
       )
 
+      // The model refused before the stream failed: report the refusal.
+      // A caller abort stays an abort.
+      if (refusal !== undefined && !isAbort) {
+        chatOptions.logger.errors(
+          `${this.name}.structuredOutputStream failed after a refusal`,
+          {
+            error: errorPayload,
+            source: `${this.name}.structuredOutputStream`,
+          },
+        )
+        yield refusalError(refusal)
+        return
+      }
+
       const resolvedCode = isAbort ? 'aborted' : errorPayload.code
       const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
       yield {
         type: EventType.RUN_ERROR,
+        ...(usage && { usage }),
         runId: aguiState.runId,
         model,
         timestamp: Date.now(),
@@ -944,6 +975,9 @@ export class OpenRouterResponsesTextAdapter<
     let reasoningMessageId: string | undefined
     let hasClosedReasoning = false
     let runFinishedEmitted = false
+    // A refusal (or unknown content part) RUN_ERROR waits for the terminal
+    // event, so it can carry the usage that only that event reports.
+    let pendingRunError: AdapterYieldChunk | undefined
 
     const adapterName = this.name
     const emitModel = () => model || options.model
@@ -1006,7 +1040,10 @@ export class OpenRouterResponsesTextAdapter<
     }
 
     try {
-      for await (const rawEvent of stream) {
+      for await (const rawEvent of drainAfterTerminal(
+        stream,
+        (e) => normalizeStreamEvent(e).type,
+      )) {
         const chunk = normalizeStreamEvent(rawEvent)
         if (chunk.response?.id) responseId = chunk.response.id
         if (chunk.response?.model) {
@@ -1073,6 +1110,20 @@ export class OpenRouterResponsesTextAdapter<
           }
         }
 
+        if (pendingRunError) {
+          if (
+            chunk.type === 'response.completed' ||
+            chunk.type === 'response.failed' ||
+            chunk.type === 'response.incomplete'
+          ) {
+            const usage = buildResponsesUsage(chunk.response?.usage)
+            yield { ...pendingRunError, ...(usage && { usage }) }
+            runFinishedEmitted = true
+            return
+          }
+          continue
+        }
+
         // Capture model metadata from any of these events.
         if (
           chunk.type === 'response.created' ||
@@ -1120,8 +1171,10 @@ export class OpenRouterResponsesTextAdapter<
             (chunk.response?.incompleteDetails ? 'incomplete' : undefined) ??
             undefined
           const rawError = chunk.response?.error
+          const usage = buildResponsesUsage(chunk.response?.usage)
           yield {
             type: EventType.RUN_ERROR,
+            ...(usage && { usage }),
             model,
             timestamp: Date.now(),
             message: errorMessage,
@@ -1256,11 +1309,13 @@ export class OpenRouterResponsesTextAdapter<
             hasStreamedContentDeltas = true
           }
           const partChunk = handleContentPart(contentPart)
-          yield partChunk
+          // A refusal is terminal. Hold it until the terminal event (see
+          // pendingRunError).
           if (partChunk.type === 'RUN_ERROR') {
-            runFinishedEmitted = true
-            return
+            pendingRunError = partChunk
+            continue
           }
+          yield partChunk
         }
 
         if (chunk.type === 'response.content_part.done' && chunk.part) {
@@ -1300,11 +1355,11 @@ export class OpenRouterResponsesTextAdapter<
           }
 
           const doneChunk = handleContentPart(contentPart)
-          yield doneChunk
           if (doneChunk.type === 'RUN_ERROR') {
-            runFinishedEmitted = true
-            return
+            pendingRunError = doneChunk
+            continue
           }
+          yield doneChunk
         }
 
         // handle output_item.added to capture function call metadata (name)
@@ -1671,6 +1726,7 @@ export class OpenRouterResponsesTextAdapter<
                 ? 'content_filter'
                 : 'stop'
 
+          const usage = buildResponsesUsage(responseObj.usage)
           yield {
             type: EventType.RUN_FINISHED,
             ...(responseId && { responseId }),
@@ -1684,13 +1740,7 @@ export class OpenRouterResponsesTextAdapter<
             threadId: aguiState.threadId,
             model: model || options.model,
             timestamp: Date.now(),
-            usage: {
-              promptTokens: responseObj.usage?.inputTokens || 0,
-              completionTokens: responseObj.usage?.outputTokens || 0,
-              totalTokens: responseObj.usage?.totalTokens || 0,
-              ...cachedTokensDetails(responseObj.usage),
-              ...extractUsageCost(responseObj.usage),
-            },
+            ...(usage && { usage }),
             finishReason,
           }
           runFinishedEmitted = true
@@ -1714,6 +1764,11 @@ export class OpenRouterResponsesTextAdapter<
           runFinishedEmitted = true
           return
         }
+      }
+
+      if (pendingRunError) {
+        yield pendingRunError
+        return
       }
 
       // The stream ended without a terminal event (e.g. a truncated
@@ -1744,11 +1799,17 @@ export class OpenRouterResponsesTextAdapter<
         error,
         `${this.name}.processStreamChunks failed`,
       )
-      const rawEvent = toRunErrorRawEvent(error)
       options.logger.errors(`${this.name}.processStreamChunks fatal`, {
         error: errorPayload,
         source: `${this.name}.processStreamChunks`,
       })
+      // A held refusal wins over a later stream error. A caller abort stays
+      // an abort.
+      if (pendingRunError && !isOpenRouterAbort(error)) {
+        yield pendingRunError
+        return
+      }
+      const rawEvent = toRunErrorRawEvent(error)
       yield {
         type: EventType.RUN_ERROR,
         model: options.model,
@@ -2404,6 +2465,13 @@ function camelCaseResponseShape(
             cachedTokens: u.input_tokens_details.cached_tokens,
           },
         }),
+      ...(isRecord(u.output_tokens_details) &&
+        typeof u.output_tokens_details.reasoning_tokens === 'number' && {
+          outputTokensDetails: {
+            reasoningTokens: u.output_tokens_details.reasoning_tokens,
+          },
+        }),
+      ...(typeof u.is_byok === 'boolean' && { isByok: u.is_byok }),
     }
   }
   if (Array.isArray(src.output)) {
@@ -2428,12 +2496,40 @@ function camelCaseOutputItem(
   return out
 }
 
-/** `promptTokensDetails` with the cached input tokens, when there are any. */
-function cachedTokensDetails(
-  usage: { inputTokensDetails?: { cachedTokens?: number } } | null | undefined,
-) {
-  const cachedTokens = usage?.inputTokensDetails?.cachedTokens
-  return cachedTokens ? { promptTokensDetails: { cachedTokens } } : {}
+/**
+ * TanStack usage from a Responses `usage` object: tokens, cached and
+ * reasoning tokens, BYOK, and OpenRouter cost. `undefined` when the
+ * provider sent no token counts and no cost, so callers omit the field.
+ * Cost-only usage still forwards with zeroed tokens.
+ */
+function buildResponsesUsage(
+  usage: Partial<Usage> | null | undefined,
+): TokenUsage<OpenRouterProviderUsageDetails> | undefined {
+  if (usage == null) return undefined
+  const cost = extractUsageCost(usage)
+  if (
+    usage.inputTokens == null &&
+    usage.outputTokens == null &&
+    usage.totalTokens == null &&
+    cost.cost === undefined
+  ) {
+    return undefined
+  }
+  const cachedTokens = usage.inputTokensDetails?.cachedTokens
+  const reasoningTokens = usage.outputTokensDetails?.reasoningTokens
+  return {
+    promptTokens: usage.inputTokens ?? 0,
+    completionTokens: usage.outputTokens ?? 0,
+    totalTokens: usage.totalTokens ?? 0,
+    ...(cachedTokens ? { promptTokensDetails: { cachedTokens } } : {}),
+    ...(reasoningTokens != null && {
+      completionTokensDetails: { reasoningTokens },
+    }),
+    ...(usage.isByok != null && {
+      providerUsageDetails: { isByok: usage.isByok },
+    }),
+    ...cost,
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

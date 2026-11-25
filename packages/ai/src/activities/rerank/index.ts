@@ -9,6 +9,11 @@ import { aiEventClient } from '@tanstack/ai-event-client'
 import { resolveDebugOption } from '../../logger/resolve'
 import { isAbortShapedError } from '../error-payload'
 import {
+  createActivityAbortControls,
+  isActivityAbortError,
+  raceWithAbort,
+} from '../../utilities/activity-abort'
+import {
   createGenerationContext,
   runGenerationAbort,
   runGenerationError,
@@ -73,6 +78,12 @@ export interface RerankActivityOptions<
   /** Forwarded to the provider request for cancellation. */
   abortSignal?: AbortSignal
   /**
+   * Maximum duration of this activity invocation in milliseconds.
+   * No SDK-wide default. Composed with {@link abortSignal}; the first abort
+   * wins.
+   */
+  timeout?: number
+  /**
    * Observe-only middleware notified on start, usage, success, abort, and
    * error. Pass `otelMiddleware()` to emit OpenTelemetry spans, or implement
    * the `GenerationMiddleware` contract for a custom backend.
@@ -107,6 +118,9 @@ function isAbortError(error: unknown, signal?: AbortSignal): boolean {
   // abort hook whenever a shared/long-lived signal happens to already be
   // aborted, hiding it from `onError` observers.
   if (isAbortShapedError(error)) return true
+  // A `TimeoutError` is an abort only when our signal fired (the `timeout`
+  // option). A provider's own fetch timeout stays an error.
+  if (signal?.aborted && isActivityAbortError(error)) return true
   // Fall back to signal state only for non-Error throws we can't otherwise
   // identify; a real Error with a non-abort name is never an abort.
   return error instanceof Error ? false : signal?.aborted === true
@@ -155,15 +169,7 @@ export async function rerank<
 >(
   options: RerankActivityOptions<TAdapter, TDocument>,
 ): Promise<RerankResult<TDocument>> {
-  const {
-    adapter,
-    query,
-    documents,
-    topN,
-    modelOptions,
-    abortSignal,
-    middleware,
-  } = options
+  const { adapter, query, documents, topN, modelOptions, middleware } = options
   const model = adapter.model
   const requestId = createId('rerank')
   const startTime = Date.now()
@@ -172,9 +178,15 @@ export async function rerank<
   if (documents.length === 0) {
     throw new Error('rerank() requires at least one document')
   }
+  const abortControls = createActivityAbortControls({
+    timeout: options.timeout,
+    abortSignal: options.abortSignal,
+  })
+  const abortSignal = abortControls.signal
 
   const mwCtx = createGenerationContext({
     requestId,
+    signal: abortControls.signal,
     // `rerank` joins the GenerationActivity union; otel maps it to its own
     // gen_ai.operation.name.
     activity: 'rerank',
@@ -184,7 +196,10 @@ export async function rerank<
     createId,
   })
 
-  await runGenerationStart(middleware, mwCtx)
+  await runGenerationStart(middleware, mwCtx).catch((error: unknown) => {
+    abortControls.clear()
+    throw error
+  })
 
   aiEventClient.emit('rerank:request:started', {
     requestId,
@@ -200,20 +215,24 @@ export async function rerank<
     documentCount: documents.length,
   })
 
-  // Serialize once; reuse for the request only. Original documents are mapped
-  // back by index below so the caller's element type is preserved.
-  const serialized = documents.map(serializeDocument)
-
   try {
-    const result = await adapter.rerank({
-      model,
-      query,
-      documents: serialized,
-      topN,
-      modelOptions,
+    // Serialize once; reuse for the request only. Original documents are
+    // mapped back by index below so the caller's element type is preserved.
+    // Inside the `try`, so a throw here also clears the timeout timer.
+    const serialized = documents.map(serializeDocument)
+    const result = await raceWithAbort(
+      adapter.rerank({
+        model,
+        query,
+        documents: serialized,
+        topN,
+        modelOptions,
+        abortSignal,
+        logger,
+      }),
       abortSignal,
-      logger,
-    })
+    )
+    abortControls.clear()
 
     const ranking = result.ranking.map((r) => {
       const document = documents[r.index]
@@ -263,6 +282,7 @@ export async function rerank<
       usage: result.usage,
     }
   } catch (error) {
+    abortControls.clear()
     const duration = Date.now() - startTime
     if (isAbortError(error, abortSignal)) {
       await runGenerationAbort(middleware, mwCtx, {

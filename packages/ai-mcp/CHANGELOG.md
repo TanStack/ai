@@ -1,5 +1,74 @@
 # @tanstack/ai-mcp
 
+## 1.3.1
+
+### Patch Changes
+
+- Updated dependencies [[`4b00243`](https://github.com/TanStack/ai/commit/4b002432487ce34547162b6f3f0492b4b936aa61), [`009b480`](https://github.com/TanStack/ai/commit/009b480b9b88c074f1a52ea8eacd8de5ea6432fc)]:
+  - @tanstack/ai@1.8.0
+  - @tanstack/ai-harness@0.4.0
+
+## 1.3.0
+
+### Minor Changes
+
+- [#2184](https://github.com/TanStack/ai/pull/2184) [`4288b7a`](https://github.com/TanStack/ai/commit/4288b7aaa80e085df899e2bebb597a9f85d6fb71) - A server tool can now send result metadata: app data that the UI and middleware see and the model never sees. Call `context?.setResultMetadata?.(value)` in the tool. Add `resultMetadataSchema` to the tool definition to type and check the value. The client reads it as a typed `part.resultMetadata` on the tool-call part, also after a reload with persistence.
+  - `onAfterToolCall` gets `info.metadata`. A `replaceResult` or `skip` decision can set `metadata`. `toolCacheMiddleware` keeps the metadata on a cache hit.
+  - `@tanstack/ai-mcp` copies the `_meta` of an MCP tool result into the result metadata. A `tanstack` key is dropped.
+  - `@tanstack/ai-persistence` keeps the stored app metadata when a client copy replaces a stored tool message. The `'messages.metadata'` conformance check now also tests a tool message with nested app metadata.
+  - The server owns the result metadata. `chatParamsFromRequest` keeps only the `tanstack` key on the tool rows of a request.
+  - Client tools and WebMCP tools throw when they call `setResultMetadata`.
+  - `@tanstack/ai-effect` accepts tool definitions that have `resultMetadataSchema`.
+  - `@tanstack/ai-event-client` adds `metadata` to the tool result event. The devtools show it as "Result metadata" on each tool result.
+
+### Patch Changes
+
+- Updated dependencies [[`1aa7227`](https://github.com/TanStack/ai/commit/1aa722707deca4d567efafe0830471222d558b62), [`0a84ac2`](https://github.com/TanStack/ai/commit/0a84ac22cbd29ac49997091713ca9da81bb3e553), [`4288b7a`](https://github.com/TanStack/ai/commit/4288b7aaa80e085df899e2bebb597a9f85d6fb71)]:
+  - @tanstack/ai@1.7.0
+  - @tanstack/ai-harness@0.3.0
+
+## 1.2.0
+
+### Minor Changes
+
+- [#2116](https://github.com/TanStack/ai/pull/2116) [`702d639`](https://github.com/TanStack/ai/commit/702d639c36b7564875595845ebb7ec6ad437e484) - Send request context to MCP servers as `_meta`. Set `requestMeta` on `chat({ mcp })` or `tools()`, or pass `meta` to `callTool`, `readResource`, `getPrompt`, and the MCP Apps call handler.
+
+  `createMCPClients().readResource(uri, { serverId })` now reads only from the server with that key.
+
+### Patch Changes
+
+- Updated dependencies [[`702d639`](https://github.com/TanStack/ai/commit/702d639c36b7564875595845ebb7ec6ad437e484)]:
+  - @tanstack/ai@1.4.0
+  - @tanstack/ai-harness@0.3.0
+
+## 1.1.1
+
+### Patch Changes
+
+- Updated dependencies [[`e8546f9`](https://github.com/TanStack/ai/commit/e8546f90834ace0129c4e2b5491909ea87e07f20), [`5fd5355`](https://github.com/TanStack/ai/commit/5fd535501784df0102880470835913ceec3a8e1e), [`9393839`](https://github.com/TanStack/ai/commit/9393839d380dde91fa91e81b5e92448610e9782a), [`215e339`](https://github.com/TanStack/ai/commit/215e3396eb907054baddbf3423da8bc3e90ecf50), [`7157ef3`](https://github.com/TanStack/ai/commit/7157ef3e8556ac23c350822ba0f3c4bbf0abb118)]:
+  - @tanstack/ai@1.3.0
+  - @tanstack/ai-harness@0.3.0
+
+## 1.1.0
+
+### Minor Changes
+
+- [#1978](https://github.com/TanStack/ai/pull/1978) [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32) - New optional signals. Old calls work the same.
+  - `createMCPClient({ signal })` cancels the connect handshake.
+  - `tools({ signal })`, `resources({ signal })`, `readResource(uri, { signal })`, `resourceTemplates({ signal })`, `prompts({ signal })`, and `getPrompt(name, args, { signal })` send the signal to the MCP SDK.
+  - The lazy tool list in `callTool` uses the signal of the call.
+  - The handler from `createMcpAppCallHandler` takes `(req, { signal })` and passes it to the connect, the tool list, and the tool call.
+
+### Patch Changes
+
+- [#1976](https://github.com/TanStack/ai/pull/1976) [`5f62940`](https://github.com/TanStack/ai/commit/5f62940bb15c871a205de70e4e6b58fbe5016960) - `createMCPServer` now answers `tasks/cancel` for an `execution: 'task'` tool on spec 2025. The task status becomes `cancelled`, `ctx.abortSignal` of the tool aborts, and a late result does not replace the cancel. A spec 2025 `elicitation/create` that the server cancels now also stops the question in the harness.
+
+- [#1930](https://github.com/TanStack/ai/pull/1930) [`c7a1b4d`](https://github.com/TanStack/ai/commit/c7a1b4d4ee223add367715bac8fd1150a0c71fcd) - `serveMCPStdio` no longer holds a request behind a running request. A `ping` or a fast tool call sent during a slow tool call now gets its answer at once. Requests still wait for an `initialize` that is in flight, because it sets the session id.
+
+- Updated dependencies [[`5f62940`](https://github.com/TanStack/ai/commit/5f62940bb15c871a205de70e4e6b58fbe5016960), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32), [`d6ead13`](https://github.com/TanStack/ai/commit/d6ead13def85f91782e20d6c1b8755fdf1c836c2), [`450950d`](https://github.com/TanStack/ai/commit/450950da860d58047c654c1497ddb48d651f9076), [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31), [`13b1ca9`](https://github.com/TanStack/ai/commit/13b1ca918a0ac36761db2a6226973c5330d4221d), [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb)]:
+  - @tanstack/ai-harness@0.2.0
+  - @tanstack/ai@1.1.0
+
 ## 1.0.0
 
 ### Major Changes

@@ -1,5 +1,66 @@
 # @tanstack/openai-base
 
+## 1.1.0
+
+### Minor Changes
+
+- [#2110](https://github.com/TanStack/ai/pull/2110) [`95c1d78`](https://github.com/TanStack/ai/commit/95c1d781c92904612e0d675a9ca38f1a8d9a1c09) - Undo strict-mode `null`s on tool arguments before the input check. An approved call whose history still has those `null`s now runs when `repairToolInput` is off.
+
+### Patch Changes
+
+- Updated dependencies [[`95c1d78`](https://github.com/TanStack/ai/commit/95c1d781c92904612e0d675a9ca38f1a8d9a1c09), [`df6f5a9`](https://github.com/TanStack/ai/commit/df6f5a9f5ff782db85c8a36715bac18a7f090180), [`40d1c61`](https://github.com/TanStack/ai/commit/40d1c61c6bdf1957bd124d09b1f07617a05e759d)]:
+  - @tanstack/ai@1.6.0
+
+## 1.0.4
+
+### Patch Changes
+
+- [#2095](https://github.com/TanStack/ai/pull/2095) [`be3850f`](https://github.com/TanStack/ai/commit/be3850f869f649aa750adf1d3f6a5b3f4d9c3635) - A caller abort no longer logs a `fatal` entry on the `errors` debug channel. A direct `chatStream()` call that is aborted before the response arrives now yields `RUN_ERROR` with `code: 'aborted'`.
+
+## 1.0.3
+
+### Patch Changes
+
+- [#2087](https://github.com/TanStack/ai/pull/2087) [`5fd5355`](https://github.com/TanStack/ai/commit/5fd535501784df0102880470835913ceec3a8e1e) - Keep Responses item ids and phases when adjacent answer text is merged. Save each item's text length so replay can restore its boundary.
+
+- Updated dependencies [[`e8546f9`](https://github.com/TanStack/ai/commit/e8546f90834ace0129c4e2b5491909ea87e07f20), [`5fd5355`](https://github.com/TanStack/ai/commit/5fd535501784df0102880470835913ceec3a8e1e), [`9393839`](https://github.com/TanStack/ai/commit/9393839d380dde91fa91e81b5e92448610e9782a), [`215e339`](https://github.com/TanStack/ai/commit/215e3396eb907054baddbf3423da8bc3e90ecf50), [`7157ef3`](https://github.com/TanStack/ai/commit/7157ef3e8556ac23c350822ba0f3c4bbf0abb118)]:
+  - @tanstack/ai@1.3.0
+
+## 1.0.2
+
+### Patch Changes
+
+- [#1973](https://github.com/TanStack/ai/pull/1973) [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce) - The adapters now call the provider HTTP API with `fetch` and do not create the `openai` SDK client. At runtime they load only small SDK modules, for example the error classes from `openai/core/error`. With a bundler that splits chunks, the startup bundle is smaller. A single-file bundle can be a little larger, because a few rare options still load the full SDK on first use. Errors keep the same classes and fields.
+
+  New exports: `createOpenAIClient`, `createAzureOpenAIClient`, and the `OpenAIClientLike` type. Some options still load the `openai` SDK on first use: `workloadIdentity`, `provider`, `dataResidency`, `credential`, `x509Transport`, an admin key with no `apiKey`, and `azureADTokenProvider` on Azure.
+
+- Updated dependencies [[`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai@1.2.0
+  - @tanstack/ai-utils@1.1.0
+
+## 1.0.1
+
+### Patch Changes
+
+- [#1966](https://github.com/TanStack/ai/pull/1966) [`e17cae7`](https://github.com/TanStack/ai/commit/e17cae7aa40ce5ebe0e78496931d49c793bdaf41) - Stop the OpenAI Responses adapters from aborting a finished request. After `response.completed` the adapters stopped reading at once, so the OpenAI SDK aborted the request and a gateway such as Cloudflare AI Gateway logged a billed, complete call as a client cancel (499). The adapters now let the body end by itself for up to 250 ms and abort it only after that.
+
+- [#1948](https://github.com/TanStack/ai/pull/1948) [`940c402`](https://github.com/TanStack/ai/commit/940c402d8ca5220e3202326e03cc1f64654572a3) - Pass the full diff of a streamed `apply_patch` call to the app. The Responses API adds an `apply_patch_call` with `status: "in_progress"` and an empty `diff`, and streams the diff in before the item is done. The adapter ended the call when the item was added, so `execute` always got `diff: ""`, and an agent loop sent empty patches until it hit its iteration limit. A user-run call (`apply_patch`, `local_shell`, `shell`, `computer`) now starts when its item is added and ends, with its input, once the item is no longer in progress, as function calls already do.
+
+  If the response completes while a user-run call is still in progress, the run now ends with a `RUN_ERROR` (code `incomplete-tool-call`) instead of running the tool with incomplete input.
+
+- [#1974](https://github.com/TanStack/ai/pull/1974) [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb) - Report token usage for every call that the provider billed, also when the call fails.
+  - Adapters put the usage that they received on `RUN_ERROR`: a cut-off response, a refusal, a parse failure, an empty response, or a stream that fails after usage arrived. Before, many of these paths dropped it.
+  - A non-streaming `structuredOutput()`, image, or speech call that fails after the response throws an error with a `usage` field. `chat()`, `generateImage()`, `generateSpeech()`, and `summarize()` report it.
+  - The `onUsage` middleware hook now also runs for a `RUN_ERROR` with usage. A structured output value that fails the schema check still reports the usage of its call.
+  - Media streams carry `usage` on `RUN_FINISHED` and `RUN_ERROR`. Devtools now gets the `summarize:usage` and `transcription:usage` events, and `text:usage` for a chat `RUN_ERROR` with usage. A call that `onModelError` or a rate-limit retry drops still reports its usage.
+  - Provider fields that were dropped are mapped: Anthropic thinking tokens, Claude Code `total_cost_usd` as `usage.cost`, OpenRouter Responses reasoning tokens, opencode cost and cache writes, ACP and Bedrock cache writes, OpenAI evaluate token details, Gemini Vertex embedding tokens, and audio duration as billed seconds for Whisper, Groq, Cloudflare, and Lovable transcription.
+  - opencode adds up the usage of every agent step in a turn. Before, it counted only the last step.
+  - Gemini Interactions usage (text, agentic video, and images) counts thought tokens in `completionTokens`, the same as `generateContent`.
+
+- Updated dependencies [[`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`e17cae7`](https://github.com/TanStack/ai/commit/e17cae7aa40ce5ebe0e78496931d49c793bdaf41), [`d6ead13`](https://github.com/TanStack/ai/commit/d6ead13def85f91782e20d6c1b8755fdf1c836c2), [`450950d`](https://github.com/TanStack/ai/commit/450950da860d58047c654c1497ddb48d651f9076), [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31), [`13b1ca9`](https://github.com/TanStack/ai/commit/13b1ca918a0ac36761db2a6226973c5330d4221d), [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb)]:
+  - @tanstack/ai@1.1.0
+  - @tanstack/ai-utils@1.0.1
+
 ## 1.0.0
 
 ### Major Changes

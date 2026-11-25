@@ -355,7 +355,7 @@ describe('routing.router', () => {
     expect(main.calls).toHaveLength(1)
     expect(messageTexts(main.calls[0])).toEqual([
       'write it',
-      ...routedTo('writer'),
+      'main handed off to writer.',
       'writer:\nDraft',
     ])
     expect(
@@ -766,6 +766,50 @@ describe('routing and ownership', () => {
       ...routedTo('cleaner'),
       'cleaner:\nRemoved a.txt',
     ])
+    await host.close()
+  })
+
+  it('retries a routed resolve after the follow-up model fails, and runs the tool once', async () => {
+    const execute = vi.fn(async () => ({ removed: true }))
+    const remove = toolDefinition({
+      name: 'remove',
+      description: 'Remove a file',
+      needsApproval: true,
+      inputSchema: z.object({ path: z.string() }),
+    }).server(execute)
+    const child = mockAdapter([
+      () => toolCall('remove', { path: 'a.txt' }, 'call_c'),
+      failsWith('503 Service Unavailable'),
+      () => text('Removed a.txt'),
+    ])
+    const make = () =>
+      defineAgent({
+        name: 'cleaner',
+        description: 'Removes files',
+        run: (ctx) => ctx.chat({ adapter: child.adapter, tools: [remove] }),
+      })
+    const onModelError = vi.fn(
+      ({ retries }: { retries: number }): 'retry' | undefined =>
+        retries === 0 ? 'retry' : undefined,
+    )
+    const { router, seen } = scriptedRouter('cleaner')
+    const { host, session } = await openRouting({
+      router,
+      agents: [make()],
+      turn: { onModelError },
+    })
+
+    const turn = await session.send('clean up', { inputId: 'in-1' })
+    expect(turn.interrupts).toHaveLength(1)
+    const resumed = await approve(session, turn)
+
+    expect(await resumed).toEqual({
+      text: 'cleaner:\nRemoved a.txt',
+      media: [],
+    })
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(onModelError).toHaveBeenCalledTimes(1)
+    expect(seen).toHaveLength(1)
     await host.close()
   })
 

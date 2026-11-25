@@ -161,6 +161,11 @@ export type SandboxFsStat =
  * Uniform git surface. Implementations either delegate to the provider's
  * native git (when advertised) or desugar to `process.exec("git …")`, so the
  * contract is identical across providers.
+ *
+ * `clone`, `push`, and `pull` take an optional `signal`. The exec-backed git
+ * (`createExecBackedGit`) stops the git command when the signal aborts. A
+ * native git can ignore the signal: Daytona's git API takes no signal, so its
+ * git command runs to the end.
  */
 export interface SandboxGit {
   clone: (input: {
@@ -169,12 +174,13 @@ export interface SandboxGit {
     ref?: string
     auth?: { username?: string; token: string }
     depth?: number | 'full'
+    signal?: AbortSignal
   }) => Promise<void>
   status: (dir?: string) => Promise<string>
   add: (paths: Array<string>, dir?: string) => Promise<void>
   commit: (message: string, dir?: string) => Promise<void>
-  push: (dir?: string) => Promise<void>
-  pull: (dir?: string) => Promise<void>
+  push: (dir?: string, options?: { signal?: AbortSignal }) => Promise<void>
+  pull: (dir?: string, options?: { signal?: AbortSignal }) => Promise<void>
   /** Returns the current branch name. */
   branch: (dir?: string) => Promise<string>
 }
@@ -196,8 +202,14 @@ export interface SandboxChannel {
 }
 
 export interface SandboxPorts {
-  /** Expose `port` and resolve the best reachable channel for the host. */
-  connect: (port: number) => Promise<SandboxChannel>
+  /**
+   * Expose `port` and resolve the best reachable channel for the host.
+   * Providers forward `options.signal` when their API can cancel.
+   */
+  connect: (
+    port: number,
+    options?: { signal?: AbortSignal },
+  ) => Promise<SandboxChannel>
 }
 
 export interface SandboxEnv {
@@ -230,10 +242,19 @@ export interface SandboxHandle {
   readonly process: SandboxProcess
   readonly ports: SandboxPorts
   readonly env: SandboxEnv
-  /** Capability-gated: throws UnsupportedCapabilityError if `capabilities.snapshots` is false. */
-  snapshot?: (label?: string) => Promise<SnapshotRef>
-  /** Capability-gated: throws UnsupportedCapabilityError if `capabilities.fork` is false. */
-  fork?: () => Promise<SandboxHandle>
+  /**
+   * Capability-gated: throws UnsupportedCapabilityError if `capabilities.snapshots` is false.
+   * Providers forward `options.signal` when their API can cancel.
+   */
+  snapshot?: (
+    label?: string,
+    options?: { signal?: AbortSignal },
+  ) => Promise<SnapshotRef>
+  /**
+   * Capability-gated: throws UnsupportedCapabilityError if `capabilities.fork` is false.
+   * Providers forward `options.signal` when their API can cancel.
+   */
+  fork?: (options?: { signal?: AbortSignal }) => Promise<SandboxHandle>
   destroy: () => Promise<void>
 }
 
@@ -281,6 +302,13 @@ export interface SandboxDestroyInput {
   signal?: AbortSignal
 }
 
+/** Input passed to {@link SandboxProvider.deleteSnapshot}. */
+export interface SandboxDeleteSnapshotInput {
+  /** The {@link SnapshotRef.id} a prior `snapshot()` returned. */
+  snapshotId: string
+  signal?: AbortSignal
+}
+
 /**
  * Owns an isolation primitive. Implemented by `@tanstack/ai-sandbox-*`
  * provider packages.
@@ -294,5 +322,17 @@ export interface SandboxProvider {
   resume: (input: SandboxResumeInput) => Promise<SandboxHandle | null>
   /** Capability-gated: present only when `capabilities().snapshots` is true. */
   restoreSnapshot?: (input: SandboxRestoreInput) => Promise<SandboxHandle>
+  /**
+   * Optional. Delete a snapshot this provider created. `ensure()` and
+   * `destroy()` call it when a recorded snapshot goes stale: the instance
+   * record's `latestSnapshotId` is replaced, or the sandbox is torn down. A
+   * provider whose snapshots outlive the sandbox (and count against a quota)
+   * should implement it; without it those snapshots accumulate until pruned
+   * by hand.
+   *
+   * MUST resolve when the snapshot is already gone. Core treats a rejection as
+   * best effort: it is logged, never surfaced to the run or the teardown.
+   */
+  deleteSnapshot?: (input: SandboxDeleteSnapshotInput) => Promise<void>
   destroy: (input: SandboxDestroyInput) => Promise<void>
 }

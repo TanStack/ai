@@ -46,11 +46,15 @@ pnpm add @tanstack/ai-computer-sandbox @tanstack/ai-sandbox-e2b
 1. Create the computer from a driver, one time, at module scope.
 2. Give `tools`, `middleware`, `interrupt`, and the thread id to `chat()`:
 
-```typescript
+```typescript group=computer-use
 import { chat } from '@tanstack/ai'
+import type { ModelMessage } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createComputerUse } from '@tanstack/ai-computer-use'
 import { playwrightComputer } from '@tanstack/ai-computer-playwright'
+
+declare const messages: Array<ModelMessage>
+declare const threadId: string
 
 const computerUse = createComputerUse({
   driver: playwrightComputer({ startUrl: 'https://tanstack.com' }),
@@ -69,10 +73,11 @@ const stream = chat({
 3. On the client, register the safety-check interrupt:
 
 ```typescript
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { computerSafetyCheck } from '@tanstack/ai-computer-use'
 
 useChat({
-  connection,
+  connection: fetchServerSentEvents('/api/chat'),
   threadId: 'support-42',
   interrupts: [computerSafetyCheck],
 })
@@ -82,7 +87,7 @@ useChat({
 
 4. When a conversation ends, close its machine:
 
-```typescript
+```typescript group=computer-use
 await computerUse.close(threadId) // the machine of one thread
 await computerUse.close() // every thread, then the browser
 ```

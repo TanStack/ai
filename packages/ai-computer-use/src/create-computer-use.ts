@@ -1,7 +1,7 @@
 import { brandProviderTool, toolDefinition } from '@tanstack/ai'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import { z } from 'zod'
-import { runComputerAction } from './actions'
+import { runComputerAction, sleep, withSignal } from './actions'
 import { computerSafetyCheck, safetyCheckSchema } from './safety-check'
 import type {
   ChatMiddleware,
@@ -106,10 +106,6 @@ function isWebUrl(url: string) {
   } catch {
     return false
   }
-}
-
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms))
 }
 
 function imageResult(bytes: Uint8Array) {
@@ -243,10 +239,10 @@ export function createComputerUse({
     await machine?.close?.()
   }
 
-  function machineOf(thread: ThreadState) {
+  function machineOf(thread: ThreadState, signal?: AbortSignal) {
     if (!('create' in driver)) return driver
     thread.driver ??= driver
-      .create({ threadId: thread.id })
+      .create({ threadId: thread.id, ...(signal && { signal }) })
       .catch((error: unknown) => {
         // The next call of the thread calls create again.
         thread.driver = undefined
@@ -257,14 +253,16 @@ export function createComputerUse({
 
   /** Run `work` in the queue of the thread, with the failed-turn rule. */
   function runInThread<T>(
-    threadId: string | undefined,
+    context: ToolExecutionContext | undefined,
     work: (thread: ThreadState) => Promise<T>,
   ) {
-    const thread = threadOf(threadId ?? SHARED_THREAD)
+    const thread = threadOf(context?.threadId ?? SHARED_THREAD)
     clearTimeout(thread.timer)
     thread.pending += 1
     const previous = sharesOneMachine ? sharedQueue : thread.queue
     const run = previous.then(async () => {
+      // A call that aborted while it waited in the queue does not run.
+      context?.abortSignal?.throwIfAborted()
       if (thread.turnFailed) {
         throw new Error(
           'Not executed: an earlier computer action in this turn failed.',
@@ -316,7 +314,7 @@ export function createComputerUse({
     description: 'Use a computer with a mouse and a keyboard.',
     metadata,
     execute(input: unknown, context?: ToolExecutionContext) {
-      return runInThread(context?.threadId, async (thread) => {
+      return runInThread(context, async (thread) => {
         const checked = readCheckedInput(input)
         // Fail closed: checks that do not parse also need an approval.
         const hasChecks = checked === null || checked.checks.length > 0
@@ -328,10 +326,11 @@ export function createComputerUse({
             'Refused: this computer action has safety checks that nobody approved. Add the `interrupt` from createComputerUse to chat({ interrupts }) and the `middleware` to chat({ middleware }).',
           )
         }
-        const machine = await machineOf(thread)
-        const result = await runComputerAction(machine, input)
+        const signal = context?.abortSignal
+        const machine = withSignal(await machineOf(thread, signal), signal)
+        const result = await runComputerAction(machine, input, signal)
         if (result === undefined) {
-          await sleep(screenshotDelay)
+          await sleep(screenshotDelay, signal)
           return imageResult(await machine.screenshot())
         }
         return result.type === 'image' ? imageResult(result.bytes) : result.text
@@ -340,18 +339,21 @@ export function createComputerUse({
   })
 
   const navigate = navigateDefinition.server(({ url }, context) =>
-    runInThread(context?.threadId, async (thread) => {
+    runInThread(context, async (thread) => {
       if (!isWebUrl(url)) {
         throw new Error(
           'Refused: navigate needs a full URL that starts with https:// or http://, like https://tanstack.com.',
         )
       }
-      const machine = await machineOf(thread)
+      const signal = context?.abortSignal
+      const machine = withSignal(await machineOf(thread, signal), signal)
       if (machine.navigate === undefined) {
         throw new Error('The computer driver has no navigate method.')
       }
+      // The call can abort while its machine starts.
+      context?.abortSignal?.throwIfAborted()
       await machine.navigate(url)
-      await sleep(screenshotDelay)
+      await sleep(screenshotDelay, signal)
       return imageResult(await machine.screenshot())
     }),
   )

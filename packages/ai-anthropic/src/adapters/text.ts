@@ -30,7 +30,10 @@ import {
   readCodeExecutionSkills,
 } from '../tools/code-execution-tool'
 import { validateTextProviderOptions } from '../text/text-provider-options'
-import { anthropicThinking } from '../text/reasoning'
+import {
+  ANTHROPIC_THINKING_BINDING_BETA,
+  anthropicThinking,
+} from '../text/reasoning'
 import {
   ANTHROPIC_DEFERRED_TOOL_PLACEHOLDER_NAME,
   applyAnthropicPromptCache,
@@ -73,6 +76,8 @@ import type {
 import type {
   BetaBase64ImageSource,
   BetaBase64PDFSource,
+  BetaCompactionBlock,
+  BetaCompactionBlockParam,
   BetaContentBlockParam,
   BetaFileDocumentSource,
   BetaFileImageSource,
@@ -95,9 +100,11 @@ import type {
   ModelMessage,
   AdapterYieldChunk,
   NormalizedSystemPrompt,
+  TextCompactOptions,
   TextOptions,
   ToolChoice,
   ToolCall,
+  TokenUsage,
 } from '@tanstack/ai'
 import type {
   AnthropicSystemPromptMetadata,
@@ -115,6 +122,7 @@ import type {
   AnthropicMessagesClient,
 } from '../utils/client'
 import type { ComputerUseSingleToolConfig } from '../tools/computer-use-tool'
+import type { AnthropicClient } from '../client/index'
 
 /**
  * The block type carried by an Anthropic provider-executed (server) tool's
@@ -205,6 +213,110 @@ export function messagesHaveFileSource(messages: Array<ModelMessage>): boolean {
         (part) => 'source' in part && isFileSource(part.source),
       ),
   )
+}
+
+/** Beta for on-demand compaction (`compaction: { type: "summarize" }`). */
+const COMPACT_BETA = 'compact-2026-09-04' satisfies AnthropicBeta
+
+/** Signed compaction block stored on the assistant message that replaces the history. */
+const COMPACTION_METADATA_KEY = 'anthropicCompaction'
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** The signed block to send back, or `undefined` when the message has none. */
+function readStoredCompaction(
+  message: ModelMessage,
+): BetaCompactionBlockParam | undefined {
+  const raw = message.metadata?.[COMPACTION_METADATA_KEY]
+  if (!isRecord(raw)) return undefined
+  if (typeof raw.content !== 'string' || raw.content.length === 0)
+    return undefined
+  if (typeof raw.signature !== 'string' || raw.signature.length === 0) {
+    return undefined
+  }
+  return {
+    type: 'compaction',
+    content: raw.content,
+    signature: raw.signature,
+    ...(typeof raw.encrypted_content === 'string' && {
+      encrypted_content: raw.encrypted_content,
+    }),
+    ...(Array.isArray(raw.tool_changes) && {
+      tool_changes:
+        raw.tool_changes as BetaCompactionBlockParam['tool_changes'],
+    }),
+  }
+}
+
+function messagesHaveCompaction(messages: Array<ModelMessage>): boolean {
+  return messages.some((message) => readStoredCompaction(message) !== undefined)
+}
+
+function withCompactBeta(
+  betas: Array<AnthropicBeta> | undefined,
+  needed: boolean,
+): Array<AnthropicBeta> | undefined {
+  if (!needed) return betas
+  return [...new Set<AnthropicBeta>([...(betas ?? []), COMPACT_BETA])]
+}
+
+/**
+ * On-demand compaction reports its tokens in `usage.iterations`, with the
+ * top-level counts at zero. Fold those iteration tokens into the totals.
+ * A response that already has top-level tokens keeps them.
+ */
+function usageOfCompaction(
+  usage: Parameters<typeof buildAnthropicUsage>[0],
+): TokenUsage | undefined {
+  const built = buildAnthropicUsage(usage)
+  if (!built) return undefined
+  if (built.promptTokens !== 0 || built.completionTokens !== 0) return built
+  let prompt = 0
+  let completion = 0
+  for (const item of built.providerUsageDetails?.iterations ?? []) {
+    if (item.type !== 'compaction') continue
+    prompt +=
+      item.inputTokens +
+      item.cacheCreationInputTokens +
+      item.cacheReadInputTokens
+    completion += item.outputTokens
+  }
+  if (prompt === 0 && completion === 0) return built
+  return {
+    ...built,
+    promptTokens: prompt,
+    completionTokens: completion,
+    totalTokens: prompt + completion,
+  }
+}
+
+/**
+ * The block to store and send back. A missing summary or signature is
+ * unusable: the caller falls back to its strategy.
+ */
+function compactionBlockFromResponse(
+  block: BetaCompactionBlock,
+): BetaCompactionBlockParam | undefined {
+  if (typeof block.content !== 'string' || block.content.length === 0) {
+    return undefined
+  }
+  if (typeof block.signature !== 'string' || block.signature.length === 0) {
+    return undefined
+  }
+  return {
+    type: 'compaction',
+    content: block.content,
+    signature: block.signature,
+    ...(typeof block.encrypted_content === 'string' && {
+      encrypted_content: block.encrypted_content,
+    }),
+    ...(block.tool_changes != null && {
+      tool_changes:
+        block.tool_changes as BetaCompactionBlockParam['tool_changes'],
+    }),
+  }
 }
 
 /**
@@ -314,6 +426,8 @@ const COMPUTER_USE_BETAS = {
 /**
  * Computes the `betas` array for a Messages request. Unions:
  * - `interleaved-thinking-2025-05-14` when interleaved thinking is enabled,
+ * - `thinking-binding-controls-2026-08-01` when thinking is on, so a
+ *   rewritten prefix drops signed thinking blocks instead of failing,
  * - `code-execution-2025-08-25` when a `code_execution` tool is present,
  * - `skills-2025-10-02` when that tool carries skills,
  * - the `computer-use-*` beta of a single `computer` tool version (the
@@ -352,6 +466,12 @@ export function computeAnthropicBetas(
     typeof modelOptions.thinking.budget_tokens === 'number' &&
     modelOptions.thinking.budget_tokens > 0
   if (useInterleavedThinking) betas.add('interleaved-thinking-2025-05-14')
+  if (
+    modelOptions?.thinking?.type === 'enabled' ||
+    modelOptions?.thinking?.type === 'adaptive'
+  ) {
+    betas.add(ANTHROPIC_THINKING_BINDING_BETA)
+  }
 
   // Context editing requires the beta header; the body field alone is not
   // enough (issue #1074). `null` is a typed "unset" — do not enable the beta.
@@ -575,8 +695,8 @@ export class AnthropicTextAdapter<
   /** The OAuth identity headers, with the caller's own values on top. */
   private readonly oauthHeaders = new Headers(OAUTH_IDENTITY_HEADERS)
 
-  /** The adapter's own SDK client. An injected client cannot take a fetch. */
-  private readonly sdkClient: Anthropic_SDK | undefined
+  /** The adapter's own client. An injected client cannot take a fetch. */
+  private readonly sdkClient: AnthropicClient | undefined
   private readonly baseFetch: typeof fetch | undefined
 
   constructor(config: AnthropicTextAdapterConfig, model: TModel) {
@@ -625,15 +745,17 @@ export class AnthropicTextAdapter<
         },
       }),
     })
-    this.client = this.sdkClient
+    this.client = asSdkAnthropicMessagesClient(this.sdkClient)
   }
 
   /** Use a client whose fetch goes through `wrapFetch` for one call. */
   private clientFor(wrapFetch: FetchWrapper | undefined) {
     if (!wrapFetch || !this.sdkClient) return this.client
-    return this.sdkClient.withOptions({
-      fetch: wrapFetch(this.baseFetch ?? globalThis.fetch),
-    })
+    return asSdkAnthropicMessagesClient(
+      this.sdkClient.withOptions({
+        fetch: wrapFetch(this.baseFetch ?? globalThis.fetch),
+      }),
+    )
   }
 
   /** With OAuth, the Claude Code betas go first. */
@@ -650,30 +772,36 @@ export class AnthropicTextAdapter<
 
   /**
    * With a token, drop `x-api-key`. With OAuth, also send the identity
-   * headers, and merge the configured `anthropic-beta` with the request betas.
+   * headers. A configured `anthropic-beta` replaces the SDK's `betas`
+   * header, so merge it with the request betas.
    */
   private requestHeaders(
     headers: HeadersInit | undefined,
     betas: Array<AnthropicBeta> | undefined,
   ) {
-    if (!this.tokenAuthentication) return headers
+    if (
+      !this.tokenAuthentication &&
+      !new Headers(headers).has('anthropic-beta')
+    )
+      return headers
     const requestHeaders = new Headers(
       this.oauth ? this.oauthHeaders : undefined,
     )
     new Headers(headers).forEach((value, name) =>
       requestHeaders.set(name, value),
     )
-    if (this.oauth) {
-      const configured = (requestHeaders.get('anthropic-beta') ?? '')
-        .split(',')
-        .map((value) => value.trim())
-        .filter(Boolean)
+    const configured = (requestHeaders.get('anthropic-beta') ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+    if (this.oauth || configured.length > 0) {
       requestHeaders.set(
         'anthropic-beta',
         [...new Set([...(betas ?? []), ...configured])].join(','),
       )
     }
-    return { ...Object.fromEntries(requestHeaders), 'x-api-key': null }
+    const merged = Object.fromEntries(requestHeaders)
+    return this.tokenAuthentication ? { ...merged, 'x-api-key': null } : merged
   }
 
   async *chatStream(
@@ -701,15 +829,18 @@ export class AnthropicTextAdapter<
       // The request, not modelOptions: `reasoning` can turn budget
       // thinking (and so the interleaved-thinking beta) on.
       const betas = this.requestBetas(
-        computeAnthropicBetas(
-          options.tools,
-          requestParams,
-          messagesHaveFileSource(options.messages),
-          // Mid-conversation tool mode puts the deferred placeholder in `tools`.
-          requestParams.tools?.some(
-            (tool) =>
-              'name' in tool && tool.name === DEFERRED_TOOL_PLACEHOLDER.name,
+        withCompactBeta(
+          computeAnthropicBetas(
+            options.tools,
+            requestParams,
+            messagesHaveFileSource(options.messages),
+            // Mid-conversation tool mode puts the deferred placeholder in `tools`.
+            requestParams.tools?.some(
+              (tool) =>
+                'name' in tool && tool.name === DEFERRED_TOOL_PLACEHOLDER.name,
+            ),
           ),
+          messagesHaveCompaction(options.messages),
         ),
       )
 
@@ -818,16 +949,22 @@ export class AnthropicTextAdapter<
       },
     }
 
+    // Set once the response arrives, so a later throw still reports it.
+    let usage: ReturnType<typeof buildAnthropicUsage>
+
     try {
       logger.request(
         `activity=chat provider=anthropic model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
         { provider: 'anthropic', model: this.model },
       )
       const betas = this.requestBetas(
-        computeAnthropicBetas(
-          chatOptions.tools,
-          requestParams,
-          messagesHaveFileSource(chatOptions.messages),
+        withCompactBeta(
+          computeAnthropicBetas(
+            chatOptions.tools,
+            requestParams,
+            messagesHaveFileSource(chatOptions.messages),
+          ),
+          messagesHaveCompaction(chatOptions.messages),
         ),
       )
       // Make non-streaming request with tool_choice forced to our structured output tool
@@ -846,6 +983,7 @@ export class AnthropicTextAdapter<
           headers: this.requestHeaders(chatOptions.request?.headers, betas),
         },
       )
+      usage = buildAnthropicUsage(response.usage)
 
       // A forced tool call cut off at the output cap carries partial input,
       // which would read like a schema failure (issue #1426).
@@ -889,7 +1027,7 @@ export class AnthropicTextAdapter<
       return {
         data: parsed,
         rawText,
-        usage: buildAnthropicUsage(response.usage),
+        usage,
         responseId: response.id,
         model: response.model,
       }
@@ -899,10 +1037,172 @@ export class AnthropicTextAdapter<
         error,
         source: 'anthropic.structuredOutput',
       })
-      throw new Error(
-        `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
+      throw Object.assign(
+        new Error(
+          `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
+        ),
+        usage && { usage },
       )
     }
+  }
+
+  /**
+   * Compact the history with a Messages request that sets
+   * `compaction: { type: "summarize" }`. The result is one assistant
+   * message whose metadata holds the signed compaction block. The next
+   * request sends that block first, in place of the summarized messages.
+   * A result that is not `stop_reason: "compaction"`, or that has no
+   * signed block, throws so the caller can use another strategy.
+   */
+  async compact(options: TextCompactOptions): Promise<Array<ModelMessage>> {
+    const tools = options.tools?.map((tool) =>
+      resolveComputerUseTool(tool, options.model),
+    )
+    const anthropicTools =
+      tools && tools.length > 0
+        ? convertToolsToProviderFormat(tools)
+        : undefined
+    const messages = this.formatMessages(
+      this.replayMessages(options.messages, options.model),
+      undefined,
+      tools?.some(isComputerToolset) ?? false,
+    )
+    const system = this.toSystemBlocks(
+      normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
+        options.systemPrompts,
+      ),
+    )
+    const thinkingFields = anthropicThinking(
+      options.model,
+      options.reasoning,
+      ANTHROPIC_MODEL_REASONING[options.model],
+    )
+    const budget =
+      thinkingFields.thinking?.type === 'enabled'
+        ? thinkingFields.thinking.budget_tokens
+        : undefined
+    const requested = options.modelOptions?.max_tokens
+    const base =
+      typeof requested === 'number'
+        ? requested
+        : getAnthropicDefaultMaxTokens(options.model, { stream: false })
+    const maxTokens = budget !== undefined && budget >= base ? budget + 1 : base
+    const betas = this.requestBetas(
+      withCompactBeta(
+        computeAnthropicBetas(
+          tools,
+          thinkingFields.thinking
+            ? { thinking: thinkingFields.thinking }
+            : undefined,
+          messagesHaveFileSource(options.messages),
+        ),
+        true,
+      ),
+    )
+    const response = await this.clientFor(
+      options.wrapFetch,
+    ).beta.messages.create(
+      {
+        model: options.model,
+        max_tokens: maxTokens,
+        messages,
+        stream: false,
+        compaction: { type: 'summarize' },
+        ...(system !== undefined && { system }),
+        ...(anthropicTools !== undefined && { tools: anthropicTools }),
+        ...thinkingFields,
+        ...(betas && { betas }),
+      },
+      {
+        ...(options.signal ? { signal: options.signal } : {}),
+        headers: this.requestHeaders(undefined, betas),
+      },
+    )
+    const usage = usageOfCompaction(response.usage)
+    if (usage) options.addUsage?.(usage)
+    if (response.stop_reason !== 'compaction') {
+      throw new Error(
+        `The compact result stop_reason is "${response.stop_reason ?? 'none'}", not "compaction".`,
+      )
+    }
+    const block = response.content
+      .map((item) =>
+        item.type === 'compaction'
+          ? compactionBlockFromResponse(item)
+          : undefined,
+      )
+      .find((item) => item !== undefined)
+    if (!block) {
+      throw new Error('The compact result has no compaction block.')
+    }
+    return [
+      {
+        role: 'assistant',
+        content: block.content ?? '',
+        metadata: {
+          tanstack: {
+            source: {
+              provider: this.provider ?? this.name,
+              api: this.api,
+              model: options.model,
+            },
+          },
+          [COMPACTION_METADATA_KEY]: {
+            content: block.content,
+            signature: block.signature,
+            ...(block.encrypted_content !== undefined && {
+              encrypted_content: block.encrypted_content,
+            }),
+            ...(block.tool_changes !== undefined && {
+              tool_changes: block.tool_changes,
+            }),
+          },
+        },
+      },
+    ]
+  }
+
+  /** Rewrite tool ids from another model to the shape Anthropic accepts. */
+  private replayMessages(messages: Array<ModelMessage>, model: string) {
+    return transformMessagesForReplay(
+      messages,
+      { provider: this.provider, api: this.api, model },
+      (id, { attempt }) => {
+        const clean = id.replace(/[^a-zA-Z0-9_-]/g, '_')
+        const suffix = attempt === 0 ? '' : `_${attempt}`
+        return clean.slice(0, 64 - suffix.length) + suffix
+      },
+    ).messages
+  }
+
+  /**
+   * System text blocks for a Messages request. An OAuth token also gets
+   * the Claude Code identity block.
+   */
+  private toSystemBlocks(
+    prompts: ReadonlyArray<
+      NormalizedSystemPrompt<AnthropicSystemPromptMetadata>
+    >,
+  ): Array<TextBlockParam> | undefined {
+    if (prompts.length === 0 && !this.oauth) return undefined
+    const blocks = prompts.map(
+      (p): TextBlockParam => ({
+        type: 'text',
+        text: p.content,
+        ...(p.metadata?.cache_control && {
+          cache_control: p.metadata.cache_control,
+        }),
+      }),
+    )
+    return this.oauth
+      ? [
+          {
+            type: 'text',
+            text: "You are Claude Code, Anthropic's official CLI for Claude.",
+          },
+          ...blocks,
+        ]
+      : blocks
   }
 
   private mapCommonOptionsToAnthropic(
@@ -914,15 +1214,9 @@ export class AnthropicTextAdapter<
     // Another model's history loses its signatures, and its tool IDs are
     // rewritten to the shape Anthropic accepts. Plan indexes match this
     // array when the second replay keeps the same length.
-    const replay = transformMessagesForReplay(
-      options.messages,
-      { provider: this.provider, api: this.api, model: options.model },
-      (id, { attempt }) => {
-        const clean = id.replace(/[^a-zA-Z0-9_-]/g, '_')
-        const suffix = attempt === 0 ? '' : `_${attempt}`
-        return clean.slice(0, 64 - suffix.length) + suffix
-      },
-    )
+    const replay = {
+      messages: this.replayMessages(options.messages, options.model),
+    }
     const mid = this.midConversationRequest({
       ...options,
       messages: replay.messages,
@@ -1034,35 +1328,14 @@ export class AnthropicTextAdapter<
     // `string | Array<TextBlockParam>` (no `| undefined`), so build it
     // outside the literal and spread it conditionally rather than
     // assigning `undefined` under exactOptionalPropertyTypes.
-    const systemBlocks = ((): Array<TextBlockParam> | undefined => {
-      // With a prompt channel, `system` holds only the start prompts. They
-      // keep their own `cache_control` metadata.
-      const normalized =
-        mid?.systemPrompts ??
+    // With a prompt channel, `system` holds only the start prompts. They
+    // keep their own `cache_control` metadata.
+    const systemBlocks = this.toSystemBlocks(
+      mid?.systemPrompts ??
         normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
           options.systemPrompts,
-        )
-      if (normalized.length === 0 && !this.oauth) return undefined
-      const blocks = normalized.map(
-        (p): TextBlockParam => ({
-          type: 'text',
-          text: p.content,
-          ...(p.metadata?.cache_control && {
-            cache_control: p.metadata.cache_control,
-          }),
-        }),
-      )
-      // Anthropic accepts an OAuth token only with the Claude Code identity.
-      return this.oauth
-        ? [
-            {
-              type: 'text',
-              text: "You are Claude Code, Anthropic's official CLI for Claude.",
-            },
-            ...blocks,
-          ]
-        : blocks
-    })()
+        ),
+    )
     // Wire engine-threaded outputSchema into Messages `output_config.format`
     // alongside any `tools` so the model emits tool calls during the agent
     // loop and a single schema-constrained JSON message on its final turn.
@@ -1377,6 +1650,18 @@ export class AnthropicTextAdapter<
               ...(message.error !== undefined && { is_error: true }),
             },
           ],
+        })
+        continue
+      }
+
+      // A native compaction result replaces the messages it summarizes.
+      // Send the signed block, not the summary text beside it.
+      const storedCompaction =
+        role === 'assistant' ? readStoredCompaction(message) : undefined
+      if (storedCompaction) {
+        formattedMessages.push({
+          role: 'assistant',
+          content: [storedCompaction],
         })
         continue
       }
@@ -2197,6 +2482,8 @@ export class AnthropicTextAdapter<
           // message_delta carries the real stop_reason (tool_use, end_turn, etc.),
           // while message_stop is just a completion signal.
           if (!hasEmittedRunFinished) {
+            hasEmittedRunFinished = true
+            const usage = buildAnthropicUsage(messageStartUsage)
             yield {
               type: EventType.RUN_FINISHED,
               ...(responseId !== undefined && { responseId }),
@@ -2205,6 +2492,7 @@ export class AnthropicTextAdapter<
               model,
               timestamp: Date.now(),
               finishReason: 'stop',
+              ...(usage && { usage }),
             }
           }
         } else if (event.type === 'message_delta') {
@@ -2337,6 +2625,16 @@ export class AnthropicTextAdapter<
             }
           }
         }
+      }
+      // The body ended before a stop reason (a message_delta with
+      // stop_reason, or message_stop), so the answer is cut off. The catch
+      // below reports it. An abort also ends the body, but that is the
+      // caller's choice and not an error.
+      if (!hasEmittedRunFinished && !options.request?.signal?.aborted) {
+        throw Object.assign(
+          new Error('Anthropic stream ended before a stop reason'),
+          { code: 'incomplete-stream' },
+        )
       }
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }

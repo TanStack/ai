@@ -79,6 +79,15 @@ export type OpencodePart =
       tool: string
       state: OpencodeToolState
     }
+  | {
+      id: string
+      sessionID?: string
+      messageID: string
+      type: 'step-finish'
+      reason?: string
+      cost?: number
+      tokens?: OpencodeTokens
+    }
   | { id: string; sessionID?: string; messageID: string; type: string }
 
 /**
@@ -91,6 +100,17 @@ export type OpencodeEvent =
   | {
       type: 'message.part.updated'
       properties: { part: OpencodePart; delta?: string }
+    }
+  | {
+      /** OpenCode 1.x: new text for one field of a part. */
+      type: 'message.part.delta'
+      properties: {
+        sessionID?: string
+        messageID: string
+        partID: string
+        field: string
+        delta: string
+      }
     }
   | {
       type: 'message.updated'

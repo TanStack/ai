@@ -1,10 +1,12 @@
-import OpenAI from 'openai'
 import {
   EventType,
   isFileSource,
   unsupportedFileSourceError,
 } from '@tanstack/ai'
-import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import {
+  OpenAIBaseChatCompletionsTextAdapter,
+  createOpenAIClient,
+} from '@tanstack/openai-base'
 import { generateId } from '@tanstack/ai-utils'
 import { resolveReasoning } from '@tanstack/ai/adapter-internals'
 import type { ResolvedReasoning } from '@tanstack/ai/adapter-internals'
@@ -35,6 +37,7 @@ import type {
   ChatCompletionContentPart,
   ChatCompletionMessageParam,
 } from 'openai/resources/chat/completions/completions'
+import type OpenAI from 'openai'
 import type {
   BYTEPLUS_CHAT_MODELS,
   BytePlusChatModelToolCapabilitiesByName,
@@ -76,8 +79,8 @@ export type { BytePlusTextProviderOptions } from '../text/text-provider-options'
  *
  * Tree-shakeable adapter for the Seed / GLM / DeepSeek / gpt-oss chat models
  * on BytePlus ModelArk. Ark serves an OpenAI-compatible Chat Completions
- * endpoint, so this drives the OpenAI SDK against Ark's `baseURL` — the same
- * pattern as `ai-groq` and `ai-grok`.
+ * endpoint, so this drives an OpenAI-compatible client against Ark's
+ * `baseURL`, the same pattern as `ai-groq` and `ai-grok`.
  *
  * Three Ark behaviours are handled on top of the shared base:
  *
@@ -140,7 +143,7 @@ export class BytePlusTextAdapter<
     super(
       model,
       'byteplus',
-      new OpenAI(withBytePlusArkDefaults(config)),
+      createOpenAIClient(withBytePlusArkDefaults(config)),
       config,
     )
   }

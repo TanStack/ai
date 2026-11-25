@@ -87,6 +87,7 @@ const isolated = dockerSandbox({ image: 'node:22' })
 - **Workspace:** when `workspace.source` is `localSource(dir)`, `create()` copies the folder into `workdir` (`/workspace` by default). The copy has every file that git does not ignore, with its uncommitted changes, and the history of the current branch. The folder must be a git repository root (not a shallow clone), and the host and the image need `git`. Fork, restore, and resume do not copy the folder again. See [Copy your project into the container](../harness/coding-tools-backends#copy-your-project-into-the-container).
 - **Auth and env:** no host login. Pass credentials as workspace secrets. They go into the container env at create and resume.
 - **Tools:** the agent reaches host tools at `host.docker.internal`. See [Tools](./tools).
+- **Ports:** pass `publishPorts: [port]` to `dockerSandbox()`. Docker publishes each port on 127.0.0.1 only, so other computers cannot connect. `ports.connect(port)` returns `http://127.0.0.1:<host port>`.
 - **Snapshot and resume:** full commit-based snapshots, `fork`, and resume by id. Bootstrap takes a snapshot after `setup`, so later runs resume from it and skip setup.
 
 ## Docker Sandboxes (sbx)
@@ -136,7 +137,7 @@ const daytona = daytonaSandbox({
 - **Idle stop:** Daytona stops an idle sandbox after 15 minutes by default. Set `autoStopInterval` in minutes to change that. Pass `0` to turn auto-stop off. Set `ephemeral: true` to delete the sandbox when it stops.
 - **Network:** `policy.capabilities.network: 'deny'` blocks all outbound network at create.
 - **Working directory:** the portable root `/workspace` maps to `/home/daytona/workspace` by default. Set `workdir` on `daytonaSandbox()` for another path.
-- **Stdin:** spawned processes accept host stdin (`writableStdin: true`).
+- **Stdin:** spawned processes do not get host stdin (`writableStdin: false`). Daytona cannot close stdin, so a harness gets its prompt from a file.
 - **Privileges:** the Daytona user is not root. Package installs in `setup` must use `sudo -n` (for example `sudo -n apt-get install ...`). Do not put `sudo *` in a [policy](./policy) deny list for this provider.
 - **Bridge:** the sandbox is remote, so a [bridged tool](./tools) call cannot reach your laptop's `localhost`. In local dev, tunnel the bridge. A deployed orchestrator needs no tunnel.
 
@@ -350,7 +351,7 @@ Snapshots and resume on Railway:
 - `snapshot(label)` saves a native Railway checkpoint named `tsai-<sandbox-id>-<uuid>`. The label stays only on the returned ref, because checkpoint names belong to the environment and a capture replaces an existing name.
 - Checkpoints belong to the environment, not the sandbox. So `restoreSnapshot()` boots a new sandbox from one after its source is destroyed. It applies env, network mode, domains, and idle timeout again from the provider config.
 - Restores and forks run in the region of the source, so `region` applies to fresh sandboxes only.
-- Checkpoints count against a quota for each plan, and the contract has no delete hook. Delete `tsai-*` checkpoints that you do not use with `Sandbox.checkpoints()` and `Sandbox.deleteCheckpoint()` from the `railway` SDK.
+- Checkpoints outlive their sandbox. The provider implements `deleteSnapshot`, so a `tsai-*` checkpoint is deleted when its record replaces it or its sandbox is destroyed. A record that is never destroyed keeps one checkpoint. Delete checkpoints left by older versions with `Sandbox.checkpoints()` and `Sandbox.deleteCheckpoint()` from the `railway` SDK.
 - Resume by id uses `Sandbox.connect`. A missing, `DESTROYED`, `DESTROYING`, or `FAILED` sandbox resumes as `null`. The provider waits for a `CREATING` one. Auth and transport errors are thrown again.
 
 Processes on Railway:
@@ -361,10 +362,29 @@ Processes on Railway:
 - Blocking `exec` runs without a durable session. If the connection drops, the command dies.
 - `kill()` and an aborted `exec` send `TERM` to the process group, then `KILL` after 2 s. An aborted `spawn` sends `KILL` at once. All of them finish only on the confirmed remote exit. An aborted `exec` resolves with the exit code of the signal.
 
+## Cloudflare
+
+```ts
+import { cloudflareSandbox } from '@tanstack/ai-sandbox-cloudflare'
+import type { SandboxAgentEnv } from '@tanstack/ai-sandbox-cloudflare/agent'
+
+export function provider(env: SandboxAgentEnv) {
+  return cloudflareSandbox({ binding: env.Sandbox })
+}
+```
+
+- **Isolation:** a [Cloudflare Container](https://developers.cloudflare.com/containers/) behind a `Sandbox` Durable Object. The provider runs inside your Worker, not on a laptop or a server that you run.
+- **Auth:** the runtime, not a credential. The `binding` comes from `wrangler.jsonc`. There is no API key to set.
+- **Bridge:** the Worker that owns the sandbox also runs the tool bridge, so no tunnel is needed.
+- **No snapshots, no durable disk, no fork:** `snapshots`, `durableFilesystem`, and `fork` are `false`. To keep work, use [Portable Snapshots](./portable-snapshots).
+- **Network:** `networkPolicy` is `false`.
+
+The agent coordinator, durable runs, live previews through a quick tunnel, callback hosts, and the Durable Object run log are on [Cloudflare](./cloudflare) and [Cloudflare Edge Details](./cloudflare-advanced).
+
 ## `writableStdin` per provider
 
-- `true`: local process, Docker container, Daytona, Upstash Box, E2B, boxd, and Railway.
-- `false`: Docker Sandboxes (`sbx`), Vercel, Sprites, Blaxel, and Cloudflare.
+- `true`: local process, Docker container, Upstash Box, E2B, boxd, and Railway.
+- `false`: Docker Sandboxes (`sbx`), Daytona, Vercel, Sprites, Blaxel, and Cloudflare. Daytona can write to stdin, but it cannot close stdin, so a process that reads to EOF never starts.
 
 When the value is `false`, a harness that reads its prompt from stdin gets the prompt from a file. The shell redirects that file into the process.
 

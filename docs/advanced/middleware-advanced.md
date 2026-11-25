@@ -255,7 +255,7 @@ When more than one middleware has `onChunk`, chunks flow through them in order. 
 
 | `chunk.type` | Meaning | Key fields |
 | --- | --- | --- |
-| `RUN_STARTED` / `RUN_FINISHED` / `RUN_ERROR` | Start and end of the run | `runId`, `finishReason`, `usage` (on finish), `message` (on error) |
+| `RUN_STARTED` / `RUN_FINISHED` / `RUN_ERROR` | Start and end of the run | `runId`, `finishReason`, `usage` (on finish, and on error when the provider billed the call), `message` (on error) |
 | `TEXT_MESSAGE_START` / `TEXT_MESSAGE_CONTENT` / `TEXT_MESSAGE_END` | Assistant text | `messageId`, `delta` (content) |
 | `TOOL_CALL_START` / `TOOL_CALL_ARGS` / `TOOL_CALL_END` | Tool calls | `toolCallId`, `toolCallName`, `delta` (args), result on end |
 | `REASONING_START` / `REASONING_MESSAGE_CONTENT` / `REASONING_END` | Thinking or reasoning | `messageId`, `delta`. The signature comes on `REASONING_ENCRYPTED_VALUE` |
@@ -666,6 +666,7 @@ The `info` fields:
 | `duration` | `number` | Run time in milliseconds |
 | `result` | `unknown` | The result (when `ok` is true). After a `replaceResult` from an earlier middleware, the new result. |
 | `error` | `unknown` | The error (when `ok` is false) |
+| `metadata` | `Record<string, unknown> \| undefined` | The [result metadata](../tools/tool-result-metadata) of the call. The model never sees it. After a `replaceResult` with `metadata` from an earlier middleware, the new value. |
 
 #### Replace a tool result
 
@@ -694,6 +695,7 @@ const firstTwentyRows: ChatMiddleware = {
 | --- | --- |
 | nothing | The result stays the same. |
 | `{ type: 'replaceResult', result }` | The model gets `result`. The stream sends it in `TOOL_CALL_RESULT`, so the client shows it too. |
+| `{ type: 'replaceResult', result, metadata }` | The same, and `metadata` replaces the result metadata. See [Change the result metadata](#change-the-result-metadata). |
 
 Good to know:
 
@@ -701,6 +703,36 @@ Good to know:
 - A failed call stays failed. Your replacement becomes the error that the model reads.
 - A `skip` result from `onBeforeToolCall` goes through this hook too. `info.result` is the parsed skip result, the same value that the model gets.
 - A call that the output limit cut goes through this hook too. It did not run, so `ok` is false, and `error` has the code `max_tokens`. See [When the output limit cuts a tool call](../chat/agentic-cycle#when-the-output-limit-cuts-a-tool-call).
+
+#### Change the result metadata
+
+A server tool can set [result metadata](../tools/tool-result-metadata) for your app, such as the sources of a search. Read it in `info.metadata`. To change it, add `metadata` to `replaceResult`. This middleware removes a `debug` key from successful calls before the client gets it:
+
+```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
+const dropDebugMetadata: ChatMiddleware = {
+  name: "drop-debug-metadata",
+  onAfterToolCall: (ctx, info) => {
+    if (!info.ok || info.metadata?.debug === undefined) return;
+    const { debug: _debug, ...rest } = info.metadata;
+    return { type: "replaceResult", result: info.result, metadata: rest };
+  },
+};
+```
+
+The `metadata` field:
+
+- Missing or `undefined`: the result metadata stays the same.
+- `{}`: removes all the result metadata.
+- The next middleware gets your value as `info.metadata`.
+- The `resultMetadataSchema` of the tool does not check your value. A `tanstack` key is dropped, because that key is reserved.
+- Your value becomes JSON. A `Date` becomes a string, and `NaN` becomes `null`. You get no warning for these changes.
+- If your value cannot become JSON, for example because it has a `BigInt`, the call keeps no result metadata. A warning goes to the server log, and the result stays. Change such fields to strings or numbers before you return them.
+
+A `skip` decision from `onBeforeToolCall` or `onGuardToolCall` can also have `metadata`: `{ type: 'skip', result, metadata }`. The tool does not run, so this is the first result metadata of the call. An `onAfterToolCall` hook can still replace it.
+
+`toolCacheMiddleware` keeps the result metadata with the result. A cache hit gives the metadata back, so your UI shows the same data. If you write your own `ToolCacheStorage`, store the optional `metadata` field of `ToolCacheEntry` too. Entries without it still work.
 
 ### Tool hook order in one turn
 
@@ -725,7 +757,10 @@ With `toolExecution: 'sequential'`, each call finishes its `onBeforeToolCall`, i
 
 ### onUsage
 
-`onUsage` runs once per model call when the `RUN_FINISHED` chunk has usage data. It gets the usage object.
+`onUsage` gets the token usage of each model call. It runs one time per call, when the call ends with usage:
+
+- `RUN_FINISHED`: the call completed.
+- `RUN_ERROR`: the call failed after the provider billed it. Examples are a response cut off at the token limit, a refusal, or JSON that does not match the schema.
 
 ```typescript
 import { type ChatMiddleware } from "@tanstack/ai";
@@ -751,6 +786,30 @@ The main `usage` fields:
 
 The object can also have `promptTokensDetails`, `completionTokensDetails`, `costDetails`, and `providerUsageDetails`.
 
+A failed call has usage only when the provider sent usage before the failure. A request that fails before the response starts has no usage.
+
+Media and summarize calls report billed failures too. When `generateImage()`, `generateSpeech()`, or `summarize()` fails after the provider billed the call, two things get the usage:
+
+- The `onUsage` hook of the generation middleware.
+- The `usage` field of the error that the call throws.
+
+```typescript
+import { generateImage } from "@tanstack/ai";
+import { openaiImage } from "@tanstack/ai-openai";
+
+try {
+  await generateImage({
+    adapter: openaiImage("gpt-image-2.5-flare"),
+    prompt: "A lighthouse at night",
+    threadId: "thread-1",
+  });
+} catch (error) {
+  if (error instanceof Error && "usage" in error) {
+    console.log("Billed usage of the failed call:", error.usage);
+  }
+}
+```
+
 ### Terminal hooks: onFinish, onAbort, onError
 
 Exactly **one** terminal hook runs per `chat()` call:
@@ -758,12 +817,18 @@ Exactly **one** terminal hook runs per `chat()` call:
 | Hook | When it runs |
 | --- | --- |
 | `onFinish` | The run completed normally |
-| `onAbort` | The run was aborted: by `ctx.abort()`, by an external `AbortSignal`, or by an `abort` decision from `onBeforeToolCall` |
+| `onAbort` | The run was aborted: by `ctx.abort()`, by an external `AbortSignal`, by an `abort` decision from `onBeforeToolCall`, or by a consumer that stopped iterating (`break` or `return()`) |
 | `onError` | An error was not handled |
 
 `onFinish` also runs when the call pauses for a client tool or an approval. The run is not complete yet. To tell a pause from a completion, look in `onChunk` for a `RUN_FINISHED` chunk with `outcome.type === 'interrupt'`.
 
-`onAbort` gets `info.cancelRequested`. It is `true` only when an explicit cancel aborted the run, never when the client only disconnected.
+When a consumer stops iterating, the chunk it stopped at decides the hook:
+
+- A `RUN_FINISHED` chunk with `outcome.type === 'interrupt'`: `onFinish`.
+- A `RUN_ERROR` chunk: `onError`.
+- Any other chunk, including the final `RUN_FINISHED` of a completed run: `onAbort`.
+
+`onAbort` gets `info.cancelRequested`. It is `true` only when an explicit cancel aborted the run. It is `false` when the client disconnected or the consumer stopped iterating. A consumer stop has no `info.reason`.
 
 ```typescript
 import { type ChatMiddleware } from "@tanstack/ai";
@@ -805,7 +870,7 @@ On the **separate-finalization** path, the adapter makes one more provider call 
 - `onIteration` does **not** run for that call. It runs only for agent-loop iterations.
 - `onFinish` runs after that call completes. Its `info` shows the end state of the **agent loop**.
 - `info.content` does not have the JSON deltas. Read the result from the `structured-output.complete` CUSTOM event in `onChunk`.
-- `info.usage` is `undefined` for a structured-output run with no tools. Use `onUsage` to get the tokens of the final call. `onUsage` runs for **every** `RUN_FINISHED` with usage.
+- `info.usage` is `undefined` for a structured-output run with no tools. Use `onUsage` to get the tokens of the final call. `onUsage` runs for **every** `RUN_FINISHED` or `RUN_ERROR` with usage.
 
 On the **native-combined** path, the JSON comes in the normal agent-loop stream:
 
@@ -838,7 +903,7 @@ Each hook gets a `ChatMiddlewareContext` as its first argument. The fields you u
 | `chunkIndex` | `number` | How many chunks the run sent so far |
 | `callMetadata` | `Readonly<TanStackMessageMetadata>` | The `metadata.tanstack` of the current model call (`source`, `stopReason`, `responseId`, and more). It changes as chunks arrive. Each assistant message of the call gets a copy. |
 | `messages` | `ReadonlyArray<ModelMessage>` | The current messages (read-only) |
-| `signal` | `AbortSignal \| undefined` | The external abort signal |
+| `signal` | `AbortSignal \| undefined` | Aborts when the caller aborts the run or a middleware calls `ctx.abort()` |
 | `abort(reason?)` | `function` | Abort the run from middleware |
 | `retry()` | `function` | Call the model again. Works only in [`onModelError`](#onmodelerror). |
 | `emitCustomEvent(name, value, options?)` | `function` | Push a `CUSTOM` chunk onto the stream now. See [Live custom events](#live-custom-events). |

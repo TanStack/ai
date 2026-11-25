@@ -1,5 +1,52 @@
 # @tanstack/ai-react
 
+## 1.1.1
+
+### Patch Changes
+
+- [#1893](https://github.com/TanStack/ai/pull/1893) [`56d9f96`](https://github.com/TanStack/ai/commit/56d9f960bae57357cfe0b8e231a9523dc9016c9f) - TanStack `useChat` gets more from an AI SDK route through `fromChatTransport`:
+  - Client tools go to the route in the request body. Read them on the route with `clientToolsFromAISDKBody(body, serverTools)`, so the route needs no copy.
+  - With `outputSchema`, an `Output.object` answer is a typed `structured-output` part with partial objects.
+  - A dropped stream reconnects with the backoff of the TanStack HTTP connections. Set it with the `reconnect` option.
+  - The connection reads `threadId`, `tools` and `outputSchema` from `useChat`. Do not pass them to `fromChatTransport`.
+
+  `@tanstack/ai-client` exports `createReconnectTracker` and its `ReconnectTracker` type. A connection now gets the chat config of the run as `runContext.config`, and `joinRun` gets it as its third argument (`ChatRunConfig`: `threadId`, `tools`, `outputSchema`). `ChatClient` takes an `outputSchema` option, and each chat hook passes its `outputSchema` to it.
+
+- Updated dependencies [[`56d9f96`](https://github.com/TanStack/ai/commit/56d9f960bae57357cfe0b8e231a9523dc9016c9f)]:
+  - @tanstack/ai-client@1.2.1
+
+## 1.1.0
+
+### Minor Changes
+
+- [#2186](https://github.com/TanStack/ai/pull/2186) [`1aa7227`](https://github.com/TanStack/ai/commit/1aa722707deca4d567efafe0830471222d558b62) - Add the experimental `generate3DModel()` activity. It turns text, images, or an existing mesh into a 3D model file, and returns the main model URL plus every mesh and texture file. A media prompt can now carry a `model3d` part, so a step such as retexture can take the mesh of an earlier step. `fal3DModel()` in `@tanstack/ai-fal` runs the fal 3D endpoints, and `useGenerate3DModel` (`injectGenerate3DModel` in Angular, `createGenerate3DModel` in Svelte and Remix) streams the job to the UI.
+
+### Patch Changes
+
+- Updated dependencies [[`1aa7227`](https://github.com/TanStack/ai/commit/1aa722707deca4d567efafe0830471222d558b62), [`0a84ac2`](https://github.com/TanStack/ai/commit/0a84ac22cbd29ac49997091713ca9da81bb3e553), [`4288b7a`](https://github.com/TanStack/ai/commit/4288b7aaa80e085df899e2bebb597a9f85d6fb71)]:
+  - @tanstack/ai@1.7.0
+  - @tanstack/ai-client@1.2.0
+
+## 1.0.2
+
+### Patch Changes
+
+- [#1899](https://github.com/TanStack/ai/pull/1899) [`68d0b60`](https://github.com/TanStack/ai/commit/68d0b60d53fa39c2f41f3bcd0548e84c982f37cd) - `useChat` keeps working in a view hidden by React's `<Activity>`. Hiding runs the hook's effect cleanups, and the deferred teardown disposed the client while React kept the hook, so the view came back with a dead client: a reply in flight never resumed and the thread did not load again. When the view shows again, `useChat` now replaces the disposed client with a new one that starts from the messages on screen, loads the thread and rejoins its run.
+
+- Updated dependencies [[`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`d6ead13`](https://github.com/TanStack/ai/commit/d6ead13def85f91782e20d6c1b8755fdf1c836c2), [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31), [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31), [`1e13e87`](https://github.com/TanStack/ai/commit/1e13e87b26ccd2734455fc4a958c0690ef3ead06), [`450950d`](https://github.com/TanStack/ai/commit/450950da860d58047c654c1497ddb48d651f9076), [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31), [`13b1ca9`](https://github.com/TanStack/ai/commit/13b1ca918a0ac36761db2a6226973c5330d4221d), [`f33f72a`](https://github.com/TanStack/ai/commit/f33f72ab6da9a0f95bd912e29d2cabc2eab17f27), [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb)]:
+  - @tanstack/ai@1.1.0
+  - @tanstack/ai-client@1.1.0
+
+## 1.0.1
+
+### Patch Changes
+
+- [#1904](https://github.com/TanStack/ai/pull/1904) [`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29) - Show each package's own npm download count and npm version. The bundle-size badge uses bundlejs. Partner logos use image URLs that load.
+
+- Updated dependencies [[`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29), [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0)]:
+  - @tanstack/ai@1.0.1
+  - @tanstack/ai-client@1.0.1
+
 ## 1.0.0
 
 ### Major Changes

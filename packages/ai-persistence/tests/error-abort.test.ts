@@ -297,7 +297,7 @@ describe('chat persistence error/abort hooks', () => {
     ).rejects.toThrow('interrupts.create failed')
   })
 
-  it('leaves the interrupt persisted when the follow-up thread snapshot fails (partial write)', async () => {
+  it('creates no interrupt when the thread snapshot fails at the interrupt boundary', async () => {
     const base = memoryPersistence()
     const realMessages = base.stores.messages!
     const saveError = new Error('saveThread failed')
@@ -322,10 +322,11 @@ describe('chat persistence error/abort hooks', () => {
       ),
     ).rejects.toThrow('saveThread failed')
 
-    // The interrupt was created before the failing snapshot, so it survives:
-    // recovery/retry can still see the pending interrupt.
+    // The transcript is saved before the interrupt is created. When the save
+    // fails, no pending interrupt points at a tool call that the stored thread
+    // does not have, so a reload never shows an approval it cannot resume.
     const pending = await base.stores.interrupts!.listPending('t1')
-    expect(pending.map((p) => p.interruptId)).toEqual(['interrupt-1'])
+    expect(pending).toEqual([])
   })
 
   it('marks the run aborted when the chat is aborted', async () => {

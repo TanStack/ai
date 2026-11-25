@@ -77,8 +77,13 @@ export interface RealtimeToken {
 export interface RealtimeTokenAdapter {
   /** Provider identifier */
   provider: string
-  /** Generate an ephemeral token for client use */
-  generateToken: () => Promise<RealtimeToken>
+  /**
+   * Generate an ephemeral token for client use. Adapters should forward
+   * `options.abortSignal` to the provider request when supported.
+   */
+  generateToken: (options?: {
+    abortSignal?: AbortSignal
+  }) => Promise<RealtimeToken>
 }
 
 /**
@@ -87,6 +92,10 @@ export interface RealtimeTokenAdapter {
 export interface RealtimeTokenOptions {
   /** The token adapter to use */
   adapter: RealtimeTokenAdapter
+  /**
+   * Cancels the token request. The call rejects when the signal aborts.
+   */
+  abortSignal?: AbortSignal
 }
 
 // ============================================================================
@@ -324,11 +333,14 @@ export interface RealtimeAdapter {
    * Create a connection using the provided token
    * @param token - The ephemeral token from the server
    * @param clientTools - Optional client-side tools to register with the provider
+   * @param options - Optional `abortSignal` that cancels the connection setup
+   *   requests, when the provider supports it
    * @returns A connection instance
    */
   connect: (
     token: RealtimeToken,
     clientTools?: ReadonlyArray<AnyClientTool>,
+    options?: { abortSignal?: AbortSignal },
   ) => Promise<RealtimeConnection>
 }
 

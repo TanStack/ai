@@ -445,6 +445,36 @@ describe('OpenAIBaseResponsesTextAdapter.structuredOutputStream', () => {
       expect(runError!.code).toBe('parse-error')
     })
 
+    it('keeps the refusal when the stream throws before the terminal event', async () => {
+      mockCreate = vi.fn().mockResolvedValue(
+        (async function* () {
+          yield eventCreated()
+          yield { type: 'response.refusal.delta', delta: 'cannot do this' }
+          throw new Error('socket closed')
+        })(),
+      )
+      const adapter = new TestAdapter()
+
+      const chunks = await collect(
+        adapter.structuredOutputStream!({
+          chatOptions: {
+            threadId: 'thread-1',
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'extract' }],
+            logger: testLogger,
+          },
+          outputSchema: personSchema,
+        }),
+      )
+
+      const runErrors = chunks.filter((c) => c.type === 'RUN_ERROR')
+      expect(runErrors).toHaveLength(1)
+      expect(runErrors[0]).toMatchObject({
+        code: 'refusal',
+        message: 'Model refused: cannot do this',
+      })
+    })
+
     it('emits RUN_ERROR { code: "refusal" } on response.refusal.delta', async () => {
       setupStreamingMock([
         eventCreated(),
@@ -470,6 +500,99 @@ describe('OpenAIBaseResponsesTextAdapter.structuredOutputStream', () => {
       expect(runError).toBeDefined()
       expect(runError!.code).toBe('refusal')
     })
+    const usageOf = {
+      usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
+    }
+    it.each([
+      [
+        'refusal',
+        [
+          eventCreated(),
+          { type: 'response.refusal.delta', delta: 'cannot ' },
+          { type: 'response.refusal.delta', delta: 'do this' },
+          eventCompleted(),
+        ],
+        'Model refused: cannot do this',
+      ],
+      [
+        'server_error',
+        [
+          eventCreated(),
+          {
+            type: 'response.failed',
+            response: {
+              model: 'test-model',
+              error: { message: 'Server error', code: 'server_error' },
+              ...usageOf,
+            },
+          },
+        ],
+        'Server error',
+      ],
+      [
+        'max_tokens',
+        [
+          eventCreated(),
+          eventOutputTextDelta('{"name":"A'),
+          {
+            type: 'response.incomplete',
+            response: {
+              model: 'test-model',
+              incomplete_details: { reason: 'max_output_tokens' },
+              ...usageOf,
+            },
+          },
+        ],
+        /cut off because the maximum token limit was reached/,
+      ],
+      [
+        'incomplete',
+        [
+          eventCreated(),
+          {
+            type: 'response.incomplete',
+            response: {
+              model: 'test-model',
+              incomplete_details: { reason: 'content_filter' },
+              ...usageOf,
+            },
+          },
+        ],
+        /content_filter/,
+      ],
+      ['empty-response', [eventCreated(), eventCompleted()], /no content/],
+      [
+        'parse-error',
+        [eventCreated(), eventOutputTextDelta('{not json'), eventCompleted()],
+        /Failed to parse structured output as JSON/,
+      ],
+    ])(
+      'keeps the response usage on the RUN_ERROR { code: "%s" }',
+      async (code, streamChunks, message) => {
+        setupStreamingMock(streamChunks)
+        const adapter = new TestAdapter()
+
+        const chunks = await collect(
+          adapter.structuredOutputStream!({
+            chatOptions: {
+              threadId: 'thread-1',
+              model: 'test-model',
+              messages: [{ role: 'user', content: 'extract' }],
+              logger: testLogger,
+            },
+            outputSchema: personSchema,
+          }),
+        )
+
+        expect(chunks.filter((c) => c.type === 'RUN_ERROR')).toHaveLength(1)
+        expect(chunks.at(-1)).toMatchObject({
+          type: 'RUN_ERROR',
+          code,
+          message,
+          usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
+        })
+      },
+    )
   })
 
   describe('debug logging', () => {

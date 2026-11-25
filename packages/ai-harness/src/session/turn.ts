@@ -60,7 +60,13 @@ import {
 import { SessionAgents } from './agents'
 import { commandStepScope, stepWaitPrefix } from './turn-parts'
 import { ToolTurnAdapter } from '../tool-turn'
-import { HANDOFF_TOOL, TurnHandoffs, answererOf, markRouted } from '../handoff'
+import {
+  TurnHandoffs,
+  answererOf,
+  markRouted,
+  stampHandoffNote,
+} from '../handoff'
+import { routedChildId, routedHistoryMiddleware } from '../routed-history'
 import type {
   AnyChatMiddleware,
   AnyTextAdapter,
@@ -68,6 +74,7 @@ import type {
   ModelMessage,
   StreamChunk,
   SubagentRouterPick,
+  UIMessage,
 } from '@tanstack/ai'
 import type { AnyHarness } from '../define'
 import type { AnyCommand } from '../commands'
@@ -678,6 +685,8 @@ export abstract class SessionTurn<
     let openMessageId: string | undefined
     let interrupts: Array<Interrupt> | undefined
     let failure: string | undefined
+    /** The last RUN_FINISHED says the agent loop stopped the model. */
+    let loopStopped = false
     /** With `outputSchema`: the value of the last call, or why its check failed. */
     let structured: unknown
     let structuredError: { code: string; rawText?: string } | undefined
@@ -715,7 +724,15 @@ export abstract class SessionTurn<
       run,
       ...(attempt ? { attempt } : {}),
     }
+    /** The link of the child session of a routed root `harnessAgent`. */
+    const childHandoff = this.childLink?.handoff
     try {
+      // Two handoff scopes in one session: a handoff of the child is unclear.
+      if (childHandoff && this.harness.routing) {
+        throw new Error(
+          `A harnessAgent that is a root agent cannot have its own routing. Remove routing from "${this.harness.name}".`,
+        )
+      }
       await this.flushNotes()
       // The stored settings of the thread, as they are when the turn starts.
       const stored = this.currentSettings
@@ -797,6 +814,10 @@ export abstract class SessionTurn<
               subagents: subagentList.map((agent) => agent.name),
               humans: this.harness.routing.allowHandoffToHuman === true,
               tool: this.harness.routing.giveModelsHandoffTool !== false,
+              ...(this.harness.routing.handoffTool
+                ? { handoffTool: this.harness.routing.handoffTool }
+                : {}),
+              state: (stateOptions) => this.sharedState(stateOptions),
               append: (record) =>
                 this.appendHandoff(record, storedUser(sender).user),
               publish: (record) =>
@@ -892,27 +913,19 @@ export abstract class SessionTurn<
       // here, so a middleware wrapper wraps the bound tool,
       // and again at each model call, for tools that a middleware returns.
       const bindTool = this.durableBinder(run)
-      // `routing.giveModelsHandoffTool: false` gives the models no `handoff` tool.
+      // `routing.giveModelsHandoffTool: false` gives the models no handoff tool.
+      // A child of a routed root agent gets the handoff tool of the outer turn.
       const handoffTool =
         handoffs && this.harness.routing?.giveModelsHandoffTool !== false
           ? handoffs.tool(null)
-          : undefined
-      const clash = handoffTool
-        ? prepared.find((tool) => tool.name === HANDOFF_TOOL)
-        : undefined
-      if (clash) {
-        const owner =
-          [
-            ...(session?.owners.tools ?? []),
-            ...(runPlugins?.owners.tools ?? []),
-          ].find((entry) => entry.name === HANDOFF_TOOL)?.owner ?? 'the turn'
-        throw new Error(
-          `Duplicate tool "${HANDOFF_TOOL}": first owner routing (the handoff tool), second owner ${owner}. Rename the tool.`,
-        )
-      }
+          : childHandoff?.tool
+      // An app tool with the same name wins, as it does for a root agent.
+      const isHandoffTaken = prepared.some(
+        (tool) => tool.name === handoffTool?.name,
+      )
       const tools = [
         ...prepared.map((tool) => bindDurable(tool, bindTool)),
-        ...(handoffTool ? [handoffTool] : []),
+        ...(handoffTool && !isHandoffTaken ? [handoffTool] : []),
       ]
       // The override tools as the turn has them: prepared and bound.
       const keptTools = tools.filter((tool) => turnToolNames.has(tool.name))
@@ -955,6 +968,50 @@ export abstract class SessionTurn<
       const durableTools = this.durableTools(bindTool)
       const signal = operation.abortController.signal
       const { routing } = this.harness
+      // How a model call sees the routed runs of the thread. The transcripts
+      // do not change in a turn, and onConfig runs before each model call,
+      // so the turn reads each one once.
+      const historyMode = routing?.history ?? 'own'
+      const transcripts = new Map<string, Promise<Array<ModelMessage>>>()
+      const routedHistory =
+        handoffs && historyMode !== 'text'
+          ? routedHistoryMiddleware({
+              mode: historyMode,
+              ...(handoffTool ? { handoffToolName: handoffTool.name } : {}),
+              // ponytail: the log fold (the run store too) keeps the last
+              // `KEPT_ENDED` ended runs. An older routed run has no children
+              // there, so the model gets it as text. Keep the routed children
+              // in the fold if that matters.
+              childrenOf: (runId, message) => {
+                const childId = routedChildId(message)
+                return [...this.writer.state.thread.runs.values()].flatMap(
+                  ({ parentRunId: parent, name, subagentRunId }) =>
+                    parent === runId &&
+                    name !== undefined &&
+                    subagentRunId !== undefined &&
+                    // Only routed root agents: a tool-mode child of the main
+                    // model in the same run reports through its tool result.
+                    rootAgents.some((agent) => agent.name === name) &&
+                    (childId === undefined || subagentRunId === childId)
+                      ? [{ name, subagentRunId }]
+                      : [],
+                )
+              },
+              transcriptOf: (subagentRunId) => {
+                const transcript =
+                  transcripts.get(subagentRunId) ??
+                  this.agentTranscript({ subagentRunId })
+                transcripts.set(subagentRunId, transcript)
+                return transcript
+              },
+              // A routed agent's own messages of its chat, and of a resumed
+              // run, are in its own thread. ponytail: a scan of the thread
+              // for each message. A set of ids if long threads get slow.
+              isThreadMessage: (entry) =>
+                entry.id !== undefined &&
+                this.writer.state.messages.some(({ id }) => id === entry.id),
+            })
+          : undefined
       /**
        * The messages that the next chat() call adds after `message`: the
        * note of a handoff, or the partial answer and the note that a
@@ -1013,7 +1070,10 @@ export abstract class SessionTurn<
             agents: rootAgents,
             router: () => {
               // A resolve has no pick. chat() continues its saved plan.
+              // A retry after an early commit has no resume, so this runs.
               if (pick === undefined) {
+                const saved = savedRouterPick(turn.answers?.routed?.messages)
+                if (saved !== undefined) return saved
                 throw new Error('The routed turn has no saved plan.')
               }
               return pick
@@ -1036,6 +1096,8 @@ export abstract class SessionTurn<
       let answerer = isRootPart ? answererOf(pick) : null
       // A tool of the main model hands off as the main model. A tool of a
       // root agent hands off as that agent.
+      // The child of a routed root agent hands off in the outer turn.
+      if (childHandoff) turnHandoff = childHandoff.call
       if (handoffs) {
         turnHandoff = (options) =>
           handoffs.handoff(
@@ -1133,10 +1195,13 @@ export abstract class SessionTurn<
             // The root agents of a routed part take steers at each model
             // call, as the main model does, and get the ephemeral messages
             // of a turn hook. Those go after the reset cut, so it keeps them.
+            // The routed history goes after the reset cut too, so it
+            // changes only the context after a reset.
             const { chatMiddleware } = binding
             chatMiddleware.splice(
               chatMiddleware.indexOf(resetCut) + 1,
               0,
+              ...(routedHistory ? [routedHistory] : []),
               ephemeralCall(ephemeral),
             )
             if (!isToolTurn) {
@@ -1188,10 +1253,23 @@ export abstract class SessionTurn<
               durableTools,
               this.detachTools(operation.id, sender),
               ...(handoffs ? [handoffs.middleware()] : []),
+              // After a handoff of the child, the outer turn runs the target.
+              ...(childHandoff
+                ? [
+                    {
+                      name: 'harness:child-handoff',
+                      onShouldContinue: () =>
+                        childHandoff.pending() ? false : undefined,
+                    },
+                  ]
+                : []),
               ...(rootBag ? [] : [this.syncFold()]),
               // Again: a middleware that returns `messages` (as `syncFold`
               // does) resets what the model gets to the whole transcript.
               resetCut,
+              // After the reset cut. In `'own'` the main model gets the
+              // answers of the routed agents as labeled user text.
+              ...(routedHistory ? [routedHistory] : []),
               // After steering and the reset, so neither drops them.
               ...(start && turn.ephemeral
                 ? [turnEphemeral(turn.ephemeral, start)]
@@ -1365,6 +1443,12 @@ export abstract class SessionTurn<
                 isRunOpen = false
               }
               if (
+                chunk.type === EventType.RUN_FINISHED &&
+                chunk.metadata?.tanstack?.loopStopped === true
+              ) {
+                loopStopped = true
+              }
+              if (
                 chunk.type === EventType.TEXT_MESSAGE_CONTENT ||
                 chunk.type === EventType.REASONING_MESSAGE_CONTENT ||
                 chunk.type === EventType.TOOL_CALL_START ||
@@ -1382,7 +1466,12 @@ export abstract class SessionTurn<
               const tanstack = chunk.metadata?.tanstack
               if (tanstack?.toolResultOutcome !== 'cancelled') {
                 if (tanstack?.state === 'output-error') {
-                  errorResultIds.add(chunk.toolCallId)
+                  if (
+                    !operation.abortController.signal.aborted ||
+                    tanstack.toolResultOutcome === 'denied'
+                  ) {
+                    errorResultIds.add(chunk.toolCallId)
+                  }
                 } else {
                   resultIds.add(chunk.toolCallId)
                 }
@@ -1468,9 +1557,55 @@ export abstract class SessionTurn<
                 continued: isContinued,
               }),
             )
-            // The resume stays: withPersistence commits it only when a call
-            // succeeds, so its interrupts are still open.
+            // withPersistence commits an answered tool resume before the
+            // follow-up model call, once its tool ran. The retry keeps only
+            // the items that are still pending, and runs from the transcript
+            // when none are left.
+            if (resume) {
+              const ran = resume.filter((item) => {
+                const interrupt = turn.answers?.interrupts.find(
+                  (candidate) => candidate.id === item.interruptId,
+                )
+                const toolCallId = interrupt ? toolCallOf(interrupt) : undefined
+                const agentCall =
+                  interrupt?.subagentRunId === undefined
+                    ? undefined
+                    : agentCardOf(
+                        turn.answers?.routed?.messages ?? [],
+                        interrupt.subagentRunId,
+                      )?.parentToolCallId
+                const ids = [toolCallId, agentCall].filter(
+                  (id) => id !== undefined,
+                )
+                return ids.some(
+                  (id) => resultIds.has(id) || errorResultIds.has(id),
+                )
+              })
+              if (ran.length > 0) {
+                await this.consumeResume(ran).catch((error: unknown) =>
+                  this.warn(operation, 'harness:interrupts', error),
+                )
+                this.dropInterrupts(ran)
+              }
+              const records = await Promise.all(
+                resume.map((item) => this.interruptStore.get(item.interruptId)),
+              )
+              const open = resume.filter(
+                (_, index) => records[index]?.status === 'pending',
+              )
+              if (open.length === 0) {
+                resume = undefined
+                parentRunId = undefined
+              } else {
+                resume = open
+              }
+            }
             message = undefined
+            // The first stream consumed routedFrom. A retry still needs the
+            // saved cards so chat() can keep the plan and skip finished tools.
+            if (turn.answers?.routed?.messages) {
+              routedFrom = turn.answers.routed.messages
+            }
             // withPersistence failed the run. It runs again, for the retry.
             await this.runStore.update(operation.id, {
               status: 'running',
@@ -1495,8 +1630,18 @@ export abstract class SessionTurn<
         // The routed message of this part gets the name of its agent. A part
         // that waits for an answer gets it too.
         if (routed && failure === undefined && !signal.aborted) {
+          const childId =
+            typeof answerer === 'string'
+              ? [...this.writer.state.thread.runs.values()].findLast(
+                  (run) =>
+                    run.parentRunId === operation.id &&
+                    run.name === answerer &&
+                    run.subagentRunId !== undefined,
+                )?.subagentRunId
+              : undefined
           await markRouted(this.messages, this.threadId, operation.id, {
             ...(answerer ? { agent: answerer } : {}),
+            ...(childId !== undefined ? { subagentRunId: childId } : {}),
           })
         }
         const isFinished =
@@ -1506,6 +1651,22 @@ export abstract class SessionTurn<
         if (isFinished) break
         const handoff = handoffs?.take()
         const target = handoff?.to
+        // A custom handoff tool can rewrite the note. Stamp it on the main
+        // model's call so the target reads it. No extra note messages: the
+        // call is already in the thread.
+        if (
+          handoff?.by === 'tool' &&
+          handoff.from === null &&
+          typeof handoff.note === 'string' &&
+          handoffs
+        ) {
+          await stampHandoffNote(
+            this.messages,
+            this.threadId,
+            handoffs.tool(null).name,
+            handoff.note,
+          )
+        }
         // The note of a code handoff, for the transcript.
         const note = handoff ? (handoffs?.messages(handoff) ?? []) : []
         if (isHumanTarget(target)) {
@@ -1779,51 +1940,47 @@ export abstract class SessionTurn<
             ...(turn.context !== undefined ? { context: turn.context } : {}),
           }
         : undefined
-    // A resume whose tools ran is used up, even when the turn fails after
-    // them. Offering its interrupts again would run the tools a second time.
-    // A resume that failed before its tools ran stays open for a retry.
+    // Each resumed item whose tool ran is used up, even when the turn fails
+    // after it or another item in the batch did not run. Offering it again
+    // would run that tool a second time.
     const resumed = turn.resume ?? []
     const stoppedTurn = turn.answers ?? this.interrupted
     const resumedFrom = stoppedTurn?.interrupts ?? []
-    const didResumedToolsRun =
-      !isResumeRefused &&
-      resumed.length > 0 &&
-      resumed.every((item) => {
-        const interrupt = resumedFrom.find(
-          (candidate) => candidate.id === item.interruptId,
-        )
-        // A wait of an agent tool is used when that tool call got a result.
-        // A sign-in or an app interrupt of the agent names no tool call.
-        const agentCall =
-          interrupt?.subagentRunId === undefined
-            ? undefined
-            : agentCardOf(
-                stoppedTurn?.routed?.messages ?? [],
-                interrupt.subagentRunId,
-              )?.parentToolCallId
-        const toolCallIds = [
-          interrupt ? toolCallOf(interrupt) : undefined,
-          agentCall,
-        ].filter((id) => id !== undefined)
-        // A stopped run gives the calls it did not run an error result.
-        return toolCallIds.some(
-          (toolCallId) =>
-            resultIds.has(toolCallId) ||
-            (!operation.abortController.signal.aborted &&
-              errorResultIds.has(toolCallId)),
-        )
-      })
+    const consumedResumed = isResumeRefused
+      ? []
+      : resumed.filter((item) => {
+          const interrupt = resumedFrom.find(
+            (candidate) => candidate.id === item.interruptId,
+          )
+          // A wait of an agent tool is used when that tool call got a result.
+          // A sign-in or an app interrupt of the agent names no tool call.
+          const agentCall =
+            interrupt?.subagentRunId === undefined
+              ? undefined
+              : agentCardOf(
+                  stoppedTurn?.routed?.messages ?? [],
+                  interrupt.subagentRunId,
+                )?.parentToolCallId
+          const toolCallIds = [
+            interrupt ? toolCallOf(interrupt) : undefined,
+            agentCall,
+          ].filter((id) => id !== undefined)
+          return toolCallIds.some(
+            (toolCallId) =>
+              resultIds.has(toolCallId) || errorResultIds.has(toolCallId),
+          )
+        })
     // On a success, withPersistence committed them already, and this skips
     // them. A failure or a stop can also come after the tools ran.
-    if (didResumedToolsRun) {
-      await this.consumeResume(resumed).catch((error: unknown) =>
+    if (consumedResumed.length > 0) {
+      await this.consumeResume(consumedResumed).catch((error: unknown) =>
         this.warn(operation, 'harness:interrupts', error),
       )
     }
     await this.refreshTurnInterrupts(operation, observedInterrupts)
     // A failed log write can keep their records pending. Here they are used
     // up all the same.
-    if (didResumedToolsRun) this.dropInterrupts(resumed)
+    if (consumedResumed.length > 0) this.dropInterrupts(consumedResumed)
     if (this.logFailure) {
       operation.fail('failed', this.logFailure)
     } else if (timedOut) {
@@ -1853,7 +2010,10 @@ export abstract class SessionTurn<
       await settleTurn({ outcome: 'interrupted' })
       operation.finish('interrupted', { text, interrupts: [], media: captured })
     } else {
-      await settleTurn({ outcome: 'completed' })
+      await settleTurn({
+        outcome: 'completed',
+        ...(loopStopped ? { loopStopped: true } : {}),
+      })
       operation.finish('completed', {
         text,
         media: captured,
@@ -1901,20 +2061,51 @@ function publishText(
 const attachmentId = (id: string) => `${id}:media`
 
 /**
+ * The router plan saved on a routed child's card. A resolve retry uses it
+ * after the early commit clears `resume`.
+ */
+function savedRouterPick(
+  messages: ReadonlyArray<UIMessage> | undefined,
+): SubagentRouterPick | undefined {
+  if (!messages) return undefined
+  for (const message of messages) {
+    for (const part of message.parts) {
+      if (part.type !== 'subagent') continue
+      const metadata = part.subagent.metadata
+      if (metadata == null || typeof metadata !== 'object') continue
+      const tanstack = (metadata as { tanstack?: unknown }).tanstack
+      if (tanstack == null || typeof tanstack !== 'object') continue
+      const plan = (tanstack as { subagentPlan?: unknown }).subagentPlan
+      if (plan == null || typeof plan !== 'object' || !('steps' in plan)) {
+        continue
+      }
+      return plan as SubagentRouterPick
+    }
+  }
+  return undefined
+}
+
+/**
  * The answer message of a routed run, kept under the id `${id}:${index}`.
  * It loses its run tag, so the store writes the next answer of the run as a
- * new message.
+ * new message. The run id goes to `metadata.harness.routedRunId`, so the
+ * routed history of a later turn still finds the children of the pass.
  */
-function keptAnswer(message: ModelMessage, index: number): ModelMessage {
+function keptAnswer(message: ModelMessage, index: number) {
   const { metadata } = message
   const tanstack = isRecord(metadata) ? metadata.tanstack : undefined
   if (!isRecord(metadata) || !isRecord(tanstack)) {
     return { ...message, id: `${message.id}:${index}` }
   }
-  const { runId: _runId, ...rest } = tanstack
+  const { runId, ...rest } = tanstack
+  const harness = isRecord(metadata.harness) ? metadata.harness : {}
   return {
     ...message,
     id: `${message.id}:${index}`,
-    metadata: { ...metadata, tanstack: rest },
+    metadata: {
+      ...metadata,
+      tanstack: rest,
+      harness: { ...harness, routedRunId: runId },
+    },
   }
 }

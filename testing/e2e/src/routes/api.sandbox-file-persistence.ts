@@ -306,10 +306,103 @@ const adapter: FixedAdapter = {
   structuredOutput: () => Promise.resolve({ data: {}, rawText: '{}' }),
 }
 
+/**
+ * Run 1 writes a file into its sandbox, then the model fails. Run 2 on the
+ * same thread gets a new, empty sandbox. The file is there only when
+ * `withSandbox` wrote a checkpoint on the error and restored it in run 2.
+ */
+async function errorCheckpointScenario() {
+  const threadId = `snapshot-error-${crypto.randomUUID()}`
+  const workspaces: Array<Map<string, WorkspaceEntry>> = []
+  const provider: SandboxProvider = {
+    name: 'fake',
+    capabilities: () => capabilities,
+    // Every create makes a new, empty workspace, and resume never finds the
+    // old sandbox. So run 2 cannot see the files of run 1 by accident.
+    create: async () => {
+      const files = new Map<string, WorkspaceEntry>([
+        ['/workspace', { kind: 'dir' }],
+      ])
+      workspaces.push(files)
+      return fakeHandle(`sandbox-${workspaces.length}`, files)
+    },
+    resume: async () => null,
+    destroy: async () => {},
+  }
+  const instances = new InMemorySandboxInstanceStore()
+  const sandbox = defineSandbox({
+    id: 'error-checkpoint',
+    provider,
+    workspace: defineWorkspace({ source: { type: 'none' } }),
+    fileEvents: false,
+  })
+  const snapshots = await memorySandboxSnapshots({ sandbox, instances })
+  const runChat = async (runAdapter: FixedAdapter, runId: string) => {
+    const stream = chat({
+      adapter: runAdapter,
+      messages: [{ role: 'user', content: runId }],
+      runId,
+      threadId,
+      middleware: [
+        withPersistence(snapshots.persistence),
+        withSandbox(sandbox, { instances, snapshots }),
+      ],
+    })
+    const errors: Array<string> = []
+    for await (const chunk of stream)
+      if (chunk.type === EventType.RUN_ERROR) errors.push(chunk.message)
+    return errors
+  }
+
+  // The model writes a file in the sandbox (like a tool would), then fails.
+  const failingAdapter: FixedAdapter = {
+    ...adapter,
+    chatStream: (options) =>
+      (async function* () {
+        workspaces
+          .at(-1)
+          ?.set('/workspace/draft.txt', { kind: 'file', content: 'draft' })
+        yield {
+          type: EventType.RUN_STARTED,
+          threadId,
+          runId: options.runId ?? 'missing-run',
+          timestamp: 1,
+        }
+        yield {
+          type: EventType.RUN_ERROR,
+          message: 'model failed',
+          timestamp: 1,
+        }
+      })(),
+  }
+  const runErrors = await runChat(failingAdapter, 'fail')
+  const headAfterError = await snapshots.checkpoints.getHead(threadId)
+  const errorCheckpoint = headAfterError
+    ? await snapshots.checkpoints.get(headAfterError)
+    : null
+  await runChat(adapter, 'recover')
+  const restored = workspaces[1]?.get('/workspace/draft.txt')
+  return {
+    runErrors,
+    sandboxesCreated: workspaces.length,
+    errorCheckpoint: errorCheckpoint && {
+      id: errorCheckpoint.id,
+      sourceRunId: errorCheckpoint.sourceRunId,
+      files: errorCheckpoint.files
+        .filter((entry) => entry.kind === 'file')
+        .map((entry) => entry.path),
+    },
+    restoredFile: restored?.kind === 'file' ? restored.content : null,
+  }
+}
+
 export const Route = createFileRoute('/api/sandbox-file-persistence')({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        if (new URL(request.url).searchParams.get('mode') === 'error')
+          return Response.json(await errorCheckpointScenario())
+
         const threadId = `snapshot-source-${crypto.randomUUID()}`
         const destinationThreadId = `snapshot-fork-${crypto.randomUUID()}`
         const sourceFiles = new Map<string, WorkspaceEntry>([

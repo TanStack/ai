@@ -19,13 +19,12 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   { provider: 'openai', model: 'gpt-5.5', label: 'OpenAI - GPT-5.5' },
   { provider: 'openai', model: 'gpt-4o', label: 'OpenAI - GPT-4o' },
   { provider: 'openai', model: 'gpt-4o-mini', label: 'OpenAI - GPT-4o Mini' },
-  { provider: 'openai', model: 'gpt-5', label: 'OpenAI - GPT-5' },
 
   // Anthropic
   {
     provider: 'anthropic',
-    model: 'claude-sonnet-4-5-20250929',
-    label: 'Anthropic - Claude Sonnet 4.5',
+    model: 'claude-sonnet-4-6',
+    label: 'Anthropic - Claude Sonnet 4.6',
   },
   {
     provider: 'anthropic',

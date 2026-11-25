@@ -27,6 +27,17 @@ function send<T extends { type: string }>(
   mw.onChunk?.(ctx(), chunk)
 }
 
+function toolResultEvents<T extends { type: string }>(chunks: Array<T>) {
+  const emit = vi
+    .spyOn(aiEventClient, 'emit')
+    .mockImplementation(() => undefined)
+  const mw = devtoolsMiddleware()
+  for (const chunk of chunks) send(mw, chunk)
+  return emit.mock.calls
+    .filter(([name]) => name === 'text:chunk:tool-result')
+    .map(([, payload]) => payload)
+}
+
 describe('devtoolsMiddleware spec events', () => {
   afterEach(() => {
     vi.restoreAllMocks()
@@ -92,30 +103,48 @@ describe('devtoolsMiddleware spec events', () => {
   })
 
   it('surfaces tool results from TOOL_CALL_RESULT.content, not TOOL_CALL_END.result', () => {
-    const emit = vi
-      .spyOn(aiEventClient, 'emit')
-      .mockImplementation(() => undefined)
-    const mw = devtoolsMiddleware()
+    const results = toolResultEvents([
+      { type: 'TOOL_CALL_END', toolCallId: 'tc-1', result: 'should-not-emit' },
+      { type: 'TOOL_CALL_RESULT', toolCallId: 'tc-1', content: '{"ok":true}' },
+    ])
 
-    send(mw, {
-      type: 'TOOL_CALL_END',
-      toolCallId: 'tc-1',
-      result: 'should-not-emit',
-    })
-    send(mw, {
-      type: 'TOOL_CALL_RESULT',
-      toolCallId: 'tc-1',
-      content: '{"ok":true}',
-    })
-
-    const results = emit.mock.calls.filter(
-      ([name]) => name === 'text:chunk:tool-result',
-    )
     expect(results).toHaveLength(1)
-    expect(results[0]?.[1]).toMatchObject({
+    expect(results[0]).toMatchObject({
       toolCallId: 'tc-1',
       result: '{"ok":true}',
     })
+  })
+
+  it('sends only the app keys of TOOL_CALL_RESULT.metadata', () => {
+    const results = toolResultEvents([
+      {
+        type: 'TOOL_CALL_RESULT',
+        toolCallId: 'tc-1',
+        content: '{"ok":true}',
+        metadata: {
+          sources: ['https://example.com/a'],
+          tanstack: { state: 'output-available' },
+        },
+      },
+    ])
+
+    expect(results[0]).toMatchObject({
+      metadata: { sources: ['https://example.com/a'] },
+    })
+    expect(results[0]).not.toHaveProperty('metadata.tanstack')
+  })
+
+  it('sends no metadata field when the result has no app keys', () => {
+    const results = toolResultEvents([
+      {
+        type: 'TOOL_CALL_RESULT',
+        toolCallId: 'tc-1',
+        content: '{"ok":true}',
+        metadata: { tanstack: { state: 'output-available' } },
+      },
+    ])
+
+    expect(results[0]).not.toHaveProperty('metadata')
   })
 
   it('rebuilds RUN_FINISHED usage from spec token usage', () => {
@@ -148,6 +177,24 @@ describe('devtoolsMiddleware spec events', () => {
         completionTokensDetails: { reasoningTokens: 2 },
         cost: 0.01,
       },
+    })
+  })
+
+  it('sends text:usage for a RUN_ERROR that carries usage', () => {
+    const emit = vi
+      .spyOn(aiEventClient, 'emit')
+      .mockImplementation(() => undefined)
+    const mw = devtoolsMiddleware()
+
+    send(mw, {
+      type: 'RUN_ERROR',
+      message: 'max_tokens',
+      usage: { promptTokens: 10, completionTokens: 4096, totalTokens: 4106 },
+    })
+
+    const usage = emit.mock.calls.find(([name]) => name === 'text:usage')
+    expect(usage?.[1]).toMatchObject({
+      usage: { promptTokens: 10, completionTokens: 4096, totalTokens: 4106 },
     })
   })
 })

@@ -18,6 +18,7 @@ import {
   SandboxCheckpointParentMismatchError,
   SandboxCheckpointWriterConflictError,
   SandboxCheckpointWriterLostError,
+  validateEntries,
 } from './checkpoint-store'
 import type {
   ForkCapableSandboxCheckpointStore,
@@ -130,104 +131,6 @@ function assertValidIdentifier(
     throw new SandboxCheckpointInvalidIdError(
       `${label} must be a non-empty well-formed Unicode string`,
     )
-  }
-}
-
-function hasOwn(value: object, key: string): boolean {
-  return Object.prototype.hasOwnProperty.call(value, key)
-}
-
-function validateEntries(checkpoint: SandboxCheckpoint): void {
-  if (!Array.isArray(checkpoint.files)) {
-    throw new SandboxCheckpointInvalidEntryError(
-      'Checkpoint files must be an array',
-    )
-  }
-  const paths = new Set<string>()
-  const kinds = new Map<string, 'file' | 'dir'>()
-  for (const entry of checkpoint.files as ReadonlyArray<unknown>) {
-    if (entry === null || typeof entry !== 'object') {
-      throw new SandboxCheckpointInvalidEntryError(
-        'Checkpoint entry must be an object',
-      )
-    }
-    const candidate = entry as Record<string, unknown>
-    if (
-      typeof candidate.path !== 'string' ||
-      candidate.path.length === 0 ||
-      candidate.path.includes('\0') ||
-      candidate.path.startsWith('/') ||
-      candidate.path.startsWith('\\') ||
-      /^[A-Za-z]:([\\/]|$)/.test(candidate.path) ||
-      candidate.path.includes('\\') ||
-      candidate.path
-        .split('/')
-        .some((part) => part.length === 0 || part === '.' || part === '..')
-    ) {
-      throw new SandboxCheckpointInvalidEntryError(
-        'Checkpoint entry path must be a normalized workspace-relative path',
-      )
-    }
-    const path = candidate.path
-    if (paths.has(path)) {
-      throw new SandboxCheckpointInvalidEntryError(
-        `Checkpoint contains duplicate entry path '${path}'`,
-      )
-    }
-    for (
-      let separator = path.indexOf('/');
-      separator !== -1;
-      separator = path.indexOf('/', separator + 1)
-    ) {
-      const ancestor = path.slice(0, separator)
-      if (kinds.get(ancestor) === 'file') {
-        throw new SandboxCheckpointInvalidEntryError(
-          `Checkpoint entry '${path}' is beneath file '${ancestor}'`,
-        )
-      }
-    }
-    if (
-      candidate.kind === 'file' &&
-      Array.from(kinds.keys()).some((other) => other.startsWith(`${path}/`))
-    ) {
-      throw new SandboxCheckpointInvalidEntryError(
-        `Checkpoint file '${path}' is an ancestor of another entry`,
-      )
-    }
-    paths.add(path)
-    if (candidate.kind === 'file') {
-      if (
-        typeof candidate.blobKey !== 'string' ||
-        candidate.blobKey.length === 0 ||
-        hasUnpairedSurrogate(candidate.blobKey) ||
-        !/^sandbox-files\/sha256\/[0-9a-f]{64}$/.test(candidate.blobKey)
-      ) {
-        throw new SandboxCheckpointInvalidEntryError(
-          'File entries require a valid content-addressed blobKey',
-        )
-      }
-      if (
-        !hasOwn(candidate, 'size') ||
-        typeof candidate.size !== 'number' ||
-        !Number.isSafeInteger(candidate.size) ||
-        candidate.size < 0
-      ) {
-        throw new SandboxCheckpointInvalidEntryError(
-          'File entry size must be a non-negative safe integer',
-        )
-      }
-    } else if (candidate.kind === 'dir') {
-      if (hasOwn(candidate, 'blobKey') || hasOwn(candidate, 'size')) {
-        throw new SandboxCheckpointInvalidEntryError(
-          'Directory entries cannot contain file fields',
-        )
-      }
-    } else {
-      throw new SandboxCheckpointInvalidEntryError(
-        'Checkpoint entry kind must be file or dir',
-      )
-    }
-    kinds.set(path, candidate.kind)
   }
 }
 

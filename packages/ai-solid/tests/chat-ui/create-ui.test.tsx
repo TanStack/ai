@@ -1,3 +1,4 @@
+import { createSignal } from 'solid-js'
 import { render } from 'solid-js/web'
 import type { JSX } from 'solid-js'
 import { describe, expect, it, vi } from 'vitest'
@@ -146,5 +147,77 @@ describe('Solid createChatUI', () => {
       '<em>later</em>',
     )
     expect(cancelled).toEqual(['q1'])
+  })
+
+  it('reactively updates an inline tool interrupt without remounting the tool component', () => {
+    let mounts = 0
+    const UI = createChatUI(chatOptions, {
+      ...baseConfig,
+      toolsComponents: {
+        ...baseConfig.toolsComponents,
+        purchaseItem: (props) => {
+          mounts += 1
+          return (
+            <div data-status={props.interrupt?.status ?? 'none'}>
+              {props.interrupt ? `approve:${props.interrupt.id}` : 'idle'}
+            </div>
+          )
+        },
+      },
+    })
+
+    const [interrupts, setInterrupts] = createSignal<Array<any>>([])
+    const message = {
+      id: 'm-inline',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool-call',
+          id: 'tc-buy',
+          name: 'purchaseItem',
+          arguments: '{"sku":"A1"}',
+          input: { sku: 'A1' },
+          state: 'approval-requested',
+        },
+      ],
+    }
+    const base = host([message as any], [])
+    const reactiveChat = {
+      ...base,
+      interrupts,
+    } as ChatUIHost<typeof chatOptions>
+
+    const container = document.createElement('div')
+    const dispose = render(() => <UI.Chat chat={reactiveChat} />, container)
+    try {
+      expect(container.innerHTML).toContain('idle')
+      expect(mounts).toBe(1)
+
+      setInterrupts([
+        {
+          id: 'approval_tc-buy',
+          interruptId: 'approval_tc-buy',
+          kind: 'tool-approval',
+          toolName: 'purchaseItem',
+          toolCallId: 'tc-buy',
+          status: 'pending',
+          canResolve: true,
+          reason: 'tool_approval',
+          threadId: 'thread-1',
+          interruptedRunId: 'run-1',
+          generation: 0,
+          errors: [],
+          resolveInterrupt: () => {},
+          cancel: () => {},
+          clearResolution: () => {},
+        },
+      ])
+
+      expect(container.innerHTML).toContain('approve:approval_tc-buy')
+      expect(container.innerHTML).toContain('data-status="pending"')
+      expect(mounts).toBe(1)
+    } finally {
+      dispose()
+    }
   })
 })

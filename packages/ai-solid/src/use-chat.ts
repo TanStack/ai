@@ -4,7 +4,6 @@ import {
   createSignal,
   on,
   onCleanup,
-  onMount,
   untrack,
 } from 'solid-js'
 
@@ -75,6 +74,9 @@ export function useChat<
         initialMessages: options.initialMessages,
       }),
       threadId: options.threadId,
+      ...(options.outputSchema !== undefined && {
+        outputSchema: options.outputSchema,
+      }),
       ...(options.persistence === true
         ? {
             persistence: true,
@@ -164,11 +166,15 @@ export function useChat<
     if (tools !== undefined) client().updateOptions({ tools })
   })
 
+  // Track which client instance we subscribed so initial `live: false` never
+  // calls `unsubscribe()` and cancels an in-flight resume.
+  let subscribedClient: ChatClient<TTools, TContext, TInterrupts> | null = null
+
   // Apply initial live mode immediately on hook creation.
   if (options.live) {
-    client().subscribe()
-  } else {
-    client().unsubscribe()
+    const target = client()
+    target.subscribe()
+    subscribedClient = target
   }
 
   // First paint must see constructor hydration (sync store / resume snapshot)
@@ -177,34 +183,33 @@ export function useChat<
   setSnapshot(client().getSnapshot())
 
   createEffect(() => {
+    const target = client()
     if (options.live) {
-      client().subscribe()
-    } else {
-      client().unsubscribe()
+      target.subscribe()
+      subscribedClient = target
+    } else if (subscribedClient === target) {
+      target.unsubscribe()
+      subscribedClient = null
     }
   })
 
-  onMount(() => {
-    // START TAILING HERE, not in the constructor. A client is idle until a view
-    // attaches it, so a client that gets built and thrown away never opens a
-    // connection — an unreachable stream would hold one of the browser's ~6
-    // connections per origin until the page reloaded.
-    client().attach()
-    client().mountDevtools()
-  })
-
-  // Cleanup on unmount: stop any in-flight requests.
-  onCleanup(() => {
-    // Release the connection first: `detach` is the counterpart of the `attach`
-    // above, and it keeps the transcript and resume pointer so a later mount can
-    // pick the run back up from the durable log.
-    client().detach()
-    if (options.live) {
-      client().unsubscribe()
-    } else {
-      client().stop()
-    }
-    client().dispose()
+  // Attach on client mount and on every threadId swap. Detach and dispose
+  // without calling `stop()` so durable runs and pending interrupts survive
+  // navigation and thread switching.
+  createEffect(() => {
+    const target = client()
+    untrack(() => {
+      target.attach()
+      target.mountDevtools()
+    })
+    onCleanup(() => {
+      target.detach()
+      if (subscribedClient === target) {
+        target.unsubscribe()
+        subscribedClient = null
+      }
+      target.dispose()
+    })
   })
 
   // Callback options are read through `options.xxx` at call time, so reactive

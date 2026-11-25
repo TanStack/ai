@@ -1320,6 +1320,24 @@ describe('snapshots', () => {
     }
   })
 
+  it('leaves no snapshot timer armed once the host gave the log back', async () => {
+    vi.useFakeTimers()
+    try {
+      const store = memoryLogStore()
+      const writer = newWriter(store, {
+        snapshot: { bytes: 1_000_000, ms: 1_000 },
+      })
+
+      await writer.append([tick(1)])
+      await writer.rest()
+
+      expect(vi.getTimerCount()).toBe(0)
+      writer.close()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('never writes a snapshot on a host that only reads the log', async () => {
     const inner = memoryLogStore()
     const snapshots: Array<number> = []

@@ -38,6 +38,7 @@ export type GenerationActivity =
   | 'chat'
   | 'image'
   | 'video'
+  | '3dModel'
   | 'audio'
   | 'tts'
   | 'voice'
@@ -47,6 +48,7 @@ export type GenerationActivity =
   | 'evaluate'
   | 'summarize'
   | 'world'
+  | 'motion3d'
   | 'liveVideo'
 
 /**
@@ -86,6 +88,12 @@ export interface GenerationMiddlewareContext<TContext = unknown> {
   createId: (prefix: string) => string
   /** Runtime context provided by the activity options, if any. */
   context: TContext
+  /**
+   * The activity's effective abort signal (caller `abortSignal` plus
+   * `timeout`), when the call has one. Pass it to async work in a result
+   * transform, such as an upload, so a cancelled call stops that work too.
+   */
+  signal?: AbortSignal
   /**
    * Result transforms registered by middleware during this activity call.
    * Transforms run after the raw adapter result exists and before the final

@@ -4,8 +4,12 @@ import {
   resolveMediaPrompt,
 } from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
-import { createGeminiClient, getGeminiApiKeyFromEnv } from '../utils'
-import { flattenModalityTokenCounts, hasModalityTokens } from '../usage'
+import {
+  createGeminiClient,
+  generateId,
+  getGeminiApiKeyFromEnv,
+} from '../utils'
+import { buildGeminiInteractionsUsage } from '../usage'
 import {
   parseNativeImageSize,
   validatePrompt,
@@ -24,19 +28,18 @@ import type {
   ImagePart,
   MediaInputMetadata,
   ResolvedMediaPrompt,
-  TokenUsage,
 } from '@tanstack/ai'
-import { ThinkingLevel } from '@google/genai'
+import { ThinkingLevel } from '../client/enums'
 import type {
   Content,
   ContentUnion,
-  GoogleGenAI,
   Interactions,
   Part,
   SafetySetting,
   ThinkingConfig,
 } from '@google/genai'
 import type { GeminiClientConfig } from '../utils/client'
+import type { GeminiClient } from '../client/index'
 
 /**
  * Configuration for Gemini image adapter
@@ -80,7 +83,7 @@ export class GeminiImageAdapter<
     modelInputModalitiesByName: GeminiImageModelInputModalitiesByName
   }
 
-  private readonly client: GoogleGenAI
+  private readonly client: GeminiClient
 
   constructor(config: GeminiImageConfig, model: TModel) {
     super(model, config)
@@ -196,7 +199,11 @@ export class GeminiImageAdapter<
         })
       : await this.client.interactions.create(request)
 
-    return this.transformInteractionResponse(model, interaction)
+    return this.transformInteractionResponse(
+      model,
+      interaction,
+      modelOptions?.store !== false,
+    )
   }
 
   /**
@@ -261,13 +268,22 @@ export class GeminiImageAdapter<
   private transformInteractionResponse(
     model: string,
     interaction: Interactions.Interaction,
+    stored: boolean,
   ): ImageGenerationResult {
+    // The provider bills a failed or empty interaction too.
+    const usage = buildGeminiInteractionsUsage(interaction.usage)
     if (interaction.status !== 'completed') {
-      throw new Error(
-        `Gemini ${model} image interaction ended with status "${interaction.status}".`,
+      throw Object.assign(
+        new Error(
+          `Gemini ${model} image interaction ended with status "${interaction.status}".`,
+        ),
+        usage && { usage },
       )
     }
-    if (!interaction.id) {
+    // The interaction id only matters for chaining an edit through
+    // `previous_interaction_id`, and an unstored interaction cannot be chained.
+    // Gemini leaves the id out when `store` is false, so use a local one.
+    if (!interaction.id && stored) {
       throw new Error(`Gemini ${model} image interaction returned no id.`)
     }
 
@@ -297,12 +313,14 @@ export class GeminiImageAdapter<
         textParts.length > 0
           ? `: ${textParts.join(' ').trim()}`
           : ' (no image was returned).'
-      throw new Error(`Gemini ${model} returned no images${reason}`)
+      throw Object.assign(
+        new Error(`Gemini ${model} returned no images${reason}`),
+        usage && { usage },
+      )
     }
 
-    const usage = interactionImageUsage(interaction.usage)
     return {
-      id: interaction.id,
+      id: interaction.id ?? generateId(this.name),
       model,
       images,
       ...(usage ? { usage } : {}),
@@ -483,47 +501,4 @@ function generatedImageFromBlock(block: {
     return { url: block.uri }
   }
   return undefined
-}
-
-function interactionImageUsage(
-  usage: Interactions.Interaction['usage'],
-): TokenUsage | undefined {
-  if (!usage) return undefined
-  const promptTokens = usage.total_input_tokens ?? 0
-  const completionTokens = usage.total_output_tokens ?? 0
-  const promptModalities = flattenModalityTokenCounts(
-    usage.input_tokens_by_modality?.map((item) => ({
-      modality: item.modality,
-      tokenCount: item.tokens,
-    })),
-  )
-  const completionModalities = flattenModalityTokenCounts(
-    usage.output_tokens_by_modality?.map((item) => ({
-      modality: item.modality,
-      tokenCount: item.tokens,
-    })),
-  )
-  const promptTokensDetails = {
-    ...(hasModalityTokens(promptModalities) ? promptModalities : {}),
-    ...(usage.total_cached_tokens
-      ? { cachedTokens: usage.total_cached_tokens }
-      : {}),
-  }
-  const completionTokensDetails = {
-    ...(hasModalityTokens(completionModalities) ? completionModalities : {}),
-    ...(usage.total_thought_tokens
-      ? { reasoningTokens: usage.total_thought_tokens }
-      : {}),
-  }
-  return {
-    promptTokens,
-    completionTokens,
-    totalTokens: usage.total_tokens ?? promptTokens + completionTokens,
-    ...(Object.keys(promptTokensDetails).length > 0
-      ? { promptTokensDetails }
-      : {}),
-    ...(Object.keys(completionTokensDetails).length > 0
-      ? { completionTokensDetails }
-      : {}),
-  }
 }

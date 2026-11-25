@@ -59,7 +59,7 @@ export type {
 // These SDK enums are values, so they cannot travel through `export type`.
 // Re-exported here so `safetySettings` and `thinkingConfig.thinkingLevel`
 // are usable with only `@tanstack/ai-gemini` installed.
-export { HarmBlockThreshold, HarmCategory, ThinkingLevel } from '@google/genai'
+export { HarmBlockThreshold, HarmCategory, ThinkingLevel } from './client/enums'
 
 // Files API helpers — upload + poll a file (e.g. video) until it is ACTIVE
 export {
@@ -129,6 +129,20 @@ export type {
   GeminiVideoProviderOptions,
   GeminiVideoSize,
 } from './video/video-provider-options'
+
+// Evaluate adapter — typed decisions via Gemini's /v1beta/decisions endpoint
+export {
+  GeminiEvaluateAdapter,
+  createGeminiDecider,
+  geminiDecider,
+  type GeminiEvaluateConfig,
+} from './adapters/evaluate'
+export {
+  GEMINI_EVALUATE_MODELS,
+  type GeminiEvaluateModel,
+  type KnownGeminiEvaluateModel,
+  type GeminiEvaluateProviderOptions,
+} from './evaluate/evaluate-provider-options'
 
 // Re-export models from model-meta for convenience
 export {

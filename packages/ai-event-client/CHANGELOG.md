@@ -1,5 +1,33 @@
 # @tanstack/ai-event-client
 
+## 1.1.0
+
+### Minor Changes
+
+- [#2194](https://github.com/TanStack/ai/pull/2194) [`0a84ac2`](https://github.com/TanStack/ai/commit/0a84ac22cbd29ac49997091713ca9da81bb3e553) - Add experimental motion generation. `generateMotion()` makes skeletal animation files (FBX first) from a text prompt. `getMotionJobStatus()` polls a job from any request, and `cancelMotionJob()` asks the provider to stop it. Aborting a stream stops local observation only. `falMotion()` runs fal Hunyuan Motion (`fal-ai/hunyuan-motion`, `fal-ai/hunyuan-motion/fast`).
+
+- [#2184](https://github.com/TanStack/ai/pull/2184) [`4288b7a`](https://github.com/TanStack/ai/commit/4288b7aaa80e085df899e2bebb597a9f85d6fb71) - A server tool can now send result metadata: app data that the UI and middleware see and the model never sees. Call `context?.setResultMetadata?.(value)` in the tool. Add `resultMetadataSchema` to the tool definition to type and check the value. The client reads it as a typed `part.resultMetadata` on the tool-call part, also after a reload with persistence.
+  - `onAfterToolCall` gets `info.metadata`. A `replaceResult` or `skip` decision can set `metadata`. `toolCacheMiddleware` keeps the metadata on a cache hit.
+  - `@tanstack/ai-mcp` copies the `_meta` of an MCP tool result into the result metadata. A `tanstack` key is dropped.
+  - `@tanstack/ai-persistence` keeps the stored app metadata when a client copy replaces a stored tool message. The `'messages.metadata'` conformance check now also tests a tool message with nested app metadata.
+  - The server owns the result metadata. `chatParamsFromRequest` keeps only the `tanstack` key on the tool rows of a request.
+  - Client tools and WebMCP tools throw when they call `setResultMetadata`.
+  - `@tanstack/ai-effect` accepts tool definitions that have `resultMetadataSchema`.
+  - `@tanstack/ai-event-client` adds `metadata` to the tool result event. The devtools show it as "Result metadata" on each tool result.
+
+## 1.0.1
+
+### Patch Changes
+
+- [#1974](https://github.com/TanStack/ai/pull/1974) [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb) - Report token usage for every call that the provider billed, also when the call fails.
+  - Adapters put the usage that they received on `RUN_ERROR`: a cut-off response, a refusal, a parse failure, an empty response, or a stream that fails after usage arrived. Before, many of these paths dropped it.
+  - A non-streaming `structuredOutput()`, image, or speech call that fails after the response throws an error with a `usage` field. `chat()`, `generateImage()`, `generateSpeech()`, and `summarize()` report it.
+  - The `onUsage` middleware hook now also runs for a `RUN_ERROR` with usage. A structured output value that fails the schema check still reports the usage of its call.
+  - Media streams carry `usage` on `RUN_FINISHED` and `RUN_ERROR`. Devtools now gets the `summarize:usage` and `transcription:usage` events, and `text:usage` for a chat `RUN_ERROR` with usage. A call that `onModelError` or a rate-limit retry drops still reports its usage.
+  - Provider fields that were dropped are mapped: Anthropic thinking tokens, Claude Code `total_cost_usd` as `usage.cost`, OpenRouter Responses reasoning tokens, opencode cost and cache writes, ACP and Bedrock cache writes, OpenAI evaluate token details, Gemini Vertex embedding tokens, and audio duration as billed seconds for Whisper, Groq, Cloudflare, and Lovable transcription.
+  - opencode adds up the usage of every agent step in a turn. Before, it counted only the last step.
+  - Gemini Interactions usage (text, agentic video, and images) counts thought tokens in `completionTokens`, the same as `generateContent`.
+
 ## 1.0.0
 
 ### Major Changes

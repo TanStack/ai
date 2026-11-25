@@ -112,8 +112,19 @@ describe('classifyWebhookBody', () => {
     })
   })
 
-  it('rejects a gap without cursor', () => {
-    expect(classifyWebhookBody({ type: 'gap' }).kind).toBe('invalid')
+  it('treats a gap with no cursor as cursor null', () => {
+    expect(classifyWebhookBody({ type: 'gap' })).toEqual({
+      kind: 'gap',
+      cursor: null,
+    })
+    expect(classifyWebhookBody({ type: 'gap', cursor: null })).toEqual({
+      kind: 'gap',
+      cursor: null,
+    })
+  })
+
+  it('rejects a gap whose cursor is not a string', () => {
+    expect(classifyWebhookBody({ type: 'gap', cursor: 1 }).kind).toBe('invalid')
   })
 
   it('classifies verification', () => {
@@ -155,6 +166,39 @@ describe('classifyWebhookBody', () => {
         data: {},
       },
     })
+  })
+
+  it('keeps _meta when it is a JSON object', () => {
+    expect(
+      classifyWebhookBody({
+        eventId: 'e',
+        name: 'n',
+        timestamp: '2026-10-17T00:00:00Z',
+        data: {},
+        _meta: { trace: 'a' },
+      }),
+    ).toEqual({
+      kind: 'event',
+      event: {
+        eventId: 'e',
+        name: 'n',
+        timestamp: '2026-10-17T00:00:00Z',
+        data: {},
+        _meta: { trace: 'a' },
+      },
+    })
+  })
+
+  it('drops _meta when it is not an object', () => {
+    const result = classifyWebhookBody({
+      eventId: 'e',
+      name: 'n',
+      timestamp: '2026-10-17T00:00:00Z',
+      data: {},
+      _meta: 'nope',
+    })
+    expect(result.kind).toBe('event')
+    if (result.kind === 'event') expect(result.event._meta).toBeUndefined()
   })
 
   it('rejects an event whose data is an array', () => {

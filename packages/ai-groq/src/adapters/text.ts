@@ -1,5 +1,7 @@
-import OpenAI from 'openai'
-import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import {
+  OpenAIBaseChatCompletionsTextAdapter,
+  createOpenAIClient,
+} from '@tanstack/openai-base'
 import {
   GROQ_MODEL_INPUT_MODALITIES,
   GROQ_MODEL_REASONING,
@@ -18,6 +20,7 @@ import type {
 import type { GroqMessageMetadataByModality } from '../message-types'
 import type { GroqClientConfig } from '../utils/client'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
+import type OpenAI from 'openai'
 
 /** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
 type ResolveReasoning<TModel extends string> =
@@ -46,8 +49,8 @@ export type { ExternalTextProviderOptions as GroqTextProviderOptions } from '../
  *
  * Tree-shakeable adapter for Groq chat/text completion. Groq exposes an
  * OpenAI-compatible Chat Completions endpoint at `/openai/v1`, so we drive
- * it with the OpenAI SDK via a `baseURL` override (the same pattern as
- * `ai-grok`).
+ * it with an OpenAI-compatible client via a `baseURL` override (the same
+ * pattern as `ai-grok`).
  *
  * Quirk: when usage is present on a stream, Groq historically delivered it
  * under `chunk.x_groq.usage` rather than `chunk.usage`. The override below
@@ -74,7 +77,7 @@ export class GroqTextAdapter<
   override readonly inputModalities = GROQ_MODEL_INPUT_MODALITIES[this.model]
 
   constructor(config: GroqTextConfig, model: TModel) {
-    super(model, 'groq', new OpenAI(withGroqDefaults(config)), config)
+    super(model, 'groq', createOpenAIClient(withGroqDefaults(config)), config)
   }
 
   protected override modelReasoning(model: string) {

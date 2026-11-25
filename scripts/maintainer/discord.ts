@@ -3,8 +3,8 @@
  * Rendering is pure; posting takes an injected fetch.
  */
 
-import { formatDuration } from './metrics'
-import type { Scorecard } from './metrics'
+import { formatDuration } from './metrics.ts'
+import type { Scorecard } from './metrics.ts'
 
 const MAX_LINES_PER_SECTION = 12
 const MAX_EMBED_DESCRIPTION = 4000

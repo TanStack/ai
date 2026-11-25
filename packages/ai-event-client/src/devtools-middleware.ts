@@ -44,6 +44,7 @@ interface DevtoolsToolCallResultChunk {
   type: 'TOOL_CALL_RESULT'
   toolCallId: string
   content?: string
+  metadata?: Record<string, unknown>
 }
 interface DevtoolsRunFinishedChunk {
   type: 'RUN_FINISHED'
@@ -63,6 +64,8 @@ interface DevtoolsRunErrorChunk {
   type: 'RUN_ERROR'
   message?: string
   code?: string
+  usage?: DevtoolsRunFinishedChunk['usage']
+  metadata?: DevtoolsRunFinishedChunk['metadata']
 }
 interface DevtoolsReasoningMessageContentChunk {
   type: 'REASONING_MESSAGE_CONTENT'
@@ -111,10 +114,37 @@ function isKnownChunk(chunk: unknown): chunk is DevtoolsKnownChunk {
   )
 }
 
-function chunkTanstack(chunk: DevtoolsRunFinishedChunk) {
+function chunkTanstack(
+  chunk: DevtoolsRunFinishedChunk | DevtoolsRunErrorChunk,
+) {
   const tanstack = chunk.metadata?.tanstack
   if (tanstack == null || typeof tanstack !== 'object') return undefined
   return tanstack
+}
+
+/**
+ * The app keys of a tool result chunk's metadata, without the reserved
+ * `tanstack` key. Returns `undefined` when no app key is left.
+ */
+function chunkAppMetadata(chunk: DevtoolsToolCallResultChunk) {
+  if (chunk.metadata == null) return undefined
+  const app = { ...chunk.metadata }
+  delete app.tanstack
+  return Object.keys(app).length > 0 ? app : undefined
+}
+
+/** The TanStack usage of a terminal chunk, from either usage shape. */
+function chunkUsage(chunk: DevtoolsRunFinishedChunk | DevtoolsRunErrorChunk) {
+  const rawUsage = chunk.usage
+  return rawUsage != null &&
+    typeof rawUsage === 'object' &&
+    !Array.isArray(rawUsage) &&
+    'promptTokens' in rawUsage
+    ? rawUsage
+    : fromSpecTokenUsage(
+        Array.isArray(rawUsage) ? rawUsage : undefined,
+        chunkTanstack(chunk)?.usage,
+      )
 }
 
 function definedDetails<T extends object>(value: T): T | undefined {
@@ -461,27 +491,19 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
           // the parsed input). Surface them to devtools from here so results
           // still show up now that the post-execution END is no longer
           // re-emitted (#519).
+          const metadata = chunkAppMetadata(chunk)
           safeEmit('text:chunk:tool-result', {
             ...base,
             messageId: localMessageId || undefined,
             toolCallId: chunk.toolCallId,
             result: chunk.content || '',
+            ...(metadata ? { metadata } : {}),
             timestamp: Date.now(),
           })
           break
         }
         case 'RUN_FINISHED': {
-          const rawUsage = chunk.usage
-          const usage =
-            rawUsage != null &&
-            typeof rawUsage === 'object' &&
-            !Array.isArray(rawUsage) &&
-            'promptTokens' in rawUsage
-              ? rawUsage
-              : fromSpecTokenUsage(
-                  Array.isArray(rawUsage) ? rawUsage : undefined,
-                  chunkTanstack(chunk)?.usage,
-                )
+          const usage = chunkUsage(chunk)
           safeEmit('text:chunk:done', {
             ...base,
             messageId: localMessageId || undefined,
@@ -510,6 +532,16 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
             error: errorMessage,
             timestamp: Date.now(),
           })
+          // A failed call can still be billed.
+          const usage = chunkUsage(chunk)
+          if (usage) {
+            safeEmit('text:usage', {
+              ...base,
+              messageId: localMessageId || undefined,
+              usage,
+              timestamp: Date.now(),
+            })
+          }
           break
         }
         case 'REASONING_MESSAGE_CONTENT': {

@@ -1,4 +1,5 @@
 import {
+  InterruptResumeValidationError,
   StreamProcessor,
   convertMessagesToModelMessages,
   modelMessagesToUIMessages,
@@ -10,14 +11,23 @@ import type {
   Interrupt,
   ModelMessage,
   RunAgentResumeItem,
+  RunRecord,
   RunStore,
   StreamChunk,
+  SubagentPart,
   SubagentStatus,
   SubagentWireInfo,
   UIMessage,
 } from '@tanstack/ai'
+import { isChatOwnedPendingInterrupt } from './interrupt-ownership'
 import { mergeStoredMessages } from './merge-stored'
-import type { InterruptStore, MessageStore, SessionIndexStore } from './types'
+import type {
+  ChatTranscriptStores,
+  InterruptRecord,
+  InterruptStore,
+  MessageStore,
+  SessionIndexStore,
+} from './types'
 
 function withSubagentInfo(
   metadata: ModelMessage['metadata'],
@@ -270,6 +280,143 @@ export function storedSubagentInfo(
 ): SubagentWireInfo | undefined {
   // Same validation as the wire path. Malformed stored data reads as absent.
   return wireSubagentInfo(messages[0])
+}
+
+function messageRunId(message: UIMessage) {
+  const metadata = message.metadata
+  if (!metadata || typeof metadata !== 'object') return
+  const tanstack = metadata.tanstack
+  if (!tanstack || typeof tanstack !== 'object') return
+  const runId = (tanstack as { runId?: unknown }).runId
+  return typeof runId === 'string' && runId !== '' ? runId : undefined
+}
+
+type Runs = NonNullable<ChatTranscriptStores['runs']>
+
+async function childCard(
+  child: RunRecord,
+  runs: Runs,
+  messageStore: MessageStore,
+  pending: ReadonlyArray<InterruptRecord>,
+  depth: number,
+): Promise<SubagentPart> {
+  const subagentRunId = child.subagentRunId ?? child.runId
+  const stored = await messageStore.loadThread(child.threadId)
+  const info = storedSubagentInfo(stored)
+  const messages = modelMessagesToUIMessages(
+    stored.filter(
+      (message) => storedSubagentInfo([message])?.placeholder !== true,
+    ),
+  )
+  const nested =
+    runs.listByParentRun && depth < 8
+      ? await runs.listByParentRun(subagentRunId)
+      : []
+  if (nested.length > 0) {
+    const cards = await Promise.all(
+      nested.map((run) =>
+        childCard(run, runs, messageStore, pending, depth + 1),
+      ),
+    )
+    const last = messages.findLastIndex((m) => m.role === 'assistant')
+    if (last === -1) {
+      messages.push({
+        id: `child-cards:${subagentRunId}`,
+        role: 'assistant',
+        parts: cards,
+      })
+    } else {
+      const host = messages[last]
+      if (host) messages[last] = { ...host, parts: [...host.parts, ...cards] }
+    }
+  }
+  const failed = child.status === 'failed' || child.status === 'aborted'
+  const error = info?.error ?? child.error
+  const interruptIds = pending
+    .filter((record) => record.payload.subagentRunId === subagentRunId)
+    .map((record) => record.interruptId)
+  return {
+    type: 'subagent',
+    subagent: {
+      id: subagentRunId,
+      name: child.name ?? info?.name ?? 'subagent',
+      status: failed
+        ? 'error'
+        : child.status === 'running'
+          ? 'running'
+          : child.status === 'interrupted'
+            ? 'suspended'
+            : 'finished',
+      ...(child.parentRunId !== undefined && {
+        parentRunId: child.parentRunId,
+      }),
+      ...(info?.parentToolCallId !== undefined && {
+        parentToolCallId: info.parentToolCallId,
+      }),
+      ...(interruptIds.length > 0 && { interruptIds }),
+      ...(info?.metadata !== undefined && { metadata: info.metadata }),
+      messages,
+      ...(failed && error ? { error } : {}),
+    },
+  }
+}
+
+/**
+ * Put stored subagent cards back on the transcript. A routed child sits on
+ * the parent assistant message of its run. A child that a tool call started
+ * sits on the message that holds that tool call.
+ */
+export async function attachSubagentCards(
+  messages: Array<UIMessage>,
+  runs: ChatTranscriptStores['runs'],
+  messageStore: MessageStore,
+  threadId: string,
+  pending: ReadonlyArray<InterruptRecord>,
+) {
+  if (!runs?.listByParentRun) return messages
+  const parentRunIds = new Set<string>()
+  for (const message of messages) {
+    const runId = messageRunId(message)
+    if (runId) parentRunIds.add(runId)
+  }
+  const hasToolCalls = messages.some((message) =>
+    message.parts.some((part) => part.type === 'tool-call'),
+  )
+  if (hasToolCalls && runs.listByThread && threadId !== '') {
+    for (const run of await runs.listByThread(threadId)) {
+      parentRunIds.add(run.runId)
+    }
+  }
+
+  const cardsByRun = new Map<string, Array<SubagentPart>>()
+  const cardsByToolCall = new Map<string, Array<SubagentPart>>()
+  for (const runId of parentRunIds) {
+    for (const child of await runs.listByParentRun(runId)) {
+      const card = await childCard(child, runs, messageStore, pending, 0)
+      const toolCallId = card.subagent.parentToolCallId
+      const target = toolCallId === undefined ? cardsByRun : cardsByToolCall
+      const key = toolCallId ?? runId
+      target.set(key, [...(target.get(key) ?? []), card])
+    }
+  }
+  if (cardsByRun.size === 0 && cardsByToolCall.size === 0) return messages
+
+  return messages.map((message) => {
+    if (message.role !== 'assistant') return message
+    const runId = messageRunId(message)
+    const routed = runId !== undefined ? cardsByRun.get(runId) : undefined
+    const started = message.parts.flatMap((part) =>
+      part.type === 'tool-call' ? (cardsByToolCall.get(part.id) ?? []) : [],
+    )
+    if (!routed && started.length === 0) return message
+    const parts = routed
+      ? message.parts.filter((part) => part.type !== 'text')
+      : message.parts
+    return {
+      ...message,
+      parts: [...(routed ?? []), ...parts, ...started],
+    }
+  })
 }
 
 /** A stored child transcript without its card-only placeholder. */
@@ -533,7 +680,10 @@ export function createSubagentRunRecorder(stores: {
         ...(prompt !== undefined && { prompt }),
       })
     }
-    if (record && record.status !== 'running') {
+    if (
+      record &&
+      (record.status === 'interrupted' || record.status === 'failed')
+    ) {
       await stores.runs?.update(id, { status: 'running' })
     }
     // The parent child shows this one as a nested card.
@@ -701,10 +851,26 @@ export function createSubagentRunRecorder(stores: {
     })
   }
 
-  async function commitAnswers(runId: string) {
+  async function commitAnswers(
+    runId: string,
+    interruptIds?: ReadonlyArray<string>,
+  ) {
     const entries = answered.get(runId) ?? []
-    answered.delete(runId)
-    for (const entry of entries) {
+    if (interruptIds === undefined) {
+      answered.delete(runId)
+    } else {
+      const filter = new Set(interruptIds)
+      const remaining = entries.filter(
+        (entry) => !filter.has(entry.interruptId),
+      )
+      if (remaining.length > 0) answered.set(runId, remaining)
+      else answered.delete(runId)
+    }
+    const targetEntries =
+      interruptIds === undefined
+        ? entries
+        : entries.filter((entry) => interruptIds.includes(entry.interruptId))
+    for (const entry of targetEntries) {
       if (entry.status === 'cancelled') {
         await stores.interrupts?.cancel(entry.interruptId)
       } else {
@@ -759,11 +925,49 @@ export function createSubagentRunRecorder(stores: {
       messages: ReadonlyArray<UIMessage | ModelMessage>
       resume?: ReadonlyArray<RunAgentResumeItem>
     }) {
-      await stores.runs?.createOrResume({
+      // Gate routed turns on pending chat-owned interrupts just like main chat().
+      if (stores.interrupts) {
+        const ownedPending = (
+          await stores.interrupts.listPending(input.threadId)
+        ).filter(isChatOwnedPendingInterrupt)
+        const first = ownedPending[0]
+        if (first && !input.resume?.length) {
+          throw new InterruptResumeValidationError([
+            {
+              scope: 'item',
+              threadId: input.threadId,
+              interruptedRunId: first.runId || input.runId,
+              generation: 0,
+              interruptId: first.interruptId,
+              code: 'unknown-interrupt',
+              message:
+                'Thread has pending interrupts; resume is required before accepting new input.',
+              source: 'client',
+              retryable: false,
+            },
+            {
+              scope: 'batch',
+              threadId: input.threadId,
+              interruptedRunId: first.runId || input.runId,
+              generation: 0,
+              interruptIds: ownedPending.map((record) => record.interruptId),
+              code: 'incomplete-batch',
+              message:
+                'Resume entries must resolve or cancel the complete interrupt batch.',
+              source: 'client',
+              retryable: false,
+            },
+          ])
+        }
+      }
+      const run = await stores.runs?.createOrResume({
         runId: input.runId,
         threadId: input.threadId,
         startedAt: Date.now(),
       })
+      if (run && (run.status === 'interrupted' || run.status === 'failed')) {
+        await stores.runs?.update(input.runId, { status: 'running' })
+      }
       if (input.resume?.length) answered.set(input.runId, [...input.resume])
       const incoming = convertMessagesToModelMessages([...input.messages])
       const stored = await loadMessages(input.threadId)
@@ -772,6 +976,27 @@ export function createSubagentRunRecorder(stores: {
         input.threadId,
         keepSubagentRunIds(stored, merged),
       )
+    },
+
+    async loadMessages(input: { threadId: string }) {
+      const stored = await loadMessages(input.threadId)
+      const pending = stores.interrupts
+        ? (await stores.interrupts.listPending(input.threadId)).filter(
+            isChatOwnedPendingInterrupt,
+          )
+        : []
+      const messages = await attachSubagentCards(
+        modelMessagesToUIMessages(stored),
+        stores.runs,
+        stores.messages,
+        input.threadId,
+        pending,
+      )
+      const interruptedRunId = pending[0]?.runId
+      return {
+        messages,
+        ...(interruptedRunId !== undefined && { interruptedRunId }),
+      }
     },
 
     async chunk(input: {
@@ -831,8 +1056,9 @@ export function createSubagentRunRecorder(stores: {
       threadId: string
       runId: string
       interrupts: ReadonlyArray<Interrupt>
+      interruptIds?: ReadonlyArray<string>
     }) {
-      await commitAnswers(input.runId)
+      await commitAnswers(input.runId, input.interruptIds)
       await saveParents(input.threadId)
       for (const [subagentRunId] of notesOf(input.runId)) {
         await saveChild(subagentRunId)
@@ -850,15 +1076,22 @@ export function createSubagentRunRecorder(stores: {
       forget(input.runId)
     },
 
-    async finish(input: { threadId: string; runId: string }) {
+    async finish(input: {
+      threadId: string
+      runId: string
+      interruptIds?: ReadonlyArray<string>
+      handoffToMain?: boolean
+    }) {
       dropCalls(input.runId)
-      await commitAnswers(input.runId)
+      await commitAnswers(input.runId, input.interruptIds)
       await saveParents(input.threadId)
       await settleOpenChildren(input.runId, 'completed')
-      await stores.runs?.update(input.runId, {
-        status: 'completed',
-        finishedAt: Date.now(),
-      })
+      if (!input.handoffToMain) {
+        await stores.runs?.update(input.runId, {
+          status: 'completed',
+          finishedAt: Date.now(),
+        })
+      }
       forget(input.runId)
     },
 

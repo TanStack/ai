@@ -166,6 +166,26 @@ describe('POST run', () => {
       true,
     )
     expect(deployed).toEqual(['prod'])
+
+    // Retrying the same resume runId after completion must terminate cleanly
+    // instead of hanging an open SSE stream.
+    const retried = await run({
+      runId: 'run-b',
+      parentRunId: 'run-a',
+      resume: [
+        {
+          interruptId: interrupt.id,
+          status: 'resolved',
+          payload: { approved: true },
+        },
+      ],
+    })
+    expect(retried.status).toBe(200)
+    const replayed = sse(await retried.text())
+    expect(replayed.some((chunk) => chunk.type === 'TOOL_CALL_RESULT')).toBe(
+      true,
+    )
+    expect(deployed).toEqual(['prod'])
     await host.close()
   })
 

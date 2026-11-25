@@ -1,3 +1,4 @@
+import { aiEventClient } from '@tanstack/ai-event-client'
 import { describe, expect, it, vi } from 'vitest'
 import {
   generateAudio,
@@ -1165,6 +1166,126 @@ describe('generation middleware — wiring', () => {
     expect(events.finish).toHaveLength(0)
   })
 
+  describe('a failed call that the provider billed', () => {
+    const usage = { promptTokens: 12, completionTokens: 3, totalTokens: 15 }
+    let recorder = recordingMiddleware()
+    const fail = vi.fn(async () => {
+      throw Object.assign(new Error('no output'), { usage })
+    })
+
+    const cases = [
+      [
+        'generateImage',
+        (mw: GenerationMiddleware) =>
+          generateImage({
+            adapter: {
+              kind: 'image',
+              name: 'openai',
+              model: 'gpt-image-1',
+              generateImages: fail,
+            } as any,
+            prompt: 'a sunset',
+            threadId: 'thread-1',
+            middleware: [mw],
+          }),
+        'image:usage',
+      ],
+      [
+        'generateSpeech',
+        (mw: GenerationMiddleware) =>
+          generateSpeech({
+            adapter: {
+              kind: 'tts',
+              name: 'gemini',
+              model: 'gemini-tts',
+              generateSpeech: fail,
+            } as any,
+            text: 'hello',
+            threadId: 'thread-1',
+            middleware: [mw],
+          }),
+        'speech:usage',
+      ],
+      [
+        'summarize',
+        (mw: GenerationMiddleware) =>
+          summarize({
+            adapter: {
+              kind: 'summarize',
+              name: 'anthropic',
+              model: 'claude',
+              summarize: fail,
+            } as any,
+            text: 'a long article',
+            threadId: 'thread-1',
+            middleware: [mw],
+          }),
+        'summarize:usage',
+      ],
+    ] as const
+
+    it.each(cases)(
+      '%s reports the usage of the thrown error',
+      async (_name, run, eventName) => {
+        recorder = recordingMiddleware()
+        const emitted: Array<unknown> = []
+        const off = aiEventClient.on(
+          eventName,
+          (e) => emitted.push(e.payload.usage),
+          { withEventTarget: true },
+        )
+        try {
+          await expect(run(recorder.middleware)).rejects.toThrow('no output')
+        } finally {
+          off()
+        }
+
+        expect(recorder.events.usage.map((u) => u.info)).toEqual([usage])
+        expect(recorder.events.error).toHaveLength(1)
+        expect(emitted).toEqual([usage])
+      },
+    )
+
+    it('ignores a usage field on an error that has no token counts', async () => {
+      recorder = recordingMiddleware()
+      await expect(
+        generateImage({
+          adapter: {
+            kind: 'image',
+            name: 'openai',
+            model: 'gpt-image-1',
+            generateImages: async () => {
+              throw Object.assign(new Error('other library'), {
+                usage: { promptTokens: '12' },
+              })
+            },
+          } as any,
+          prompt: 'a sunset',
+          threadId: 'thread-1',
+          middleware: [recorder.middleware],
+        }),
+      ).rejects.toThrow('other library')
+      expect(recorder.events.usage).toHaveLength(0)
+    })
+
+    it.each(cases)(
+      '%s keeps its own error when onUsage throws',
+      async (_name, run) => {
+        const onError = vi.fn()
+        await expect(
+          run({
+            name: 'throws-on-usage',
+            onUsage: () => {
+              throw new Error('onUsage broke')
+            },
+            onError,
+          }),
+        ).rejects.toThrow('no output')
+        expect(onError).toHaveBeenCalledTimes(1)
+      },
+    )
+  })
+
   it('summarize (streaming, native) transforms the terminal result chunk', async () => {
     const { middleware, events } = recordingMiddleware()
     const transforming: GenerationMiddleware = {
@@ -1219,6 +1340,50 @@ describe('generation middleware — wiring', () => {
     expect(events.finish).toHaveLength(1)
     expect(events.finish[0]!.info.usage?.totalTokens).toBe(13)
     expect(events.abort).toHaveLength(0)
+  })
+
+  it('summarize (streaming, native) reports the usage of a RUN_ERROR', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const usage = { promptTokens: 900, completionTokens: 64, totalTokens: 964 }
+    const adapter = {
+      kind: 'summarize' as const,
+      name: 'anthropic',
+      model: 'claude',
+      summarize: vi.fn(),
+      summarizeStream: vi.fn(async function* () {
+        yield { type: 'TEXT_MESSAGE_CONTENT', delta: 'cut', timestamp: 1 }
+        yield {
+          type: 'RUN_ERROR',
+          message: 'max_tokens',
+          code: 'max_tokens',
+          timestamp: 2,
+          usage,
+        }
+      }),
+    }
+    const emitted: Array<unknown> = []
+    const off = aiEventClient.on(
+      'summarize:usage',
+      (e) => emitted.push(e.payload.usage),
+      { withEventTarget: true },
+    )
+
+    try {
+      for await (const _chunk of summarize({
+        adapter: adapter as any,
+        text: 'a long article',
+        stream: true,
+        threadId: 'summary:slot',
+        middleware: [middleware],
+      })) {
+        // drain
+      }
+    } finally {
+      off()
+    }
+
+    expect(events.usage.map((u) => u.info)).toEqual([usage])
+    expect(emitted).toEqual([usage])
   })
 
   it('summarize (streaming, native) fires abort when the consumer walks away', async () => {

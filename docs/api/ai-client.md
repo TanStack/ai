@@ -126,6 +126,7 @@ Callbacks:
 | `subscribe(options?)`, `unsubscribe()` | Start and stop the live subscription loop. |
 | `getSnapshot()`, `subscribeSnapshot(listener)` | Read the UI state, and listen for changes. |
 | `getInterrupts()` | Pending interrupts, each with `resolveInterrupt(...)`. |
+| `getInterruptDescriptors()` | The raw interrupts that the run waits on, client-tool executions included. Pass them as `pendingInterrupts` in `initialResumeSnapshot` to give the run to a new client. |
 | `resolveInterrupts(...)`, `cancelInterrupts()`, `retryInterrupts()`, `resumeInterruptsUnsafe(resume, state?)` | Act on all pending interrupts at once. |
 | `cancelQueued(id)`, `getQueue()` | Cancel or read queued messages. |
 | `loadOlderMessages()`, `getHasOlderMessages()` | Page in older messages. |

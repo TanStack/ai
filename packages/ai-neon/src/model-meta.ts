@@ -31,6 +31,7 @@ export const NEON_CHAT_MODELS = [
   'gemini-3-7-flash',
   'gemini-3-8-flash',
   'gemini-3-flash',
+  'gemini-4-argon',
   'gemma-3-12b',
   'glm-5-2',
   'glm-5-3',
@@ -144,6 +145,7 @@ export const NEON_MODELS_REJECTING_SAMPLING: ReadonlySet<string> = new Set([
   'gemini-3-6-flash',
   'gemini-3-7-flash',
   'gemini-3-8-flash',
+  'gemini-4-argon',
   'gpt-5',
   'gpt-5-5',
   'gpt-5-5-pro',
@@ -172,6 +174,7 @@ export const NEON_MODELS_REJECTING_STREAM_OPTIONS: ReadonlySet<string> =
     'gemini-3-7-flash',
     'gemini-3-8-flash',
     'gemini-3-flash',
+    'gemini-4-argon',
   ] as const)
 
 /** The input modalities of each chat model. */
@@ -200,6 +203,7 @@ export const NEON_MODEL_INPUT_MODALITIES = {
   'gemini-3-7-flash': ['text', 'image', 'document', 'audio', 'video'],
   'gemini-3-8-flash': ['text', 'image', 'document', 'audio', 'video'],
   'gemini-3-flash': ['text', 'image', 'document', 'audio', 'video'],
+  'gemini-4-argon': ['text', 'image', 'document', 'audio', 'video'],
   'gemma-3-12b': ['text', 'image'],
   'glm-5-2': ['text'],
   'glm-5-3': ['text'],
@@ -318,6 +322,7 @@ const NEON_REASONING = {
   'gemini-3-7-flash': EFFORT_MINIMAL_TO_HIGH,
   'gemini-3-8-flash': EFFORT_MINIMAL_TO_HIGH,
   'gemini-3-flash': EFFORT_LOW_TO_HIGH,
+  'gemini-4-argon': EFFORT_LOW_TO_HIGH,
   'glm-5-2': EFFORT_NONE_MINIMAL_TO_HIGH_MAX,
   'glm-5-3': EFFORT_LOW_HIGH_MAX,
   'glm-5-3-flash': EFFORT_LOW_HIGH_MAX,

@@ -26,6 +26,13 @@ export type {
   InjectGenerateImageResult,
 } from './inject-generate-image'
 
+// Generate 3D Model (experimental)
+export { injectGenerate3dModel } from './inject-generate-3d-model'
+export type {
+  InjectGenerate3dModelOptions,
+  InjectGenerate3dModelResult,
+} from './inject-generate-3d-model'
+
 // Generate Audio
 export { injectGenerateAudio } from './inject-generate-audio'
 export type {
@@ -166,4 +173,5 @@ export {
   type VideoGenerateInput,
   type VideoGenerateResult,
   type VideoStatusInfo,
+  type Model3dGenerateInput,
 } from '@tanstack/ai-client'

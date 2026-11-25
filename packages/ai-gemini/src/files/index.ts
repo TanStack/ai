@@ -1,4 +1,4 @@
-import { FileState } from '@google/genai'
+import { FileState } from '../client/enums'
 import { createGeminiClient, getGeminiApiKeyFromEnv } from '../utils'
 import type { GeminiVideoMetadata } from '../message-types'
 import type { VideoPart } from '@tanstack/ai'
@@ -33,6 +33,12 @@ export interface GeminiUploadFileOptions {
   pollIntervalMs?: number
   /** Max time to wait for processing, in ms. Default `300000` (5 min). */
   timeoutMs?: number
+  /**
+   * Cancels the status requests and the wait between polls. The call
+   * rejects when the signal aborts. The Gemini SDK does not cancel the
+   * upload request itself.
+   */
+  abortSignal?: AbortSignal
 }
 
 /**
@@ -54,13 +60,19 @@ export async function uploadGeminiFile(
     mimeType,
     pollIntervalMs = 5000,
     timeoutMs = 300_000,
+    abortSignal,
   } = options
 
   const client = createGeminiClient({ apiKey })
 
   let uploaded = await client.files.upload({
     file,
-    ...(mimeType && { config: { mimeType } }),
+    ...((mimeType || abortSignal) && {
+      config: {
+        ...(mimeType && { mimeType }),
+        ...(abortSignal && { abortSignal }),
+      },
+    }),
   })
 
   const fileName = uploaded.name
@@ -75,8 +87,11 @@ export async function uploadGeminiFile(
         `Gemini file processing timed out after ${timeoutMs}ms (${fileName}).`,
       )
     }
-    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs))
-    uploaded = await client.files.get({ name: fileName })
+    await sleep(pollIntervalMs, abortSignal)
+    uploaded = await client.files.get({
+      name: fileName,
+      ...(abortSignal && { config: { abortSignal } }),
+    })
   }
 
   if (uploaded.state === FileState.FAILED) {
@@ -111,4 +126,20 @@ export function geminiVideoPart(
     source: { type: 'url', value: file.uri, mimeType: file.mimeType },
     ...(metadata && { metadata }),
   }
+}
+
+/** Wait `ms`, or reject with the abort reason when `signal` aborts first. */
+function sleep(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  return new Promise((resolve, reject) => {
+    signal?.throwIfAborted()
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(signal?.reason)
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
 }

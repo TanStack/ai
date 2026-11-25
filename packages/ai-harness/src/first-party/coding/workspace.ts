@@ -27,7 +27,7 @@ import { WorkspaceStranded } from './events'
 import { editTools, fileVersions } from './edit'
 import { patchPaths, patchTools } from './patch'
 import { readTools } from './read'
-import { searchTools } from './search'
+import { hostExecs, searchTools } from './search'
 import { webTools } from './web'
 import type { AnyTool, ToolExecutionContext } from '@tanstack/ai'
 import type { PluginEvent } from '../../extensions'
@@ -272,8 +272,8 @@ export function writingRun() {
 const callingChat = () => calls.getStore()?.chat
 
 /**
- * `backend`, where each file call gets the abort signal of the tool call
- * that runs now, so an aborted call stops its file work too.
+ * `backend`, where each file call and command gets the abort signal of the
+ * tool call that runs now, so an aborted call stops its work too.
  */
 function withCallSignal(backend: WorkspaceBackend): WorkspaceBackend {
   // No options outside a call, or for a call without a signal.
@@ -282,8 +282,13 @@ function withCallSignal(backend: WorkspaceBackend): WorkspaceBackend {
     return chat ? ([{ signal: chat }] as const) : ([] as const)
   }
   const { readLines, remove } = backend
+  // A signal of the caller (like the `bash` stop) wins.
+  const exec: WorkspaceBackend['exec'] = (command, options) =>
+    backend.exec(command, { ...signal()[0], ...options })
+  if (backend.exec === hostBackend.exec) hostExecs.add(exec)
   return {
     ...backend,
+    exec,
     readFile: (path) => backend.readFile(path, ...signal()),
     writeFile: (path, data) => backend.writeFile(path, data, ...signal()),
     stat: (path) => backend.stat(path, ...signal()),

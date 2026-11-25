@@ -68,6 +68,8 @@ export interface MCPEventOccurrence {
   timestamp: string
   data: JSONObject
   cursor?: string | null
+  /** Protocol metadata. Not part of `payloadSchema`. */
+  _meta?: JSONObject
 }
 
 /**
@@ -358,6 +360,13 @@ export interface MCPEventsContext {
   assertOpen: () => void
   readonly supportsEvents: boolean
   readonly transport: MCPEventAdapterTransport
+  /**
+   * Records the schemas from the latest `events/list` so subscribe,
+   * refresh, and unsubscribe can send `Mcp-Param-*` headers.
+   */
+  noteEventSchemas?: (
+    events: Array<Pick<MCPEventDefinition, 'name' | 'inputSchema'>>,
+  ) => void
 }
 
 /**
@@ -387,7 +396,7 @@ export interface MCPEventWebhookOptions {
   onGap?: (args: {
     subscription: MCPEventSubscriptionInfo
     messageId: string
-    gap: { cursor: string; truncated: true }
+    gap: { cursor: string | null; truncated: true }
   }) => Promise<void> | void
   onTerminated?: (args: {
     subscription: MCPEventSubscriptionInfo

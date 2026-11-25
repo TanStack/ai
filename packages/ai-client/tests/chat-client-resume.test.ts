@@ -124,18 +124,32 @@ const runStarted: StreamChunk = {
 describe('ChatClient resume', () => {
   it('tracks the run/thread of an interrupted run', async () => {
     const { adapter, contexts } = recordingAdapter([
-      [
+      (ctx) => [
         runStarted,
         text('a'),
         text('b'),
         {
           type: EventType.RUN_FINISHED,
-          runId: 'run-1',
+          runId: ctx?.runId ?? 'run-1',
           threadId: 'thread-1',
           timestamp: Date.now(),
           outcome: {
             type: 'interrupt',
-            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+            interrupts: [
+              {
+                id: 'interrupt-1',
+                reason: 'client_tool_input',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: 1,
+                    kind: 'generic',
+                    interruptId: 'interrupt-1',
+                    interruptedRunId: ctx?.runId ?? 'run-1',
+                    generation: 0,
+                  },
+                },
+              },
+            ],
           },
         },
       ],
@@ -338,7 +352,21 @@ describe('ChatClient resume', () => {
           timestamp: Date.now(),
           outcome: {
             type: 'interrupt',
-            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+            interrupts: [
+              {
+                id: 'interrupt-1',
+                reason: 'client_tool_input',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: 1,
+                    kind: 'generic',
+                    interruptId: 'interrupt-1',
+                    interruptedRunId: ctx?.runId ?? 'run-1',
+                    generation: 0,
+                  },
+                },
+              },
+            ],
           },
         },
       ],
@@ -437,7 +465,21 @@ describe('ChatClient resume', () => {
           timestamp: Date.now(),
           outcome: {
             type: 'interrupt',
-            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+            interrupts: [
+              {
+                id: 'interrupt-1',
+                reason: 'client_tool_input',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: 1,
+                    kind: 'generic',
+                    interruptId: 'interrupt-1',
+                    interruptedRunId: ctx?.runId ?? 'run-1',
+                    generation: 0,
+                  },
+                },
+              },
+            ],
           },
         },
       ],
@@ -472,7 +514,21 @@ describe('ChatClient resume', () => {
           timestamp: Date.now(),
           outcome: {
             type: 'interrupt',
-            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+            interrupts: [
+              {
+                id: 'interrupt-1',
+                reason: 'client_tool_input',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: 1,
+                    kind: 'generic',
+                    interruptId: 'interrupt-1',
+                    interruptedRunId: ctx?.runId ?? 'run-1',
+                    generation: 0,
+                  },
+                },
+              },
+            ],
           },
         },
       ],
@@ -522,7 +578,21 @@ describe('ChatClient resume', () => {
           timestamp: Date.now(),
           outcome: {
             type: 'interrupt',
-            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+            interrupts: [
+              {
+                id: 'interrupt-1',
+                reason: 'client_tool_input',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: 1,
+                    kind: 'generic',
+                    interruptId: 'interrupt-1',
+                    interruptedRunId: ctx?.runId ?? 'run-1',
+                    generation: 0,
+                  },
+                },
+              },
+            ],
           },
         },
       ],
@@ -562,7 +632,21 @@ describe('ChatClient resume', () => {
           timestamp: Date.now(),
           outcome: {
             type: 'interrupt',
-            interrupts: [{ id: 'interrupt-a', reason: 'client_tool_input' }],
+            interrupts: [
+              {
+                id: 'interrupt-a',
+                reason: 'client_tool_input',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: 1,
+                    kind: 'generic',
+                    interruptId: 'interrupt-a',
+                    interruptedRunId: ctx?.runId ?? 'run-a',
+                    generation: 0,
+                  },
+                },
+              },
+            ],
           },
         },
       ],
@@ -610,7 +694,21 @@ describe('ChatClient resume', () => {
           timestamp: Date.now(),
           outcome: {
             type: 'interrupt',
-            interrupts: [{ id: 'interrupt-a', reason: 'client_tool_input' }],
+            interrupts: [
+              {
+                id: 'interrupt-a',
+                reason: 'client_tool_input',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: 1,
+                    kind: 'generic',
+                    interruptId: 'interrupt-a',
+                    interruptedRunId: ctx?.runId ?? 'run-a',
+                    generation: 0,
+                  },
+                },
+              },
+            ],
           },
         },
       ],
@@ -665,7 +763,21 @@ describe('ChatClient resume', () => {
           timestamp: Date.now(),
           outcome: {
             type: 'interrupt',
-            interrupts: [{ id: 'interrupt-a', reason: 'client_tool_input' }],
+            interrupts: [
+              {
+                id: 'interrupt-a',
+                reason: 'client_tool_input',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: 1,
+                    kind: 'generic',
+                    interruptId: 'interrupt-a',
+                    interruptedRunId: ctx?.runId ?? 'run-a',
+                    generation: 0,
+                  },
+                },
+              },
+            ],
           },
         },
       ],
@@ -716,7 +828,21 @@ describe('ChatClient resume', () => {
           timestamp: Date.now(),
           outcome: {
             type: 'interrupt',
-            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+            interrupts: [
+              {
+                id: 'interrupt-1',
+                reason: 'client_tool_input',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: 1,
+                    kind: 'generic',
+                    interruptId: 'interrupt-1',
+                    interruptedRunId: ctx?.runId ?? 'run-1',
+                    generation: 0,
+                  },
+                },
+              },
+            ],
           },
         },
       ],
@@ -1242,5 +1368,123 @@ describe('ChatClient resume', () => {
         payload: { answer: 43 },
       },
     ])
+  })
+
+  it('drops a queued resume when a newer run replaces the paused interrupt', async () => {
+    const contexts: Array<RunAgentInputContext | undefined> = []
+    let releaseReload!: () => void
+    const reloadGate = new Promise<void>((resolve) => {
+      releaseReload = resolve
+    })
+    let callIndex = 0
+
+    const makeInterruptChunks = (
+      runId: string,
+      threadId: string,
+      interruptId: string,
+    ): Array<StreamChunk> => [
+      {
+        type: EventType.RUN_STARTED,
+        runId,
+        threadId,
+        timestamp: Date.now(),
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        runId,
+        threadId,
+        timestamp: Date.now(),
+        outcome: {
+          type: 'interrupt',
+          interrupts: [
+            {
+              id: interruptId,
+              reason: 'confirmation',
+              metadata: {
+                'tanstack:interruptBinding': {
+                  v: INTERRUPT_BINDING_VERSION,
+                  kind: 'generic',
+                  interruptId,
+                  interruptedRunId: runId,
+                  generation: 0,
+                  responseSchemaHash: 'none',
+                },
+              },
+            },
+          ],
+        },
+      },
+    ]
+
+    const adapter: ConnectConnectionAdapter = {
+      async *connect(_messages, _data, _signal, runContext) {
+        contexts.push(runContext)
+        const currentCall = callIndex++
+        const runId = runContext?.runId ?? `run-${currentCall}`
+        const threadId = runContext?.threadId ?? 'thread-1'
+        if (currentCall === 0) {
+          for (const c of makeInterruptChunks(runId, threadId, 'interrupt-1')) {
+            yield c
+          }
+          return
+        }
+        if (currentCall === 1) {
+          throw new Error('resume stream failed')
+        }
+        if (currentCall === 2) {
+          await reloadGate
+          for (const c of makeInterruptChunks(runId, threadId, 'interrupt-2')) {
+            yield c
+          }
+        }
+      },
+    }
+
+    const client = new ChatClient({ connection: adapter, threadId: 'thread-1' })
+    await client.sendMessage('hi')
+    expect(client.getInterrupts().map((i) => i.id)).toEqual(['interrupt-1'])
+
+    resolveGenericInterrupt(client)
+    await vi.waitFor(() => {
+      expect(contexts).toHaveLength(2)
+      expect(client.getInterruptState().interruptErrors[0]?.code).toBe(
+        'transport',
+      )
+    })
+
+    const staleInterrupt = client.getInterrupts()[0]
+    if (staleInterrupt?.kind !== 'generic') {
+      throw new Error('Expected a generic interrupt')
+    }
+
+    const reloadPromise = client.reload()
+    await vi.waitFor(() => {
+      expect(contexts).toHaveLength(3)
+      expect(client.getIsLoading()).toBe(true)
+    })
+
+    // reload() clears stale interrupts immediately, and any captured resolve
+    // handle or queued resume for the superseded run is dropped.
+    expect(client.getInterrupts()).toEqual([])
+    expect(() =>
+      staleInterrupt.resolveInterrupt({ answer: 'continue' }),
+    ).toThrow('Unknown interrupt: interrupt-1')
+    const queuedResume = client.resumeInterruptsUnsafe([
+      {
+        interruptId: 'interrupt-1',
+        status: 'resolved',
+        payload: { answer: 'continue' },
+      },
+    ])
+    releaseReload()
+    await reloadPromise
+    await expect(queuedResume).resolves.toBe(false)
+
+    // Let any queued post-stream actions settle.
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(contexts).toHaveLength(3)
+    expect(client.getInterrupts().map((i) => i.id)).toEqual(['interrupt-2'])
   })
 })

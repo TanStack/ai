@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
+import { createEventHeaderLookup } from '../src/events/param-headers'
 import { resolveTransport } from '../src/transport'
 import type {
   OAuthClientProvider,
@@ -152,5 +154,42 @@ describe('resolveTransport', () => {
       const bytes = Uint8Array.from(binary, (char) => char.codePointAt(0) ?? 0)
       expect(new TextDecoder().decode(bytes)).toBe(name)
     }
+  })
+
+  it('sets Mcp-Param on a caller-built Streamable HTTP transport', async () => {
+    const seen: Array<Request> = []
+    const transport = new StreamableHTTPClientTransport(
+      new URL('https://fixture.example/mcp'),
+      {
+        fetch: async (input, init) => {
+          seen.push(new Request(input, init))
+          return new Response(null, { status: 202 })
+        },
+      },
+    )
+    const lookup = createEventHeaderLookup()
+    lookup.replace([
+      {
+        name: 'incident.created',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            region: { type: 'string', 'x-mcp-header': 'Region' },
+          },
+        },
+      },
+    ])
+    await resolveTransport(transport, { events: true, eventHeaders: lookup })
+    await transport.send({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'events/subscribe',
+      params: {
+        name: 'incident.created',
+        arguments: { region: 'eu' },
+      },
+    })
+    expect(seen[0]?.headers.get('mcp-name')).toBe('incident.created')
+    expect(seen[0]?.headers.get('mcp-param-region')).toBe('eu')
   })
 })

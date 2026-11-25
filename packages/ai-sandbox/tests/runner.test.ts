@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { EventType, memoryStream } from '@tanstack/ai'
 import {
   readJournalNdjson,
@@ -121,6 +121,59 @@ describe('spawnNdjson', () => {
       { type: 'result', ok: true },
     ])
     expect(nonJson).toEqual(['Claude Code starting...'])
+  })
+
+  it('kills the process when the consumer stops early', async () => {
+    const kill = vi.fn(() => Promise.resolve())
+    const base = handleSpawning([])
+    const handle: SandboxHandle = {
+      ...base,
+      process: {
+        ...base.process,
+        spawn: () =>
+          Promise.resolve({
+            pid: 1,
+            stdout: fromChunks(['{"n":1}\n', '{"n":2}\n']),
+            stderr: fromChunks([]),
+            stdin: {
+              write: () => Promise.resolve(),
+              end: () => Promise.resolve(),
+            },
+            wait: () => Promise.resolve(0),
+            kill,
+          }),
+      },
+    }
+    for await (const event of spawnNdjson(handle, 'agent')) {
+      expect(event).toEqual({ n: 1 })
+      break
+    }
+    expect(kill).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not kill a process that ended', async () => {
+    const kill = vi.fn(() => Promise.resolve())
+    const base = handleSpawning([])
+    const handle: SandboxHandle = {
+      ...base,
+      process: {
+        ...base.process,
+        spawn: () =>
+          Promise.resolve({
+            pid: 1,
+            stdout: fromChunks(['{"n":1}\n']),
+            stderr: fromChunks([]),
+            stdin: {
+              write: () => Promise.resolve(),
+              end: () => Promise.resolve(),
+            },
+            wait: () => Promise.resolve(0),
+            kill,
+          }),
+      },
+    }
+    expect(await collect(spawnNdjson(handle, 'agent'))).toEqual([{ n: 1 }])
+    expect(kill).not.toHaveBeenCalled()
   })
 })
 

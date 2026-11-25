@@ -330,3 +330,42 @@ describe('playwrightComputer', () => {
     expect(contexts).toHaveLength(1)
   })
 })
+
+describe('abort signal', () => {
+  it('rejects navigate when the signal aborts while goto hangs', async () => {
+    const { page } = createFakePage()
+    page.goto = () => new Promise(() => {})
+    const driver = createPlaywrightComputerDriver({ page })
+    const controller = new AbortController()
+    const navigation = driver.navigate!('https://tanstack.com', {
+      signal: controller.signal,
+    })
+    controller.abort(new Error('stopped'))
+    await expect(navigation).rejects.toThrow('stopped')
+  })
+
+  it('rejects screenshot when the signal aborts while it hangs', async () => {
+    const { page } = createFakePage()
+    page.screenshot = () => new Promise(() => {})
+    const driver = createPlaywrightComputerDriver({ page })
+    const controller = new AbortController()
+    const shot = driver.screenshot({ signal: controller.signal })
+    controller.abort(new Error('stopped'))
+    await expect(shot).rejects.toThrow('stopped')
+  })
+
+  it('closes the context when create aborts during the start URL', async () => {
+    const { browser, contexts } = createFakeBrowser()
+    const controller = new AbortController()
+    const factory = playwrightComputer({
+      browser,
+      startUrl: 'https://tanstack.com',
+    })
+    controller.abort(new Error('stopped'))
+    await expect(
+      factory.create({ threadId: 'a', signal: controller.signal }),
+    ).rejects.toThrow('stopped')
+    expect(contexts[0]?.closed).toBe(true)
+    expect(contexts[0]?.calls).toEqual([])
+  })
+})

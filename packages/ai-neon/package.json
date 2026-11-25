@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-neon",
-  "version": "0.1.0",
+  "version": "0.2.2",
   "description": "Neon AI Gateway adapter for TanStack AI chat, embeddings, and summarization.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -26,6 +26,7 @@
       "import": "./dist/esm/index.js"
     }
   },
+  "sideEffects": false,
   "files": [
     "dist",
     "src"
@@ -55,8 +56,8 @@
   ],
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10",
-    "vite": "^8.2.1"
+    "@vitest/coverage-v8": "4.1.12",
+    "vite": "^8.3.8"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^"

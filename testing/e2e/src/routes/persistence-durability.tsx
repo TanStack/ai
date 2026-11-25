@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { toolDefinition } from '@tanstack/ai'
 import {
+  clientTools,
   fetchServerSentEvents,
   localStoragePersistence,
   useChat,
 } from '@tanstack/ai-react'
+import { z } from 'zod'
 
 /**
  * Browser-refresh persistence harness (client half).
@@ -14,67 +17,145 @@ import {
  * any pending-interrupt resume snapshot — straight from `localStorage`, with no
  * server round-trip. The matching provider-free durable endpoint is
  * `/api/persistence-durability`.
- *
- * `?scenario=interrupt` points the connection at the interrupt variant of the
- * endpoint and uses a distinct threadId, so the two scenarios never share a
- * storage key.
- *
- * `?scenario=server-interrupt` is the SERVER-authoritative counterpart: the
- * client runs `persistence: true` (caches nothing), so on mount it hydrates from
- * the endpoint's GET, which returns a pending interrupt. Proves a fresh client
- * re-prompts the approval from the server, not from `localStorage`.
  */
 
-// The store the client-authoritative scenarios use. `text`/`interrupt` pass it
-// directly, caching the transcript to localStorage. `server-interrupt` instead
-// runs `persistence: true` (no store), so the server owns the transcript and the
-// client hydrates on mount.
 const store = localStoragePersistence()
 
-const textConnection = fetchServerSentEvents('/api/persistence-durability')
-const interruptConnection = fetchServerSentEvents(
-  '/api/persistence-durability?scenario=interrupt',
+const deleteOrderDef = toolDefinition({
+  name: 'delete_order',
+  description: 'Delete an order',
+  inputSchema: z.object({ id: z.string() }),
+  needsApproval: true,
+}).client()
+
+const slowDeleteDef = toolDefinition({
+  name: 'slow_delete',
+  description: 'Delete an order slowly',
+  inputSchema: z.object({ id: z.string() }),
+  needsApproval: true,
+}).client()
+
+const chargeCardDef = toolDefinition({
+  name: 'charge_card',
+  description: 'Charge a credit card',
+  inputSchema: z.object({ amount: z.number() }),
+  needsApproval: true,
+}).client()
+
+const buyItemDef = toolDefinition({
+  name: 'buy_item',
+  description: 'Buy an item',
+  inputSchema: z.object({ item: z.string(), price: z.number() }),
+  needsApproval: true,
+}).client()
+
+const getTimezoneClient = toolDefinition({
+  name: 'get_timezone',
+  description: 'Get browser timezone',
+  inputSchema: z.object({}),
+  outputSchema: z.object({ tz: z.string() }),
+}).client(() => ({ tz: 'UTC' }))
+
+const PAGE_TOOLS = clientTools(
+  deleteOrderDef,
+  slowDeleteDef,
+  chargeCardDef,
+  buyItemDef,
+  getTimezoneClient,
 )
-const serverInterruptConnection = fetchServerSentEvents(
-  '/api/persistence-durability?scenario=server-interrupt',
-)
+
+const CONNECTIONS = {
+  text: fetchServerSentEvents('/api/persistence-durability'),
+  interrupt: fetchServerSentEvents(
+    '/api/persistence-durability?scenario=interrupt',
+  ),
+  'server-interrupt': fetchServerSentEvents(
+    '/api/persistence-durability?scenario=server-interrupt',
+  ),
+  'approval-reload': fetchServerSentEvents(
+    '/api/persistence-durability?scenario=approval-reload',
+  ),
+  'approval-mid-continuation': fetchServerSentEvents(
+    '/api/persistence-durability?scenario=approval-mid-continuation',
+  ),
+  'decline-llm-fail': fetchServerSentEvents(
+    '/api/persistence-durability?scenario=decline-llm-fail',
+  ),
+  'client-tool-reload': fetchServerSentEvents(
+    '/api/persistence-durability?scenario=client-tool-reload',
+  ),
+  'thread-switch': fetchServerSentEvents(
+    '/api/persistence-durability?scenario=interrupt',
+  ),
+  'multi-iter-cut': fetchServerSentEvents(
+    '/api/persistence-durability?scenario=multi-iter-cut',
+  ),
+} as const
+
+type PageScenario = keyof typeof CONNECTIONS
+
+const SERVER_PERSISTENCE_SCENARIOS = new Set<PageScenario>([
+  'server-interrupt',
+  'approval-reload',
+  'approval-mid-continuation',
+  'decline-llm-fail',
+  'client-tool-reload',
+])
+
+function parseScenario(value: unknown): PageScenario {
+  if (typeof value === 'string' && value in CONNECTIONS) {
+    return value as PageScenario
+  }
+  return 'text'
+}
 
 export const Route = createFileRoute('/persistence-durability')({
   component: PersistenceDurabilityPage,
   validateSearch: (search: Record<string, unknown>) => ({
-    scenario:
-      search.scenario === 'interrupt'
-        ? ('interrupt' as const)
-        : search.scenario === 'server-interrupt'
-          ? ('server-interrupt' as const)
-          : ('text' as const),
+    scenario: parseScenario(search.scenario),
+    threadId:
+      typeof search.threadId === 'string' && search.threadId.length > 0
+        ? search.threadId
+        : undefined,
   }),
 })
 
 function PersistenceDurabilityPage() {
-  const { scenario } = Route.useSearch()
+  const { scenario, threadId: customThreadId } = Route.useSearch()
   const [interruptSource, setInterruptSource] = useState<
     'hydrate' | 'live' | null
   >(null)
-  const isInterrupt = scenario === 'interrupt'
-  const isServerInterrupt = scenario === 'server-interrupt'
-  const chatId = isServerInterrupt
-    ? 'persistence-durability-server-interrupt'
-    : isInterrupt
-      ? 'persistence-durability-interrupt'
-      : 'persistence-durability-text'
+  const [threadSlot, setThreadSlot] = useState<'a' | 'b'>('a')
 
-  const { messages, sendMessage, isLoading, interrupts } = useChat({
-    // The threadId IS the hook's identity and its persistence key, so the
-    // localStorage record lives under `tanstack-ai:<chatId>` and a reload with
-    // the same threadId restores it.
+  const baseChatId =
+    customThreadId ??
+    (scenario === 'server-interrupt'
+      ? 'persistence-durability-server-interrupt'
+      : scenario === 'interrupt'
+        ? 'persistence-durability-interrupt'
+        : scenario === 'text'
+          ? 'persistence-durability-text'
+          : `persistence-durability-${scenario}`)
+  const chatId =
+    scenario === 'thread-switch' ? `${baseChatId}-${threadSlot}` : baseChatId
+
+  const useServerPersistence = SERVER_PERSISTENCE_SCENARIOS.has(scenario)
+  const useClientPersistence =
+    scenario === 'text' ||
+    scenario === 'interrupt' ||
+    scenario === 'thread-switch'
+
+  const { messages, sendMessage, isLoading, error, interrupts } = useChat<
+    typeof PAGE_TOOLS
+  >({
     threadId: chatId,
-    connection: isServerInterrupt
-      ? serverInterruptConnection
-      : isInterrupt
-        ? interruptConnection
-        : textConnection,
-    persistence: isServerInterrupt ? true : store,
+    connection: CONNECTIONS[scenario],
+    tools: PAGE_TOOLS,
+    persistence: useServerPersistence
+      ? true
+      : useClientPersistence
+        ? store
+        : undefined,
     onInterruptStateChange: (_state, context) => {
       setInterruptSource(context.source)
     },
@@ -104,6 +185,20 @@ function PersistenceDurabilityPage() {
       <div data-testid="interrupt-source" hidden>
         {interruptSource}
       </div>
+      <div data-testid="active-thread" hidden>
+        {chatId}
+      </div>
+      {error && <div data-testid="chat-error">{error.message}</div>}
+
+      {scenario === 'thread-switch' && (
+        <button
+          type="button"
+          data-testid="switch-thread"
+          onClick={() => setThreadSlot((prev) => (prev === 'a' ? 'b' : 'a'))}
+        >
+          Switch thread ({threadSlot})
+        </button>
+      )}
 
       <div data-testid="message-list">
         {messages.map((message) => (
@@ -113,13 +208,30 @@ function PersistenceDurabilityPage() {
               message.role === 'user' ? 'user-message' : 'assistant-message'
             }
           >
-            {message.parts.map((part, index) =>
-              part.type === 'text' ? (
-                <span key={`${message.id}-${index}`} data-testid="text-part">
-                  {part.content}
-                </span>
-              ) : null,
-            )}
+            {message.parts.map((part, index) => {
+              if (part.type === 'text') {
+                return (
+                  <span key={`${message.id}-${index}`} data-testid="text-part">
+                    {part.content}
+                  </span>
+                )
+              }
+              if (part.type === 'tool-call') {
+                return (
+                  <span
+                    key={`${message.id}-${index}`}
+                    data-testid={`tool-call-${part.name}`}
+                    data-state={part.state}
+                    data-approval-id={
+                      'approval' in part ? (part.approval?.id ?? '') : ''
+                    }
+                  >
+                    {part.name}:{part.state}
+                  </span>
+                )
+              }
+              return null
+            })}
           </div>
         ))}
       </div>
@@ -136,6 +248,24 @@ function PersistenceDurabilityPage() {
           >
             {String(interrupt.canResolve)}
           </span>
+          {interrupt.kind === 'tool-approval' && (
+            <>
+              <button
+                type="button"
+                data-testid={`approve-${interrupt.id}`}
+                onClick={() => interrupt.resolveInterrupt(true)}
+              >
+                Approve
+              </button>
+              <button
+                type="button"
+                data-testid={`deny-${interrupt.id}`}
+                onClick={() => interrupt.resolveInterrupt(false)}
+              >
+                Deny
+              </button>
+            </>
+          )}
         </div>
       ))}
 

@@ -42,7 +42,7 @@ export function useChat<
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
 
-  const subscribedRef = useRef(false)
+  const subscribedClientRef = useRef<ChatClient | null>(null)
   const activeClientRef = useRef<ChatClient | null>(null)
   const cleanupInvalidationRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -51,6 +51,16 @@ export function useChat<
     client: ChatClient
     timeout: ReturnType<typeof setTimeout>
   } | null>(null)
+  // A client the deferred teardown disposed while the hook stayed mounted: a
+  // hidden `<Activity>` keeps state and memos, runs the effect cleanups, and
+  // runs the effects again when it shows. The teardown replaces the client,
+  // which starts from the messages it had on screen for the same thread, so
+  // the hook never renders a disposed client.
+  const disposedClientRef = useRef<{
+    client: ChatClient
+    threadId: string | undefined
+  } | null>(null)
+  const [clientRevision, setClientRevision] = useState(0)
 
   // Track current options in a ref to avoid recreating client when options change
   const optionsRef =
@@ -63,9 +73,31 @@ export function useChat<
   // restores the same conversation. User callbacks read latest options.
   const { client, initialization, serverSnapshot, startPersistenceHydration } =
     useMemo(() => {
-      const messagesToUse = options.initialMessages || []
+      const disposed = disposedClientRef.current
+      const sameThreadDisposed =
+        disposed && disposed.threadId === options.threadId
+          ? disposed.client
+          : undefined
+      const messagesToUse = sameThreadDisposed
+        ? sameThreadDisposed.getMessages()
+        : options.initialMessages || []
 
       const initialOptions = optionsRef.current
+      const carriedResumeState = sameThreadDisposed?.getResumeState() ?? null
+      // Raw descriptors, so client-tool executions carry over too.
+      const carriedPendingInterrupts = [
+        ...(sameThreadDisposed?.getInterruptDescriptors() ?? []),
+      ]
+      const resumeSnapshotToUse = sameThreadDisposed
+        ? carriedResumeState
+          ? {
+              resumeState: carriedResumeState,
+              ...(carriedPendingInterrupts.length > 0
+                ? { pendingInterrupts: carriedPendingInterrupts }
+                : {}),
+            }
+          : undefined
+        : initialOptions.initialResumeSnapshot
       const { persistence, release: releasePersistenceHydration } =
         gatePersistence(initialOptions.persistence)
       const transport = initialOptions.connection
@@ -105,6 +137,9 @@ export function useChat<
         ...transport,
         initialMessages: messagesToUse,
         threadId: initialOptions.threadId,
+        ...(initialOptions.outputSchema !== undefined && {
+          outputSchema: initialOptions.outputSchema,
+        }),
         ...(persistence === true
           ? {
               persistence: true,
@@ -118,8 +153,8 @@ export function useChat<
         }),
         ...(initialOptions.byok !== undefined && { byok: initialOptions.byok }),
         byokProvider: () => optionsRef.current.byokProvider?.(),
-        ...(initialOptions.initialResumeSnapshot !== undefined && {
-          initialResumeSnapshot: initialOptions.initialResumeSnapshot,
+        ...(resumeSnapshotToUse !== undefined && {
+          initialResumeSnapshot: resumeSnapshotToUse,
         }),
         ...(initialOptions.context !== undefined && {
           context: initialOptions.context,
@@ -184,7 +219,7 @@ export function useChat<
         serverSnapshot: capturedServerSnapshot,
         startPersistenceHydration: releasePersistenceHydration,
       }
-    }, [options.threadId])
+    }, [options.threadId, clientRevision])
 
   useEffect(() => {
     activeClientRef.current = client
@@ -251,17 +286,13 @@ export function useChat<
   useEffect(() => {
     if (options.live) {
       client.subscribe()
-      subscribedRef.current = true
-    } else if (subscribedRef.current) {
-      // Only tear down a subscription we actually started. Calling
-      // `unsubscribe()` on initial mount (when `live` was never enabled) would
-      // abort an in-flight delivery resume — `resumeInFlightRun` is kicked off
-      // in the client constructor, and `unsubscribe()` cancels the shared
-      // in-flight stream — so a mid-stream reload would drop its rejoin before
-      // it delivers a single chunk. This is exactly why a reload froze instead
-      // of continuing.
+      subscribedClientRef.current = client
+    } else if (subscribedClientRef.current === client) {
+      // Only tear down a subscription we actually started on this client.
+      // Calling `unsubscribe()` on initial mount (when `live` was never enabled)
+      // would abort an in-flight delivery resume.
       client.unsubscribe()
-      subscribedRef.current = false
+      subscribedClientRef.current = null
     }
   }, [client, options.live])
 
@@ -287,6 +318,9 @@ export function useChat<
   }, [client, startPersistenceHydration])
 
   useEffect(() => {
+    disposedClientRef.current = null
+    // The options this client was made with, as committed alongside it.
+    const threadId = optionsRef.current.threadId
     if (cleanupDisposalRef.current?.client === client) {
       clearTimeout(cleanupDisposalRef.current.timeout)
       cleanupDisposalRef.current = null
@@ -309,18 +343,29 @@ export function useChat<
       // later; calling `stop()` would abort a constructor rejoin
       // (`resumeInFlightRun`) and can wipe the durable resume pointer before
       // the first chunk. Real teardown lives in the deferred dispose path
-      // below, which only runs when the client is not remounted.
+      // below, which only runs when the client is not remounted. A hidden
+      // `<Activity>` runs it too and keeps the hook: the teardown then replaces
+      // the disposed client.
       // Subscribe/unsubscribe on `options.live` is still owned by the
       // dedicated effect above for live toggles.
       const disposal = {
         client,
         timeout: setTimeout(() => {
-          if (optionsRef.current.live) {
+          // Detach already ran synchronously above. Dispose tears down the
+          // local stream and listeners without calling `stop()`, so durable
+          // runs and pending interrupts survive navigation, thread switches,
+          // and `<Activity>` hide/show cycles.
+          if (subscribedClientRef.current === client) {
             client.unsubscribe()
-          } else {
-            client.stop()
+            subscribedClientRef.current = null
           }
           client.dispose()
+          // Replace it only if the hook has no newer client: on a new
+          // threadId the new client is active by now, and stays.
+          if (activeClientRef.current === null) {
+            disposedClientRef.current = { client, threadId }
+            setClientRevision((revision) => revision + 1)
+          }
           if (cleanupDisposalRef.current === disposal) {
             cleanupDisposalRef.current = null
           }

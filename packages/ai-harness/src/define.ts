@@ -15,7 +15,8 @@ import type {
   SubagentsBag,
   SystemPrompt,
 } from '@tanstack/ai'
-import type { AnyAgent } from './agents'
+import type { AnyAgent, HarnessAgentContext } from './agents'
+import type { HandoffOptions } from './handoff'
 import type { ProjectOptions, ReduceOptions } from './log'
 import type { MediaOptions } from './media'
 import type { HarnessPlugin, PluginMetadataCheck, PluginModel } from './plugins'
@@ -127,6 +128,33 @@ export type HarnessRouterPick =
   | undefined
 
 /**
+ * What `routing.handoffTool` gets for one speaker of the turn.
+ */
+export interface HandoffToolContext {
+  /** The speaker: `null` for the main model, else the root agent name. */
+  from: string | null
+  /**
+   * The names this speaker can hand off to: the root agents other than
+   * itself, plus `'main'` for an agent.
+   */
+  targets: Array<string>
+  /** The value of `routing.allowHandoffToHuman`. */
+  allowHuman: boolean
+  /**
+   * Record a handoff with `by: 'tool'` and end the part. For the main
+   * model, the tool call is the record, so this adds no note messages.
+   * A root-agent tool handoff still adds the two note messages.
+   */
+  handoff: (options: HandoffOptions) => Promise<void>
+  /**
+   * The same function as `ctx.harness.state`: state that the agents of the
+   * session share, by key. The log keeps it. `get()` reads the latest value
+   * when the tool runs.
+   */
+  state: HarnessAgentContext['state']
+}
+
+/**
  * The `routing` option. The other fields mean the same as in `subagents`.
  * `limits` defaults to `subagents.limits`. The `strategy` of `subagents` is
  * not here: use `afterAgentsAnswer`.
@@ -166,6 +194,41 @@ export interface HarnessRouting<TMetadataSchema = any> extends Pick<
    * hand off. Default `true`.
    */
   giveModelsHandoffTool?: boolean
+  /**
+   * How later turns see the routed runs of earlier turns. The router gets
+   * the same messages in every mode.
+   * - `'own'`: each speaker sees only its own tool calls. A routed agent
+   *   sees its own earlier routed runs in full. It sees the other speakers
+   *   as labeled text (`name:\ntext`, `main:\ntext`), and a handoff call as
+   *   a text line with the note. The main model sees routed runs as
+   *   `name:\ntext`.
+   * - `'all'`: each routed host message becomes the child transcripts of
+   *   that run. A root harnessAgent always gets the `'own'` fold.
+   * - `'text'`: every speaker sees routed runs as `name:\ntext`.
+   *
+   * Default `'own'`.
+   */
+  history?: 'own' | 'all' | 'text'
+  /**
+   * Make the handoff tool of each speaker. The harness calls it once per
+   * speaker (the main model and each root agent) per turn. The returned
+   * tool replaces the default `handoff` tool, and it can have any name.
+   * Not called when `giveModelsHandoffTool` is false.
+   *
+   * @example
+   * ```ts
+   * handoffTool: ({ from, targets, handoff }) =>
+   *   toolDefinition({
+   *     name: 'handoff',
+   *     description: 'Hand the user to another agent',
+   *     inputSchema: z.object({ to: z.enum(targets), note: z.string() }),
+   *   }).server(async ({ to, note }) => {
+   *     await handoff({ to, note: `${from ?? 'main'}: ${note}` })
+   *     return `Handed off to ${to}.`
+   *   })
+   * ```
+   */
+  handoffTool?: (ctx: HandoffToolContext) => AnyTool
 }
 
 /**
@@ -482,18 +545,25 @@ export type SessionMetadataOf<THarness> =
     ? MetadataOf<TMetadataSchema>
     : Record<string, unknown>
 
-/** Every agent a harness registers, as a union. */
+/**
+ * Every agent a harness registers, as a union. It reads `agents` and
+ * `subagents.agents` alone: matching the whole definition reaches
+ * `session.agents`, which is typed by this, and TypeScript 7.1 reports the
+ * loop as a circular mapped type (TS2615).
+ */
 export type HarnessAgentsOf<THarness> =
-  THarness extends HarnessDefinition<
-    any,
-    infer TAgents,
-    infer TSubagents,
-    any,
-    ReadonlyArray<AnyTool>,
-    any
-  >
-    ? TAgents[number] | TSubagents[number]
-    : never
+  | (THarness extends {
+      readonly agents?: infer TAgents extends ReadonlyArray<AnyAgent>
+    }
+      ? TAgents[number]
+      : never)
+  | (THarness extends {
+      readonly subagents?: {
+        agents: infer TSubagents extends ReadonlyArray<AnyAgent>
+      }
+    }
+      ? TSubagents[number]
+      : never)
 
 /** The `tools` of a harness, as a union. */
 export type HarnessToolsOf<THarness> =

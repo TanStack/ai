@@ -135,6 +135,7 @@ export const Route = createFileRoute('/api/mcp-events-control')({
         if (op === 'received') {
           return Response.json({
             events: session.received,
+            messageIds: session.messageIds,
             gaps: session.gaps,
             terminations: session.terminations,
             errors: session.errors,

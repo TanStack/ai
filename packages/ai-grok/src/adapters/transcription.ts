@@ -106,6 +106,7 @@ export class GrokTranscriptionAdapter<
           Authorization: `Bearer ${this.apiKey}`,
         },
         body: form,
+        signal: options.abortSignal,
       })
 
       if (!response.ok) {

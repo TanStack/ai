@@ -9,7 +9,7 @@ function concat(prefix: Uint8Array, body: Uint8Array): Uint8Array {
 
 function signedBytes(
   messageId: string,
-  timestamp: number,
+  timestamp: string,
   body: Uint8Array,
 ): Uint8Array {
   const prefix = new TextEncoder().encode(`${messageId}.${timestamp}.`)
@@ -59,7 +59,11 @@ export async function signMCPEventPayload(input: {
   const signature = await crypto.subtle.sign(
     'HMAC',
     key,
-    signedBytes(input.messageId, input.timestamp, input.body) as BufferSource,
+    signedBytes(
+      input.messageId,
+      String(input.timestamp),
+      input.body,
+    ) as BufferSource,
   )
   return `v1,${bytesToBase64(new Uint8Array(signature))}`
 }
@@ -73,7 +77,8 @@ export async function signMCPEventPayload(input: {
 export async function verifyMCPEventSignature(input: {
   secret: string
   messageId: string
-  timestamp: number
+  /** Raw `webhook-timestamp` header. Leading zeros are part of the signature. */
+  timestamp: string
   body: Uint8Array
   header: string
 }): Promise<boolean> {

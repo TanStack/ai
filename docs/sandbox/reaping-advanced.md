@@ -140,6 +140,8 @@ Limits and defaults:
 
 `reclaimSandbox(record, { provider, instances })` destroys the sandbox a final run used. It finds it by `RunRecord.sandboxKey`. The detach path records that key, because the reaper has none of the inputs (thread id, workspace hash, tenant, reuse strategy) to compute it again.
 
+If the provider implements `deleteSnapshot`, also pass `locks`, the same lock store the sandbox middleware uses. Reclaim then takes the per-key lock that `ensure()` takes, so a run starting on the same thread cannot write back a record that names the snapshot reclaim deletes.
+
 It answers one of:
 
 | Outcome | Meaning |

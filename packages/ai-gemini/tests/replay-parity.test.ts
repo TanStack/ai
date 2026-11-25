@@ -15,13 +15,16 @@ import { GeminiTextInteractionsAdapter } from '../src/experimental/text-interact
 import type { GoogleGenAI } from '@google/genai'
 import { FunctionCallingConfigMode } from '@google/genai'
 
+// The real (unmocked) client, for the wire test against a mocked fetch.
+const realClient =
+  await vi.importActual<typeof import('../src/client')>('../src/client')
+
 const mocks = vi.hoisted(() => ({
   stream: vi.fn(),
   generate: vi.fn(),
   interactions: vi.fn(),
 }))
-vi.mock('@google/genai', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@google/genai')>()
+vi.mock('../src/client', () => {
   class MockGoogleGenAI {
     models = {
       generateContentStream: mocks.stream,
@@ -29,7 +32,9 @@ vi.mock('@google/genai', async (importOriginal) => {
     }
     interactions = { create: mocks.interactions }
   }
-  return { ...actual, GoogleGenAI: MockGoogleGenAI }
+  return {
+    createGoogleGenAI: () => new MockGoogleGenAI(),
+  }
 })
 const source = (
   model = 'gemini-3.7-flash',
@@ -289,9 +294,7 @@ describe('Gemini replay parity', () => {
   it.each([false, true])(
     'replays ordered agentic tool steps and signatures through the real SDK: foreign=%s',
     async (foreign) => {
-      const actual =
-        await vi.importActual<typeof import('@google/genai')>('@google/genai')
-      const sdk = new actual.GoogleGenAI({ apiKey: 'key' })
+      const sdk = realClient.createGoogleGenAI({ apiKey: 'key' })
       const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         new Response(
           JSON.stringify({

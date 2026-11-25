@@ -22,6 +22,7 @@
  * invisible, each guard reports through the optional {@link RunDeps.logger}.
  */
 import { EventType } from '@tanstack/ai'
+import { isStoredReplayChunk } from './align'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
@@ -200,7 +201,7 @@ function safeLog(
  */
 async function finish(
   ctx: FinishContext,
-  status: TerminalRunStatus,
+  status: TerminalRunStatus | 'interrupted',
   error?: RunError,
 ): Promise<RunRecord> {
   // NOTE: every logger call below goes through `safeLog`. The logger is
@@ -210,10 +211,9 @@ async function finish(
   // the run wedged at `'running'` with live tailers parked. The reporting
   // channel must never be able to break the guarantee it exists to report on.
   const { runs, durability, runId, logger } = ctx
-  const finishedAt = Date.now()
   const patch = {
     status,
-    finishedAt,
+    ...(status === 'interrupted' ? {} : { finishedAt: Date.now() }),
     ...(error === undefined ? {} : { error }),
   }
   const local: RunRecord = {
@@ -298,6 +298,7 @@ export async function pipeToRunLog<TOffset extends string = string>(
     ...(logger === undefined ? {} : { logger }),
   }
 
+  let interrupted = false
   try {
     // Inside the `try` so a store failure at creation is handled like any
     // other: recorded as a failed run with a terminalized log, not rejected.
@@ -306,6 +307,13 @@ export async function pipeToRunLog<TOffset extends string = string>(
 
     for await (const chunk of stream) {
       if (signal?.aborted) return finish(ctx, 'aborted')
+      // Read the outcome before the replay skip: a takeover that sees only
+      // stored chunks must still end an interrupted run as 'interrupted'.
+      if (chunk.type === EventType.RUN_FINISHED) {
+        interrupted = chunk.outcome?.type === 'interrupt'
+      }
+      // Already in the log. Appending it again is the doubled live tail.
+      if (isStoredReplayChunk(chunk)) continue
       await durability.append([chunk])
       if (isRunErrorChunk(chunk)) {
         return finish(
@@ -364,7 +372,7 @@ export async function pipeToRunLog<TOffset extends string = string>(
   // reported failure a tailing client must be shown, and this driver's log is
   // that client's only channel.
   if (signal?.aborted) return finish(ctx, 'aborted')
-  return finish(ctx, 'completed')
+  return finish(ctx, interrupted ? 'interrupted' : 'completed')
 }
 
 export interface RunControllerStartInput {

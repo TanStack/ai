@@ -446,7 +446,15 @@ describe('DaytonaHandle spawn stream and stdin', () => {
     expect(request?.command).not.toContain('export ANTHROPIC_API_KEY')
   })
 
-  it('advertises writableStdin and forwards stdin to the session command', async () => {
+  it('does not advertise writableStdin, because stdin.end() cannot send EOF', () => {
+    const handle = new DaytonaHandle({
+      sandbox: fakeSandbox({ url: 'https://x' }),
+      workdir: '/home/daytona/workspace',
+    })
+    expect(handle.capabilities.writableStdin).toBe(false)
+  })
+
+  it('forwards stdin writes to the session command', async () => {
     const sendSessionCommandInput = vi.fn(async () => {})
     const sandbox = {
       id: 'sbx-1',
@@ -472,8 +480,6 @@ describe('DaytonaHandle spawn stream and stdin', () => {
       sandbox,
       workdir: '/home/daytona/workspace',
     })
-
-    expect(handle.capabilities.writableStdin).toBe(true)
 
     const proc = await handle.process.spawn('cat')
     await proc.stdin.write('prompt-line\n')

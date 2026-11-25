@@ -33,7 +33,7 @@ const mocks = vi.hoisted(() => {
   return { betaMessagesCreate, messagesCreate, client }
 })
 
-vi.mock('@anthropic-ai/sdk', () => {
+vi.mock('../src/client', () => {
   const { client } = mocks
 
   class MockAnthropic {
@@ -43,7 +43,10 @@ vi.mock('@anthropic-ai/sdk', () => {
     constructor(_: { apiKey: string }) {}
   }
 
-  return { default: MockAnthropic }
+  return {
+    createAnthropicClient: (options: { apiKey: string }) =>
+      new MockAnthropic(options),
+  }
 })
 
 const createAdapter = <TModel extends 'claude-sonnet-4-5'>(model: TModel) =>
@@ -1386,7 +1389,10 @@ describe('Anthropic adapter option mapping', () => {
     expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(1)
     const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
 
-    expect(payload.betas).toEqual(['interleaved-thinking-2025-05-14'])
+    expect(payload.betas).toEqual([
+      'interleaved-thinking-2025-05-14',
+      'thinking-binding-controls-2026-08-01',
+    ])
     expect(payload.messages[1].content).toEqual([
       {
         type: 'thinking',

@@ -19,6 +19,19 @@ The OpenAI adapter calls GPT for chat, and it calls image, speech, transcription
 
 Does your provider speak the OpenAI API, for example DeepSeek, Kimi, or a local vLLM server? Use the [OpenAI-Compatible adapter](./openai-compatible).
 
+## Models retiring on December 11, 2026
+
+Update calls that use the original GPT-5 or o3 models before December 11, 2026. OpenAI recommends these replacements:
+
+- `gpt-5` and `o3`: `gpt-5.6-sol`.
+- `gpt-5-mini`: `gpt-5.6-terra`.
+- `gpt-5-nano`: `gpt-5.6-luna`.
+- `gpt-5-pro` and `o3-pro`: `gpt-5.6-sol` with OpenAI's pro reasoning mode.
+
+The same deadline applies to their dated snapshots and fine-tuned versions. See [OpenAI's deprecation notice](https://developers.openai.com/api/docs/deprecations#2026-06-11-gpt-5-and-o3-model-deprecations) for the full list.
+
+The adapter keeps the old model IDs for compatibility before shutdown. The example pickers use supported replacements.
+
 ## 1. Install
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
@@ -134,7 +147,7 @@ const result = await generateImage({
 console.log(result.images);
 ```
 
-`quality` takes `low`, `medium`, `high`, or `auto`. The `gpt-image-2.5` models also take `xhigh` and `max`. See [Image Generation](../media/image-generation).
+`quality` takes `low`, `medium`, `high`, or `auto`. The `gpt-image-2.6` and `gpt-image-2.5` models also take `xhigh` and `max`. See [Image Generation](../media/image-generation).
 
 ## Speech
 
@@ -395,7 +408,7 @@ Newest first. The package exports the full lists, for example `OPENAI_CHAT_MODEL
 | Activity | Factory | Models |
 | --- | --- | --- |
 | Chat | `openaiText` | `gpt-6.1-sol`, `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, the `gpt-5.6` models, `gpt-5.5`, `gpt-4.1`, `gpt-4o`, the `o` models, and more |
-| Images | `openaiImage` | `gpt-image-2.5-flare`, `gpt-image-2.5-sunburst`, `gpt-image-2`, `gpt-image-1`, `gpt-image-1-mini` |
+| Images | `openaiImage` | `gpt-image-2.6-flare`, `gpt-image-2.6-sunburst`, `gpt-image-2.5-flare`, `gpt-image-2.5-sunburst`, `gpt-image-2`, `gpt-image-1`, `gpt-image-1-mini` |
 | Speech | `openaiSpeech` | `tts-1`, `tts-1-hd`, `gpt-4o-mini-tts` |
 | Transcription | `openaiTranscription` | `whisper-1`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `gpt-4o-transcribe-diarize` |
 | Embeddings | `openaiEmbedding` | `text-embedding-3-small`, `text-embedding-3-large` |

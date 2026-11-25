@@ -165,6 +165,7 @@ input and output types:
 ```typescript
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
+import { db } from './db'
 
 const getProducts = toolDefinition({
   name: 'getProducts',
@@ -296,20 +297,11 @@ on.
 <table align="center">
   <tr>
     <td>
-      <a href="https://www.coderabbit.ai/?via=tanstack&dub_id=aCcEEdAOqqutX6OS">
-        <picture>
-          <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/TanStack/tanstack.com/main/src/images/coderabbit-dark.svg" />
-          <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/TanStack/tanstack.com/main/src/images/coderabbit-light.svg" />
-          <img src="https://raw.githubusercontent.com/TanStack/tanstack.com/main/src/images/coderabbit-light.svg" height="40" alt="CodeRabbit" />
-        </picture>
-      </a>
-    </td>
-    <td>
       <a href="https://www.cloudflare.com?utm_source=tanstack">
         <picture>
-          <source media="(prefers-color-scheme: dark)" srcset="https://tanstack.com/assets/cloudflare-white-Co-Tyjbl.svg" />
-          <source media="(prefers-color-scheme: light)" srcset="https://tanstack.com/assets/cloudflare-black-6Ojsn8yh.svg" />
-          <img src="https://tanstack.com/assets/cloudflare-black-6Ojsn8yh.svg" height="60" alt="Cloudflare" />
+          <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/TanStack/tanstack.com/main/src/images/cloudflare-white.svg" />
+          <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/TanStack/tanstack.com/main/src/images/cloudflare-black.svg" />
+          <img src="https://raw.githubusercontent.com/TanStack/tanstack.com/main/src/images/cloudflare-white.svg" height="60" alt="Cloudflare" />
         </picture>
       </a>
     </td>

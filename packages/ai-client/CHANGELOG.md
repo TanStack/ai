@@ -1,5 +1,86 @@
 # @tanstack/ai-client
 
+## 1.2.1
+
+### Patch Changes
+
+- [#1893](https://github.com/TanStack/ai/pull/1893) [`56d9f96`](https://github.com/TanStack/ai/commit/56d9f960bae57357cfe0b8e231a9523dc9016c9f) - TanStack `useChat` gets more from an AI SDK route through `fromChatTransport`:
+  - Client tools go to the route in the request body. Read them on the route with `clientToolsFromAISDKBody(body, serverTools)`, so the route needs no copy.
+  - With `outputSchema`, an `Output.object` answer is a typed `structured-output` part with partial objects.
+  - A dropped stream reconnects with the backoff of the TanStack HTTP connections. Set it with the `reconnect` option.
+  - The connection reads `threadId`, `tools` and `outputSchema` from `useChat`. Do not pass them to `fromChatTransport`.
+
+  `@tanstack/ai-client` exports `createReconnectTracker` and its `ReconnectTracker` type. A connection now gets the chat config of the run as `runContext.config`, and `joinRun` gets it as its third argument (`ChatRunConfig`: `threadId`, `tools`, `outputSchema`). `ChatClient` takes an `outputSchema` option, and each chat hook passes its `outputSchema` to it.
+
+## 1.2.0
+
+### Minor Changes
+
+- [#2186](https://github.com/TanStack/ai/pull/2186) [`1aa7227`](https://github.com/TanStack/ai/commit/1aa722707deca4d567efafe0830471222d558b62) - Add the experimental `generate3DModel()` activity. It turns text, images, or an existing mesh into a 3D model file, and returns the main model URL plus every mesh and texture file. A media prompt can now carry a `model3d` part, so a step such as retexture can take the mesh of an earlier step. `fal3DModel()` in `@tanstack/ai-fal` runs the fal 3D endpoints, and `useGenerate3DModel` (`injectGenerate3DModel` in Angular, `createGenerate3DModel` in Svelte and Remix) streams the job to the UI.
+
+- [#2184](https://github.com/TanStack/ai/pull/2184) [`4288b7a`](https://github.com/TanStack/ai/commit/4288b7aaa80e085df899e2bebb597a9f85d6fb71) - A server tool can now send result metadata: app data that the UI and middleware see and the model never sees. Call `context?.setResultMetadata?.(value)` in the tool. Add `resultMetadataSchema` to the tool definition to type and check the value. The client reads it as a typed `part.resultMetadata` on the tool-call part, also after a reload with persistence.
+  - `onAfterToolCall` gets `info.metadata`. A `replaceResult` or `skip` decision can set `metadata`. `toolCacheMiddleware` keeps the metadata on a cache hit.
+  - `@tanstack/ai-mcp` copies the `_meta` of an MCP tool result into the result metadata. A `tanstack` key is dropped.
+  - `@tanstack/ai-persistence` keeps the stored app metadata when a client copy replaces a stored tool message. The `'messages.metadata'` conformance check now also tests a tool message with nested app metadata.
+  - The server owns the result metadata. `chatParamsFromRequest` keeps only the `tanstack` key on the tool rows of a request.
+  - Client tools and WebMCP tools throw when they call `setResultMetadata`.
+  - `@tanstack/ai-effect` accepts tool definitions that have `resultMetadataSchema`.
+  - `@tanstack/ai-event-client` adds `metadata` to the tool result event. The devtools show it as "Result metadata" on each tool result.
+
+### Patch Changes
+
+- Updated dependencies [[`1aa7227`](https://github.com/TanStack/ai/commit/1aa722707deca4d567efafe0830471222d558b62), [`0a84ac2`](https://github.com/TanStack/ai/commit/0a84ac22cbd29ac49997091713ca9da81bb3e553), [`4288b7a`](https://github.com/TanStack/ai/commit/4288b7aaa80e085df899e2bebb597a9f85d6fb71)]:
+  - @tanstack/ai@1.7.0
+  - @tanstack/ai-event-client@1.1.0
+
+## 1.1.1
+
+### Patch Changes
+
+- [#2164](https://github.com/TanStack/ai/pull/2164) [`0fb44da`](https://github.com/TanStack/ai/commit/0fb44da5bb25ab8fb76802f46c9815360e510173) - Devtools now gets the thinking text in `text:chunk:thinking`. Before, it got the id of the reasoning step as the text.
+
+- Updated dependencies [[`fde4e09`](https://github.com/TanStack/ai/commit/fde4e09b0170017394ff2874847d416777920b2e)]:
+  - @tanstack/ai@1.5.0
+
+## 1.1.0
+
+### Minor Changes
+
+- [#1978](https://github.com/TanStack/ai/pull/1978) [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32) - `createMcpAppBridge().callTool(input, { signal })` passes the signal to the call request.
+
+- [#1977](https://github.com/TanStack/ai/pull/1977) [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6) - A client tool now gets `abortSignal` in its execute context. It aborts when you call `stop()` on the `ChatClient`.
+
+- [#1977](https://github.com/TanStack/ai/pull/1977) [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6) - New optional cancel features. Old code works the same.
+  - `fetchServerSentEvents` and `fetchHttpStream` take an optional `cancelUrl`. With it, `ChatClient.stop()` sends `POST cancelUrl` with `{ runId, threadId }`, so the server can cancel a durable run. Only `stop()` sends it, not an unmount or a reload.
+  - Connection adapters can have an optional `cancelRun({ runId, threadId })` method. `stop()` calls it.
+  - `RealtimeClient` passes an `abortSignal` to `adapter.connect()`. A `disconnect()` during `connect()` aborts the setup, and the status goes to `idle`, not `error`.
+
+### Patch Changes
+
+- [#1979](https://github.com/TanStack/ai/pull/1979) [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31) - `stop()` no longer waits for a client tool that never settles. Fetch and XHR connection adapters now abort on the client's signal and on your own `options.signal`. `stream()` and `rpcStream()` end on abort even if the source ignores the signal. `RealtimeClient.disconnect()` during `connect()` or a token refresh no longer leaves a connection or a token refresh timer behind.
+
+- [#1979](https://github.com/TanStack/ai/pull/1979) [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31) - A cancel now stops the request. `stop()` and an abort of the connection `options.signal` reach the fetch, XHR, `stream()`, and `rpcStream()` requests. A realtime `disconnect()` during `connect()` does not stop a pending `getToken()` or `adapter.connect()` call: it drops the late result and closes the connection that comes back. An abort of `options.signal` now ends the chat like `stop()`, not as a finished run. A realtime connection that a later `connect()` replaced no longer changes the status of the live session.
+
+- [#1969](https://github.com/TanStack/ai/pull/1969) [`1e13e87`](https://github.com/TanStack/ai/commit/1e13e87b26ccd2734455fc4a958c0690ef3ead06) - Ask for approval of a `needsApproval` client tool when the server does not ask for it, for example a custom AG-UI server or a connection adapter with no TanStack server. Before, the client logged a warning and the tool never ran. Now the call comes in `interrupts` as a `tool-approval` item, the same as with `chat()`. On approve, the client runs the tool and continues the loop. On deny, it sends a denied result and continues.
+
+- [#1968](https://github.com/TanStack/ai/pull/1968) [`450950d`](https://github.com/TanStack/ai/commit/450950da860d58047c654c1497ddb48d651f9076) - Run client tools when a custom AG-UI server ends a run with `finishReason: 'tool_calls'` and closes the stream. Before, the client waited for a next run that never came, so the tool did not run and the agent loop stopped. The client now runs the unanswered calls when the stream ends. A tool that needs approval asks the user first, the same as for a success outcome.
+
+- [#1972](https://github.com/TanStack/ai/pull/1972) [`f33f72a`](https://github.com/TanStack/ai/commit/f33f72ab6da9a0f95bd912e29d2cabc2eab17f27) - Keep queued messages in the queue while a run is paused on an interrupt, for example a tool approval. Before, the queue sent the next message as soon as the paused run ended, so a new run started while the tool call was still unanswered. Now the queue sends after the run that answers the interrupt ends with success.
+
+- Updated dependencies [[`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`e17cae7`](https://github.com/TanStack/ai/commit/e17cae7aa40ce5ebe0e78496931d49c793bdaf41), [`d6ead13`](https://github.com/TanStack/ai/commit/d6ead13def85f91782e20d6c1b8755fdf1c836c2), [`450950d`](https://github.com/TanStack/ai/commit/450950da860d58047c654c1497ddb48d651f9076), [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31), [`13b1ca9`](https://github.com/TanStack/ai/commit/13b1ca918a0ac36761db2a6226973c5330d4221d), [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb)]:
+  - @tanstack/ai@1.1.0
+  - @tanstack/ai-utils@1.0.1
+  - @tanstack/ai-event-client@1.0.1
+
+## 1.0.1
+
+### Patch Changes
+
+- [#1904](https://github.com/TanStack/ai/pull/1904) [`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29) - Show each package's own npm download count and npm version. The bundle-size badge uses bundlejs. Partner logos use image URLs that load.
+
+- Updated dependencies [[`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29), [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0)]:
+  - @tanstack/ai@1.0.1
+
 ## 1.0.0
 
 ### Major Changes

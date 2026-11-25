@@ -4,7 +4,13 @@ import type {
   ComputerDriverFactory,
   MouseButton,
 } from '@tanstack/ai-computer-use'
-import type { SandboxHandle, SandboxProvider } from '@tanstack/ai-sandbox'
+import { captureSandboxFiles, restoreSandboxFiles } from '@tanstack/ai-sandbox'
+import type {
+  SandboxHandle,
+  SandboxProvider,
+  SandboxSnapshotPolicy,
+  SandboxSnapshots,
+} from '@tanstack/ai-sandbox'
 
 /** Options for {@link createSandboxComputerDriver}. */
 export interface SandboxComputerDriverOptions {
@@ -16,6 +22,8 @@ export interface SandboxComputerDriverOptions {
    * `{ width: 1024, height: 768 }`.
    */
   display?: { width: number; height: number }
+  /** Stops the setup commands when it aborts. */
+  signal?: AbortSignal
 }
 
 /** Options for {@link sandboxComputer}. */
@@ -24,6 +32,51 @@ export interface SandboxComputerOptions {
   provider: SandboxProvider
   /** The screen size in pixels. The default is `{ width: 1024, height: 768 }`. */
   display?: { width: number; height: number }
+  /**
+   * Keep the state of each thread after the thread closes or goes idle.
+   * Without this option, the driver destroys the sandbox, and the next call
+   * of the thread gets a new, empty one. Set one or both ways.
+   */
+  persist?: SandboxComputerPersist
+}
+
+/** How the state of a thread survives. See {@link SandboxComputerOptions.persist}. */
+export interface SandboxComputerPersist {
+  /**
+   * Keep the sandbox of each thread, and reconnect to the same sandbox later
+   * with `provider.resume`. `get` and `set` store the sandbox id of each
+   * thread, where your threads persist. The driver does not destroy a kept
+   * sandbox. The provider timeout pauses or removes it, like E2B
+   * `onTimeout: 'pause'`.
+   */
+  reconnect?: {
+    get: (threadId: string) => Promise<string | undefined>
+    set: (threadId: string, sandboxId: string) => Promise<void>
+  }
+  /**
+   * Save the files of a folder when a thread closes or goes idle, and restore
+   * them into the next new sandbox of the thread. This works with every
+   * provider, also when the sandbox is gone.
+   */
+  snapshots?: SandboxComputerSnapshots
+}
+
+/** Options for the saved files of each thread. See {@link saveComputerSnapshot}. */
+export interface SandboxComputerSnapshots {
+  /**
+   * The stores from `createSandboxSnapshots` or `memorySandboxSnapshots`.
+   * Each save becomes the newest checkpoint of the thread, so use these
+   * stores only for computers.
+   */
+  store: Pick<SandboxSnapshots, 'persistence' | 'checkpoints'>
+  /** The folder to save, as an absolute path. */
+  root: string
+  /** The paths to skip. The default skips `.git`, `node_modules`, and `.env` files. */
+  policy?: SandboxSnapshotPolicy
+  /** Runs before each save and restore. Stop the programs that write in `root`. */
+  before?: (sandbox: SandboxHandle) => Promise<void>
+  /** Runs after each save and restore. Start those programs again. */
+  after?: (sandbox: SandboxHandle) => Promise<void>
 }
 
 const DEFAULT_DISPLAY = { width: 1024, height: 768 }
@@ -102,9 +155,13 @@ function moveTo(x: number, y: number) {
 export async function createSandboxComputerDriver({
   sandbox,
   display: size = DEFAULT_DISPLAY,
+  signal: setupSignal,
 }: SandboxComputerDriverOptions) {
-  async function run(command: string) {
-    const result = await sandbox.process.exec(command)
+  /** Runs `command`. `signal` stops it. Without one, exec gets no options. */
+  async function run(command: string, signal?: AbortSignal) {
+    const result = await (signal
+      ? sandbox.process.exec(command, { signal })
+      : sandbox.process.exec(command))
     if (result.exitCode !== 0) {
       throw new Error(
         `Sandbox command failed with exit code ${result.exitCode}: ${command}\n${result.stderr}`,
@@ -112,13 +169,15 @@ export async function createSandboxComputerDriver({
     }
     return result.stdout
   }
-  const xdotool = (args: string) => run(`${X} xdotool ${args}`)
+  const xdotool = (args: string, signal?: AbortSignal) =>
+    run(`${X} xdotool ${args}`, signal)
 
   // Prints each missing tool. `@import` means no scrot, but ImageMagick
   // `import` takes the screenshots, like on Amazon Linux.
   const found = (
     await run(
       'for t in xdotool xdpyinfo; do command -v $t >/dev/null || echo $t; done; command -v scrot >/dev/null || { command -v import >/dev/null && echo @import || echo scrot; }',
+      setupSignal,
     )
   )
     .trim()
@@ -134,7 +193,10 @@ export async function createSandboxComputerDriver({
     ? 'import -window root'
     : 'scrot --pointer'
 
-  const running = await sandbox.process.exec(`${X} xdpyinfo >/dev/null 2>&1`)
+  const probe = `${X} xdpyinfo >/dev/null 2>&1`
+  const running = await (setupSignal
+    ? sandbox.process.exec(probe, { signal: setupSignal })
+    : sandbox.process.exec(probe))
   if (running.exitCode !== 0) {
     // Output goes to /dev/null, so no provider buffer fills up.
     await sandbox.process.spawn(
@@ -142,6 +204,7 @@ export async function createSandboxComputerDriver({
     )
     await run(
       `for i in $(seq 50); do ${X} xdpyinfo >/dev/null 2>&1 && exit 0; sleep 0.2; done; echo 'Xvfb did not start' >&2; exit 1`,
+      setupSignal,
     )
     // ponytail: no wait for the session. Early screenshots can show an empty
     // screen, and the model takes another one.
@@ -150,7 +213,7 @@ export async function createSandboxComputerDriver({
     )
   }
 
-  const info = await run(`${X} xdpyinfo`)
+  const info = await run(`${X} xdpyinfo`, setupSignal)
   const match = /dimensions:\s+(\d+)x(\d+)/.exec(info)
   if (!match) {
     throw new Error('Could not read the screen size from xdpyinfo.')
@@ -159,30 +222,32 @@ export async function createSandboxComputerDriver({
   const driver = {
     display: { width: Number(match[1]), height: Number(match[2]) },
     environment: 'linux',
-    async screenshot() {
+    async screenshot(options?: { signal?: AbortSignal }) {
       const file = `/tmp/${generateId('tanstack-screenshot')}.png`
       // One round trip: capture, print as base64, delete. Not `status`: zsh
       // (the Daytona shell) makes it read-only.
       const base64 = await run(
         `${X} ${capture} ${file} && base64 -w0 ${file}; code=$?; rm -f ${file}; exit $code`,
+        options?.signal,
       )
       return base64ToUint8Array(base64.trim())
     },
-    async click(x, y, { button, count }) {
+    async click(x, y, { button, count, signal }) {
       await xdotool(
         `${moveTo(x, y)} click --repeat ${int(count)} ${BUTTONS[button]}`,
+        signal,
       )
     },
-    async move(x, y) {
-      await xdotool(moveTo(x, y))
+    async move(x, y, options?: { signal?: AbortSignal }) {
+      await xdotool(moveTo(x, y), options?.signal)
     },
-    async mouseDown(button) {
-      await xdotool(`mousedown ${BUTTONS[button]}`)
+    async mouseDown(button, options?: { signal?: AbortSignal }) {
+      await xdotool(`mousedown ${BUTTONS[button]}`, options?.signal)
     },
     async mouseUp(button) {
       await xdotool(`mouseup ${BUTTONS[button]}`)
     },
-    async scroll(x, y, deltaX, deltaY) {
+    async scroll(x, y, deltaX, deltaY, options?: { signal?: AbortSignal }) {
       // xdotool buttons 4 and 5 scroll up and down, 6 and 7 left and right.
       let args = moveTo(x, y)
       if (deltaY !== 0) {
@@ -191,18 +256,21 @@ export async function createSandboxComputerDriver({
       if (deltaX !== 0) {
         args += ` click --repeat ${scrollClicks(deltaX)} ${deltaX > 0 ? 7 : 6}`
       }
-      await xdotool(args)
+      await xdotool(args, options?.signal)
     },
-    async keyDown(key) {
-      await xdotool(`keydown -- ${quote(toXdotoolKey(key))}`)
+    async keyDown(key, options?: { signal?: AbortSignal }) {
+      await xdotool(`keydown -- ${quote(toXdotoolKey(key))}`, options?.signal)
     },
     async keyUp(key) {
       await xdotool(`keyup -- ${quote(toXdotoolKey(key))}`)
     },
-    async press(keys) {
-      await xdotool(`key -- ${quote(keys.map(toXdotoolKey).join('+'))}`)
+    async press(keys, options?: { signal?: AbortSignal }) {
+      await xdotool(
+        `key -- ${quote(keys.map(toXdotoolKey).join('+'))}`,
+        options?.signal,
+      )
     },
-    async type(text) {
+    async type(text, options?: { signal?: AbortSignal }) {
       if (text === '') return
       const chunks: Array<string> = []
       for (let i = 0; i < text.length; i += TYPE_CHUNK) {
@@ -215,10 +283,11 @@ export async function createSandboxComputerDriver({
               `${X} xdotool type --delay ${TYPE_DELAY_MS} -- ${quote(chunk)}`,
           )
           .join(' && '),
+        options?.signal,
       )
     },
-    async cursorPosition() {
-      const out = await xdotool('getmouselocation')
+    async cursorPosition(options?: { signal?: AbortSignal }) {
+      const out = await xdotool('getmouselocation', options?.signal)
       const position = /x:(\d+)\s+y:(\d+)/.exec(out)
       if (!position) {
         throw new Error(`Could not read the cursor position: ${out}`)
@@ -234,7 +303,10 @@ export async function createSandboxComputerDriver({
  *
  * Each sandbox comes from `provider.create`. When `createComputerUse` closes
  * a thread, or the thread goes idle, the sandbox of that thread is
- * destroyed. The drivers have `cursorPosition`. They have no `zoom` and no
+ * destroyed. With `persist.reconnect`, the sandbox is kept, and the next call
+ * of the thread reconnects to it with `provider.resume`. With
+ * `persist.snapshots`, the files of one folder are saved first, and restored
+ * into the next new sandbox of the thread. The drivers have `cursorPosition`. They have no `zoom` and no
  * `navigate`, because a desktop has no address. The model opens the browser
  * on the desktop.
  *
@@ -248,33 +320,199 @@ export async function createSandboxComputerDriver({
 export function sandboxComputer({
   provider,
   display = DEFAULT_DISPLAY,
+  persist: { reconnect, snapshots } = {},
 }: SandboxComputerOptions) {
+  /** The sandbox of the thread: its stored sandbox, when it still exists, or a new one. */
+  async function open(threadId: string, signal: AbortSignal | undefined) {
+    const id = await reconnect?.get(threadId)
+    const resumed =
+      id === undefined
+        ? null
+        : await provider.resume(signal ? { id, signal } : { id })
+    if (resumed) return { sandbox: resumed, isNew: false }
+    const sandbox = await provider.create(signal ? { signal } : {})
+    try {
+      await reconnect?.set(threadId, sandbox.id)
+    } catch (error) {
+      await destroyAfterFailure(sandbox)
+      throw error
+    }
+    return { sandbox, isNew: true }
+  }
+
   const factory: ComputerDriverFactory = {
     display,
     environment: 'linux',
     capabilities: { zoom: false, cursorPosition: true, navigate: false },
-    async create() {
-      const sandbox = await provider.create({})
+    async create({ threadId, signal }) {
+      const { sandbox, isNew } = await open(threadId, signal)
       try {
-        const driver = await createSandboxComputerDriver({ sandbox, display })
+        const driver = await createSandboxComputerDriver({
+          sandbox,
+          display,
+          ...(signal && { signal }),
+        })
         const { width, height } = driver.display
         if (width !== display.width || height !== display.height) {
           throw new Error(
             `The sandbox display is ${width}x${height}, not ${display.width}x${display.height}. Set display to the size of the running display.`,
           )
         }
-        return { ...driver, close: () => sandbox.destroy() }
+        // A resumed sandbox can have a new, empty disk, as on Cloudflare after
+        // a restart. The marker is missing then, so the snapshot goes back.
+        if (snapshots && (isNew || !(await hasRestored(sandbox, snapshots)))) {
+          await restoreComputerSnapshot(sandbox, threadId, snapshots)
+        }
+        // A kept sandbox outlives its thread. The provider timeout ends it.
+        if (reconnect && !snapshots) return driver
+        return {
+          ...driver,
+          close: async () => {
+            try {
+              if (snapshots) {
+                await saveComputerSnapshot({ sandbox, threadId, snapshots })
+              }
+            } finally {
+              if (!reconnect) await sandbox.destroy()
+            }
+          },
+        }
       } catch (error) {
-        // Keep the setup error. A failed destroy does not replace it.
-        await sandbox.destroy().catch((destroyError: unknown) => {
-          console.error(
-            'Failed to destroy the sandbox after setup failed.',
-            destroyError,
-          )
-        })
+        // A kept sandbox holds the state of the thread, like a signed-in
+        // browser. Keep it, so the next call of the thread tries it again.
+        if (isNew) await destroyAfterFailure(sandbox)
         throw error
       }
     },
   }
   return factory
+}
+
+/** Destroy a sandbox after a setup error. A failed destroy does not replace that error. */
+async function destroyAfterFailure(sandbox: SandboxHandle) {
+  await sandbox.destroy().catch((destroyError: unknown) => {
+    console.error(
+      'Failed to destroy the sandbox after setup failed.',
+      destroyError,
+    )
+  })
+}
+
+/**
+ * Written next to `root` after a restore, so no snapshot holds it. A disk
+ * without it has not got the snapshot.
+ */
+const markerPath = (root: string) =>
+  `${root.replace(/\/$/, '')}.computer-snapshot-restored`
+
+function hasRestored(
+  sandbox: SandboxHandle,
+  { root }: SandboxComputerSnapshots,
+) {
+  return sandbox.fs.exists(markerPath(root))
+}
+
+// One save or restore at a time for each thread. Two at once on one sandbox
+// would stop and start the programs of `root` in the middle of each other.
+// The key is the thread, not the sandbox: when a thread goes idle and its next
+// call comes during the save, the restore into the new sandbox must wait for
+// that save, or it restores an older snapshot.
+// ponytail: one process. With more servers, the provider must lock.
+const snapshotQueues = new Map<string, Promise<unknown>>()
+
+function oneAtATime<T>(threadId: string, task: () => Promise<T>) {
+  const previous = snapshotQueues.get(threadId) ?? Promise.resolve()
+  const next = previous.then(task, task)
+  const settled = next.catch(() => {})
+  snapshotQueues.set(threadId, settled)
+  void settled.then(() => {
+    if (snapshotQueues.get(threadId) === settled) {
+      snapshotQueues.delete(threadId)
+    }
+  })
+  return next
+}
+
+/**
+ * Save the files of `snapshots.root` as the newest snapshot of the thread.
+ * `sandboxComputer` calls it when a thread closes or goes idle. Call it
+ * yourself after a step that you must keep, like a sign-in.
+ */
+export function saveComputerSnapshot({
+  sandbox,
+  threadId,
+  snapshots: { store, root, policy, before, after },
+}: {
+  sandbox: SandboxHandle
+  threadId: string
+  /** The same options as `persist.snapshots` of `sandboxComputer`. */
+  snapshots: SandboxComputerSnapshots
+}) {
+  return oneAtATime(threadId, async () => {
+    try {
+      // In the try, so `after` starts the programs again when `before` fails.
+      await before?.(sandbox)
+      const { files } = await captureSandboxFiles(
+        sandbox,
+        { blobs: store.persistence.stores.blobs, workspaceRoot: root },
+        policy,
+      )
+      const writer = await store.checkpoints.acquireWriter(threadId)
+      try {
+        const parentCheckpointId = await store.checkpoints.getHead(threadId)
+        await store.checkpoints.append({
+          checkpoint: {
+            id: crypto.randomUUID(),
+            threadId,
+            parentCheckpointId,
+            createdAt: Date.now(),
+            reason: 'named',
+            label: 'computer',
+            files,
+            conversation: [],
+            artifacts: [],
+          },
+          expectedHeadId: parentCheckpointId,
+          writer,
+        })
+      } finally {
+        await writer.release()
+      }
+    } finally {
+      await after?.(sandbox)
+    }
+  })
+}
+
+/** Restore the newest snapshot of the thread into a sandbox, then mark the disk. */
+function restoreComputerSnapshot(
+  sandbox: SandboxHandle,
+  threadId: string,
+  { store, root, policy, before, after }: SandboxComputerSnapshots,
+) {
+  return oneAtATime(threadId, async () => {
+    const head = await store.checkpoints.getHead(threadId)
+    if (head !== null) {
+      const checkpoint = await store.checkpoints.get(head)
+      if (!checkpoint) {
+        throw new Error(
+          `The snapshot ${head} of thread ${threadId} is missing.`,
+        )
+      }
+      try {
+        await before?.(sandbox)
+        // A new sandbox may not have the folder yet, and the restore needs it.
+        await sandbox.fs.mkdir(root)
+        await restoreSandboxFiles(
+          sandbox,
+          { blobs: store.persistence.stores.blobs, workspaceRoot: root },
+          checkpoint,
+          policy,
+        )
+      } finally {
+        await after?.(sandbox)
+      }
+    }
+    await sandbox.fs.write(markerPath(root), '')
+  })
 }

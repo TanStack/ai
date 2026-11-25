@@ -2,7 +2,7 @@
 title: Generation Hooks
 id: generation-hooks
 order: 7
-description: "Client hooks for every media generation: image, audio, speech, transcription, summarization, and video. One shape for loading, errors, and results in every framework."
+description: "Client hooks for every media generation: image, audio, speech, transcription, summarization, video, and 3D models. One shape for loading, errors, and results in every framework."
 keywords:
   - tanstack ai
   - generation hooks
@@ -12,6 +12,7 @@ keywords:
   - useTranscription
   - useSummarize
   - useGenerateVideo
+  - useGenerate3dModel
   - react hooks
 ---
 
@@ -124,6 +125,7 @@ The server half and the three transports are explained in [Generations](./genera
 | `useTranscription` | `TranscriptionGenerateInput` | `TranscriptionResult` |
 | `useSummarize` | `SummarizeGenerateInput` | `SummarizationResult` |
 | `useGenerateVideo` | `VideoGenerateInput` | `VideoGenerateResult` |
+| `useGenerate3dModel` | `Model3dGenerateInput` | `Model3dResult` |
 | `useGeneration` | Your own `TInput` | Your own `TResult` |
 
 Every hook returns `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, and `runId`. The full tables are in [Options](#options) and [Return value](#return-value).
@@ -404,6 +406,56 @@ interface VideoStatusInfo {
 
 It also takes two more callbacks: `onJobCreated(jobId)` and `onStatusUpdate(status)`.
 
+### useGenerate3dModel
+
+Makes a 3D model file, for example a GLB, from an image, a text prompt, or an existing mesh. The server runs the provider job and polls it. Guide: [3D Model Generation](./3d-model-generation). This hook is experimental.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `prompt` | `string \| MediaPromptPart[]` | What to make (required). An array can hold text, image, and `model3d` parts. |
+| `modelOptions` | `Record<string, any>` | Model-specific options |
+
+`result` is a `Model3dResult`: `url` and `format` of the main file, plus `files` with a `role` for each file. The hook has no job values. To show the job state, use `onProgress`:
+
+```tsx
+import { useState } from 'react'
+import { fetchServerSentEvents, useGenerate3dModel } from '@tanstack/ai-react'
+
+export function ModelGenerator() {
+  const [jobState, setJobState] = useState<string>()
+  const { generate, result, isLoading } = useGenerate3dModel({
+    connection: fetchServerSentEvents('/api/generate/3d-model'),
+    threadId: 'treasure-chest',
+    // message is 'pending', 'processing', or 'completed'
+    onProgress: (_progress, message) => setJobState(message),
+  })
+
+  return (
+    <div>
+      <button
+        onClick={() =>
+          generate({
+            prompt: [
+              {
+                type: 'image',
+                source: { type: 'url', value: 'https://example.com/chest.png' },
+              },
+            ],
+          })
+        }
+        disabled={isLoading}
+      >
+        Generate
+      </button>
+      {isLoading && <p>Status: {jobState ?? 'starting...'}</p>}
+      {result && <a href={result.url}>Open the .{result.format} file</a>}
+    </div>
+  )
+}
+```
+
+The server route for this hook, and a GLB viewer, are in [Make your first model](./3d-model-generation#make-your-first-model).
+
 ## Framework variants
 
 Every framework has the same hooks with the same options. Only the names and the reactive values change.
@@ -416,6 +468,7 @@ Every framework has the same hooks with the same options. Only the names and the
 | Transcription | `useTranscription` | `createTranscription` | `injectTranscription` |
 | Summarization | `useSummarize` | `createSummarize` | `injectSummarize` |
 | Video | `useGenerateVideo` | `createGenerateVideo` | `injectGenerateVideo` |
+| 3D model | `useGenerate3dModel` | `createGenerate3dModel` | `injectGenerate3dModel` |
 | Base (custom) | `useGeneration` | `createGeneration` | `injectGeneration` |
 
 How to read the values in each framework:
@@ -470,6 +523,8 @@ Options for special cases:
 | `runId` | `string \| null` | The id of the run in progress, or `null` |
 
 `stop()` only aborts the local stream. Work that already runs on the provider continues. To cancel or poll that provider job, send `runId` to your own endpoint.
+
+If your `fetcher` returns an SSE `Response`, stopping the generation cancels its body and ends `generate()` even while no events arrive.
 
 ### Result transforms
 

@@ -1,5 +1,36 @@
 # @tanstack/ai-persistence
 
+## 1.1.0
+
+### Minor Changes
+
+- [#2184](https://github.com/TanStack/ai/pull/2184) [`4288b7a`](https://github.com/TanStack/ai/commit/4288b7aaa80e085df899e2bebb597a9f85d6fb71) - A server tool can now send result metadata: app data that the UI and middleware see and the model never sees. Call `context?.setResultMetadata?.(value)` in the tool. Add `resultMetadataSchema` to the tool definition to type and check the value. The client reads it as a typed `part.resultMetadata` on the tool-call part, also after a reload with persistence.
+  - `onAfterToolCall` gets `info.metadata`. A `replaceResult` or `skip` decision can set `metadata`. `toolCacheMiddleware` keeps the metadata on a cache hit.
+  - `@tanstack/ai-mcp` copies the `_meta` of an MCP tool result into the result metadata. A `tanstack` key is dropped.
+  - `@tanstack/ai-persistence` keeps the stored app metadata when a client copy replaces a stored tool message. The `'messages.metadata'` conformance check now also tests a tool message with nested app metadata.
+  - The server owns the result metadata. `chatParamsFromRequest` keeps only the `tanstack` key on the tool rows of a request.
+  - Client tools and WebMCP tools throw when they call `setResultMetadata`.
+  - `@tanstack/ai-effect` accepts tool definitions that have `resultMetadataSchema`.
+  - `@tanstack/ai-event-client` adds `metadata` to the tool result event. The devtools show it as "Result metadata" on each tool result.
+
+### Patch Changes
+
+- Updated dependencies [[`1aa7227`](https://github.com/TanStack/ai/commit/1aa722707deca4d567efafe0830471222d558b62), [`0a84ac2`](https://github.com/TanStack/ai/commit/0a84ac22cbd29ac49997091713ca9da81bb3e553), [`4288b7a`](https://github.com/TanStack/ai/commit/4288b7aaa80e085df899e2bebb597a9f85d6fb71)]:
+  - @tanstack/ai@1.7.0
+
+## 1.0.1
+
+### Patch Changes
+
+- [#1921](https://github.com/TanStack/ai/pull/1921) [`669fd31`](https://github.com/TanStack/ai/commit/669fd31d995a7134e9f39f386181edc5085039b2) - Persistence adapter skills now type-check, and the Drizzle and custom Postgres recipes run the persistence conformance suite. The custom recipe includes the interrupt and metadata stores. The Prisma recipe is type-checked only, because it needs a generated client.
+
+- [#1918](https://github.com/TanStack/ai/pull/1918) [`2f86841`](https://github.com/TanStack/ai/commit/2f868416cc9d2fe0022f6c08417ed76ddcdadcbd) - The adapter skills now say to write all four chat tables and stores on every dialect. The Drizzle skill gets a full Postgres schema block instead of a prose note, so an agent does not translate the SQLite schema by hand and drop `interrupts` and `metadata`.
+
+  The conformance step in every adapter skill now skips the optional `activities` store, which the testkit requires to be provided or declared. The Drizzle recipe's Postgres and SQLite code was run through the testkit on PGlite and libsql and passes.
+
+- Updated dependencies [[`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29), [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0)]:
+  - @tanstack/ai@1.0.1
+
 ## 1.0.0
 
 ### Major Changes

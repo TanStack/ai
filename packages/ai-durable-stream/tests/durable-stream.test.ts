@@ -739,6 +739,36 @@ describe('durableStream official HTTP protocol', () => {
     expect(fetchStub).toHaveBeenCalledTimes(4)
   })
 
+  it('does not retry a live read that failed before it left the now offset', async () => {
+    const fetchStub = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              controller.error(new TypeError('socket read failed'))
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+        ),
+    )
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-now-fail'),
+      {
+        server: 'https://ds.test',
+        fetch: fetchStub,
+        reconnect: { maxReadFailures: 3, delayMs: 0 },
+      },
+    )
+
+    await expect(async () => {
+      for await (const _entry of durability.read('now')) {
+        // drain
+      }
+    }).rejects.toThrow(/socket read failed/)
+    // A retry at 'now' would skip records appended between the two reads.
+    expect(fetchStub).toHaveBeenCalledTimes(1)
+  })
+
   it('reconnects from the same control after data is read before a body failure', async () => {
     const requests: Array<CapturedRequest> = []
     let readNumber = 0
@@ -1673,5 +1703,50 @@ describe('durableStream exact-once resume', () => {
       'opaque::batch-end/Z?token=%3D',
     ])
     expect(server.closeCount()).toBe(1)
+  })
+
+  it('recovers from a live 404 before producer creation and retries failed POST without advancing seq', async () => {
+    const server = makeProtocolServer()
+    let getAttempts = 0
+    let postAttempts = 0
+    const flakyFetch: typeof fetch = async (input, init) => {
+      const method = (init?.method ?? 'GET').toUpperCase()
+      if (method === 'GET' && getAttempts === 0) {
+        getAttempts += 1
+        return new Response('not found', { status: 404 })
+      }
+      if (method === 'POST' && postAttempts === 0) {
+        postAttempts += 1
+        return new Response('temporary failure', { status: 503 })
+      }
+      return server.fetchStub(input, init)
+    }
+
+    const producer = durableStream(
+      new Request('https://app.test/api/chat?runId=run-flaky-retry'),
+      { server: 'https://ds.test', fetch: flakyFetch },
+    )
+    // First POST fails with 503; retry must keep producerSeq at 1 (no gap).
+    await expect(producer.append([textChunk('first')])).rejects.toThrow()
+    await producer.append([textChunk('first')])
+    await producer.close()
+    expect(
+      server.batches.flatMap((batch) =>
+        batch.records.map((record) => record.seq),
+      ),
+    ).toEqual([1])
+
+    const reader = durableStream(
+      new Request('https://app.test/api/chat?runId=run-flaky-retry&offset=-1'),
+      { server: 'https://ds.test', fetch: flakyFetch },
+    )
+    const chunks: Array<StreamChunk> = []
+    for await (const event of reader.read('-1')) {
+      chunks.push(event.chunk)
+    }
+    expect(getAttempts).toBe(1)
+    expect(
+      chunks.map((c) => (c.type === 'TEXT_MESSAGE_CONTENT' ? c.delta : '')),
+    ).toEqual(['first'])
   })
 })

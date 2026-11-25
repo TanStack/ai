@@ -1,4 +1,11 @@
-import { For, createContext, useContext } from 'solid-js'
+import {
+  For,
+  Index,
+  Show,
+  createContext,
+  createMemo,
+  useContext,
+} from 'solid-js'
 import type { Accessor, Component, Context, JSX } from 'solid-js'
 import {
   automaticPartsForMessage,
@@ -504,17 +511,29 @@ export function createChatUI<
     )
   }
 
+  function reactiveProxy<T extends object>(read: () => T): T {
+    return new Proxy({} as T, {
+      get: (_target, prop) => Reflect.get(read(), prop),
+      has: (_target, prop) => Reflect.has(read(), prop),
+      ownKeys: () => Reflect.ownKeys(read()),
+      getOwnPropertyDescriptor: (_target, prop) =>
+        Reflect.getOwnPropertyDescriptor(read(), prop),
+    })
+  }
+
   function MessageView(props: {
     message: UIMessage<any, any>
     interrupts: ReadonlyArray<any>
     inlineToolNames: ReadonlyArray<string>
     children?: (parts: Array<ChatUISelectedPart>) => JSX.Element
   }) {
-    const selected = selectMessageUI(props.message, {
-      interrupts: props.interrupts,
-      inlineToolNames: props.inlineToolNames,
-    })
-    if (props.children) return <>{props.children(selected.parts)}</>
+    const selected = createMemo(() =>
+      selectMessageUI(props.message, {
+        interrupts: props.interrupts,
+        inlineToolNames: props.inlineToolNames,
+      }),
+    )
+    if (props.children) return <>{props.children(selected().parts)}</>
     return (
       <MessageRenderContext.Provider
         value={{
@@ -557,61 +576,103 @@ export function createChatUI<
     interrupts: ReadonlyArray<any>
     inlineToolNames: ReadonlyArray<string>
   }) {
-    const selected = selectMessageUI(props.message, {
-      interrupts: props.interrupts,
-      inlineToolNames: props.inlineToolNames,
-    })
+    const selectedParts = createMemo(() =>
+      automaticPartsForMessage(
+        selectMessageUI(props.message, {
+          interrupts: props.interrupts,
+          inlineToolNames: props.inlineToolNames,
+        }),
+      ),
+    )
     return (
-      <>
-        {automaticPartsForMessage(selected).map((part) => (
-          <SelectedPartView selected={part} />
-        ))}
-      </>
+      <Index each={selectedParts()}>
+        {(part) => <SelectedPartView selected={part()} />}
+      </Index>
     )
   }
 
   function SelectedPartInner(props: { selected: ChatUISelectedPart }) {
-    if (props.selected.key === 'toolCall') {
-      const name = props.selected.part.name
-      const Tool = tools?.[name as ChatUIToolName<TOptions>] as
-        | Component<ToolProps<TOptions>>
-        | undefined
-      if (!Tool) {
-        warn(`tool:${name}`, `[tanstack-ai-ui] Missing tools.${name} component`)
-        return null
-      }
-      return (
-        <Tool
-          part={props.selected.part as ToolProps<TOptions>['part']}
-          result={props.selected.result}
-          interrupt={
-            (props.selected.key === 'toolCall'
-              ? props.selected.interrupt
-              : undefined) as ToolProps<TOptions>['interrupt']
+    type ResolvedPart =
+      | { kind: 'tool'; Component: Component<ToolProps<TOptions>> }
+      | { kind: 'part'; Component: Component<PartProps<TOptions>> }
+      | null
+    // Memoize component resolution with structural equality on the chosen
+    // component so interrupt or result updates flow into props without
+    // remounting stateful tool components.
+    const resolved = createMemo<ResolvedPart>(
+      () => {
+        if (props.selected.key === 'toolCall') {
+          const name = props.selected.part.name
+          const Tool = tools?.[name as ChatUIToolName<TOptions>] as
+            | Component<ToolProps<TOptions>>
+            | undefined
+          if (!Tool) {
+            warn(
+              `tool:${name}`,
+              `[tanstack-ai-ui] Missing tools.${name} component`,
+            )
+            return null
           }
-        />
-      )
-    }
-    const PartComponent = (parts[props.selected.key] ?? parts.fallback) as
-      | Component<PartProps<TOptions>>
-      | undefined
-    if (!PartComponent) {
-      warn(
-        `part:${props.selected.key}`,
-        `[tanstack-ai-ui] Missing parts.${props.selected.key} component`,
-      )
-      return null
-    }
+          return { kind: 'tool', Component: Tool }
+        }
+        const PartComponent = (parts[props.selected.key] ?? parts.fallback) as
+          | Component<PartProps<TOptions>>
+          | undefined
+        if (!PartComponent) {
+          warn(
+            `part:${props.selected.key}`,
+            `[tanstack-ai-ui] Missing parts.${props.selected.key} component`,
+          )
+          return null
+        }
+        return { kind: 'part', Component: PartComponent }
+      },
+      null,
+      {
+        equals: (prev, next) =>
+          prev === next ||
+          (prev !== null &&
+            next !== null &&
+            prev.kind === next.kind &&
+            prev.Component === next.Component),
+      },
+    )
     return (
-      <PartComponent
-        part={props.selected.part as PartProps<TOptions>['part']}
-      />
+      <Show when={resolved()} keyed>
+        {(entry) => {
+          if (entry.kind === 'tool') {
+            const Tool = entry.Component
+            return (
+              <Tool
+                part={props.selected.part as ToolProps<TOptions>['part']}
+                result={
+                  props.selected.key === 'toolCall'
+                    ? props.selected.result
+                    : undefined
+                }
+                interrupt={
+                  (props.selected.key === 'toolCall'
+                    ? props.selected.interrupt
+                    : undefined) as ToolProps<TOptions>['interrupt']
+                }
+              />
+            )
+          }
+          const PartComponent = entry.Component
+          return (
+            <PartComponent
+              part={props.selected.part as PartProps<TOptions>['part']}
+            />
+          )
+        }}
+      </Show>
     )
   }
 
   function SelectedPartView(props: { selected: ChatUISelectedPart }) {
+    const reactiveSelected = reactiveProxy(() => props.selected)
     return (
-      <PartContext.Provider value={props.selected}>
+      <PartContext.Provider value={reactiveSelected}>
         <SelectedPartInner selected={props.selected} />
       </PartContext.Provider>
     )
@@ -627,21 +688,29 @@ export function createChatUI<
     children?: (mixed: ChatUISelectedPart & PartMixins<TOptions>) => JSX.Element
   }) {
     const chat = useChatContext()
-    const selected = isSelectedPart(props.part)
-      ? props.part
-      : selectMessageUI(
-          { id: 'part', role: 'assistant', parts: [props.part] },
-          { interrupts: readInterrupts(chat), inlineToolNames: [] },
-        ).parts[0]
-    if (!selected) return null
+    const selected = createMemo(() =>
+      isSelectedPart(props.part)
+        ? props.part
+        : selectMessageUI(
+            { id: 'part', role: 'assistant', parts: [props.part] },
+            { interrupts: readInterrupts(chat), inlineToolNames: [] },
+          ).parts[0],
+    )
     return (
-      <PartContext.Provider value={selected}>
-        {props.children ? (
-          props.children(mixPart(selected))
-        ) : (
-          <SelectedPartInner selected={selected} />
-        )}
-      </PartContext.Provider>
+      <Show when={selected()}>
+        {(current) => {
+          const reactiveSelected = reactiveProxy(current)
+          return (
+            <PartContext.Provider value={reactiveSelected}>
+              {props.children ? (
+                props.children(mixPart(current()))
+              ) : (
+                <SelectedPartInner selected={current()} />
+              )}
+            </PartContext.Provider>
+          )
+        }}
+      </Show>
     )
   }
 
@@ -651,12 +720,13 @@ export function createChatUI<
     ) => JSX.Element
   }) {
     const chat = useChatContext()
-    const selected = () =>
+    const selected = createMemo(() =>
       selectChatUI({
         messages: readMessages(chat),
         interrupts: readInterrupts(chat),
         inlineToolNames,
-      })
+      }),
+    )
     if (props.children) {
       return <>{props.children(() => selected().interrupts)}</>
     }
@@ -668,17 +738,29 @@ export function createChatUI<
   }
 
   function InterruptInner(props: { interrupt: ChatUIInterrupt }) {
-    const Component = resolveInterruptComponent(props.interrupt, interrupts) as
-      | Component<InterruptProps<TOptions>>
-      | undefined
-    if (!Component) {
-      warn(
-        `interrupt:${props.interrupt.id}`,
-        `[tanstack-ai-ui] Missing interrupt component for ${props.interrupt.kind}`,
-      )
-      return null
-    }
-    return <Component interrupt={props.interrupt} />
+    const Component = createMemo(
+      () => {
+        const resolved = resolveInterruptComponent(
+          props.interrupt,
+          interrupts,
+        ) as Component<InterruptProps<TOptions>> | undefined
+        if (!resolved) {
+          warn(
+            `interrupt:${props.interrupt.id}`,
+            `[tanstack-ai-ui] Missing interrupt component for ${props.interrupt.kind}`,
+          )
+          return null
+        }
+        return resolved
+      },
+      null,
+      { equals: (prev, next) => prev === next },
+    )
+    return (
+      <Show when={Component()} keyed>
+        {(Comp) => <Comp interrupt={props.interrupt} />}
+      </Show>
+    )
   }
 
   function BoundInterruptRender() {
@@ -692,8 +774,9 @@ export function createChatUI<
       mixed: ChatUIInterrupt & InterruptMixins<TOptions>,
     ) => JSX.Element
   }) {
+    const reactiveInterrupt = reactiveProxy(() => props.interrupt)
     return (
-      <InterruptContext.Provider value={props.interrupt}>
+      <InterruptContext.Provider value={reactiveInterrupt}>
         {props.children ? (
           props.children(mixInterrupt(props.interrupt))
         ) : (

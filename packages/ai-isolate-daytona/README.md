@@ -33,7 +33,7 @@ pnpm add @tanstack/ai-isolate-daytona @tanstack/ai-code-mode
 If you use the official Daytona SDK to create sandboxes, install it in your app too:
 
 ```bash
-pnpm add @daytona/sdk
+pnpm add @daytona/sdk@^0.231.1
 ```
 
 ## Usage
@@ -41,7 +41,10 @@ pnpm add @daytona/sdk
 ```typescript
 import { Daytona } from '@daytona/sdk'
 import { createCodeMode } from '@tanstack/ai-code-mode'
+import type { CodeModeTool } from '@tanstack/ai-code-mode'
 import { createDaytonaIsolateDriver } from '@tanstack/ai-isolate-daytona'
+
+declare const myServerTool: CodeModeTool
 
 const daytona = new Daytona()
 const sandbox = await daytona.create({ language: 'typescript' })

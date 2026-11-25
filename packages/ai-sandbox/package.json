@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox",
-  "version": "1.0.0",
+  "version": "1.5.0",
   "description": "Provider-agnostic sandbox layer for TanStack AI — run harness adapters inside isolated sandboxes (defineSandbox, defineWorkspace, withSandbox) with a uniform SandboxHandle, workspace bootstrap, policy, and resumable lifecycle.",
   "author": "",
   "license": "MIT",
@@ -38,11 +38,16 @@
       "types": "./dist/esm/ngrok.d.ts",
       "import": "./dist/esm/ngrok.js"
     },
+    "./host-login": {
+      "types": "./dist/esm/host-login.d.ts",
+      "import": "./dist/esm/host-login.js"
+    },
     "./testkit": {
       "types": "./dist/esm/testkit/conformance.d.ts",
       "import": "./dist/esm/testkit/conformance.js"
     }
   },
+  "sideEffects": false,
   "files": [
     "dist",
     "src",
@@ -82,7 +87,7 @@
     }
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/server": "^2.0.0",
     "@tanstack/ai-skills": "workspace:^",
     "@tanstack/ai-utils": "workspace:^"
   },
@@ -108,11 +113,12 @@
     }
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "^2.0.0",
     "@ngrok/ngrok": "^1.7.0",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-harness": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10",
-    "vitest": "^4.1.10"
+    "@vitest/coverage-v8": "4.1.12",
+    "vitest": "^4.1.12"
   }
 }

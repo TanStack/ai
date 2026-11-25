@@ -33,9 +33,10 @@ import {
   canonicalInterruptJson,
   digestInterruptJson,
 } from '../../interrupt-serialization'
-import { rebuildTokenUsage } from '../../utilities/ag-ui-usage'
+import { readErrorUsage, rebuildTokenUsage } from '../../utilities/ag-ui-usage'
 import { uiMessagesToWire } from '../../utilities/ag-ui-wire'
 import {
+  mergeMetadata,
   tanstackMetadata,
   withTanstackMetadata,
 } from '../../utilities/merge-metadata'
@@ -49,6 +50,7 @@ import type { ChatResult } from '../../stream-to-response.js'
 import {
   normalizeToolResult,
   parseToolOutput,
+  textToolResultMark,
   toolResultErrorText,
 } from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
@@ -61,6 +63,7 @@ import { normalizeSystemPrompts } from '../../system-prompts'
 import { transformMessagesForReplay } from '../../utilities/replay-messages'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
+import { middlewareResultMetadata } from './tools/result-metadata'
 import type { DefinedAgent } from './agents/define-agent'
 import { providerKeys } from '../../byok/env-keys'
 import {
@@ -180,6 +183,7 @@ import type {
   TanStackMessageMetadata,
   TextMessageContentEvent,
   TextOptions,
+  TokenUsage,
   ToolCall,
   ToolCallArgsEvent,
   ReasoningEncryptedValueEvent,
@@ -1061,6 +1065,8 @@ class TextEngine<
   private readonly streamId: string
   private readonly effectiveRequest?: Request | RequestInit
   private readonly effectiveSignal?: AbortSignal
+  /** The caller signal plus ctx.abort(), only when there is a caller signal. */
+  private readonly linkedSignal?: AbortSignal
 
   private messages: Array<ModelMessage>
   private activities: Array<ActivityRecord> = []
@@ -1120,6 +1126,13 @@ class TextEngine<
   private deferredModelRunFinishedChunks: Array<StreamChunk> = []
 
   private earlyTermination = false
+  /**
+   * The strategy or `onShouldContinue` refused another model call while tool
+   * results waited. A length cut sets this too. The synthetic RUN_FINISHED
+   * is skipped when that cut already sent its own finish.
+   */
+  private loopStopped = false
+  private loopStoppedFinishSent = false
   private toolPhase: ToolPhaseResult = 'continue'
   private cyclePhase: CyclePhase = 'processText'
   // Client state extracted from initial messages (before conversion to ModelMessage)
@@ -1131,6 +1144,8 @@ class TextEngine<
   private readonly resumeDeniedToolResults = new Map<string, unknown>()
   private readonly resumeCancelledToolCallIds = new Set<string>()
   private readonly resumeInputResponses = new Map<string, ToolInputResponse>()
+  /** Highest resumed MCP input step per toolCallId so a second prompt gets a fresh id. */
+  private readonly resumedMcpInputStep = new Map<string, number>()
   private readonly resumeGenericInterrupts = new Map<
     string,
     ChatResumeGenericResolution
@@ -1275,9 +1290,6 @@ class TextEngine<
     >(this.tools)
     this.requestId = this.createId('chat')
     this.streamId = this.createId('stream')
-    this.effectiveRequest = config.params.abortController
-      ? { signal: config.params.abortController.signal }
-      : undefined
     this.effectiveSignal = config.params.abortController?.signal
     this.threadId = config.params.threadId
     this.runIdOverride = config.params.runId
@@ -1296,6 +1308,13 @@ class TextEngine<
       this.effectiveSignal,
       this.middlewareAbortController.signal,
     )
+    // With a caller signal, the provider request and ctx.signal follow
+    // ctx.abort() too. Without one they get no signal, as before: some SDKs
+    // drop their own timeout when a request has a signal.
+    this.linkedSignal = this.effectiveSignal ? this.toolAbortSignal : undefined
+    this.effectiveRequest = this.linkedSignal
+      ? { signal: this.linkedSignal }
+      : undefined
     this.middlewareCtx = {
       requestId: this.requestId,
       streamId: this.streamId,
@@ -1312,7 +1331,7 @@ class TextEngine<
       iteration: 0,
       chunkIndex: 0,
       callMetadata: this.currentCallMetadata,
-      signal: this.effectiveSignal,
+      signal: this.linkedSignal,
       abort: (reason?: string) => {
         this.abortReason = reason
         this.middlewareAbortController?.abort(reason)
@@ -1535,6 +1554,37 @@ class TextEngine<
   }
 
   async *run(): AsyncGenerator<StreamChunk> {
+    const steps = this.runSteps()
+    for await (const chunk of steps) {
+      let resumed = false
+      try {
+        yield chunk
+        resumed = true
+      } finally {
+        // The consumer stopped iterating (`break` or `return()`).
+        if (!resumed) {
+          if (
+            chunk.type === EventType.RUN_ERROR ||
+            (chunk.type === EventType.RUN_FINISHED &&
+              chunk.outcome?.type === 'interrupt')
+          ) {
+            // A yielded error or a pause ends this invocation. Finish it
+            // unseen so it reports `onError` or `onFinish`, as a drained run
+            // does. A pause keeps its paused state.
+            for await (const _chunk of steps) {
+              // discard
+            }
+          } else {
+            // Abort before the loop closes `runSteps`, so its `finally`
+            // reports `onAbort`.
+            this.middlewareAbortController?.abort()
+          }
+        }
+      }
+    }
+  }
+
+  private async *runSteps(): AsyncGenerator<StreamChunk> {
     this.beforeRun()
     this.logger.agentLoop('run started', {
       threadId: this.middlewareCtx.threadId,
@@ -1588,6 +1638,10 @@ class TextEngine<
         return
       }
 
+      // A run stopped before it started runs no pending tools and raises no
+      // interrupt. The `finally` below reports it through `onAbort`.
+      if (this.isCancelled()) return
+
       const hasResumedTools = this.getPendingToolCallsFromMessages().length > 0
       const pendingPhase = yield* this.checkForPendingToolCalls()
       if (pendingPhase === 'stop' || pendingPhase === 'wait') {
@@ -1605,8 +1659,13 @@ class TextEngine<
             this.loopState(this.iterationCount),
           ),
         ))
-      if (isStoppedAfterResume && !this.finalStructuredOutput) {
-        yield* this.emitSuccessfulEarlyTermination()
+      if (isStoppedAfterResume) {
+        this.loopStopped = true
+        this.markLoopStoppedMessage()
+        if (!this.finalStructuredOutput) {
+          this.loopStoppedFinishSent = true
+          yield* this.emitSuccessfulEarlyTermination()
+        }
       }
 
       // Skip the agent loop entirely when there are no tools AND a separate
@@ -1658,6 +1717,7 @@ class TextEngine<
                 )
               ) {
                 this.setToolPhase('wait')
+                await this.runTerminalHook()
                 return
               }
 
@@ -1673,6 +1733,7 @@ class TextEngine<
               )
             ) {
               this.setToolPhase('wait')
+              await this.runTerminalHook()
               return
             }
             if (this.shouldExecuteToolPhase()) {
@@ -1693,7 +1754,27 @@ class TextEngine<
 
       this.logger.agentLoop('run finished', {
         finishReason: this.lastFinishReason,
+        loopStopped: this.loopStopped,
       })
+
+      // The `tool_calls` RUN_FINISHED went out before the tool results. A
+      // last one tells the client that the loop, not the model, ended the run.
+      // A streamed finalization sends the outer RUN_FINISHED, so it carries
+      // the flag instead.
+      if (
+        this.loopStopped &&
+        !this.loopStoppedFinishSent &&
+        !this.isCancelled()
+      ) {
+        this.markLoopStoppedMessage()
+        if (!this.finalizationOwnsLifecycle()) {
+          yield* this.pipeThroughMiddleware(
+            withTanstackMetadata(this.createSyntheticFinishedEvent(), {
+              loopStopped: true,
+            }),
+          )
+        }
+      }
 
       // After the agent loop ends, if a structured-output finalization was
       // requested AND the run hasn't already errored/aborted, run it through
@@ -1922,6 +2003,8 @@ class TextEngine<
             break
           }
           if (hasModelErrorHook && (await this.modelErrorRetried(chunk))) {
+            // The dropped call can still be billed: report its usage.
+            await this.runOnUsageFromChunk(chunk)
             return
           }
         }
@@ -1947,6 +2030,8 @@ class TextEngine<
         yield rateLimitError
         return
       }
+      // The dropped call can still be billed: report its usage.
+      await this.runOnUsageFromChunk(rateLimitError)
     }
     if (start) yield start
   }
@@ -2175,6 +2260,11 @@ class TextEngine<
         this.middlewareCtx,
         outboundChunk,
       )
+      // A RUN_ERROR can carry the usage of a call the provider billed. Report
+      // it before the yield: a consumer often stops reading at the error.
+      if (raw.type === EventType.RUN_ERROR) {
+        await this.runOnUsageFromChunk(raw)
+      }
       // When a streaming structured-output finalization step will run after
       // the agent loop, suppress the agent-loop's RUN_STARTED/RUN_FINISHED
       // here — the finalization step emits the single outer lifecycle pair
@@ -2182,10 +2272,7 @@ class TextEngine<
       //
       // Native combined mode does NOT issue a second adapter stream — the
       // agent loop's lifecycle IS the outer pair the consumer sees.
-      const suppressAgentLifecycle =
-        !!this.finalStructuredOutput &&
-        this.finalStructuredOutput.yieldChunks &&
-        this.finalStructuredOutput.nativeCombined !== true
+      const suppressAgentLifecycle = this.finalizationOwnsLifecycle()
       for (const outputChunk of outputChunks) {
         this.recordPublicActivity(outputChunk, raw)
         for (const spec of normalizeStreamChunk(
@@ -2408,20 +2495,31 @@ class TextEngine<
     // Alignment suppresses already-delivered deltas, so this snapshot is
     // what a takeover saves as the full assistant text.
     const before = this.accumulatedContent
+    let delta: string
     if (typeof extra.content === 'string' && extra.content !== '') {
-      this.accumulatedContent = extra.content
+      const next = extra.content
+      this.accumulatedContent = next
+      // `startsWith(before)` flattens the whole rope on every chunk, so a
+      // long answer of small deltas is O(n²) and does not yield. A normal
+      // snapshot is `before` plus this delta; the lengths say so without
+      // reading the text. ponytail: length check. A same-length prefix
+      // rewrite falls out later, when turn text disagrees with
+      // `accumulatedContent` and block order is dropped.
+      if (next.length === before.length + chunk.delta.length) {
+        delta = chunk.delta
+      } else if (!this.turnParts || !next.startsWith(before)) {
+        // A cumulative `content` snapshot rewrote earlier text; order unknown.
+        this.turnParts = null
+        delta = ''
+      } else {
+        delta = next.slice(before.length)
+      }
     } else {
       this.accumulatedContent += chunk.delta
+      delta = chunk.delta
     }
     this.middlewareCtx.accumulatedContent = this.accumulatedContent
-    if (!this.turnParts) return
-    if (!this.accumulatedContent.startsWith(before)) {
-      // A cumulative `content` snapshot rewrote earlier text; order unknown.
-      this.turnParts = null
-      return
-    }
-    const delta = this.accumulatedContent.slice(before.length)
-    if (delta === '') return
+    if (!this.turnParts || delta === '') return
     const last = this.turnParts[this.turnParts.length - 1]
     if (last && last.type === 'text') {
       last.content += delta
@@ -2528,10 +2626,23 @@ class TextEngine<
       .find((candidate) => candidate.id === chunk.toolCallId)
     if (!toolCall) return
 
+    // Adapter output-error content is a wire string. Parse { error: string }
+    // JSON so it is not text-marked; live StreamProcessor then shows the
+    // same error text as a reload.
+    const recorded =
+      typeof chunk.content === 'string'
+        ? parseToolOutput(chunk.content, chunk.metadata)
+        : chunk.content
     this.streamedToolErrorResults.set(chunk.toolCallId, {
       toolCallId: chunk.toolCallId,
       toolName: toolCall.function.name,
-      result: chunk.content,
+      result:
+        typeof recorded === 'object' &&
+        recorded !== null &&
+        'error' in recorded &&
+        typeof recorded.error === 'string'
+          ? recorded
+          : chunk.content,
       state: 'output-error',
     })
   }
@@ -2550,15 +2661,29 @@ class TextEngine<
         : (tanstackMetadata(chunk)?.finishReason ?? null)
   }
 
+  /**
+   * On a failed call, a throwing `onUsage` is logged, so the call's own error
+   * still reaches the consumer.
+   */
   private async runOnUsageFromChunk(
     chunk: RunFinishedEvent | AdapterYieldChunk,
+    failed = chunk.type === EventType.RUN_ERROR,
   ): Promise<void> {
     const rebuilt = rebuildTokenUsage(
       chunk.usage,
       tanstackMetadata(chunk)?.usage,
     )
-    if (rebuilt) {
+    if (!rebuilt) return
+    if (!failed) {
       await this.middlewareRunner.runOnUsage(this.middlewareCtx, rebuilt)
+      return
+    }
+    try {
+      await this.middlewareRunner.runOnUsage(this.middlewareCtx, rebuilt)
+    } catch (error) {
+      this.logger.errors('onUsage middleware threw for a failed call', {
+        error,
+      })
     }
   }
 
@@ -2755,6 +2880,9 @@ class TextEngine<
       this.params.toolExecution,
       this.params.repairToolInput,
       this.toolCapabilities(),
+      this.toolInputNormalizer(
+        this.resolveExecutableTools(executablePendingCalls),
+      ),
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -2871,6 +2999,10 @@ class TextEngine<
           toolName: call.function.name,
           result: decision ? decision.result : stored.content,
           state: 'output-error',
+          metadata: middlewareResultMetadata(
+            call.function.name,
+            decision?.metadata,
+          ),
         })
       }
       // This also stores the results, so the loop decision reads them.
@@ -2905,12 +3037,24 @@ class TextEngine<
       // A stopped run ends on the `length` RUN_FINISHED, after the results.
       // Native combined structured output sends it after its harvest, and
       // drops it when the harvest fails.
+      if (!continues) {
+        this.loopStopped = true
+        this.markLoopStoppedMessage()
+        this.deferredToolCallRunFinishedChunks =
+          this.deferredToolCallRunFinishedChunks.map((chunk) =>
+            chunk.type === EventType.RUN_FINISHED
+              ? withTanstackMetadata(chunk, { loopStopped: true })
+              : chunk,
+          )
+      }
       if (!continues && this.finalStructuredOutput?.nativeCombined) {
+        this.loopStoppedFinishSent = true
         this.deferredModelRunFinishedChunks.push(
           ...this.deferredToolCallRunFinishedChunks,
         )
         this.deferredToolCallRunFinishedChunks = []
       } else if (!continues) {
+        this.loopStoppedFinishSent = true
         yield* this.flushDeferredToolCallRunFinishedChunks()
       }
       this.toolCallManager.clear()
@@ -2993,6 +3137,9 @@ class TextEngine<
       this.params.toolExecution,
       this.params.repairToolInput,
       this.toolCapabilities(),
+      this.toolInputNormalizer(
+        this.resolveExecutableTools(executableToolCalls),
+      ),
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -3131,6 +3278,9 @@ class TextEngine<
       type: EventType.RUN_STARTED,
       runId: finishEvent.runId,
       threadId: finishEvent.threadId,
+      ...(this.parentRunIdOverride !== undefined && {
+        parentRunId: this.parentRunIdOverride,
+      }),
       timestamp: Date.now(),
     })
   }
@@ -3145,11 +3295,16 @@ class TextEngine<
     this.lastFinishReason = 'stop'
     const finishEvent = this.createSyntheticFinishedEvent('stop')
     yield* this.emitSyntheticRunStarted(finishEvent)
-    yield* this.pipeThroughMiddleware({
+    const finished = {
       ...finishEvent,
       timestamp: Date.now(),
-      outcome: { type: 'success' },
-    })
+      outcome: { type: 'success' as const },
+    }
+    yield* this.pipeThroughMiddleware(
+      this.loopStopped
+        ? withTanstackMetadata(finished, { loopStopped: true })
+        : finished,
+    )
   }
 
   private discardDeferredToolCallRunFinishedChunks(): void {
@@ -3480,6 +3635,7 @@ class TextEngine<
         ? existingStructuredIndex
         : startedLength,
     )
+    if (this.loopStopped) this.markLoopStoppedMessage()
     this.middlewareCtx.messages = this.messages
   }
 
@@ -3562,16 +3718,9 @@ class TextEngine<
         // Parse content back to original output (was stringified by
         // uiMessageToModelMessages). Multimodal results carry an
         // Array<ContentPart> directly — pass it through without parsing.
-        let output: unknown
-        if (Array.isArray(message.content)) {
-          output = message.content
-        } else {
-          try {
-            output = JSON.parse(message.content as string)
-          } catch {
-            output = message.content
-          }
-        }
+        const output: unknown = Array.isArray(message.content)
+          ? message.content
+          : parseToolOutput(message.content as string, message.metadata)
         // Skip approval response messages (they have pendingExecution marker)
         // These are NOT real client tool results — they are synthetic tool messages
         // created by uiMessageToModelMessages for approved-but-not-yet-executed tools.
@@ -3722,7 +3871,11 @@ class TextEngine<
     }
 
     for (const pendingInput of inputRequired) {
-      const id = `mcp_input_${pendingInput.toolCallId}`
+      const previousStep = this.resumedMcpInputStep.get(pendingInput.toolCallId)
+      const id =
+        previousStep === undefined
+          ? `mcp_input_${pendingInput.toolCallId}`
+          : `mcp_input:${previousStep + 1}:${pendingInput.toolCallId}`
       interrupts.push({
         id,
         reason: pendingInput.reason ?? 'mcp_input',
@@ -3805,19 +3958,28 @@ class TextEngine<
     this.middlewareCtx.messages = this.messages
   }
 
-  private buildMessagesSnapshotChunk(): StreamChunk {
-    const withIds = this.messages.map((message, index) => ({
+  private assignSnapshotMessageIds(): void {
+    // Store the ids the snapshot gives, so a reload of the stored messages
+    // names each message as the live chat does. Persistence saves on the
+    // interrupt RUN_FINISHED and skips onFinish, so these ids must exist
+    // before that terminal reaches onChunk.
+    this.messages = this.messages.map((message, index) => ({
       ...message,
       id:
         message.id ||
         `snapshot_${this.runIdOverride ?? this.requestId}_${index}`,
     }))
+    this.middlewareCtx.messages = this.messages
+  }
+
+  private buildMessagesSnapshotChunk(): StreamChunk {
+    this.assignSnapshotMessageIds()
     return {
       type: EventType.MESSAGES_SNAPSHOT,
       timestamp: Date.now(),
       messages: uiMessagesToWire(
         interleaveActivityRecords(
-          modelMessagesToUIMessages(withIds),
+          modelMessagesToUIMessages(this.messages),
           this.activities,
         ),
         {
@@ -3959,6 +4121,7 @@ class TextEngine<
         childInterrupts,
       ),
     )
+    this.assignSnapshotMessageIds()
     let terminalOutputs: Array<StreamChunk>
     try {
       terminalOutputs = [
@@ -4098,7 +4261,21 @@ class TextEngine<
       undefined,
       this.params.repairToolInput,
       this.toolCapabilities(),
+      this.toolInputNormalizer(tools),
     )
+  }
+
+  /**
+   * The adapter's undo for provider-rewritten tool arguments, closed over
+   * the tools of this batch. Absent when the adapter does not rewrite them.
+   */
+  private toolInputNormalizer(
+    tools: ReadonlyArray<AnyTool>,
+  ): ((toolName: string, input: unknown) => unknown) | undefined {
+    const normalize = this.adapter.normalizeToolInput
+    if (!normalize) return undefined
+    const adapter = this.adapter
+    return (toolName, input) => normalize.call(adapter, toolName, input, tools)
   }
 
   /** The run's capability readers, for each server tool's context. */
@@ -4249,16 +4426,26 @@ class TextEngine<
         toolCallId: result.toolCallId,
         content: wireContent,
         role: 'tool' as const,
+        // App result metadata. The error state below goes under `tanstack`.
+        ...(result.metadata !== undefined && {
+          metadata: { ...result.metadata },
+        }),
       }
-      // An outcome always comes with output-error.
+      // An outcome always comes with output-error. A string result says so,
+      // or the client would parse '42' into 42.
+      const textMark = textToolResultMark(result.result)
+      const resultMetadata = {
+        ...(result.state === 'output-error' && {
+          state: result.state,
+          ...(result.outcome !== undefined && {
+            toolResultOutcome: result.outcome,
+          }),
+        }),
+        ...textMark,
+      }
       chunks.push(
-        (result.state === 'output-error'
-          ? withTanstackMetadata(resultChunk, {
-              state: result.state,
-              ...(result.outcome !== undefined && {
-                toolResultOutcome: result.outcome,
-              }),
-            })
+        (Object.keys(resultMetadata).length > 0
+          ? withTanstackMetadata(resultChunk, resultMetadata)
           : resultChunk) as StreamChunk,
       )
 
@@ -4273,11 +4460,12 @@ class TextEngine<
           return false
         }
         if (typeof m.content !== 'string') return false
-        try {
-          return JSON.parse(m.content)?.pendingExecution === true
-        } catch {
-          return false
-        }
+        const parsed = parseToolOutput(m.content, m.metadata)
+        return (
+          typeof parsed === 'object' &&
+          parsed !== null &&
+          (parsed as { pendingExecution?: unknown }).pendingExecution === true
+        )
       })
       const isDeniedResult = result.outcome === 'denied'
       const existingToolResultIdx =
@@ -4298,8 +4486,16 @@ class TextEngine<
         existingToolResultIdx >= 0
           ? this.messages[existingToolResultIdx]
           : undefined
+      // Stored error uses the original result, so a text-marked JSON string
+      // stays that string live and after reload. Adapter { error } JSON is
+      // already an object when recorded, so this still extracts the message.
       const errorField = result.state === 'output-error' && {
-        error: toolResultErrorText(parseToolOutput(wireContent)),
+        error: toolResultErrorText(result.result),
+      }
+      // The app result metadata goes on the tool message for the app and
+      // persistence. Adapters send only `content` to the model.
+      const metadataField = result.metadata !== undefined && {
+        metadata: mergeMetadata(existingToolMessage?.metadata, result.metadata),
       }
       const replacementMessage: ModelMessage =
         existingToolMessage?.role === 'tool'
@@ -4308,18 +4504,24 @@ class TextEngine<
               content,
               toolCallId: result.toolCallId,
               ...errorField,
+              ...metadataField,
             }
           : {
               role: 'tool',
               content,
               toolCallId: result.toolCallId,
               ...errorField,
+              ...metadataField,
             }
+      const messageMetadata = {
+        ...(result.outcome !== undefined && {
+          toolResultOutcome: result.outcome,
+        }),
+        ...textMark,
+      }
       const newToolMessage: ModelMessage =
-        result.outcome !== undefined
-          ? withTanstackMetadata(replacementMessage, {
-              toolResultOutcome: result.outcome,
-            })
+        Object.keys(messageMetadata).length > 0
+          ? withTanstackMetadata(replacementMessage, messageMetadata)
           : replacementMessage
 
       if (resultMessageIdx >= 0) {
@@ -4357,13 +4559,13 @@ class TextEngine<
         // Check if this is an approval response with pendingExecution marker
         let hasPendingExecution = false
         if (typeof message.content === 'string') {
-          try {
-            const parsed = JSON.parse(message.content)
-            if (parsed.pendingExecution === true) {
-              hasPendingExecution = true
-            }
-          } catch {
-            // Not JSON, treat as regular tool result
+          const parsed = parseToolOutput(message.content, message.metadata)
+          if (
+            typeof parsed === 'object' &&
+            parsed !== null &&
+            (parsed as { pendingExecution?: unknown }).pendingExecution === true
+          ) {
+            hasPendingExecution = true
           }
         }
 
@@ -4519,10 +4721,38 @@ class TextEngine<
     const cutAnswerContinues = this.cutAnswerContinues
     this.cutAnswerContinues = undefined
 
+    const continues =
+      cutAnswerContinues ?? (await this.loopContinues(this.iterationCount))
+    // Tool results wait for the next model call, and the loop says no.
+    if (!continues && this.toolPhase === 'continue') this.loopStopped = true
+    return continues && this.toolPhase === 'continue'
+  }
+
+  /**
+   * A streamed structured-output finalization sends the one outer
+   * RUN_STARTED / RUN_FINISHED pair, not the agent loop.
+   */
+  private finalizationOwnsLifecycle(): boolean {
     return (
-      (cutAnswerContinues ?? (await this.loopContinues(this.iterationCount))) &&
-      this.toolPhase === 'continue'
+      !!this.finalStructuredOutput &&
+      this.finalStructuredOutput.yieldChunks &&
+      this.finalStructuredOutput.nativeCombined !== true
     )
+  }
+
+  /**
+   * Mark the last assistant message as stopped by the loop, so a stored
+   * transcript keeps the signal of the `RUN_FINISHED`.
+   */
+  private markLoopStoppedMessage(): void {
+    const index = this.messages.findLastIndex((m) => m.role === 'assistant')
+    if (index < 0) return
+    this.messages = this.messages.map((message, at) =>
+      at === index
+        ? withTanstackMetadata(message, { loopStopped: true })
+        : message,
+    )
+    this.middlewareCtx.messages = this.messages
   }
 
   /** What the loop strategy and middleware `onShouldContinue` get. */
@@ -4843,12 +5073,41 @@ class TextEngine<
     // The full model text. Adapter errors carry only a 200-character preview,
     // so a Promise caller could not recover the answer (#1485).
     let rawText = ''
+    // Set when the value fails the schema. The provider still billed the
+    // call, so the loop reads on to its terminal event for the usage.
+    let validationFailed = false
+    let validationUsage: TokenUsage | undefined
+
+    // After a schema failure the loop only reads on for the billed usage. A
+    // stream that fails then keeps the schema error, not its own.
+    const guardedStream = (async function* () {
+      try {
+        yield* providerStream
+      } catch (error) {
+        if (!validationFailed) throw error
+      }
+    })()
 
     // Pipe chunks through middleware; yield to consumer only when yieldChunks=true
-    for await (const raw of providerStream) {
+    for await (const raw of guardedStream) {
       // Honor cancellation between chunks (mirrors streamModelResponse).
       if (this.isCancelled()) {
         break
+      }
+
+      if (validationFailed) {
+        if (
+          raw.type === EventType.RUN_FINISHED ||
+          raw.type === EventType.RUN_ERROR
+        ) {
+          validationUsage = rebuildTokenUsage(
+            raw.usage,
+            tanstackMetadata(raw)?.usage,
+          )
+          await this.runOnUsageFromChunk(raw, true)
+          break
+        }
+        continue
       }
 
       {
@@ -4950,12 +5209,25 @@ class TextEngine<
             // Check the value before a consumer gets it. A value that fails
             // the schema is not sent: the run ends with RUN_ERROR instead.
             this.validateStructuredOutput(object, parsed.raw)
-            if (this.finalizationError) break
+            if (this.finalizationError) {
+              validationFailed = true
+              continue
+            }
           }
         }
 
-        if (chunk.type === EventType.RUN_FINISHED) {
+        if (
+          chunk.type === EventType.RUN_FINISHED ||
+          chunk.type === EventType.RUN_ERROR
+        ) {
           await this.runOnUsageFromChunk(chunk)
+        }
+
+        // This is the outer RUN_FINISHED, so it carries the loop stop.
+        if (chunk.type === EventType.RUN_FINISHED && this.loopStopped) {
+          outboundChunk = withTanstackMetadata(chunk, {
+            loopStopped: true,
+          })
         }
 
         if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
@@ -5054,7 +5326,10 @@ class TextEngine<
         startEmitted = true
       }
 
-      const errChunk = finalizationErrorChunk(this.finalizationError)
+      const errChunk = finalizationErrorChunk({
+        ...this.finalizationError,
+        ...(validationUsage ? { usage: validationUsage } : {}),
+      })
       yield* this.emitPublicChunks(
         await this.middlewareRunner.runOnChunk(this.middlewareCtx, errChunk),
       )
@@ -5373,24 +5648,26 @@ class TextEngine<
     })
     pending.push(...genericPending)
     // An `mcp_input_*` answer is valid only for a server tool call that is
-    // still pending in history.
-    const mcpInputCallIds = new Map<string, string>()
+    // still pending in history. Match step 1 (`mcp_input_<id>`) and later steps
+    // (`mcp_input_<id>_<n>` where n >= 2).
     for (const toolCall of pendingToolCalls) {
-      const interruptId = `mcp_input_${toolCall.id}`
-      if (!resumeInterruptIds.has(interruptId)) continue
       if (!toolsByCallId.get(toolCall.id)?.execute) continue
-      mcpInputCallIds.set(interruptId, toolCall.id)
-      pending.push({
-        interruptId,
-        payload: { id: interruptId },
-        binding: {
-          v: INTERRUPT_BINDING_VERSION,
-          kind: 'generic',
+      for (const interruptId of resumeInterruptIds) {
+        if (mcpInputStepForToolCall(interruptId, toolCall.id) === undefined) {
+          continue
+        }
+        pending.push({
           interruptId,
-          interruptedRunId,
-          generation: 0,
-        },
-      })
+          payload: { id: interruptId },
+          binding: {
+            v: INTERRUPT_BINDING_VERSION,
+            kind: 'generic',
+            interruptId,
+            interruptedRunId,
+            generation: 0,
+          },
+        })
+      }
     }
     const validated = await validateInterruptResumeBatch({
       threadId: this.threadId,
@@ -5421,16 +5698,6 @@ class TextEngine<
     })
 
     const genericResolutions = validated.resumeToolState.genericInterrupts
-    for (const [interruptId, toolCallId] of mcpInputCallIds) {
-      const resolution = genericResolutions?.get(interruptId)
-      if (!resolution) continue
-      this.resumeInputResponses.set(
-        toolCallId,
-        resolution.status === 'resolved'
-          ? { status: 'resolved', payload: resolution.payload }
-          : { status: 'cancelled' },
-      )
-    }
     if (genericPending.length > 0 && genericResolutions) {
       const resolutions = genericPending
         .sort((left, right) => {
@@ -5640,6 +5907,32 @@ class TextEngine<
     if (state?.genericInterrupts) {
       for (const [interruptId, resolution] of state.genericInterrupts) {
         this.resumeGenericInterrupts.set(interruptId, resolution)
+      }
+      for (const toolCall of this.getPendingToolCallsFromMessages()) {
+        if (
+          !this.tools.some(
+            (tool) => tool.name === toolCall.function.name && tool.execute,
+          )
+        )
+          continue
+        let matchedStep: number | undefined
+        let matchedResolution: ChatResumeGenericResolution | undefined
+        for (const [interruptId, resolution] of state.genericInterrupts) {
+          const step = mcpInputStepForToolCall(interruptId, toolCall.id)
+          if (step === undefined) continue
+          if (matchedStep === undefined || step > matchedStep) {
+            matchedStep = step
+            matchedResolution = resolution
+          }
+        }
+        if (!matchedResolution || matchedStep === undefined) continue
+        this.resumedMcpInputStep.set(toolCall.id, matchedStep)
+        this.resumeInputResponses.set(
+          toolCall.id,
+          matchedResolution.status === 'resolved'
+            ? { status: 'resolved', payload: matchedResolution.payload }
+            : { status: 'cancelled' },
+        )
       }
     }
     if (state?.genericInterruptRequests) {
@@ -5969,22 +6262,39 @@ class TextEngine<
       },
     )
 
-    while (!settled) {
-      yield* this.drainMiddlewareCustomQueue()
-      if (settled) break
-      await Promise.race([
-        done,
-        new Promise<void>((resolve) => {
-          if (this.middlewareCustomQueue.length > 0) {
-            resolve()
-            return
-          }
-          this.middlewareCustomWaiters.push(resolve)
-        }),
-      ])
-    }
+    let finished = false
+    try {
+      while (!settled) {
+        yield* this.drainMiddlewareCustomQueue()
+        if (settled) break
+        await Promise.race([
+          done,
+          new Promise<void>((resolve) => {
+            if (this.middlewareCustomQueue.length > 0) {
+              resolve()
+              return
+            }
+            this.middlewareCustomWaiters.push(resolve)
+          }),
+        ])
+      }
 
-    yield* this.drainMiddlewareCustomQueue()
+      yield* this.drainMiddlewareCustomQueue()
+      finished = true
+    } finally {
+      // A consumer that stops at a custom event closes this generator while
+      // the work runs. Wait for it, so no hook work outlives `onAbort`.
+      await done
+      // The throw below is skipped on that path, so log the error instead.
+      if (!finished && error !== undefined) {
+        this.logger.errors(
+          'middleware hook failed after the consumer stopped',
+          {
+            error,
+          },
+        )
+      }
+    }
     if (error !== undefined) throw error
     return result as T
   }
@@ -6374,6 +6684,23 @@ function runStreamingText(
   return stream
 }
 
+/**
+ * MCP tools for one run. When the run is stopped during discovery, it returns
+ * no tools: the engine then ends the run through its abort path, so middleware
+ * gets `onAbort`. Other discovery errors still throw.
+ */
+async function discoverMcpTools(
+  mcpManager: MCPManager,
+  signal: AbortSignal | undefined,
+) {
+  try {
+    return await mcpManager.discover(signal)
+  } catch (error) {
+    if (signal?.aborted) return []
+    throw error
+  }
+}
+
 async function* runChatEngine(
   options: RuntimeTextActivityOptions<AnyTextAdapter, undefined, boolean>,
   engineRef: DeliveryEngineRef,
@@ -6391,7 +6718,10 @@ async function* runChatEngine(
   const logger = resolveDebugOption(debug)
 
   const mcpManager = MCPManager.from(mcp)
-  const mcpTools = await mcpManager.discover()
+  const mcpTools = await discoverMcpTools(
+    mcpManager,
+    options.abortController?.signal,
+  )
   if (mcpTools.length > 0) {
     textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
   }
@@ -6454,7 +6784,17 @@ async function* streamTextChunks(
     const messages = options.messages ?? []
     // A resume can answer a child's interrupts. Those entries go to the child
     // tool call. The parent run validates only its own entries.
-    const turn = readSubagentTurn(messages, options.resume)
+    let turn = readSubagentTurn(messages, options.resume)
+    let parentRunId = options.parentRunId
+    if (!turn && messages.length === 0 && (options.resume?.length ?? 0) > 0) {
+      const loaded = await readRoutedSubagentPersistence(
+        options.middleware,
+      )?.loadMessages?.({ threadId })
+      if (loaded) {
+        turn = readSubagentTurn(loaded.messages, options.resume)
+        parentRunId ??= loaded.interruptedRunId
+      }
+    }
     const sink = createSubagentSink()
     const calls = subagentCallMessages(
       new Set(bag.agents.map((agent: DefinedAgent) => agent.name)),
@@ -6466,8 +6806,8 @@ async function* streamTextChunks(
       canContinue: continuesChildren(options.middleware),
       threadId,
       runId,
-      ...(options.parentRunId !== undefined && {
-        interruptedRunId: options.parentRunId,
+      ...(parentRunId !== undefined && {
+        interruptedRunId: parentRunId,
       }),
       ...(options.subagentRunId !== undefined && {
         parentSubagentRunId: options.subagentRunId,
@@ -6503,6 +6843,25 @@ async function* streamTextChunks(
   yield* runChatEngine(options, engineRef)
 }
 
+/**
+ * Step number for an MCP input interrupt id. Step 1 keeps the legacy
+ * `mcp_input_<toolCallId>` id. Later steps use `mcp_input:<n>:<toolCallId>`:
+ * the step sits before the tool call id, so no two (toolCallId, step) pairs
+ * share an id even when a tool call id ends in `_<digits>`.
+ */
+function mcpInputStepForToolCall(
+  interruptId: string,
+  toolCallId: string,
+): number | undefined {
+  if (interruptId === `mcp_input_${toolCallId}`) return 1
+  const match = /^mcp_input:([1-9]\d*):/.exec(interruptId)
+  if (!match || interruptId.slice(match[0].length) !== toolCallId) {
+    return undefined
+  }
+  const step = Number(match[1])
+  return step >= 2 ? step : undefined
+}
+
 /** Add child usage to the next RUN_FINISHED of the parent. */
 async function* streamWithChildUsage(
   stream: AsyncIterable<StreamChunk>,
@@ -6527,7 +6886,16 @@ async function* runRoutedSubagents(
   const threadId = options.threadId
   const runId = options.runId ?? `run-${Date.now()}`
   const messages = options.messages ?? []
-  const turn = readSubagentTurn(messages, options.resume)
+  const subagentPersistence = readRoutedSubagentPersistence(options.middleware)
+  let turn = readSubagentTurn(messages, options.resume)
+  let parentRunId = options.parentRunId
+  if (!turn && messages.length === 0 && (options.resume?.length ?? 0) > 0) {
+    const loaded = await subagentPersistence?.loadMessages?.({ threadId })
+    if (loaded) {
+      turn = readSubagentTurn(loaded.messages, options.resume)
+      parentRunId ??= loaded.interruptedRunId
+    }
+  }
   if (!turn && (options.resume?.length ?? 0) > 0) {
     // No child owns these answers. Main raised them, after a main pick or a
     // handoff. Run main alone.
@@ -6539,7 +6907,9 @@ async function* runRoutedSubagents(
   }
   const abortSignal = options.abortController?.signal
   const turnMessages = turn?.before ?? messages
-  const subagentPersistence = readRoutedSubagentPersistence(options.middleware)
+  const childResumeIds = turn?.children.flatMap((child) =>
+    child.resume.map((entry) => entry.interruptId),
+  )
   await subagentPersistence?.start({
     threadId,
     runId,
@@ -6554,7 +6924,7 @@ async function* runRoutedSubagents(
       (turn &&
         savedPlan(turn.plan, bag.agents, {
           threadId,
-          interruptedRunId: options.parentRunId ?? runId,
+          interruptedRunId: parentRunId ?? runId,
           interruptIds: options.resume?.map((entry) => entry.interruptId) ?? [],
         })) ??
       normalizeRouterPick(
@@ -6580,8 +6950,16 @@ async function* runRoutedSubagents(
     const checked = await checkRoutedInputs(plan, bag.agents)
     const onlyStep = plan.steps.length === 1 ? plan.steps[0] : undefined
     if (onlyStep?.names.length === 1 && onlyStep.names[0] === 'main') {
-      // Earlier children own answers in this resume. Commit them first.
-      if (turn) await subagentPersistence?.finish({ threadId, runId })
+      // Earlier children own answers in this resume. Commit only theirs and
+      // keep the parent run open so main can commit or interrupt the rest.
+      if (turn) {
+        await subagentPersistence?.finish({
+          threadId,
+          runId,
+          ...(childResumeIds ? { interruptIds: childResumeIds } : {}),
+          handoffToMain: true,
+        })
+      }
       yield* runChatEngine(
         {
           ...options,
@@ -6646,8 +7024,8 @@ async function* runRoutedSubagents(
             ...(abortSignal && { abortSignal }),
             threadId,
             parentRunId: runId,
-            ...(options.parentRunId !== undefined && {
-              interruptedRunId: options.parentRunId,
+            ...(parentRunId !== undefined && {
+              interruptedRunId: parentRunId,
             }),
             ...(options.subagentRunId !== undefined && {
               parentSubagentRunId: options.subagentRunId,
@@ -6725,7 +7103,12 @@ async function* runRoutedSubagents(
 
     if (sink.interrupts.length > 0) {
       const interrupts = rebindInterrupts(sink.interrupts, runId)
-      await subagentPersistence?.suspend?.({ threadId, runId, interrupts })
+      await subagentPersistence?.suspend?.({
+        threadId,
+        runId,
+        interrupts,
+        ...(childResumeIds ? { interruptIds: childResumeIds } : {}),
+      })
       yield withChildUsage(
         {
           type: EventType.RUN_FINISHED,
@@ -6742,9 +7125,14 @@ async function* runRoutedSubagents(
     const strategy = bag.strategy ?? 'exclusive'
     if (strategy === 'handoff') {
       const childText = stepTexts.join('\n\n')
-      // The children are done. Commit their answers and settle their records
-      // before main runs. Main's own persistence takes over from here.
-      await subagentPersistence?.finish({ threadId, runId })
+      // The children are done. Commit only their answers and keep the parent
+      // run open so main can commit or interrupt the rest.
+      await subagentPersistence?.finish({
+        threadId,
+        runId,
+        ...(childResumeIds ? { interruptIds: childResumeIds } : {}),
+        handoffToMain: true,
+      })
       yield* streamWithChildUsage(
         runChatEngine(
           {
@@ -7007,7 +7395,10 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
     adapter.combinedStructuredOutputSource?.(options.modelOptions) ?? 'text'
 
   const mcpManager = MCPManager.from(mcp)
-  const mcpTools = await mcpManager.discover()
+  const mcpTools = await discoverMcpTools(
+    mcpManager,
+    options.abortController?.signal,
+  )
   if (mcpTools.length > 0) {
     textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
   }
@@ -7161,6 +7552,7 @@ async function* fallbackStructuredOutputStream(
       error instanceof SyntaxError ||
       (error instanceof Error && error.cause instanceof SyntaxError)
     const code = parseFailed ? 'structured-output-parse-failed' : undefined
+    const usage = readErrorUsage(error)
     yield {
       type: EventType.RUN_ERROR,
       runId,
@@ -7169,6 +7561,7 @@ async function* fallbackStructuredOutputStream(
       timestamp: Date.now(),
       message,
       ...(code ? { code } : {}),
+      ...(usage ? { usage } : {}),
       error: { message, ...(code ? { code } : {}) },
     }
     return
@@ -7305,14 +7698,16 @@ function finalizationErrorChunk(failure: {
   message: string
   code?: string
   rawText?: string
+  usage?: TokenUsage
 }): StreamChunk {
-  const { message, code, rawText } = failure
+  const { message, code, rawText, usage } = failure
   return {
     type: EventType.RUN_ERROR,
     timestamp: Date.now(),
     message,
     ...(code ? { code } : {}),
     ...(rawText !== undefined ? { rawText } : {}),
+    ...(usage ? { usage } : {}),
   }
 }
 
@@ -7369,7 +7764,10 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
     : undefined
 
   const mcpManager = MCPManager.from(mcp)
-  const mcpTools = await mcpManager.discover()
+  const mcpTools = await discoverMcpTools(
+    mcpManager,
+    options.abortController?.signal,
+  )
   if (mcpTools.length > 0) {
     textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
   }

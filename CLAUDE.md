@@ -24,14 +24,14 @@ TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered app
 
 - **Package Manager**: pnpm@11.9.0 (required, see `packageManager` in
   `package.json`)
-- **Node**: 24.8.0 (see `.nvmrc`). On Node 22, Nx fails to load the
+- **Node**: the Node 24 version in `.nvmrc`. On Node 22, Nx fails to load the
   workspace plugin with `tsModule.readConfigFile is not a function`.
 - **Build System**: Nx for task orchestration and caching
 - **TypeScript**: 7.0.2 (native Go compiler). Framework build/typecheck tools
   that still need the pre-7 JS Compiler API (svelte-package, svelte-check,
   vue-tsc, knip, typedoc) run against the `@typescript/typescript6` (6.0.2)
   shim via `pnpm-workspace.yaml` packageExtensions. Angular cannot run on TS7,
-  so it pins `typescript@5.9.3` instead. kiira 0.6.0 is TS7-native and does
+  so the Angular packages pin `typescript@6.0.2` (Angular 22 requires `>=6.0 <6.1`). kiira 0.6.0 is TS7-native and does
   not need a shim. See that file's comments.
 - **Testing**: Vitest for unit tests
 - **Linting**: oxlint (incl. type-aware rules via `oxlint-tsgolint`); a few
@@ -254,7 +254,7 @@ The single canonical command is:
 pnpm test:pr
 ```
 
-This runs the exact target set the `PR` workflow runs in CI: `nx affected --targets=test:sherif,test:knip,test:docs,test:kiira,test:oxlint,test:lib,test:types,test:build,build`. There is **no** `--exclude=examples/**,testing/**` carve-out — the example apps and `testing/` packages are included, so Nx runs whatever of these targets they define (in practice `build` and `test:types`). Including them means `test:types` is checked at the call sites where the library is actually consumed, catching call-site type regressions that only manifest there (see issue #820). To type-check just the example apps + `testing/` packages locally, run `nx run-many --targets=test:types --projects=examples/**,testing/**`.
+This runs the exact target set the `PR` workflow runs in CI: `nx affected --targets=test:sherif,test:knip,test:docs,test:kiira,test:maintainer,test:ai-review,test:oxlint,test:lib,test:types,test:smoke,test:build,build`. `test:smoke` is the React Native smoke (`testing/react-native-smoke`), so it runs only when that project is affected: its own files, `@tanstack/ai-react` or `@tanstack/ai` and the packages they depend on, or `pnpm-lock.yaml`. There is **no** `--exclude=examples/**,testing/**` carve-out — the example apps and `testing/` packages are included, so Nx runs whatever of these targets they define (in practice `build` and `test:types`). Including them means `test:types` is checked at the call sites where the library is actually consumed, catching call-site type regressions that only manifest there (see issue #820). To type-check just the example apps + `testing/` packages locally, run `nx run-many --targets=test:types --projects=examples/**,testing/**`.
 
 If you can't run `test:pr` (e.g. it's too slow on your machine), at minimum run each of these and confirm they're green before pushing:
 

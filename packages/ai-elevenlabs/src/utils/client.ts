@@ -1,4 +1,3 @@
-import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js'
 import {
   getApiKeyFromEnv,
   generateId as sharedGenerateId,
@@ -20,9 +19,9 @@ export interface ElevenLabsClientConfig {
   baseURL?: string
   /** Alias of `baseURL`. */
   baseUrl?: string
-  /** Per-request timeout passed through to the SDK (ms). */
+  /** Per-request timeout in seconds. Default 240. */
   timeoutInSeconds?: number
-  /** Override the number of SDK-level retries. */
+  /** Retries for 408, 429, and 5xx responses. Default 2. */
   maxRetries?: number
   /**
    * Headers sent with every request. Same option name as the other adapters.
@@ -68,28 +67,6 @@ export function getElevenLabsAgentIdFromEnv(): string {
   return id
 }
 
-/**
- * Build an `ElevenLabsClient` with env-based or explicit credentials.
- * Each adapter calls this once at construction time so unit tests can
- * pass in an explicit key without needing `process.env`.
- */
-export function createElevenLabsClient(
-  config?: ElevenLabsClientConfig,
-): ElevenLabsClient {
-  const apiKey = config?.apiKey ?? getElevenLabsApiKeyFromEnv()
-  const baseUrl = config?.baseURL ?? config?.baseUrl
-  const headers = config?.defaultHeaders ?? config?.headers
-  return new ElevenLabsClient({
-    apiKey,
-    ...(baseUrl ? { baseUrl } : {}),
-    ...(config?.timeoutInSeconds != null
-      ? { timeoutInSeconds: config.timeoutInSeconds }
-      : {}),
-    ...(config?.maxRetries != null ? { maxRetries: config.maxRetries } : {}),
-    ...(headers ? { headers } : {}),
-  })
-}
-
 // Re-exported from `@tanstack/ai-utils` so existing callers keep working
 // while the implementation stays deduped across provider packages.
 export const generateId = sharedGenerateId
@@ -114,8 +91,8 @@ export function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 /**
- * Drain a `ReadableStream<Uint8Array>` (what the ElevenLabs SDK returns for
- * audio endpoints) into a single `Uint8Array`, then expose it as an
+ * Drain a `ReadableStream<Uint8Array>` (what the client returns for audio
+ * endpoints) into a single `Uint8Array`, then expose it as an
  * `ArrayBuffer` slice. We concatenate ourselves rather than going through
  * `new Response(stream).arrayBuffer()` so we stay runtime-agnostic.
  */

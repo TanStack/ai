@@ -1,10 +1,13 @@
-import { EventType } from '@tanstack/ai'
+import { EventType, toolDefinition } from '@tanstack/ai'
+import { hashSchemaInput } from '@tanstack/ai/client'
 import { ChatClient } from '@tanstack/ai-client'
 import { act, render, renderHook, waitFor } from '@testing-library/react'
 import {
+  Activity,
   StrictMode,
   Suspense,
   createElement,
+  useEffect,
   useLayoutEffect,
   useState,
 } from 'react'
@@ -20,7 +23,9 @@ import {
 import type {
   ChatClientPersistence,
   ConnectConnectionAdapter,
+  ConnectionAdapter,
   ResumableConnectConnectionAdapter,
+  RunAgentInputContext,
   SubscribeConnectionAdapter,
 } from '@tanstack/ai-client'
 import type { UIMessage, UseChatOptions } from '../src/types'
@@ -482,7 +487,11 @@ describe('useChat', () => {
         expect(view.getByTestId('interrupt-count').textContent).toBe('0')
         expect(joinRun).toHaveBeenCalledOnce()
       })
-      expect(joinRun).toHaveBeenCalledWith('stored-run', expect.anything())
+      expect(joinRun).toHaveBeenCalledWith(
+        'stored-run',
+        expect.anything(),
+        expect.objectContaining({ tools: expect.any(Array) }),
+      )
       expect(persistence.getItem).toHaveBeenCalledOnce()
       expect(onRecoverableError).not.toHaveBeenCalled()
     })
@@ -1111,7 +1120,11 @@ describe('useChat', () => {
       // Strict Mode may construct more than one client in dev; what matters is
       // rejoin completed (content above) and was not aborted before attach.
       expect(joinRun).toHaveBeenCalled()
-      expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
+      expect(joinRun).toHaveBeenCalledWith(
+        'r1',
+        expect.anything(),
+        expect.objectContaining({ tools: expect.any(Array) }),
+      )
     })
   })
 
@@ -1276,24 +1289,17 @@ describe('useChat', () => {
 
       await result.current.sendMessage('Hello')
 
+      // The chunks stream in over several ticks. Wait for the full text, not
+      // for the first chunk, or a slow runner sees 'Hello, ' here.
       await waitFor(() => {
         const assistantMessage = result.current.messages.find(
           (m) => m.role === 'assistant',
         )
-        expect(assistantMessage).toBeDefined()
+        const textPart = assistantMessage?.parts.find((p) => p.type === 'text')
+        expect(textPart?.type === 'text' ? textPart.content : undefined).toBe(
+          'Hello, world!',
+        )
       })
-
-      const assistantMessage = result.current.messages.find(
-        (m) => m.role === 'assistant',
-      )
-      expect(assistantMessage).toBeDefined()
-      if (assistantMessage) {
-        const textPart = assistantMessage.parts.find((p) => p.type === 'text')
-        expect(textPart).toBeDefined()
-        if (textPart && textPart.type === 'text') {
-          expect(textPart.content).toBe('Hello, world!')
-        }
-      }
     })
 
     it('should not send empty messages', async () => {
@@ -3182,6 +3188,451 @@ describe('useChat', () => {
       expect(onChunk).toHaveBeenCalledWith(
         expect.objectContaining({ type: EventType.TEXT_MESSAGE_CONTENT }),
       )
+    })
+  })
+
+  describe('inside a hidden <Activity>', () => {
+    // React keeps a hidden Activity's state and memos but runs its effect
+    // cleanups, then runs the effects again when it shows. A view hidden for
+    // longer than a tick must come back with a working client.
+    function createRunServer() {
+      const chunks: Array<StreamChunk> = []
+      const waiters = new Set<() => void>()
+      let done = false
+      const push = (...next: Array<StreamChunk>) => {
+        chunks.push(...next)
+        for (const wake of waiters) wake()
+        waiters.clear()
+      }
+      // The run's durable log: from the start, then live until it ends.
+      async function* tail(signal?: AbortSignal) {
+        let read = 0
+        for (;;) {
+          if (signal?.aborted) return
+          if (read < chunks.length) {
+            yield chunks[read++]!
+            continue
+          }
+          if (done) return
+          await new Promise<void>((resolve) => {
+            waiters.add(resolve)
+            signal?.addEventListener('abort', () => resolve(), { once: true })
+          })
+        }
+      }
+      const hydrate = vi.fn(async (_threadId: string) => ({
+        messages: [],
+        activeRun: chunks.length > 0 && !done ? { runId: 'r1' } : null,
+        interrupts: null,
+      }))
+      const joinRun = vi.fn((_runId: string, signal?: AbortSignal) =>
+        tail(signal),
+      )
+      const connection: ResumableConnectConnectionAdapter = {
+        connect: (_messages, _data, signal) => {
+          push(
+            {
+              type: EventType.RUN_STARTED,
+              runId: 'r1',
+              threadId: 't1',
+              timestamp: 1,
+            },
+            {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: 'a1',
+              role: 'assistant',
+              timestamp: 2,
+            },
+          )
+          return tail(signal)
+        },
+        joinRun,
+        hydrate,
+      }
+      return {
+        connection,
+        hydrate,
+        joinRun,
+        say: (delta: string) =>
+          push({
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'a1',
+            delta,
+            timestamp: 3,
+          }),
+        finish: () => {
+          push(
+            { type: EventType.TEXT_MESSAGE_END, messageId: 'a1', timestamp: 4 },
+            {
+              type: EventType.RUN_FINISHED,
+              runId: 'r1',
+              threadId: 't1',
+              finishReason: 'stop',
+              timestamp: 5,
+            },
+          )
+          done = true
+        },
+      }
+    }
+
+    function renderInActivity(connection: ResumableConnectConnectionAdapter) {
+      let mode: 'visible' | 'hidden' = 'visible'
+      const rendered = renderHook(
+        ({ threadId }: { threadId: string }) =>
+          useChat({ connection, threadId, persistence: true }),
+        {
+          initialProps: { threadId: 't1' },
+          wrapper: ({ children }) =>
+            createElement(Activity, { mode, children }),
+        },
+      )
+      const show = (shown: boolean, threadId = 't1') => {
+        mode = shown ? 'visible' : 'hidden'
+        rendered.rerender({ threadId })
+      }
+      return { ...rendered, show }
+    }
+
+    const assistantText = (messages: ReadonlyArray<UIMessage>) => {
+      const part = messages
+        .find((m) => m.role === 'assistant')
+        ?.parts.find((p) => p.type === 'text')
+      return part && 'content' in part ? part.content : undefined
+    }
+    // Longer than the tick the hook waits before it disposes a client whose
+    // effects did not run again.
+    const outlastDisposal = () =>
+      act(() => new Promise<void>((resolve) => setTimeout(resolve, 10)))
+
+    it('rejoins the run a hidden view left when it shows again', async () => {
+      const server = createRunServer()
+      const { result, show } = renderInActivity(server.connection)
+      await waitFor(() => expect(result.current.isHydrating).toBe(false))
+
+      act(() => {
+        void result.current.sendMessage('hi')
+      })
+      server.say('Hel')
+      await waitFor(() =>
+        expect(assistantText(result.current.messages)).toBe('Hel'),
+      )
+
+      act(() => show(false))
+      await outlastDisposal()
+      server.say('lo')
+      act(() => show(true))
+      server.finish()
+
+      await waitFor(() =>
+        expect(assistantText(result.current.messages)).toBe('Hello'),
+      )
+      expect(server.joinRun).toHaveBeenCalledWith('r1', expect.anything(), {
+        threadId: 't1',
+        tools: [],
+      })
+      expect(result.current.status).toBe('ready')
+    })
+
+    it('shows again with the new client, never the disposed one', async () => {
+      const server = createRunServer()
+      // What the view's own effects read, as they run on each commit.
+      const loadingInEffects: Array<boolean> = []
+      let mode: 'visible' | 'hidden' = 'visible'
+      const { result, rerender } = renderHook(
+        () => {
+          const chat = useChat({
+            connection: server.connection,
+            threadId: 't1',
+            persistence: true,
+          })
+          useEffect(() => {
+            loadingInEffects.push(chat.isHydrating)
+          })
+          return chat
+        },
+        {
+          wrapper: ({ children }) =>
+            createElement(Activity, { mode, children }),
+        },
+      )
+      await waitFor(() => expect(result.current.isHydrating).toBe(false))
+
+      mode = 'hidden'
+      rerender()
+      await outlastDisposal()
+      const shownAt = loadingInEffects.length
+      mode = 'visible'
+      rerender()
+
+      // The effects that run as the view shows read a client that loads the
+      // thread, not the idle snapshot of the client the teardown disposed.
+      expect(loadingInEffects[shownAt]).toBe(true)
+      await waitFor(() => expect(result.current.isHydrating).toBe(false))
+    })
+
+    it('runs a pending client tool again after a hide disposes the client', async () => {
+      const outputSchemaHash = hashSchemaInput(undefined)
+      const connectContexts: Array<RunAgentInputContext | undefined> = []
+      let firstRunId = ''
+      const connection: ConnectConnectionAdapter = {
+        async *connect(_messages, _data, _signal, context) {
+          connectContexts.push(context)
+          const runId = context?.runId ?? 'run'
+          if (connectContexts.length === 1) {
+            firstRunId = runId
+            yield {
+              type: EventType.RUN_STARTED,
+              runId,
+              threadId: 't1',
+              timestamp: 1,
+            }
+            yield {
+              type: EventType.TOOL_CALL_START,
+              toolCallId: 'call-1',
+              toolCallName: 'lookup',
+              timestamp: 2,
+            }
+            yield {
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: 'call-1',
+              delta: '{}',
+              timestamp: 3,
+            }
+            yield {
+              type: EventType.RUN_FINISHED,
+              runId,
+              threadId: 't1',
+              timestamp: 4,
+              outcome: {
+                type: 'interrupt',
+                interrupts: [
+                  {
+                    id: 'client-1',
+                    reason: 'tanstack:client_tool_execution',
+                    toolCallId: 'call-1',
+                    metadata: {
+                      kind: 'client_tool',
+                      toolName: 'lookup',
+                      input: {},
+                      'tanstack:interruptBinding': {
+                        kind: 'client-tool-execution',
+                        interruptId: 'client-1',
+                        interruptedRunId: runId,
+                        generation: 0,
+                        toolName: 'lookup',
+                        toolCallId: 'call-1',
+                        outputSchemaHash,
+                        responseSchemaHash: outputSchemaHash,
+                      },
+                    },
+                  },
+                ],
+              },
+            } as StreamChunk
+            return
+          }
+          yield {
+            type: EventType.RUN_STARTED,
+            runId,
+            threadId: 't1',
+            timestamp: 5,
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId: 't1',
+            timestamp: 6,
+            finishReason: 'stop',
+          }
+        },
+      }
+      let calls = 0
+      const lookup = toolDefinition({
+        name: 'lookup',
+        description: 'Look up',
+      }).client(() => {
+        calls++
+        // The first run never ends: the hide disposes the client under it.
+        return calls === 1 ? new Promise(() => {}) : { found: true }
+      })
+      let mode: 'visible' | 'hidden' = 'visible'
+      const { result, rerender } = renderHook(
+        () => useChat({ connection, threadId: 't1', tools: [lookup] }),
+        {
+          wrapper: ({ children }) =>
+            createElement(Activity, { mode, children }),
+        },
+      )
+      act(() => {
+        void result.current.sendMessage('hi')
+      })
+      await waitFor(() => expect(calls).toBe(1))
+
+      mode = 'hidden'
+      rerender()
+      await outlastDisposal()
+      mode = 'visible'
+      rerender()
+
+      await waitFor(() => expect(connectContexts).toHaveLength(2))
+      expect(calls).toBe(2)
+      expect(connectContexts[1]).toMatchObject({
+        parentRunId: firstRunId,
+        resume: [
+          {
+            interruptId: 'client-1',
+            status: 'resolved',
+            payload: { found: true },
+          },
+        ],
+      })
+    })
+
+    it('keeps the transcript on screen after an idle hide', async () => {
+      const server = createRunServer()
+      const { result, show } = renderInActivity(server.connection)
+      await waitFor(() => expect(result.current.isHydrating).toBe(false))
+      act(() => {
+        void result.current.sendMessage('hi')
+      })
+      server.say('Hello')
+      server.finish()
+      await waitFor(() => expect(result.current.status).toBe('ready'))
+
+      act(() => show(false))
+      await outlastDisposal()
+      const loads = server.hydrate.mock.calls.length
+      act(() => show(true))
+
+      // The new client loads the thread, and the server sends no messages.
+      await waitFor(() => {
+        expect(server.hydrate.mock.calls.length).toBeGreaterThan(loads)
+        expect(result.current.isHydrating).toBe(false)
+      })
+      expect(assistantText(result.current.messages)).toBe('Hello')
+    })
+
+    it('keeps the client of a new thread, and disposes only the old one', async () => {
+      const server = createRunServer()
+      const { result, show } = renderInActivity(server.connection)
+      await waitFor(() => expect(result.current.isHydrating).toBe(false))
+
+      act(() => show(true, 't2'))
+      await waitFor(() => expect(result.current.isHydrating).toBe(false))
+      await outlastDisposal()
+      await outlastDisposal()
+
+      // The old thread's teardown disposes its own client, not the new one:
+      // the new thread loads once and stays loaded.
+      const loadsOfT2 = server.hydrate.mock.calls.filter(
+        ([threadId]) => threadId === 't2',
+      )
+      expect(loadsOfT2).toHaveLength(1)
+      expect(result.current.isHydrating).toBe(false)
+    })
+
+    it('starts another thread empty when it shows on a new threadId', async () => {
+      const server = createRunServer()
+      const { result, show } = renderInActivity(server.connection)
+      await waitFor(() => expect(result.current.isHydrating).toBe(false))
+      act(() => {
+        void result.current.sendMessage('hi')
+      })
+      server.say('Hello')
+      server.finish()
+      await waitFor(() => expect(result.current.status).toBe('ready'))
+
+      act(() => show(false))
+      await outlastDisposal()
+      act(() => show(true, 't2'))
+
+      await waitFor(() => expect(result.current.isHydrating).toBe(false))
+      expect(result.current.messages).toEqual([])
+    })
+
+    it('preserves pending interrupts in client persistence when unmounting or switching threadId', async () => {
+      const storage = new Map<string, any>()
+      const persistence = {
+        getItem: (key: string) => storage.get(key),
+        setItem: (key: string, value: any) => {
+          storage.set(key, structuredClone(value))
+        },
+        removeItem: (key: string) => {
+          storage.delete(key)
+        },
+      }
+      const adapter: ConnectionAdapter = {
+        async *connect(_messages, _data, _abortSignal, context) {
+          yield {
+            type: 'RUN_STARTED',
+            runId: context?.runId ?? 'r-int',
+            threadId: context?.threadId ?? 't-int-1',
+            timestamp: Date.now(),
+          } as StreamChunk
+          yield {
+            type: 'RUN_FINISHED',
+            runId: context?.runId ?? 'r-int',
+            threadId: context?.threadId ?? 't-int-1',
+            timestamp: Date.now(),
+            outcome: {
+              type: 'interrupt',
+              interrupts: [
+                {
+                  id: 'intr-keep-1',
+                  reason: 'confirm',
+                  message: 'Keep me?',
+                  metadata: {
+                    'tanstack:interruptBinding': {
+                      v: 1,
+                      kind: 'generic',
+                      interruptId: 'intr-keep-1',
+                      interruptedRunId: context?.runId ?? 'r-int',
+                      generation: 0,
+                    },
+                  },
+                },
+              ],
+            },
+          } as StreamChunk
+        },
+      }
+
+      const first = renderHook(
+        ({ threadId }) =>
+          useChat({
+            threadId,
+            connection: adapter,
+            persistence,
+          }),
+        { initialProps: { threadId: 't-int-1' } },
+      )
+      await act(async () => {
+        await first.result.current.sendMessage('pause please')
+      })
+      await waitFor(() =>
+        expect(first.result.current.interrupts).toHaveLength(1),
+      )
+
+      // Switch threadId and wait for deferred disposal of the first client.
+      first.rerender({ threadId: 't-int-2' })
+      await outlastDisposal()
+      first.unmount()
+      await outlastDisposal()
+
+      // Remounting the original thread must restore the pending interrupt.
+      const second = renderHook(() =>
+        useChat({
+          threadId: 't-int-1',
+          connection: adapter,
+          persistence,
+        }),
+      )
+      await waitFor(() =>
+        expect(second.result.current.interrupts).toHaveLength(1),
+      )
+      expect(second.result.current.interrupts[0]?.id).toBe('intr-keep-1')
+      second.unmount()
     })
   })
 })

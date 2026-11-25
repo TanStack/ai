@@ -11,7 +11,9 @@ import type {
   StreamChunk,
   TokenUsage,
   Tool,
+  ToolExecutionContext,
 } from '@tanstack/ai'
+import { getPersistenceCompletion } from '../src/capabilities'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
 import type { InterruptStore } from '../src/types'
@@ -228,6 +230,142 @@ const approvalClientTool = (name: string): Tool => ({
 })
 
 describe('interrupt persistence', () => {
+  it.each([
+    { statuses: ['resolved'] },
+    { statuses: ['cancelled'] },
+    { statuses: ['resolved', 'resolved', 'cancelled'] },
+  ] as const)(
+    'passes durable MCP input responses $statuses to their pending server tools',
+    async ({ statuses }) => {
+      const persistence = memoryPersistence()
+      const callIds = statuses.map((_, index) => `tool-call-${index + 1}`)
+      const execute = vi.fn((_args: unknown, ctx?: ToolExecutionContext) => {
+        if (ctx?.inputResponse) return ctx.inputResponse
+        throw {
+          name: 'MCPInputRequiredError',
+          kind: 'form',
+          request: { message: 'Which city?' },
+        }
+      })
+      const tools: Array<Tool> = [{ ...clientTool('clientSearch'), execute }]
+      const first = await collect(
+        chat({
+          adapter: mockAdapter([
+            [
+              runStarted(),
+              ...callIds.flatMap((toolCallId) => [
+                { ...toolStart(), toolCallId },
+                { ...toolArgs(), toolCallId },
+              ]),
+              toolCallFinished(),
+            ],
+          ]).adapter,
+          messages: [{ role: 'user', content: 'Ask for a city' }],
+          tools,
+          threadId: 't1',
+          runId: 'r1',
+          middleware: [withPersistence(persistence)],
+          debug: false,
+        }),
+      )
+      expect(first.at(-1)).toMatchObject({
+        type: EventType.RUN_FINISHED,
+        outcome: {
+          type: 'interrupt',
+          interrupts: callIds.map((id) => ({ id: `mcp_input_${id}` })),
+        },
+      })
+      expect(
+        await persistence.stores.interrupts!.listPending('t1'),
+      ).toHaveLength(callIds.length)
+      const responses = statuses.map((status, index) =>
+        status === 'resolved'
+          ? { status, payload: { value: index === 0 ? 'Paris' : 'London' } }
+          : { status },
+      )
+      const resumed = mockAdapter([
+        [runStarted(), text('complete'), runFinished('r2')],
+      ])
+      const chunks = await collect(
+        chat({
+          adapter: resumed.adapter,
+          messages: [],
+          tools,
+          threadId: 't1',
+          runId: 'r2',
+          parentRunId: 'r1',
+          resume: responses.map((response, index) => ({
+            interruptId: `mcp_input_${callIds[index]}`,
+            ...response,
+          })),
+          middleware: [withPersistence(persistence)],
+          debug: false,
+        }),
+      )
+
+      expect(execute).toHaveBeenCalledTimes(callIds.length * 2)
+      for (const [index, toolCallId] of callIds.entries()) {
+        const resumedCall = execute.mock.calls
+          .slice(callIds.length)
+          .find((call) => call[1]?.toolCallId === toolCallId)
+        expect(resumedCall?.[1]?.inputResponse).toEqual(responses[index])
+        expect(
+          (await persistence.stores.interrupts!.get(`mcp_input_${toolCallId}`))
+            ?.status,
+        ).toBe(statuses[index])
+      }
+      expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+        false,
+      )
+      expect(chunks.some(isInterruptTerminal)).toBe(false)
+      expect(chunks.at(-1)).toMatchObject({ type: EventType.RUN_FINISHED })
+      expect((await persistence.stores.runs!.get('r2'))?.status).toBe(
+        'completed',
+      )
+      expect(resumed.calls).toHaveLength(1)
+      expect(await persistence.stores.interrupts!.listPending('t1')).toEqual([])
+    },
+  )
+
+  it('rejects a durable MCP answer for a different tool call', async () => {
+    const persistence = memoryPersistence()
+    const execute = vi.fn(() => {
+      throw {
+        name: 'MCPInputRequiredError',
+        kind: 'form',
+        request: { message: 'Which city?' },
+      }
+    })
+    const tools: Array<Tool> = [{ ...clientTool('clientSearch'), execute }]
+    await persistClientToolTurn(persistence, tools)
+    const resumed = mockAdapter([[runStarted(), runFinished('r2')]])
+    const chunks = await collect(
+      chat({
+        adapter: resumed.adapter,
+        threadId: 't1',
+        runId: 'r2',
+        parentRunId: 'r1',
+        messages: [],
+        tools,
+        resume: [
+          {
+            interruptId: 'mcp_input_unknown',
+            status: 'resolved',
+            payload: 'Paris',
+          },
+        ],
+        middleware: [withPersistence(persistence)],
+        debug: false,
+      }),
+    )
+    expectResumeError(chunks, 'mcp_input_tool-call-1')
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(resumed.calls).toHaveLength(0)
+    expect(await persistence.stores.interrupts!.listPending('t1')).toHaveLength(
+      1,
+    )
+  })
+
   it('persists RUN_FINISHED interrupt outcomes as pending interrupt records', async () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter([[runStarted(), interruptFinished()]])
@@ -1070,6 +1208,73 @@ describe('interrupt persistence', () => {
     ).toBe('resolved')
   })
 
+  it('releases the resume claim when the finish-time thread read fails', async () => {
+    const persistence = memoryPersistence()
+    const first = mockAdapter([[runStarted(), interruptFinished()]])
+    await collect(
+      chat({
+        adapter: first.adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    // The thread read that onFinish makes before its save fails once.
+    const messages = persistence.stores.messages!
+    const loadThread = messages.loadThread.bind(messages)
+    let failNextRead = false
+    vi.spyOn(messages, 'loadThread').mockImplementation(async (threadId) => {
+      if (failNextRead) {
+        failNextRead = false
+        throw new Error('read failed')
+      }
+      return loadThread(threadId)
+    })
+    const armReadFailure = defineChatMiddleware({
+      onFinish() {
+        failNextRead = true
+      },
+    })
+    const resume = [
+      {
+        interruptId: 'interrupt-1',
+        status: 'resolved' as const,
+        payload: { approved: true },
+      },
+    ]
+    await expect(
+      collect(
+        chat({
+          adapter: mockAdapter([[runStarted(), text('one'), runFinished('r1')]])
+            .adapter,
+          messages: [],
+          runId: 'r1',
+          threadId: 't1',
+          resume,
+          middleware: [armReadFailure, withPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      ),
+    ).rejects.toThrow('read failed')
+    expect((await persistence.stores.runs!.get('r1'))?.status).toBe('failed')
+
+    // The claim was released, so a retry is not refused as a conflict.
+    const chunks = await collect(
+      chat({
+        adapter: mockAdapter([[runStarted(), text('two'), runFinished('r1')]])
+          .adapter,
+        messages: [],
+        runId: 'r1',
+        threadId: 't1',
+        resume,
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    expect(chunks).toContainEqual(expect.objectContaining({ delta: 'two' }))
+    expect(await persistence.stores.interrupts!.listPending('t1')).toEqual([])
+  })
+
   it('tolerates malformed persisted interrupt payloads without crashing', async () => {
     const persistence = memoryPersistence()
     // Payload with the wrong shapes for the defensive parsers: metadata is a
@@ -1845,5 +2050,450 @@ describe('interrupt persistence', () => {
     expect(await store.listPending('t1')).toEqual([])
     expect((await store.get('resolved-1'))?.status).toBe('resolved')
     expect((await store.get('cancelled-1'))?.status).toBe('cancelled')
+  })
+
+  it('commits an approved tool call before a follow-up model error and guards concurrent duplicate resumes', async () => {
+    const persistence = memoryPersistence()
+    let execCount = 0
+    const charge: Tool = {
+      name: 'charge',
+      description: 'Charge card',
+      needsApproval: true,
+      execute: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 40))
+        execCount += 1
+        return { charged: true }
+      },
+    }
+
+    const first = mockAdapter([
+      [
+        runStarted(),
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'tc-charge',
+          toolCallName: 'charge',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'tc-charge',
+          delta: '{}',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_END,
+          toolCallId: 'tc-charge',
+          timestamp: 1,
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'r1',
+          threadId: 't-a2',
+          finishReason: 'tool_calls',
+          timestamp: 1,
+        },
+      ],
+    ])
+    let completionPromise: Promise<void> | undefined
+    const captureCompletion = defineChatMiddleware({
+      name: 'capture-completion',
+      onStart(ctx) {
+        completionPromise =
+          getPersistenceCompletion(ctx)?.waitForRunCompletion()
+      },
+    })
+
+    await collect(
+      chat({
+        adapter: first.adapter,
+        messages: [{ role: 'user', content: 'charge' }],
+        tools: [charge],
+        runId: 'r1',
+        threadId: 't-a2',
+        middleware: [withPersistence(persistence), captureCompletion],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    expect(completionPromise).toBeDefined()
+    await completionPromise
+
+    const pending = await persistence.stores.interrupts!.listPending('t-a2')
+    expect(pending).toHaveLength(1)
+    const resume = [
+      {
+        interruptId: pending[0]!.interruptId,
+        status: 'resolved' as const,
+        payload: { approved: true },
+      },
+    ]
+
+    const failingFollowUp = {
+      kind: 'text',
+      name: 'mock',
+      model: 'test-model',
+      '~types': {},
+      chatStream: () =>
+        (async function* () {
+          yield runStarted()
+          throw new Error('provider 500')
+        })(),
+      structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+    } as unknown as AnyTextAdapter
+
+    // Every chunk of both runs, also of a run that throws.
+    const seen: Array<StreamChunk> = []
+    const tap = async function* (stream: AsyncIterable<StreamChunk>) {
+      for await (const chunk of stream) {
+        seen.push(chunk)
+        yield chunk
+      }
+    }
+    const [a, b] = await Promise.allSettled([
+      collect(
+        tap(
+          chat({
+            adapter: failingFollowUp,
+            messages: [],
+            tools: [charge],
+            runId: 'r2a',
+            parentRunId: 'r1',
+            threadId: 't-a2',
+            resume,
+            middleware: [withPersistence(persistence)],
+          }) as AsyncIterable<StreamChunk>,
+        ),
+      ),
+      collect(
+        tap(
+          chat({
+            adapter: failingFollowUp,
+            messages: [],
+            tools: [charge],
+            runId: 'r2b',
+            parentRunId: 'r1',
+            threadId: 't-a2',
+            resume,
+            middleware: [withPersistence(persistence)],
+          }) as AsyncIterable<StreamChunk>,
+        ),
+      ),
+    ])
+
+    expect(execCount).toBe(1)
+    expect(
+      [a, b].some(
+        (res) =>
+          res.status === 'fulfilled' &&
+          res.value.some(
+            (chunk) =>
+              chunk.type === EventType.RUN_ERROR &&
+              chunk.metadata?.tanstack?.interruptErrors?.some(
+                (err) => err.code === 'conflict',
+              ),
+          ),
+      ),
+    ).toBe(true)
+    // The run that used the approval tells the client before its model fails.
+    expect(
+      seen.filter(
+        (chunk) =>
+          chunk.type === EventType.CUSTOM &&
+          chunk.name === 'interrupts:committed',
+      ),
+    ).toMatchObject([{ value: { interruptIds: [pending[0]!.interruptId] } }])
+    expect(await persistence.stores.interrupts!.listPending('t-a2')).toEqual([])
+  })
+
+  it('resets RunRecord.status back to running on same-runId continuation', async () => {
+    const persistence = memoryPersistence()
+    let statusDuringTool: string | undefined
+    const action: Tool = {
+      name: 'action',
+      description: 'Run action',
+      needsApproval: true,
+      execute: async () => {
+        statusDuringTool = (await persistence.stores.runs!.get('r-same'))
+          ?.status
+        return { ok: true }
+      },
+    }
+    const { adapter } = mockAdapter([
+      [
+        runStarted(),
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'tc-same',
+          toolCallName: 'action',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'tc-same',
+          delta: '{}',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_END,
+          toolCallId: 'tc-same',
+          timestamp: 1,
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'r-same',
+          threadId: 't-same',
+          finishReason: 'tool_calls',
+          timestamp: 1,
+        },
+      ],
+      [runStarted(), text('done'), runFinished('r-same')],
+    ])
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'run' }],
+        tools: [action],
+        runId: 'r-same',
+        threadId: 't-same',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    const pending = await persistence.stores.interrupts!.listPending('t-same')
+    expect(pending).toHaveLength(1)
+
+    await collect(
+      chat({
+        adapter,
+        messages: [],
+        tools: [action],
+        runId: 'r-same',
+        threadId: 't-same',
+        resume: [
+          {
+            interruptId: pending[0]!.interruptId,
+            status: 'resolved',
+            payload: { approved: true },
+          },
+        ],
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    expect(statusDuringTool).toBe('running')
+    expect((await persistence.stores.runs!.get('r-same'))?.status).toBe(
+      'completed',
+    )
+  })
+
+  it('does not set a completed or aborted run back to running when its id is reused', async () => {
+    for (const status of ['completed', 'aborted'] as const) {
+      const persistence = memoryPersistence()
+      const runId = `r-${status}`
+      const threadId = `t-${status}`
+      await persistence.stores.runs!.createOrResume({
+        runId,
+        threadId,
+        startedAt: 1,
+      })
+      await persistence.stores.runs!.update(runId, {
+        status,
+        finishedAt: 99,
+      })
+      let statusDuringTool: string | undefined
+      let activeDuringTool: string | null | undefined
+      const action: Tool = {
+        name: 'action',
+        description: 'Run action',
+        execute: async () => {
+          statusDuringTool = (await persistence.stores.runs!.get(runId))?.status
+          activeDuringTool =
+            (await persistence.stores.runs!.findActiveRun(threadId))?.runId ??
+            null
+          return { ok: true }
+        },
+      }
+      const { adapter } = mockAdapter([
+        [
+          {
+            type: EventType.RUN_STARTED,
+            runId,
+            threadId,
+            timestamp: 1,
+          },
+          {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: `tc-${status}`,
+            toolCallName: 'action',
+            timestamp: 1,
+          },
+          {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: `tc-${status}`,
+            delta: '{}',
+            timestamp: 1,
+          },
+          {
+            type: EventType.TOOL_CALL_END,
+            toolCallId: `tc-${status}`,
+            timestamp: 1,
+          },
+          {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            finishReason: 'tool_calls',
+            timestamp: 1,
+          },
+        ],
+        [
+          {
+            type: EventType.RUN_STARTED,
+            runId,
+            threadId,
+            timestamp: 2,
+          },
+          text('done'),
+          {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            timestamp: 2,
+          },
+        ],
+      ])
+      await collect(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'run' }],
+          tools: [action],
+          runId,
+          threadId,
+          middleware: [withPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      expect(statusDuringTool).toBe(status)
+      expect(activeDuringTool).toBeNull()
+    }
+  })
+
+  it('persists a second MCP input elicitation under a fresh id and completes on step 3', async () => {
+    const persistence = memoryPersistence()
+    const mcpWizard: Tool = {
+      name: 'mcp_wizard',
+      description: 'Two-step MCP wizard',
+      execute: (_args, ctx) => {
+        const resp = ctx?.inputResponse
+        if (!resp) {
+          throw {
+            name: 'MCPInputRequiredError',
+            kind: 'form',
+            request: { message: 'Step 1' },
+          }
+        }
+        const payload = resp.status === 'resolved' ? resp.payload : undefined
+        if (
+          payload &&
+          typeof payload === 'object' &&
+          (payload as { step?: unknown }).step === 1
+        ) {
+          throw {
+            name: 'MCPInputRequiredError',
+            kind: 'form',
+            request: { message: 'Step 2' },
+          }
+        }
+        return { done: true }
+      },
+    }
+    const { adapter } = mockAdapter([
+      [
+        runStarted(),
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'tc-mcp',
+          toolCallName: 'mcp_wizard',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'tc-mcp',
+          delta: '{}',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_END,
+          toolCallId: 'tc-mcp',
+          timestamp: 1,
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'r-mcp-1',
+          threadId: 't-mcp',
+          finishReason: 'tool_calls',
+          timestamp: 1,
+        },
+      ],
+      [runStarted(), text('wizard finished'), runFinished('r-mcp-3')],
+    ])
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'run wizard' }],
+        tools: [mcpWizard],
+        runId: 'r-mcp-1',
+        threadId: 't-mcp',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    const p1 = await persistence.stores.interrupts!.listPending('t-mcp')
+    expect(p1.map((item) => item.interruptId)).toEqual(['mcp_input_tc-mcp'])
+
+    await collect(
+      chat({
+        adapter,
+        messages: [],
+        tools: [mcpWizard],
+        runId: 'r-mcp-2',
+        parentRunId: 'r-mcp-1',
+        threadId: 't-mcp',
+        resume: [
+          {
+            interruptId: p1[0]!.interruptId,
+            status: 'resolved',
+            payload: { step: 1 },
+          },
+        ],
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    const p2 = await persistence.stores.interrupts!.listPending('t-mcp')
+    expect(p2.map((item) => item.interruptId)).toEqual(['mcp_input:2:tc-mcp'])
+    expect(
+      (await persistence.stores.interrupts!.get('mcp_input_tc-mcp'))?.status,
+    ).toBe('resolved')
+
+    await collect(
+      chat({
+        adapter,
+        messages: [],
+        tools: [mcpWizard],
+        runId: 'r-mcp-3',
+        parentRunId: 'r-mcp-2',
+        threadId: 't-mcp',
+        resume: [
+          {
+            interruptId: p2[0]!.interruptId,
+            status: 'resolved',
+            payload: { step: 2 },
+          },
+        ],
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    expect(await persistence.stores.interrupts!.listPending('t-mcp')).toEqual(
+      [],
+    )
+    expect(
+      (await persistence.stores.interrupts!.get('mcp_input:2:tc-mcp'))?.status,
+    ).toBe('resolved')
   })
 })

@@ -126,7 +126,7 @@ export interface GetGenerationHydrationOptions {
  * ```
  *
  * Wire that body up as the server function's handler — build it with
- * `createServerFn({ method: 'GET' })`, add an `inputValidator` that returns
+ * `createServerFn({ method: 'GET' })`, add a `validator` that returns
  * the thread id, then hand it the function above. (The chained call is shown
  * split apart on purpose: Start's server-fn plugin decides which modules to
  * transform by scanning source text for that call, and a package whose shipped

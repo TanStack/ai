@@ -54,8 +54,11 @@ export async function runModel(
     )
   }
 
+  // Third-party models (`author/model`, no `@cf/` or `@hf/` prefix) have no
+  // model-in-path route. They run on `/ai/run` with a `{ model, input }` body.
+  const universal = !model.startsWith('@')
   const url = new URL(
-    `${CLOUDFLARE_API_BASE}/accounts/${config.accountId}/ai/run/${model}`,
+    `${CLOUDFLARE_API_BASE}/accounts/${config.accountId}/ai/run${universal ? '' : `/${model}`}`,
   )
   const headers: Record<string, string> = {
     Authorization: `Bearer ${config.apiKey}`,
@@ -71,7 +74,7 @@ export async function runModel(
     body = options.binary.body as BodyInit
   } else {
     headers['Content-Type'] = 'application/json'
-    body = JSON.stringify(inputs)
+    body = JSON.stringify(universal ? { model, input: inputs } : inputs)
   }
   const fetchImpl = config.fetch ?? fetch
   const response = await fetchImpl(url, {

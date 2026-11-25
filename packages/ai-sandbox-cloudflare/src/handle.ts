@@ -53,11 +53,21 @@ export const CLOUDFLARE_CAPS: SandboxCapabilities = {
 }
 
 /** POSIX single-quote escape for embedding paths in `sh -c`. */
-function q(value: string): string {
+export function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
 const LSTAT_MISSING = '__TANSTACK_LSTAT_MISSING__'
+
+/**
+ * Cloudflare runs every command in one long-lived shell session, so a bare
+ * `exit` ends the session and every later command fails. A subshell keeps
+ * `exit`, `cd`, and variables local to the command, like the other providers.
+ * The newlines keep a trailing `#` comment or heredoc from eating the `)`.
+ */
+function subshell(command: string) {
+  return `(\n${command}\n)`
+}
 
 /** Verify a missing path by listing parent entries. `test -e` also fails for inaccessible parents. */
 function lstatCommand(path: string): string {
@@ -86,7 +96,7 @@ function parseLstatOutput(output: string): SandboxFsStat {
 }
 
 /** A push-driven async string queue used to adapt CF's onOutput callback. */
-class OutputQueue {
+export class OutputQueue {
   private readonly buffer: Array<string> = []
   private readonly waiters: Array<(r: IteratorResult<string>) => void> = []
   private ended = false
@@ -248,7 +258,7 @@ export class CloudflareHandle implements SandboxHandle {
     command: string,
     opts?: ProcessOptions,
   ): Promise<ExecResult> {
-    const result = await this.sandbox.exec(command, {
+    const result = await this.sandbox.exec(subshell(command), {
       ...(opts?.cwd ? { cwd: this.abs(opts.cwd) } : { cwd: this.workdir }),
       ...(opts?.env ? { env: opts.env } : {}),
     })
@@ -282,7 +292,7 @@ export class CloudflareHandle implements SandboxHandle {
     // before the command runs. Mid-run cancellation is therefore unavailable
     // on this provider; a stuck run is bounded by the coordinator's watchdog
     // and the Durable Object lifecycle instead. `kill()` is a best-effort no-op.
-    const settled = this.sandbox.exec(command, {
+    const settled = this.sandbox.exec(subshell(command), {
       ...(opts?.cwd ? { cwd: this.abs(opts.cwd) } : { cwd: this.workdir }),
       ...(opts?.env ? { env: opts.env } : {}),
       stream: true,

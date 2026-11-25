@@ -82,7 +82,68 @@ function messageUpdated(
   }
 }
 
+/** A `message.part.delta` event of OpenCode 1.x: new text for one part. */
+function partDelta(
+  partID: string,
+  delta: string,
+  messageID = 'msg-1',
+): OpencodeStreamEvent {
+  return {
+    kind: 'event',
+    event: {
+      type: 'message.part.delta',
+      properties: {
+        sessionID: 'sess-1',
+        messageID,
+        partID,
+        field: 'text',
+        delta,
+      },
+    },
+  }
+}
+
 describe('translateOpencodeStream', () => {
+  it('streams text from the message.part.delta events of OpenCode 1.x', async () => {
+    const chunks = await collect([
+      session,
+      messageUpdated('msg-1', 'assistant'),
+      textPart('part-1', ''),
+      partDelta('part-1', 'ON'),
+      partDelta('part-1', 'E'),
+      textPart('part-1', 'ONE'),
+      done(),
+    ])
+
+    const content = chunks.filter(
+      (chunk) => chunk.type === 'TEXT_MESSAGE_CONTENT',
+    )
+    expect(content).toMatchObject([
+      { delta: 'ON' },
+      { delta: 'E', content: 'ONE' },
+    ])
+  })
+
+  it('keeps the text of a delta that comes before the role of its message', async () => {
+    const chunks = await collect([
+      session,
+      textPart('part-1', ''),
+      partDelta('part-1', 'ON'),
+      messageUpdated('msg-1', 'assistant'),
+      partDelta('part-1', 'E'),
+      textPart('part-1', 'ONE'),
+      done(),
+    ])
+
+    const content = chunks.filter(
+      (chunk) => chunk.type === 'TEXT_MESSAGE_CONTENT',
+    )
+    expect(content).toMatchObject([
+      { delta: 'ON' },
+      { delta: 'E', content: 'ONE' },
+    ])
+  })
+
   it('translates a simple text turn', async () => {
     const chunks = await collect([
       session,
@@ -214,6 +275,252 @@ describe('translateOpencodeStream', () => {
       promptTokensDetails: { cachedTokens: 40 },
       completionTokensDetails: { reasoningTokens: 5 },
     })
+  })
+
+  it('maps cost and cache writes onto usage', async () => {
+    const chunks = await collect([
+      session,
+      done({
+        tokens: { input: 100, output: 20, cache: { read: 40, write: 7 } },
+        cost: 0.03,
+      }),
+    ])
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'RUN_FINISHED',
+      usage: {
+        cost: 0.03,
+        promptTokensDetails: { cachedTokens: 40, cacheWriteTokens: 7 },
+      },
+    })
+  })
+
+  it('sums the step-finish parts of every agent-loop step', async () => {
+    const stepFinish = (
+      id: string,
+      messageID: string,
+      input: number,
+      cost: number,
+      reason = 'stop',
+    ): OpencodeStreamEvent => ({
+      kind: 'event',
+      event: {
+        type: 'message.part.updated',
+        properties: {
+          part: {
+            id,
+            sessionID: 'sess-1',
+            messageID,
+            type: 'step-finish',
+            reason,
+            cost,
+            tokens: {
+              input,
+              output: 10,
+              reasoning: 2,
+              cache: { read: 5, write: 1 },
+            },
+          },
+        },
+      },
+    })
+    const chunks = await collect([
+      session,
+      messageUpdated('msg-0', 'assistant'),
+      stepFinish('step-a', 'msg-0', 100, 0.01, 'tool-calls'),
+      // A repeated update of the same part is not counted twice.
+      stepFinish('step-a', 'msg-0', 100, 0.01, 'tool-calls'),
+      messageUpdated('msg-1', 'assistant'),
+      stepFinish('step-b', 'msg-1', 200, 0.02),
+      done({
+        tokens: {
+          input: 200,
+          output: 10,
+          reasoning: 2,
+          cache: { read: 5, write: 1 },
+        },
+        cost: 0.02,
+      }),
+    ])
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'RUN_FINISHED',
+      usage: {
+        promptTokens: 300,
+        completionTokens: 20,
+        totalTokens: 320,
+        cost: 0.03,
+        promptTokensDetails: { cachedTokens: 10, cacheWriteTokens: 2 },
+        completionTokensDetails: { reasoningTokens: 4 },
+      },
+    })
+  })
+
+  it('adds the final message usage when its step-finish part did not arrive', async () => {
+    const chunks = await collect([
+      session,
+      messageUpdated('msg-0', 'assistant'),
+      {
+        kind: 'event',
+        event: {
+          type: 'message.part.updated',
+          properties: {
+            part: {
+              id: 'step-a',
+              sessionID: 'sess-1',
+              messageID: 'msg-0',
+              type: 'step-finish',
+              cost: 0.01,
+              tokens: { input: 100, output: 10 },
+            },
+          },
+        },
+      },
+      // The step-finish part of msg-1 comes after `done`, so it is missed.
+      done({ tokens: { input: 200, output: 20 }, cost: 0.02 }),
+    ])
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'RUN_FINISHED',
+      usage: { promptTokens: 300, completionTokens: 30, cost: 0.03 },
+    })
+  })
+
+  it('adds the last step when one message has several steps and the last part is missing', async () => {
+    const chunks = await collect([
+      session,
+      messageUpdated('msg-1', 'assistant'),
+      {
+        kind: 'event',
+        event: {
+          type: 'message.part.updated',
+          properties: {
+            part: {
+              id: 'step-a',
+              sessionID: 'sess-1',
+              messageID: 'msg-1',
+              type: 'step-finish',
+              reason: 'tool-calls',
+              cost: 0.01,
+              tokens: { input: 100, output: 10 },
+            },
+          },
+        },
+      },
+      // msg-1 keeps the tokens of its last step and the cost of all steps.
+      done({ tokens: { input: 200, output: 20 }, cost: 0.03 }),
+    ])
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'RUN_FINISHED',
+      usage: { promptTokens: 300, completionTokens: 30, cost: 0.03 },
+    })
+  })
+
+  it('adds the last step when an earlier step of the message has the same reason', async () => {
+    const chunks = await collect([
+      session,
+      messageUpdated('msg-1', 'assistant'),
+      {
+        kind: 'event',
+        event: {
+          type: 'message.part.updated',
+          properties: {
+            part: {
+              id: 'step-a',
+              sessionID: 'sess-1',
+              messageID: 'msg-1',
+              type: 'step-finish',
+              reason: 'tool-calls',
+              cost: 0.01,
+              tokens: { input: 100, output: 10 },
+            },
+          },
+        },
+      },
+      // The last step also ends with tool-calls, and its part is missing.
+      done({
+        finish: 'tool-calls',
+        tokens: { input: 200, output: 20 },
+        cost: 0.03,
+      }),
+    ])
+    expect(chunks.at(-1)).toMatchObject({
+      usage: { promptTokens: 300, completionTokens: 30, cost: 0.03 },
+    })
+  })
+
+  it('adds the last step of a message with no finish when its part is missing', async () => {
+    const chunks = await collect([
+      session,
+      messageUpdated('msg-1', 'assistant'),
+      {
+        kind: 'event',
+        event: {
+          type: 'message.part.updated',
+          properties: {
+            part: {
+              id: 'step-a',
+              sessionID: 'sess-1',
+              messageID: 'msg-1',
+              type: 'step-finish',
+              reason: 'tool-calls',
+              cost: 0.01,
+              tokens: { input: 100, output: 10 },
+            },
+          },
+        },
+      },
+      done({
+        finish: undefined,
+        tokens: { input: 200, output: 20 },
+        cost: 0.03,
+      }),
+    ])
+    expect(chunks.at(-1)).toMatchObject({
+      usage: { promptTokens: 300, completionTokens: 30, cost: 0.03 },
+    })
+  })
+
+  it('does not count the last step twice when a message has no finish', async () => {
+    const chunks = await collect([
+      session,
+      messageUpdated('msg-1', 'assistant'),
+      {
+        kind: 'event',
+        event: {
+          type: 'message.part.updated',
+          properties: {
+            part: {
+              id: 'step-a',
+              sessionID: 'sess-1',
+              messageID: 'msg-1',
+              type: 'step-finish',
+              reason: 'stop',
+              cost: 0.02,
+              tokens: { input: 200, output: 20 },
+            },
+          },
+        },
+      },
+      done({
+        finish: undefined,
+        tokens: { input: 200, output: 20 },
+        cost: 0.02,
+      }),
+    ])
+    expect(chunks.at(-1)).toMatchObject({
+      usage: { promptTokens: 200, completionTokens: 20, cost: 0.02 },
+    })
+  })
+
+  it('leaves cost out when opencode reports 0 (a model with no price)', async () => {
+    const chunks = await collect([
+      session,
+      done({ tokens: { input: 20, output: 5 }, cost: 0 }),
+    ])
+    const finished = chunks.at(-1)
+    expect(finished).toMatchObject({
+      type: 'RUN_FINISHED',
+      usage: { promptTokens: 20, completionTokens: 5 },
+    })
+    expect(finished).not.toHaveProperty('usage.cost')
   })
 
   it('maps a length finish to finishReason length', async () => {
@@ -415,6 +722,23 @@ describe('translateOpencodeStream', () => {
     expect(chunks.at(-1)).toMatchObject({
       type: 'RUN_ERROR',
       message: 'no key',
+    })
+  })
+
+  it('puts usage on the RUN_ERROR of a failed message', async () => {
+    const chunks = await collect([
+      session,
+      done({
+        finish: undefined,
+        error: { name: 'MessageAbortedError', data: { message: 'aborted' } },
+        tokens: { input: 50, output: 5 },
+        cost: 0.01,
+      }),
+    ])
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'RUN_ERROR',
+      message: 'aborted',
+      usage: { promptTokens: 50, completionTokens: 5, cost: 0.01 },
     })
   })
 

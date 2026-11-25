@@ -353,6 +353,7 @@ Do you only need JSON from a prompt, with no repo? Use `@tanstack/ai-anthropic`.
 
 | Model | Reasoning levels | What `reasoning` sets |
 | --- | --- | --- |
+| `claude-opus-5-5`, `claude-opus-5`, `claude-sonnet-5-5`, `claude-sonnet-5`, `claude-haiku-5-5`, `claude-fable-5-1`, `claude-fable-5` | `low`, `medium`, `high`, `xhigh`, `max` | `--effort` |
 | `claude-opus-4-8`, `claude-opus-4-7`, `opus` | `low`, `medium`, `high`, `xhigh`, `max` | `--effort` |
 | `claude-opus-4-6`, `claude-sonnet-4-6`, `sonnet` | `low`, `medium`, `high`, `max` | `--effort` |
 | `claude-haiku-4-5`, `haiku` | `off`, `minimal`, `low`, `medium`, `high` | `MAX_THINKING_TOKENS` |

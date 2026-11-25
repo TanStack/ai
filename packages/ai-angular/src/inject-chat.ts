@@ -76,6 +76,9 @@ export function injectChat<
       initialMessages: options.initialMessages,
     }),
     threadId: options.threadId,
+    ...(options.outputSchema !== undefined && {
+      outputSchema: options.outputSchema,
+    }),
     ...(options.persistence === true
       ? {
           persistence: true,
@@ -156,13 +159,16 @@ export function injectChat<
   }
 
   // Subscribe / unsubscribe based on reactive `live`.
+  let subscribed = false
   if (liveSource) {
     effect(
       () => {
         if (liveSource()) {
           client.subscribe()
-        } else {
+          subscribed = true
+        } else if (subscribed) {
           client.unsubscribe()
+          subscribed = false
         }
       },
       { injector },
@@ -181,12 +187,12 @@ export function injectChat<
 
   destroyRef.onDestroy(() => {
     unsubscribeSnapshot()
-    // Release the connection first: the counterpart of the `attach` above.
+    // Detach and dispose without calling `stop()` so durable runs and pending
+    // interrupts survive navigation.
     client.detach()
-    if (liveSource?.()) {
+    if (subscribed) {
       client.unsubscribe()
-    } else {
-      client.stop()
+      subscribed = false
     }
     client.dispose()
   })

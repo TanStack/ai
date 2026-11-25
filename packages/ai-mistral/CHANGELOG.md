@@ -1,5 +1,62 @@
 # @tanstack/ai-mistral
 
+## 1.1.3
+
+### Patch Changes
+
+- [#2183](https://github.com/TanStack/ai/pull/2183) [`4c614ad`](https://github.com/TanStack/ai/commit/4c614ad6e60ddef5d9a848c3d783d927e003c0ec) - Mistral streams that end with `finish_reason: "error"` now end the run with `RUN_ERROR` instead of a clean `RUN_FINISHED`.
+
+- Updated dependencies [[`95c1d78`](https://github.com/TanStack/ai/commit/95c1d781c92904612e0d675a9ca38f1a8d9a1c09), [`df6f5a9`](https://github.com/TanStack/ai/commit/df6f5a9f5ff782db85c8a36715bac18a7f090180), [`40d1c61`](https://github.com/TanStack/ai/commit/40d1c61c6bdf1957bd124d09b1f07617a05e759d)]:
+  - @tanstack/ai@1.6.0
+
+## 1.1.2
+
+### Patch Changes
+
+- [#2111](https://github.com/TanStack/ai/pull/2111) [`6484f08`](https://github.com/TanStack/ai/commit/6484f0864f3b6c4476aad0bbf2a79ef5e4e6a9e8) - A Mistral response that stops with `finish_reason` `model_length` (the model's context window is exhausted) is now a `RUN_ERROR` with code `context_overflow`. `structuredOutput` throws the same code. Before, a streamed `model_length` stop was reported as a normal `stop`, and `structuredOutput` surfaced a JSON parse error.
+
+- [#2101](https://github.com/TanStack/ai/pull/2101) [`ece31b9`](https://github.com/TanStack/ai/commit/ece31b911634cb5d5cb1c22260e62626539d2934) - A Mistral chat stream that hits the token limit during a tool call reports `finishReason: 'length'`. Complete arguments are normalized onto `input`. Incomplete arguments keep the raw `args` and omit `input`, and the stream does not throw. A `tool_calls` finish with malformed arguments still throws.
+
+- Updated dependencies [[`1888233`](https://github.com/TanStack/ai/commit/1888233ddb501d14b17aa9a5f3497373a0e9242e)]:
+  - @tanstack/ai@1.4.1
+
+## 1.1.1
+
+### Patch Changes
+
+- [#1973](https://github.com/TanStack/ai/pull/1973) [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce) - The adapters now call the provider HTTP API with `fetch` and do not create the `@mistralai/mistralai` client. At runtime they load only the SDK error classes. Bundles are smaller. A 422 response now throws the adapter's own `HTTPValidationError`, not the SDK class. It has the same `name`, `message`, and `detail` fields, and it is still an `instanceof MistralError`. If your code checks a 422 error with `instanceof` against the SDK `HTTPValidationError`, check `error.name` instead.
+
+- Updated dependencies [[`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai@1.2.0
+  - @tanstack/ai-utils@1.1.0
+
+## 1.1.0
+
+### Minor Changes
+
+- [#1977](https://github.com/TanStack/ai/pull/1977) [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6) - Forward the new optional embedding `abortSignal` to the embeddings request.
+
+### Patch Changes
+
+- [#1975](https://github.com/TanStack/ai/pull/1975) [`c7f8dfd`](https://github.com/TanStack/ai/commit/c7f8dfd58129c5538090fc9ab8c91cd93c6125ab) - Aborting a chat now cancels the request to Mistral, for streaming and for structured output. Structured output keeps the `timeoutMs` limit when you pass a signal.
+
+- [#1925](https://github.com/TanStack/ai/pull/1925) [`77318d2`](https://github.com/TanStack/ai/commit/77318d2369e63ff6670ae2defe7243f0d109a410) - Parallel tool calls that arrive whole with the same `index` (the Mistral SDK fills a missing `index` with 0) are no longer merged into one call with a combined name and invalid JSON arguments. A tool call delta whose id differs from the one already in its slot now starts a new call.
+
+- [#1957](https://github.com/TanStack/ai/pull/1957) [`7f64043`](https://github.com/TanStack/ai/commit/7f640439592ada1c1d870836e9880bb1a167bd1c) - Fix the README usage examples: they imported `generate` (and `generateImages` for Grok) from `@tanstack/ai`, which do not exist. They now use `chat({ stream: false })` and `generateImage`.
+
+- [#1974](https://github.com/TanStack/ai/pull/1974) [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb) - Report token usage for every call that the provider billed, also when the call fails.
+  - Adapters put the usage that they received on `RUN_ERROR`: a cut-off response, a refusal, a parse failure, an empty response, or a stream that fails after usage arrived. Before, many of these paths dropped it.
+  - A non-streaming `structuredOutput()`, image, or speech call that fails after the response throws an error with a `usage` field. `chat()`, `generateImage()`, `generateSpeech()`, and `summarize()` report it.
+  - The `onUsage` middleware hook now also runs for a `RUN_ERROR` with usage. A structured output value that fails the schema check still reports the usage of its call.
+  - Media streams carry `usage` on `RUN_FINISHED` and `RUN_ERROR`. Devtools now gets the `summarize:usage` and `transcription:usage` events, and `text:usage` for a chat `RUN_ERROR` with usage. A call that `onModelError` or a rate-limit retry drops still reports its usage.
+  - Provider fields that were dropped are mapped: Anthropic thinking tokens, Claude Code `total_cost_usd` as `usage.cost`, OpenRouter Responses reasoning tokens, opencode cost and cache writes, ACP and Bedrock cache writes, OpenAI evaluate token details, Gemini Vertex embedding tokens, and audio duration as billed seconds for Whisper, Groq, Cloudflare, and Lovable transcription.
+  - opencode adds up the usage of every agent step in a turn. Before, it counted only the last step.
+  - Gemini Interactions usage (text, agentic video, and images) counts thought tokens in `completionTokens`, the same as `generateContent`.
+
+- Updated dependencies [[`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`e17cae7`](https://github.com/TanStack/ai/commit/e17cae7aa40ce5ebe0e78496931d49c793bdaf41), [`d6ead13`](https://github.com/TanStack/ai/commit/d6ead13def85f91782e20d6c1b8755fdf1c836c2), [`450950d`](https://github.com/TanStack/ai/commit/450950da860d58047c654c1497ddb48d651f9076), [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31), [`13b1ca9`](https://github.com/TanStack/ai/commit/13b1ca918a0ac36761db2a6226973c5330d4221d), [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb)]:
+  - @tanstack/ai@1.1.0
+  - @tanstack/ai-utils@1.0.1
+
 ## 1.0.0
 
 ### Major Changes

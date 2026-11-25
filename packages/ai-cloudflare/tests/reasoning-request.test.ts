@@ -4,7 +4,7 @@ import { CloudflareTextAdapter } from '../src/adapters/text'
 import type { ReasoningRequest } from '@tanstack/ai'
 
 const logger = resolveDebugOption(false)
-const model = '@cf/deepseek-ai/deepseek-v4-flash-0731'
+const model = '@cf/deepseek-ai/deepseek-v4.1-flash-1017'
 
 class Probe extends CloudflareTextAdapter<typeof model> {
   request(reasoning: ReasoningRequest | undefined) {

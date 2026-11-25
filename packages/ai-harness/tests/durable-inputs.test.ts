@@ -555,6 +555,7 @@ describe('recovery of a durable input', () => {
         toolCallId: 'call-lookup',
         content: result,
         error: result,
+        metadata: { tanstack: { toolResultKind: 'text' } },
       },
     ])
     await host.close()
@@ -1770,14 +1771,8 @@ describe('durable approval recovery', () => {
     await host.close()
     const next = createHarnessHost({ persistence })
     const reopened = await next.open(config, { threadId: THREAD })
-    if (turnInterrupts(reopened.snapshot()).length > 0) {
-      const retry = await reopened.resolve({
-        resume: [
-          { interruptId: approval.id, status: 'resolved', payload: true },
-        ],
-      })
-      await reopened.operation(retry.operationId ?? '')
-    }
+    // The reopened host recovers the pending resolve input and runs its turn.
+    await reopened.whenIdle({ signal: AbortSignal.timeout(5_000) })
     expect(execute).toHaveBeenCalledTimes(1)
     expect(turnInterrupts(reopened.snapshot())).toEqual([])
     await next.close()

@@ -1,5 +1,41 @@
 # @tanstack/ai-vercel-gateway
 
+## 1.1.2
+
+### Patch Changes
+
+- [#2055](https://github.com/TanStack/ai/pull/2055) [`af23e5d`](https://github.com/TanStack/ai/commit/af23e5d12042a989ed8a931207f05992b8a81279) - Update model metadata from OpenRouter API
+
+## 1.1.1
+
+### Patch Changes
+
+- [#1973](https://github.com/TanStack/ai/pull/1973) [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce) - The adapters now call the provider HTTP API with `fetch` and do not create the `openai` SDK client. At runtime they load only small SDK modules, for example the error classes from `openai/core/error`. With a bundler that splits chunks, the startup bundle is smaller. A single-file bundle can be a little larger, because a few rare options still load the full SDK on first use. Errors keep the same classes and fields.
+
+- [#1895](https://github.com/TanStack/ai/pull/1895) [`e024981`](https://github.com/TanStack/ai/commit/e024981ed2c0481c506595dae1280a94a7fba2e4) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai@1.2.0
+  - @tanstack/ai-utils@1.1.0
+  - @tanstack/openai-base@1.0.2
+
+## 1.1.0
+
+### Minor Changes
+
+- [#1977](https://github.com/TanStack/ai/pull/1977) [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6) - Forward the new optional embedding `abortSignal` to the embeddings request.
+
+### Patch Changes
+
+- [#1975](https://github.com/TanStack/ai/pull/1975) [`c7f8dfd`](https://github.com/TanStack/ai/commit/c7f8dfd58129c5538090fc9ab8c91cd93c6125ab) - Aborting `generateImage()` now stops the Vercel AI Gateway request. Before, the call rejected but the request kept running and was billed.
+
+- [#1931](https://github.com/TanStack/ai/pull/1931) [`7541699`](https://github.com/TanStack/ai/commit/7541699ae16821ff1a7ae9eab5cbb95b6314b043) - Report the gateway's debited amount (`gatewayCost`, which includes surcharges) as `usage.cost` instead of the inference charge alone.
+
+- Updated dependencies [[`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`e17cae7`](https://github.com/TanStack/ai/commit/e17cae7aa40ce5ebe0e78496931d49c793bdaf41), [`d6ead13`](https://github.com/TanStack/ai/commit/d6ead13def85f91782e20d6c1b8755fdf1c836c2), [`450950d`](https://github.com/TanStack/ai/commit/450950da860d58047c654c1497ddb48d651f9076), [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31), [`13b1ca9`](https://github.com/TanStack/ai/commit/13b1ca918a0ac36761db2a6226973c5330d4221d), [`e17cae7`](https://github.com/TanStack/ai/commit/e17cae7aa40ce5ebe0e78496931d49c793bdaf41), [`940c402`](https://github.com/TanStack/ai/commit/940c402d8ca5220e3202326e03cc1f64654572a3), [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb)]:
+  - @tanstack/ai@1.1.0
+  - @tanstack/ai-utils@1.0.1
+  - @tanstack/openai-base@1.0.1
+
 ## 1.0.0
 
 ### Major Changes

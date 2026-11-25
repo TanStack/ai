@@ -562,7 +562,7 @@ Add one feature at a time:
 - [Streaming](../chat/streaming): cancel, callbacks, and transports.
 - [Adapters](../adapters/openai): switch to another provider.
 
-Or build a full app in a tutorial, such as [Basic Chat](../tutorials/basic-chat) or [Generate Image](../tutorials/generate-image).
+Or build a full app in a tutorial, such as [Basic Chat](../tutorials/basic-chat), [Generate Image](../tutorials/generate-image), [Generate Motion](../tutorials/generate-motion), or [Game Asset Pipeline](../tutorials/game-asset-pipeline).
 
 ## Advanced
 

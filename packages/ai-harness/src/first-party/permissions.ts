@@ -2,6 +2,7 @@ import { createCapability, getMetadata } from '@tanstack/ai'
 import {
   APPROVAL_ANSWER_SCHEMA,
   approvalInterrupt,
+  durableAnswers,
   readApproval,
 } from '../boundary-waits'
 import { defineCommand } from '../commands'
@@ -828,11 +829,12 @@ export function permissions(
         decideCall(tool, args, sessionMetadata),
       )
       /**
-       * The replies to the approvals of the turn, by tool call id. The turn
-       * that resumes gets them in `onInterruptResolution`, on any host,
-       * before its tools run. A call settles its reply when it runs.
+       * The replies to the approvals of each run, by tool call id. Stored in
+       * plugin state so answers survive multi-pause batches and host restarts
+       * until the approved call runs. Each run (the lead turn, or one agent
+       * run by its `subagentRunId`) has its own answers.
        */
-      const answers = new Map<string, unknown>()
+      const store = durableAnswers(ctx)
       /**
        * Decide each tool call of the model message before the tools run.
        * Each call that asks opens one approval wait, so the turn stops, and
@@ -844,8 +846,14 @@ export function permissions(
         if (run.phase !== 'beforeTools') return undefined
         const metadata = getMetadata(run, { optional: true })
         const interrupts = []
-        for (const call of pendingCalls(run.messages)) {
-          if (answers.has(call.id)) continue
+        const calls = pendingCalls(run.messages)
+        const answers = store.forRun(run.subagentRunId)
+        await answers.retain(
+          run.messages,
+          calls.map((call) => call.id),
+        )
+        for (const call of calls) {
+          if (await answers.has(call.id)) continue
           const tool = call.function.name
           // A call that cannot be checked is denied: it is refused when it runs.
           const checked = await decideCall(
@@ -868,14 +876,21 @@ export function permissions(
       const check = {
         name: 'tanstack/permissions',
         onInterruptBoundary: boundary,
-        onInterruptResolution: (_run, resolutions) => {
-          for (const resolution of resolutions.for(approvalInterrupt)) {
-            // A cancelled approval is a reject: `false`.
-            answers.set(
-              resolution.request.key,
-              resolution.status === 'resolved' ? resolution.response : false,
-            )
-          }
+        onInterruptResolution: async (run, resolutions) => {
+          await store.forRun(run.subagentRunId).setMany(
+            run.messages,
+            resolutions.for(approvalInterrupt).map(
+              (resolution) =>
+                [
+                  resolution.request.key,
+                  resolution.request.key,
+                  // A cancelled approval is a reject: `false`.
+                  resolution.status === 'resolved'
+                    ? resolution.response
+                    : false,
+                ] as const,
+            ),
+          )
         },
         // The guard tier, not the first-win `onBeforeToolCall`: it runs for
         // every call, after every middleware that changes the args and after
@@ -884,19 +899,22 @@ export function permissions(
         onGuardToolCall: async (run, hook) => {
           const metadata = getMetadata(run, { optional: true })
           const call = await decideCall(hook.toolName, hook.args, metadata)
+          // Always take any stored answer so stale entries do not stay when
+          // rules change before the call runs.
+          const { present, values } = await store
+            .forRun(run.subagentRunId)
+            .take([hook.toolCallId])
           if (call.decision === 'allow') return undefined
           if (call.decision === 'deny') return refuse(call.error)
           // The boundary asked about every call of the model message. A call
           // with no answer is one that the boundary did not see (for example,
           // a call that a `chat()` without the approval interrupt makes).
-          if (!answers.has(hook.toolCallId)) {
+          if (present.length === 0) {
             return refuse(
               'This call needs the approval of the user, and this run cannot ask for it.',
             )
           }
-          const reply = answers.get(hook.toolCallId)
-          answers.delete(hook.toolCallId)
-          const error = await call.settle(reply)
+          const error = await call.settle(values[0])
           return error === undefined ? undefined : refuse(error)
         },
       } satisfies AnyChatMiddleware

@@ -177,7 +177,11 @@ describe('joinRun client-tool continuation (issue #1058)', () => {
     })
 
     await vi.waitFor(() => {
-      expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
+      expect(joinRun).toHaveBeenCalledWith(
+        'r1',
+        expect.anything(),
+        expect.objectContaining({ tools: expect.any(Array) }),
+      )
     })
     for (let i = 0; i < 10; i++) {
       await new Promise((r) => setTimeout(r, 0))

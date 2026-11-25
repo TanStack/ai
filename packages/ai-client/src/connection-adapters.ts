@@ -3,6 +3,7 @@ import {
   PROTOCOL_VERSION,
   getChunkRunId as getNormalizedChunkRunId,
   restoreInboundChunk,
+  tanstackMetadata,
   uiMessagesToWire,
   withTanstackMetadata,
 } from '@tanstack/ai/client'
@@ -13,10 +14,12 @@ import {
 } from './response-stream'
 import { parseSseDataLine } from './sse-utils'
 import type {
+  AnyClientTool,
   ModelMessage,
   RunAgentInput,
   RunAgentResumeItem,
   RunErrorEvent,
+  SchemaInput,
   StreamChunk,
   UIMessage,
 } from '@tanstack/ai/client'
@@ -327,6 +330,38 @@ export function createReconnectTracker(
       await abortableDelay(delayMs, signal)
     },
   }
+}
+
+/**
+ * A signal that aborts when either one does. The client's signal (stop()) and
+ * the user's own `options.signal` must both stop the request.
+ */
+function eitherSignal(
+  a: AbortSignal | undefined,
+  b: AbortSignal | undefined,
+): AbortSignal | undefined {
+  if (!a || !b) return a ?? b
+  const signal = a.aborted ? a : b.aborted ? b : anySignal(a, b)
+  requestSignals.set(a, signal)
+  return signal
+}
+
+/**
+ * The client's signal -> the signal its request follows. `send()` reads it,
+ * so an abort of `options.signal` is a stop, not an end or an error.
+ */
+const requestSignals = new WeakMap<AbortSignal, AbortSignal>()
+
+function anySignal(a: AbortSignal, b: AbortSignal): AbortSignal {
+  // `AbortSignal.any` links weakly, so a long-lived `options.signal` keeps
+  // nothing from a finished request.
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any([a, b])
+  // ponytail: older runtimes keep these listeners on a long-lived signal
+  // until it aborts.
+  const controller = new AbortController()
+  a.addEventListener('abort', () => controller.abort(a.reason), { once: true })
+  b.addEventListener('abort', () => controller.abort(b.reason), { once: true })
+  return controller.signal
 }
 
 /** Resolve after `ms`, or immediately once `signal` aborts. Never rejects. */
@@ -849,6 +884,25 @@ function fetchEventSource(
  * This engine is transport-agnostic: fetch/XHR × SSE/NDJSON all share it, the
  * only difference being the {@link StreamEventSource} they pass in.
  */
+/**
+ * True when a chunk ends the durable stream. An intermediate `tool_calls`
+ * `RUN_FINISHED` without an interrupt or loop stop continues in a later model
+ * turn, so a clean transport drop after it must still reconnect.
+ */
+function isTerminalStreamChunk(chunk: StreamChunk): boolean {
+  if (chunk.type === 'RUN_ERROR') return true
+  if (chunk.type !== 'RUN_FINISHED') return false
+  if (chunk.outcome?.type === 'interrupt') return true
+  const tanstack = tanstackMetadata(chunk)
+  if (tanstack?.loopStopped === true) return true
+  const extra = chunk as StreamChunk & { finishReason?: unknown }
+  const finishReason =
+    extra.finishReason !== undefined
+      ? extra.finishReason
+      : tanstack?.finishReason
+  return finishReason !== 'tool_calls'
+}
+
 async function* resumableStream(
   openEventSource: StreamEventSource,
   abortSignal?: AbortSignal,
@@ -872,7 +926,7 @@ async function* resumableStream(
       )) {
         if (tracker.note(id) === 'duplicate') continue
         progressed = true
-        if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+        if (isTerminalStreamChunk(chunk)) {
           sawTerminal = true
         }
         yield chunk
@@ -971,6 +1025,22 @@ export interface RunAgentInputContext {
   forwardedProps?: Record<string, unknown>
   /** Extra request headers for this run (e.g. BYOK keys). POST only. */
   headers?: Record<string, string>
+  /** The chat config of this run. See {@link ChatRunConfig}. */
+  config?: ChatRunConfig
+}
+
+/**
+ * The chat config that the client gives the connection, so an adapter needs
+ * no copy of it. `connect` gets it as `runContext.config`, and `joinRun` gets
+ * it as its third argument. Fields are only added, never removed.
+ */
+export interface ChatRunConfig {
+  /** The chat `threadId`. */
+  threadId: string
+  /** The client tools, as passed to `useChat({ tools })`. */
+  tools: ReadonlyArray<AnyClientTool>
+  /** The schema passed to `useChat({ outputSchema })`. */
+  outputSchema?: SchemaInput
 }
 
 export interface ConnectConnectionAdapter {
@@ -983,6 +1053,14 @@ export interface ConnectConnectionAdapter {
     abortSignal: AbortSignal | undefined,
     runContext: RunAgentInputContext,
   ) => AsyncIterable<StreamChunk>
+  /**
+   * Optional. Ask the server to cancel a run. `ChatClient.stop()` calls it
+   * (best effort, not awaited) for the run that it stops. Other aborts, such
+   * as an unmount, do not call it, so a durable run keeps going for them.
+   * `fetchServerSentEvents` and `fetchHttpStream` provide it when you set
+   * `cancelUrl`.
+   */
+  cancelRun?: (run: { runId: string; threadId: string }) => Promise<void>
   /**
    * Fetch server-driven hydration for a generation `threadId`: the last
    * generation's resume snapshot, plus a cursor to a run still generating if
@@ -1004,6 +1082,7 @@ export interface ConnectConnectionAdapter {
   joinRun?: (
     runId: string,
     abortSignal?: AbortSignal,
+    config?: ChatRunConfig,
   ) => AsyncIterable<StreamChunk>
   /**
    * Fetch server-driven hydration for a chat `threadId`: the stored transcript
@@ -1103,6 +1182,7 @@ export interface ResumableConnectConnectionAdapter extends ConnectConnectionAdap
   joinRun: (
     runId: string,
     abortSignal?: AbortSignal,
+    config?: ChatRunConfig,
   ) => AsyncIterable<StreamChunk>
   /**
    * Fetch server-authoritative hydration for `threadId`: the stored transcript,
@@ -1131,6 +1211,8 @@ export interface SubscribeConnectionAdapter {
     abortSignal: AbortSignal | undefined,
     runContext: RunAgentInputContext,
   ) => Promise<void>
+  /** See {@link ConnectConnectionAdapter.cancelRun}. */
+  cancelRun?: (run: { runId: string; threadId: string }) => Promise<void>
   /**
    * Re-attach to an existing run by id, replaying its stream from the start off
    * the server's delivery-durability sink. Present only when the underlying
@@ -1140,6 +1222,7 @@ export interface SubscribeConnectionAdapter {
   joinRun?: (
     runId: string,
     abortSignal?: AbortSignal,
+    config?: ChatRunConfig,
   ) => AsyncIterable<StreamChunk>
   /**
    * Server-authoritative hydration for a thread (transcript + in-flight-run
@@ -1190,11 +1273,13 @@ export function normalizeConnectionAdapter(
     const hydrate = (connection as SubscribeConnectionAdapter).hydrate?.bind(
       connection,
     )
+    const cancelRun = connection.cancelRun?.bind(connection)
     return {
       subscribe: connection.subscribe.bind(connection),
       send: connection.send.bind(connection),
       ...(joinRun ? { joinRun } : {}),
       ...(hydrate ? { hydrate } : {}),
+      ...(cancelRun ? { cancelRun } : {}),
     }
   }
 
@@ -1279,6 +1364,10 @@ export function normalizeConnectionAdapter(
       let hasTerminalEvent = false
       let upstreamThreadId: string | undefined
       let upstreamRunId: string | undefined
+      const aborted = () =>
+        abortSignal?.aborted === true ||
+        (abortSignal !== undefined &&
+          requestSignals.get(abortSignal)?.aborted === true)
       try {
         const stream = connection.connect(
           messages,
@@ -1304,7 +1393,12 @@ export function normalizeConnectionAdapter(
         // The event payload may carry an upstream/provider runId when one was
         // observed, but stamp the caller's request runId so getChunkRunId()
         // correlates to activeRunIds / currentRunId (same as real stream chunks).
-        if (!abortSignal?.aborted && !hasTerminalEvent) {
+        // Only the user's `options.signal` aborted: end like the client's own
+        // stop(), which rejects with an AbortError.
+        if (aborted() && !abortSignal?.aborted) {
+          throw Object.assign(new Error('Aborted'), { name: 'AbortError' })
+        }
+        if (!aborted() && !hasTerminalEvent) {
           push(
             withTanstackMetadata(
               {
@@ -1319,7 +1413,7 @@ export function normalizeConnectionAdapter(
           )
         }
       } catch (err) {
-        if (!abortSignal?.aborted && !hasTerminalEvent) {
+        if (!aborted() && !hasTerminalEvent) {
           const message =
             err instanceof Error ? err.message : 'Unknown error in connect()'
           const synthetic: RunErrorEvent = {
@@ -1335,6 +1429,9 @@ export function normalizeConnectionAdapter(
       }
       await waitUntilSubscriberIdle(abortSignal)
     },
+    ...(connection.cancelRun
+      ? { cancelRun: connection.cancelRun.bind(connection) }
+      : {}),
     // Expose joinRun only when the underlying connection is resumable. Require
     // a real function — `'joinRun' in connection` is true for
     // `{ joinRun: undefined }`, which would wrap a non-callable and throw on
@@ -1342,10 +1439,15 @@ export function normalizeConnectionAdapter(
     ...(typeof (connection as ResumableConnectConnectionAdapter).joinRun ===
     'function'
       ? {
-          joinRun: (runId: string, abortSignal?: AbortSignal) =>
+          joinRun: (
+            runId: string,
+            abortSignal?: AbortSignal,
+            config?: ChatRunConfig,
+          ) =>
             (connection as ResumableConnectConnectionAdapter).joinRun(
               runId,
               abortSignal,
+              config,
             ),
         }
       : {}),
@@ -1374,6 +1476,55 @@ export interface FetchConnectionOptions {
   fetchClient?: typeof globalThis.fetch
   /** Bounding for resumable-SSE reconnection (throttle delay + attempt ceiling). */
   reconnect?: ReconnectOptions
+  /**
+   * Opt in to server cancel. `ChatClient.stop()` then sends
+   * `POST cancelUrl` with the JSON body `{ runId, threadId }` and the same
+   * `headers` and `credentials`. Your route aborts the run.
+   */
+  cancelUrl?: string | (() => string)
+}
+
+/** How long the cancel POST from `stop()` can take before it is aborted. */
+const CANCEL_RUN_TIMEOUT_MS = 10_000
+
+/**
+ * `cancelRun` for the fetch adapters. Present only when `cancelUrl` can be
+ * set: a static options object with `cancelUrl`, or an options function
+ * (resolved on `stop()`; it does nothing when it returns no `cancelUrl`).
+ */
+function fetchCancelRun(
+  options:
+    | FetchConnectionOptions
+    | (() => FetchConnectionOptions | Promise<FetchConnectionOptions>),
+): Pick<ConnectConnectionAdapter, 'cancelRun'> {
+  if (typeof options !== 'function' && options.cancelUrl === undefined) {
+    return {}
+  }
+  return {
+    async cancelRun({ runId, threadId }) {
+      const resolved = typeof options === 'function' ? await options() : options
+      const { cancelUrl } = resolved
+      if (cancelUrl === undefined) return
+      const response = await (resolved.fetchClient ?? fetch)(
+        typeof cancelUrl === 'function' ? cancelUrl() : cancelUrl,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...mergeHeaders(resolved.headers),
+          },
+          body: JSON.stringify({ runId, threadId }),
+          credentials: resolved.credentials || 'same-origin',
+          // `stop()` does not wait for this request. The deadline stops a
+          // `cancelUrl` that never answers from holding a connection.
+          signal: AbortSignal.timeout(CANCEL_RUN_TIMEOUT_MS),
+        },
+      )
+      if (!response.ok) {
+        throw new Error(`Run cancel failed with status ${response.status}`)
+      }
+    },
+  }
 }
 
 /**
@@ -1394,6 +1545,65 @@ type ResolvedConnectionOptions = Pick<
   'body' | 'headers'
 >
 
+/**
+ * The server owns the app metadata of a tool result. A tool result that the
+ * client sends back keeps only the reserved `tanstack` key.
+ * ponytail: local, because the React Native client graph may import only
+ * @tanstack/ai/client, which does not export the metadata helpers.
+ */
+function withReservedMetadataOnly<
+  T extends { metadata?: Record<string, unknown> },
+>(row: T) {
+  const { metadata, ...rest } = row
+  const tanstack = metadata?.tanstack
+  return tanstack === undefined ? rest : { ...rest, metadata: { tanstack } }
+}
+
+/**
+ * Removes the app metadata of tool results from the UIMessages that a
+ * `ChatFetcher` or a `stream()` factory gets. Same rule as the wire rows of a connection adapter.
+ */
+function withoutAppResultMetadata(
+  messages: Array<UIMessage>,
+): Array<UIMessage> {
+  return messages.map((message) => ({
+    ...message,
+    parts: message.parts.map((part) => {
+      if (part.type === 'tool-result') return withReservedMetadataOnly(part)
+      if (part.type === 'subagent') {
+        return {
+          ...part,
+          subagent: {
+            ...part.subagent,
+            messages: withoutAppResultMetadata(part.subagent.messages),
+          },
+        }
+      }
+      if (part.type !== 'tool-call') return part
+      const { resultMetadata: _ignored, ...rest } = part
+      return rest
+    }),
+  }))
+}
+
+/** ChatClient sends UIMessages. A caller can still pass ModelMessages. */
+function isUIMessageList(
+  messages: Array<UIMessage> | Array<ModelMessage>,
+): messages is Array<UIMessage> {
+  return messages.every((message) => 'parts' in message)
+}
+
+/** The messages that a `stream()` or `rpcStream()` callback gets, without app result metadata. */
+function withoutAppMessageMetadata(
+  messages: Array<UIMessage> | Array<ModelMessage>,
+) {
+  return isUIMessageList(messages)
+    ? withoutAppResultMetadata(messages)
+    : messages.map((row) =>
+        row.role === 'tool' ? withReservedMetadataOnly(row) : row,
+      )
+}
+
 function buildRunAgentInputBody(
   messages: Array<UIMessage> | Array<ModelMessage>,
   data: Record<string, any> | undefined,
@@ -1407,7 +1617,11 @@ function buildRunAgentInputBody(
       'Connection adapter: connect() and send() need a run context with a threadId. ChatClient and the generation clients pass one. Pass it when you call the adapter yourself.',
     )
   }
-  const wireMessages = uiMessagesToWire(messages)
+  // Server snapshots also use uiMessagesToWire and keep all the metadata,
+  // so the strip is done here.
+  const wireMessages = uiMessagesToWire(messages).map((row) =>
+    row.role === 'tool' ? withReservedMetadataOnly(row) : row,
+  )
   const forwardedProps = {
     ...options.body,
     ...runContext.forwardedProps,
@@ -1471,6 +1685,7 @@ export function fetchServerSentEvents(
     | (() => FetchConnectionOptions | Promise<FetchConnectionOptions>) = {},
 ): ResumableConnectConnectionAdapter {
   return {
+    ...fetchCancelRun(options),
     async *connect(messages, data, abortSignal, runContext) {
       // Resolve URL and options if they are functions
       const resolvedUrl = typeof url === 'function' ? url() : url
@@ -1502,7 +1717,7 @@ export function fetchServerSentEvents(
       // `RequestInit.signal` is typed `AbortSignal | null` (no `undefined`
       // under `exactOptionalPropertyTypes`), so spread it conditionally
       // rather than passing `undefined` explicitly.
-      const signal = abortSignal || resolvedOptions.signal
+      const signal = eitherSignal(abortSignal, resolvedOptions.signal)
       // POST URL is byte-identical to a plain request; the run id (when set)
       // rides in the X-Run-Id header so durability can key the log by it
       // without changing the request URL existing clients rely on.
@@ -1545,7 +1760,7 @@ export function fetchServerSentEvents(
         ...mergeHeaders(resolvedOptions.headers),
       }
       const fetchClient = resolvedOptions.fetchClient ?? fetch
-      const signal = abortSignal || resolvedOptions.signal
+      const signal = eitherSignal(abortSignal, resolvedOptions.signal)
 
       yield* resumableStream(
         fetchEventSource(
@@ -1631,6 +1846,7 @@ export function fetchHttpStream(
     | (() => FetchConnectionOptions | Promise<FetchConnectionOptions>) = {},
 ): ResumableConnectConnectionAdapter {
   return {
+    ...fetchCancelRun(options),
     async *connect(messages, data, abortSignal, runContext) {
       // Resolve URL and options if they are functions
       const resolvedUrl = typeof url === 'function' ? url() : url
@@ -1662,7 +1878,7 @@ export function fetchHttpStream(
       // `RequestInit.signal` is typed `AbortSignal | null` (no `undefined`
       // under `exactOptionalPropertyTypes`), so spread it conditionally
       // rather than passing `undefined` explicitly.
-      const signal = abortSignal || resolvedOptions.signal
+      const signal = eitherSignal(abortSignal, resolvedOptions.signal)
       // POST URL is byte-identical to a plain request; the run id (when set)
       // rides in the X-Run-Id header so durability can key the log by it
       // without changing the request URL existing clients rely on.
@@ -1702,7 +1918,7 @@ export function fetchHttpStream(
         ...mergeHeaders(resolvedOptions.headers),
       }
       const fetchClient = resolvedOptions.fetchClient ?? fetch
-      const signal = abortSignal || resolvedOptions.signal
+      const signal = eitherSignal(abortSignal, resolvedOptions.signal)
 
       yield* resumableStream(
         fetchEventSource(
@@ -1909,7 +2125,7 @@ export function fetchJson(
     runId: string,
     abortSignal: AbortSignal | undefined,
   ) {
-    const signal = abortSignal || resolvedOptions.signal
+    const signal = eitherSignal(abortSignal, resolvedOptions.signal)
     return {
       fetchClient: resolvedOptions.fetchClient ?? fetch,
       url: resolvedUrl,
@@ -2259,7 +2475,7 @@ export function xhrServerSentEvents(
     async *connect(messages, data, abortSignal, runContext) {
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions = await resolveXhrConnectionOptions(options)
-      const signal = abortSignal || resolvedOptions.signal
+      const signal = eitherSignal(abortSignal, resolvedOptions.signal)
       // POST URL is byte-identical to a plain request; the run id (when set)
       // rides in the X-Run-Id header so durability can key the log by it
       // without changing the request URL existing clients rely on.
@@ -2281,7 +2497,7 @@ export function xhrServerSentEvents(
     async *joinRun(runId, abortSignal) {
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions = await resolveXhrConnectionOptions(options)
-      const signal = abortSignal || resolvedOptions.signal
+      const signal = eitherSignal(abortSignal, resolvedOptions.signal)
       const joinUrl = withSearchParams(resolvedUrl, { offset: '-1', runId })
       yield* resumableStream(
         xhrEventSource(
@@ -2343,7 +2559,7 @@ export function xhrHttpStream(
     async *connect(messages, data, abortSignal, runContext) {
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions = await resolveXhrConnectionOptions(options)
-      const signal = abortSignal || resolvedOptions.signal
+      const signal = eitherSignal(abortSignal, resolvedOptions.signal)
       // POST URL is byte-identical to a plain request; the run id (when set)
       // rides in the X-Run-Id header so durability can key the log by it
       // without changing the request URL existing clients rely on.
@@ -2365,7 +2581,7 @@ export function xhrHttpStream(
     async *joinRun(runId, abortSignal) {
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions = await resolveXhrConnectionOptions(options)
-      const signal = abortSignal || resolvedOptions.signal
+      const signal = eitherSignal(abortSignal, resolvedOptions.signal)
       const joinUrl = withSearchParams(resolvedUrl, { offset: '-1', runId })
       yield* resumableStream(
         xhrEventSource(
@@ -2623,7 +2839,7 @@ export function webSocket(
         if (session.runId === undefined) {
           session.runId = getChunkRunId(chunk)
         }
-        if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+        if (isTerminalStreamChunk(chunk)) {
           session.sawTerminal = true
         }
       }
@@ -2896,14 +3112,15 @@ export function stream(
 ): ConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal, runContext) {
-      // Pass messages as-is (UIMessages with parts preserved)
-      // Server-side chat() handles conversion to ModelMessages
-      yield* streamFactory(
-        messages,
+      // Pass UIMessages with parts. Server-side chat() converts them to
+      // ModelMessages. The server owns result metadata, so it is not sent.
+      const source = streamFactory(
+        withoutAppMessageMetadata(messages),
         data,
         abortSignal,
         buildRunAgentInputBody(messages, data, runContext, {}),
       )
+      yield* abortSignal ? abortableIterable(source, abortSignal) : source
     },
     ...(handlers?.hydrate ? { hydrate: handlers.hydrate } : {}),
     ...(handlers?.hydrateGeneration
@@ -2939,7 +3156,7 @@ export function fetcherToConnectionAdapter(
       const uiMessages = messages as Array<UIMessage>
       const result = await fetcher(
         {
-          messages: uiMessages,
+          messages: withoutAppResultMetadata(uiMessages),
           data,
           threadId: runContext.threadId,
           runId: runContext.runId,
@@ -2989,7 +3206,11 @@ async function* abortableIterable<T>(
       yield result.value
     }
   } finally {
-    await iterator.return?.()
+    const closing = iterator.return?.()
+    // A source stuck in an await runs return() only after that await ends,
+    // so do not wait for it once the signal has aborted.
+    if (signal.aborted) void Promise.resolve(closing).catch(() => {})
+    else await closing
   }
 }
 
@@ -3034,14 +3255,14 @@ export function rpcStream(
 ): ConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal, runContext) {
-      // Pass messages as-is (UIMessages with parts preserved)
-      // Server-side chat() handles conversion to ModelMessages
-      yield* rpcCall(
-        messages,
+      // Same messages as stream(): the server owns result metadata.
+      const source = rpcCall(
+        withoutAppMessageMetadata(messages),
         data,
         abortSignal,
         buildRunAgentInputBody(messages, data, runContext, {}),
       )
+      yield* abortSignal ? abortableIterable(source, abortSignal) : source
     },
     ...(handlers?.hydrate ? { hydrate: handlers.hydrate } : {}),
     ...(handlers?.hydrateGeneration

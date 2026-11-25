@@ -1,3 +1,4 @@
+import { tanstackMetadata } from './merge-metadata'
 import type { ContentPart, ToolResultOutcome } from '../types'
 
 const CONTENT_PART_TYPES = new Set([
@@ -78,8 +79,25 @@ export function toolResultErrorText(output: unknown): string {
   return typeof output === 'string' ? output : 'Tool execution failed'
 }
 
-/** Parse tool result content as JSON. Plain text stays a string. */
-export function parseToolOutput(content: string): unknown {
+/**
+ * The `metadata.tanstack` of a tool result whose tool returned a string, or
+ * undefined. See `TanStackMessageMetadata.toolResultKind`.
+ */
+export function textToolResultMark(
+  output: unknown,
+): { toolResultKind: 'text' } | undefined {
+  return typeof output === 'string' ? { toolResultKind: 'text' } : undefined
+}
+
+/**
+ * Parse tool result content as JSON. Plain text, and any content marked
+ * `toolResultKind: 'text'` in `metadata`, stays a string.
+ */
+export function parseToolOutput(
+  content: string,
+  metadata?: Record<string, unknown> | null,
+): unknown {
+  if (tanstackMetadata({ metadata })?.toolResultKind === 'text') return content
   try {
     return JSON.parse(content)
   } catch {

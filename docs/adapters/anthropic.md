@@ -230,6 +230,7 @@ What goes to Anthropic:
 - Claude 4.6 and later get adaptive thinking and `output_config.effort`. With an `outputSchema`, the adapter adds `output_config.format` next to the effort.
 - Budget models get `thinking: { type: "enabled", budget_tokens }`. The level picks the budget, or you set it with `budgetTokens`. If `max_tokens` is below the budget, the adapter raises it.
 - `summary: false` sends `display: "omitted"`, so the thinking text does not stream.
+- When thinking is on, the adapter sends `thinking.block_binding` set to `drop_block`, plus the `thinking-binding-controls-2026-08-01` beta. If the history before a signed thinking block is different, Anthropic removes that block.
 
 The levels of each model:
 
@@ -356,8 +357,8 @@ Now a declined request gets an answer from a fallback model. When no model can a
 These topics are on [Anthropic: Advanced](./anthropic-advanced):
 
 - Bearer and OAuth tokens, gateways, and your own Anthropic client.
-- Claude on Vertex AI.
-- The `max_tokens` default and prompt caching.
+- Claude on Vertex AI, the `max_tokens` default, and prompt caching.
+- [Native compaction](./anthropic-advanced#native-compaction).
 - Every provider tool, with a full sample.
 - The API reference.
 

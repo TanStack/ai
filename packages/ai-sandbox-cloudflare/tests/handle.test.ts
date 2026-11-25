@@ -64,7 +64,9 @@ function sandboxFixture(methods: SandboxFixtureMethods): Sandbox {
 function mockSandbox(): { sandbox: Sandbox; files: Map<string, string> } {
   const files = new Map<string, string>()
 
-  const exec = (command: string, opts?: MockExecOpts): Promise<ExecResult> => {
+  const exec = (wrapped: string, opts?: MockExecOpts): Promise<ExecResult> => {
+    // The handle runs each command in a subshell. Match the inner command.
+    const command = wrapped.replace(/^\(\n([\s\S]*)\n\)$/, '$1')
     const ok = (stdout = ''): ExecResult => ({
       stdout,
       stderr: '',
@@ -356,6 +358,24 @@ describe('CloudflareHandle', () => {
     const r = await handle.process.exec('echo hi')
     expect(r.stdout).toContain('hi')
     expect(r.exitCode).toBe(0)
+  })
+
+  it('runs each command in a subshell, so exit cannot end the shared session', async () => {
+    const commands: Array<string> = []
+    const sandbox = sandboxFixture({
+      exec: (command: string) => {
+        commands.push(command)
+        return Promise.resolve({ stdout: '', stderr: '', exitCode: 3 })
+      },
+      setEnvVars: () => Promise.resolve(),
+      exposePort: (port: number) =>
+        Promise.resolve({ url: `https://${port}.example.workers.dev` }),
+      destroy: () => Promise.resolve(),
+    })
+    const handle = new CloudflareHandle('sbx-1', sandbox, '/workspace')
+    await handle.process.exec('exit 3 # done')
+    await (await handle.process.spawn('exit 3')).wait()
+    expect(commands).toEqual(['(\nexit 3 # done\n)', '(\nexit 3\n)'])
   })
 
   it('spawn streams output via the queue and resolves wait()', async () => {

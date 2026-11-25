@@ -493,7 +493,13 @@ describe('provider-executed tools interleaved with signed thinking', () => {
 
       const text = DEFAULT_TEXT
       expect(transcript.filter((message) => message.role === 'tool')).toEqual([
-        { role: 'tool', toolCallId: 'call_1', content: text, error: text },
+        {
+          role: 'tool',
+          toolCallId: 'call_1',
+          content: text,
+          error: text,
+          metadata: { tanstack: { toolResultKind: 'text' } },
+        },
       ])
 
       // The next run from this transcript.

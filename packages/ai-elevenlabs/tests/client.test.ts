@@ -1,48 +1,44 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createElevenLabsClient } from '../src/utils/client'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createElevenLabsClient } from '../src/client'
+import type { ElevenLabsClientConfig } from '../src/utils/client'
 
-const constructorSpy = vi.hoisted(() =>
-  vi.fn<(options: Record<string, unknown>) => void>(),
-)
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
-vi.mock('@elevenlabs/elevenlabs-js', () => ({
-  ElevenLabsClient: class {
-    constructor(options: Record<string, unknown>) {
-      constructorSpy(options)
-    }
-  },
-}))
+/** Runs one `voices.getAll` call and returns the request that went out. */
+async function sentRequest(config: ElevenLabsClientConfig) {
+  const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
+    Response.json({ voices: [] }),
+  )
+  vi.stubGlobal('fetch', fetchMock)
+  await createElevenLabsClient(config).voices.getAll()
+  const [url, init] = fetchMock.mock.calls[0]!
+  return { url, headers: new Headers(init.headers) }
+}
 
 describe('createElevenLabsClient', () => {
-  beforeEach(() => {
-    constructorSpy.mockClear()
-  })
-
-  it('maps baseURL and defaultHeaders onto the SDK options', () => {
-    createElevenLabsClient({
+  it('maps baseURL and defaultHeaders onto the request', async () => {
+    const { url, headers } = await sentRequest({
       apiKey: 'k',
       baseURL: 'https://gw.example/elevenlabs',
       defaultHeaders: { 'X-Gateway': 'yes' },
     })
-    expect(constructorSpy).toHaveBeenCalledExactlyOnceWith({
-      apiKey: 'k',
-      baseUrl: 'https://gw.example/elevenlabs',
-      headers: { 'X-Gateway': 'yes' },
-    })
+    expect(url).toBe('https://gw.example/elevenlabs/v1/voices')
+    expect(headers.get('x-gateway')).toBe('yes')
+    expect(headers.get('xi-api-key')).toBe('k')
   })
 
-  it('keeps baseUrl and headers working, normalized names win', () => {
-    createElevenLabsClient({
+  it('keeps baseUrl and headers working, normalized names win', async () => {
+    const { url, headers } = await sentRequest({
       apiKey: 'k',
       baseUrl: 'https://old.example',
       headers: { a: '1', b: 'old' },
       baseURL: 'https://new.example',
       defaultHeaders: { b: 'new' },
     })
-    expect(constructorSpy).toHaveBeenCalledExactlyOnceWith({
-      apiKey: 'k',
-      baseUrl: 'https://new.example',
-      headers: { b: 'new' },
-    })
+    expect(url).toBe('https://new.example/v1/voices')
+    expect(headers.get('a')).toBeNull()
+    expect(headers.get('b')).toBe('new')
   })
 })

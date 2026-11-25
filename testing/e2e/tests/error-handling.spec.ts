@@ -5,6 +5,58 @@ import { selectScenario, runTest, getMetadata } from './tools-test/helpers'
 import { sendMessage, featureUrl } from './helpers'
 
 test.describe('Error Handling', () => {
+  for (const action of ['stop', 'dispose'] as const) {
+    test(`${action} closes an idle generation fetcher response`, async () => {
+      let responseClosed = false
+      let chunkReceived!: () => void
+      const started = new Promise<void>((resolve) => {
+        chunkReceived = resolve
+      })
+      const server = createServer((_request, response) => {
+        response.writeHead(200, { 'Content-Type': 'text/event-stream' })
+        response.once('close', () => {
+          responseClosed = true
+        })
+        response.write(
+          'data: {"type":"RUN_STARTED","threadId":"thread","runId":"run"}\n\n',
+        )
+      })
+      await new Promise<void>((resolve) =>
+        server.listen(0, '127.0.0.1', resolve),
+      )
+      const client = new GenerationClient({
+        threadId: 'thread-idle-response',
+        // A custom fetcher can return a Response without forwarding the signal.
+        fetcher: async () => {
+          const address = server.address()
+          if (!address || typeof address === 'string')
+            throw new Error('Missing test server port')
+          return fetch(`http://127.0.0.1:${address.port}`)
+        },
+        onChunk: () => chunkReceived(),
+      })
+      let settled = false
+      const pending = client.generate({}).then(() => {
+        settled = true
+      })
+      try {
+        await started
+        // Drain chunk handling so the parser is waiting for the next frame.
+        await new Promise<void>((resolve) => setImmediate(resolve))
+        client[action]()
+        await expect.poll(() => settled).toBe(true)
+        await expect.poll(() => responseClosed).toBe(true)
+        expect(client.getIsLoading()).toBe(false)
+        expect(client.getError()).toBeUndefined()
+      } finally {
+        client.dispose()
+        server.closeAllConnections()
+        await new Promise<void>((resolve) => server.close(() => resolve()))
+        await pending
+      }
+    })
+  }
+
   test('closes a generation fetcher response after RUN_ERROR', async () => {
     let responseClosed = false
     const server = createServer((_request, response) => {

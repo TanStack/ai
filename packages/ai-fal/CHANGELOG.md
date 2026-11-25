@@ -1,5 +1,63 @@
 # @tanstack/ai-fal
 
+## 1.2.0
+
+### Minor Changes
+
+- [#2186](https://github.com/TanStack/ai/pull/2186) [`1aa7227`](https://github.com/TanStack/ai/commit/1aa722707deca4d567efafe0830471222d558b62) - Update `@fal-ai/client` to 1.11.0.
+  - `fal3DModel()` now knows Meshy 7.1 (`meshy/v7.1/image-to-3d`, `multi-image-to-3d`, `text-to-3d`), Meshy 7 Retexture (`meshy/v7/retexture`), and Tripo Remesh (`tripo3d/tripo/remesh`). On Meshy 7 Retexture, an image part goes to `image_style_url`, and text goes to `text_style_prompt`.
+  - LTX 2.3 durations are now numbers (`6`, `8`, `10`), and the `/fast` models take `6` to `20`. Wan 2.5 Preview takes `"5"` or `"10"`.
+  - fal no longer serves Luma Ray 2 and Pika 2.2 text-to-video, so they are removed from the video duration table.
+  - `@fal-ai/client` 1.11.0 has no types for Veo, Kling 1.6, and Whisper. These models still work, with no typed options.
+  - `@fal-ai/client` 1.11.0 also has no types for 41 live image and video endpoints, such as Veo 3.1 first-last-frame and Kling 1.x image-to-video. A hand-kept table keeps their image input fields, so image parts still go to the correct field.
+
+- [#2186](https://github.com/TanStack/ai/pull/2186) [`1aa7227`](https://github.com/TanStack/ai/commit/1aa722707deca4d567efafe0830471222d558b62) - Add the experimental `generate3DModel()` activity. It turns text, images, or an existing mesh into a 3D model file, and returns the main model URL plus every mesh and texture file. A media prompt can now carry a `model3d` part, so a step such as retexture can take the mesh of an earlier step. `fal3DModel()` in `@tanstack/ai-fal` runs the fal 3D endpoints, and `useGenerate3DModel` (`injectGenerate3DModel` in Angular, `createGenerate3DModel` in Svelte and Remix) streams the job to the UI.
+
+- [#2194](https://github.com/TanStack/ai/pull/2194) [`0a84ac2`](https://github.com/TanStack/ai/commit/0a84ac22cbd29ac49997091713ca9da81bb3e553) - Add experimental motion generation. `generateMotion()` makes skeletal animation files (FBX first) from a text prompt. `getMotionJobStatus()` polls a job from any request, and `cancelMotionJob()` asks the provider to stop it. Aborting a stream stops local observation only. `falMotion()` runs fal Hunyuan Motion (`fal-ai/hunyuan-motion`, `fal-ai/hunyuan-motion/fast`).
+
+### Patch Changes
+
+- Updated dependencies [[`1aa7227`](https://github.com/TanStack/ai/commit/1aa722707deca4d567efafe0830471222d558b62), [`0a84ac2`](https://github.com/TanStack/ai/commit/0a84ac22cbd29ac49997091713ca9da81bb3e553), [`4288b7a`](https://github.com/TanStack/ai/commit/4288b7aaa80e085df899e2bebb597a9f85d6fb71)]:
+  - @tanstack/ai@1.7.0
+
+## 1.1.1
+
+### Patch Changes
+
+- [#1973](https://github.com/TanStack/ai/pull/1973) [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce) - The adapters now call the provider HTTP API with `fetch` and do not load the provider SDK at runtime, except for the options below. With a bundler that splits chunks, the startup bundle is smaller. The SDK stays a dependency for its TypeScript types and for those options. Errors keep the same `name`, `status`, `message`, and body fields. If your code checks an error with `instanceof` against an error class of `@fal-ai/client`, check `error.name` instead.
+  - Each fal adapter now keeps its own config. Two fal adapters with different API keys do not overwrite each other.
+  - Uploads larger than 90 MB still load `@fal-ai/client` on first use.
+  - `configureFalClient` configures the global `fal` client of `@fal-ai/client` for apps that call `fal` themselves.
+
+- Updated dependencies [[`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai@1.2.0
+  - @tanstack/ai-utils@1.1.0
+
+## 1.1.0
+
+### Minor Changes
+
+- [#1977](https://github.com/TanStack/ai/pull/1977) [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6) - Forward the new optional `abortSignal` of `getVideoStatus` and `getVideo` to `fal.queue.status` and `fal.queue.result`.
+
+- [#1977](https://github.com/TanStack/ai/pull/1977) [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6) - `falVideo` implements the optional `cancelVideoJob(jobId, options?)` with `fal.queue.cancel`. A streaming `generateVideo()` calls it when the caller aborts.
+
+### Patch Changes
+
+- [#1975](https://github.com/TanStack/ai/pull/1975) [`c7f8dfd`](https://github.com/TanStack/ai/commit/c7f8dfd58129c5538090fc9ab8c91cd93c6125ab) - An abort now asks fal to cancel the job for image, audio, speech, and transcription. fal stops a queued job. For a job that already runs, the model app decides whether it stops. The speech audio download also stops on abort.
+
+- Updated dependencies [[`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`e17cae7`](https://github.com/TanStack/ai/commit/e17cae7aa40ce5ebe0e78496931d49c793bdaf41), [`d6ead13`](https://github.com/TanStack/ai/commit/d6ead13def85f91782e20d6c1b8755fdf1c836c2), [`450950d`](https://github.com/TanStack/ai/commit/450950da860d58047c654c1497ddb48d651f9076), [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31), [`13b1ca9`](https://github.com/TanStack/ai/commit/13b1ca918a0ac36761db2a6226973c5330d4221d), [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb)]:
+  - @tanstack/ai@1.1.0
+  - @tanstack/ai-utils@1.0.1
+
+## 1.0.1
+
+### Patch Changes
+
+- [#1912](https://github.com/TanStack/ai/pull/1912) [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0) - Video generation is no longer marked experimental. The `@experimental` tags are gone from `generateVideo()`, the video adapters, and their types, and the docs no longer say the API can change.
+
+- Updated dependencies [[`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29), [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0)]:
+  - @tanstack/ai@1.0.1
+
 ## 1.0.0
 
 ### Major Changes

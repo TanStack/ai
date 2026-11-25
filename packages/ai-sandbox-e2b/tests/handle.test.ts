@@ -577,3 +577,44 @@ describe('snapshotName', () => {
     expect(long.endsWith('-after-run-9')).toBe(true)
   })
 })
+
+/** Rejects at once without a signal. With one, waits until it aborts. */
+function untilAbort(opts?: { signal?: AbortSignal }) {
+  const signal = opts?.signal
+  if (!signal) return Promise.reject(new Error('no signal'))
+  return new Promise<never>((_, reject) => {
+    signal.addEventListener('abort', () => reject(signal.reason), {
+      once: true,
+    })
+  })
+}
+
+describe('E2BHandle snapshot and fork signal', () => {
+  it('snapshot passes the signal to createSnapshot', async () => {
+    const createSnapshot = vi.fn(untilAbort)
+    const { handle } = createHandle(
+      fakeSandbox({
+        createSnapshot: createSnapshot as unknown as Sandbox['createSnapshot'],
+      }),
+    )
+    const controller = new AbortController()
+    const pending = handle.snapshot!('s', { signal: controller.signal })
+    controller.abort(new Error('stopped'))
+    await expect(pending).rejects.toThrow('stopped')
+  })
+
+  it('fork passes the signal to sandbox.fork', async () => {
+    const fork = vi.fn(untilAbort)
+    const { handle } = createHandle(
+      fakeSandbox({ fork: fork as unknown as Sandbox['fork'] }),
+    )
+    const controller = new AbortController()
+    const pending = handle.fork!({ signal: controller.signal })
+    controller.abort(new Error('stopped'))
+    await expect(pending).rejects.toThrow('stopped')
+    expect(fork).toHaveBeenCalledWith({
+      timeoutMs: 60_000,
+      signal: controller.signal,
+    })
+  })
+})

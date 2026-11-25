@@ -3,6 +3,7 @@ import fs from 'fs'
 import http from 'http'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { isDeepStrictEqual } from 'node:util'
 import { EventStreamCodec } from '@smithy/eventstream-codec'
 import type { Mountable } from '@copilotkit/aimock'
 
@@ -48,6 +49,8 @@ export default async function globalSetup() {
   // pattern above.
   mock.mount('/v1/text-to-speech', elevenLabsTTSMount())
   mock.mount('/v1/speech-to-text', elevenLabsSTTMount())
+  mock.mount('/tts/bytes', cartesiaTTSMount())
+  mock.mount('/stt', cartesiaSTTMount())
 
   // Gemini TTS hits the standard Gemini generateContent endpoint
   // (POST /v1beta/models/{model}:generateContent) with
@@ -178,6 +181,7 @@ export default async function globalSetup() {
   // which request sections ended with a `cachePoint` block and answers with
   // Bedrock's cache usage counters; the companion spec asserts both.
   mock.mount('/bedrock-converse-cache', bedrockConverseCacheMount())
+  mock.mount('/bedrock-rerank', bedrockRerankMount())
 
   // decide() usage on a failed answer mapping. aimock has no OpenAI Decisions
   // endpoint, so this mount hand-crafts a `/v1/decisions` response with valid
@@ -189,12 +193,22 @@ export default async function globalSetup() {
   // Gateway adapter keeps only the origin of its baseURL, so that mount sits on
   // the real evaluate path. Both answer only requests carrying the
   // `x-evaluate-http-status` header and fall through otherwise.
+  // embed() abort: `/v1/embeddings` never answers, and `/status` reports
+  // whether the client closed the request. The embedding-abort spec checks
+  // that `embed({ timeout })` cancels the real HTTP request.
+  mock.mount('/embedding-abort', embeddingAbortMount())
+
   mock.mount('/evaluate-http-status', evaluateHttpStatusMount())
   mock.mount('/v4/ai/evaluation-model', evaluateHttpStatusMount())
 
   // aimock has no OpenAI Decisions API route, so this mount answers
   // `/v1/decisions` with a refusal plus usage for the evaluate-refusal spec.
   mock.mount('/evaluate-refusal', evaluateRefusalMount())
+
+  // aimock has no Gemini Decisions API route, so this mount answers
+  // `/v1beta/decisions` with a happy-path choice/score/boolean answer plus
+  // Gemini-shaped usage for the evaluate-gemini spec.
+  mock.mount('/evaluate-gemini', geminiDecisionsMount())
 
   // BytePlus. Ark (chat, Seedream image, Seedance video) serves its whole data
   // plane under /api/v3, and Seed Speech (TTS/ASR) mounts its own endpoints at
@@ -1061,7 +1075,7 @@ function geminiOmniVideoMount(): Mountable {
             id: JOB_ID,
             object: 'interaction',
             status: 'in_progress',
-            model: 'gemini-omni-1.1-flash',
+            model: 'gemini-omni-1.2-flash',
           }),
         )
         return true
@@ -1076,7 +1090,7 @@ function geminiOmniVideoMount(): Mountable {
             id: pollMatch[1],
             object: 'interaction',
             status: 'completed',
-            model: 'gemini-omni-1.1-flash',
+            model: 'gemini-omni-1.2-flash',
             usage: {
               total_input_tokens: 12,
               total_output_tokens: 57920,
@@ -1173,9 +1187,9 @@ const FAKE_AUDIO_BY_FORMAT: Record<string, Buffer> = {
 
 /**
  * Minimal RIFF/WAV container: a 44-byte header describing 16-bit mono PCM at
- * 24 kHz, followed by silence.
+ * the requested sample rate, followed by silence.
  */
-function buildSilentWav(): Buffer {
+function buildSilentWav(sampleRate = 24000): Buffer {
   const samples = Buffer.alloc(64)
   const header = Buffer.alloc(44)
   header.write('RIFF', 0, 'ascii')
@@ -1185,8 +1199,8 @@ function buildSilentWav(): Buffer {
   header.writeUInt32LE(16, 16) // PCM chunk size
   header.writeUInt16LE(1, 20) // format: PCM
   header.writeUInt16LE(1, 22) // channels
-  header.writeUInt32LE(24000, 24) // sample rate
-  header.writeUInt32LE(24000 * 2, 28) // byte rate
+  header.writeUInt32LE(sampleRate, 24) // sample rate
+  header.writeUInt32LE(sampleRate * 2, 28) // byte rate
   header.writeUInt16LE(2, 32) // block align
   header.writeUInt16LE(16, 34) // bits per sample
   header.write('data', 36, 'ascii')
@@ -1655,6 +1669,79 @@ function byteplusASRMount(): Mountable {
               },
             ],
           },
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/** Validate Cartesia speech requests and return audio in the requested format. */
+function cartesiaTTSMount(): Mountable {
+  return {
+    async handleRequest(req, res, pathname): Promise<boolean> {
+      if (pathname !== '/' || req.method !== 'POST') return false
+      const body = await readJsonRequestBody(req)
+      const output = asRecord(body?.output_format)
+      if (
+        body?.model_id !== 'sonic-3.6' ||
+        body.transcript !== 'welcome to the guitar store' ||
+        typeof body.voice !== 'string' ||
+        (output?.container !== 'mp3' &&
+          output?.container !== 'wav' &&
+          output?.container !== 'raw') ||
+        req.headers['cartesia-version'] !== '2026-08-14'
+      ) {
+        return rejectVoiceRequest(res, 'Invalid Cartesia speech request')
+      }
+      res.statusCode = 200
+      const format = output.container === 'raw' ? 'pcm' : output.container
+      res.setHeader(
+        'Content-Type',
+        format === 'mp3' ? 'audio/mpeg' : `audio/${format}`,
+      )
+      res.end(
+        format === 'wav' ? buildSilentWav(44100) : FAKE_AUDIO_BY_FORMAT[format],
+      )
+      return true
+    },
+  }
+}
+
+/** Validate Cartesia transcription uploads and return a fixed transcript. */
+function cartesiaSTTMount(): Mountable {
+  return {
+    async handleRequest(req, res, pathname): Promise<boolean> {
+      if (pathname !== '/' || req.method !== 'POST') return false
+      const chunks: Array<Buffer> = []
+      for await (const chunk of req) chunks.push(Buffer.from(chunk))
+      const contentType = req.headers['content-type'] ?? ''
+      let form: FormData
+      try {
+        form = await new Response(Buffer.concat(chunks), {
+          headers: { 'content-type': contentType },
+        }).formData()
+      } catch {
+        return rejectVoiceRequest(res, 'Invalid Cartesia transcription request')
+      }
+      const file = form.get('file')
+      if (
+        !(file instanceof File) ||
+        !Buffer.from(await file.arrayBuffer()).equals(Buffer.from('Hello')) ||
+        form.get('model') !== 'ink-whisper' ||
+        req.headers['cartesia-version'] !== '2026-08-14'
+      ) {
+        return rejectVoiceRequest(res, 'Invalid Cartesia transcription request')
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          type: 'transcript',
+          text: 'I would like to buy a Fender Stratocaster please',
+          request_id: 'cartesia-e2e',
+          language: 'en',
+          duration: 2.4,
         }),
       )
       return true
@@ -2354,6 +2441,46 @@ function evaluateHttpStatusMount(): Mountable {
 }
 
 /**
+ * Never answers `POST /v1/embeddings`, and records per `X-Test-Id` whether the
+ * client closed that request before a reply. `GET /status?testId=` reads it.
+ */
+function embeddingAbortMount(): Mountable {
+  const closedByClient = new Map<string, boolean>()
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method === 'GET' && pathname === '/status') {
+        const testId = new URL(req.url ?? '', 'http://x').searchParams.get(
+          'testId',
+        )
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            closedByClient: closedByClient.get(testId ?? '') ?? false,
+          }),
+        )
+        return true
+      }
+      if (req.method !== 'POST' || pathname !== '/v1/embeddings') return false
+      const testId = String(req.headers['x-test-id'] ?? '')
+      closedByClient.set(testId, false)
+      await drainBody(req)
+      res.on('close', () => {
+        if (!res.writableEnded) closedByClient.set(testId, true)
+      })
+      // Safety net so a broken client cannot hold the socket forever.
+      setTimeout(() => {
+        if (!res.writableEnded) res.end()
+      }, 30_000).unref()
+      return true
+    },
+  }
+}
+
+/**
  * Mounts the OpenAI Decisions `/v1/decisions` response with a `refusal` answer
  * and billed usage. The OpenAI evaluate adapter turns it into an
  * `EvaluateError` with code `refusal`.
@@ -2381,6 +2508,56 @@ function evaluateRefusalMount(): Mountable {
             output_tokens: 5,
             output_tokens_details: { reasoning_tokens: 0 },
             total_tokens: 45,
+          },
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts the Gemini Decisions `/v1beta/decisions` response for the
+ * `evaluate-gemini` spec: a choice, a score, and a boolean answer plus the
+ * endpoint's `total_*` usage shape (output tokens are always 0). The Gemini
+ * evaluate adapter maps these to the unified `decide()` result.
+ */
+function geminiDecisionsMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST' || pathname !== '/v1beta/decisions') {
+        return false
+      }
+      await drainBody(req)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          model: 'gemini-decision-1',
+          answers: {
+            queue: {
+              type: 'choice',
+              choice: 'billing',
+              probabilities: { billing: 0.82, tech: 0.12, sales: 0.06 },
+              confidence: 0.88,
+            },
+            urgency: {
+              type: 'score',
+              score: 1.5,
+              legend: { '0': 'low', '1': 'medium', '2': 'high' },
+              probabilities: { '0': 0.1, '1': 0.4, '2': 0.5 },
+              confidence: 0.77,
+            },
+            refund: { type: 'noul', noul: 0.93 },
+          },
+          usage: {
+            total_input_tokens: 48,
+            total_output_tokens: 0,
+            total_tokens: 48,
           },
         }),
       )
@@ -2564,6 +2741,8 @@ function bedrockConverseCacheMount(): Mountable {
       const toolConfig = body.toolConfig as { tools?: unknown } | undefined
       const messages = body.messages as Array<{ content?: unknown }> | undefined
       const observed = {
+        requestMetadata: body.requestMetadata,
+        serviceTier: body.serviceTier,
         tools: endsWithCachePoint(toolConfig?.tools),
         system: endsWithCachePoint(body.system),
         lastMessage: endsWithCachePoint(
@@ -2596,6 +2775,96 @@ function bedrockConverseCacheMount(): Mountable {
         }),
       )
       res.end()
+      return true
+    },
+  }
+}
+
+/** Validate the Bedrock Rerank wire format before serving stateless result pages. */
+function bedrockRerankMount(): Mountable {
+  return {
+    async handleRequest(req, res, pathname) {
+      if (req.method !== 'POST' || pathname !== '/rerank') return false
+      const body = await readJsonRequestBody(req)
+      const config = asRecord(
+        asRecord(body?.rerankingConfiguration)?.bedrockRerankingConfiguration,
+      )
+      const modelArn = asRecord(config?.modelConfiguration)?.modelArn
+      const count = config?.numberOfResults
+      const token = body?.nextToken
+      const authorization = req.headers.authorization ?? ''
+      const modelAllowed =
+        modelArn ===
+          'arn:aws:bedrock:us-west-2::foundation-model/cohere.rerank-v3-5:0' ||
+        modelArn ===
+          'arn:aws:bedrock:us-west-2::foundation-model/amazon.rerank-v1:0'
+      const expectedBody = {
+        queries: [{ type: 'TEXT', textQuery: { text: 'talk about rain' } }],
+        sources: [
+          '{"id":"sun","text":"sunny day at the beach"}',
+          '{"id":"rain","text":"rainy afternoon in the city"}',
+          '{"id":"snow","text":"snow in the mountains"}',
+        ].map((text) => ({
+          type: 'INLINE',
+          inlineDocumentSource: { type: 'TEXT', textDocument: { text } },
+        })),
+        rerankingConfiguration: {
+          type: 'BEDROCK_RERANKING_MODEL',
+          bedrockRerankingConfiguration: {
+            modelConfiguration: { modelArn },
+            numberOfResults: count,
+          },
+        },
+        ...(token === undefined ? {} : { nextToken: token }),
+      }
+      res.setHeader('Content-Type', 'application/json')
+      if (
+        !modelAllowed ||
+        (count !== 1 && count !== 3) ||
+        (token !== undefined &&
+          ((token !== 'rain-page-2' && token !== 'rain-page-3') ||
+            count !== 3)) ||
+        !isDeepStrictEqual(body, expectedBody) ||
+        !authorization.startsWith(
+          'AWS4-HMAC-SHA256 Credential=AKIA_BEDROCK_E2E/',
+        ) ||
+        !authorization.includes('/us-west-2/bedrock/aws4_request') ||
+        !authorization.includes('x-test-id') ||
+        !req.headers['x-test-id'] ||
+        !/^[a-f0-9]{64}$/.test(String(req.headers['x-amz-content-sha256'])) ||
+        req.headers['content-type'] !== 'application/json'
+      ) {
+        res.statusCode = 400
+        res.end(
+          JSON.stringify({
+            message: 'Invalid Bedrock rerank request or signing scope',
+          }),
+        )
+        return true
+      }
+      res.setHeader(
+        'x-amzn-requestid',
+        token ? token.replace('rain-', 'rerank-') : 'rerank-page-1',
+      )
+      if (token === 'rain-page-2') {
+        res.end(JSON.stringify({ results: [], nextToken: 'rain-page-3' }))
+        return true
+      }
+      res.end(
+        JSON.stringify(
+          token
+            ? {
+                results: [
+                  { index: 2, relevanceScore: 0.3 },
+                  { index: 0, relevanceScore: 0.1 },
+                ],
+              }
+            : {
+                results: [{ index: 1, relevanceScore: 0.98 }],
+                ...(count === 3 ? { nextToken: 'rain-page-2' } : {}),
+              },
+        ),
+      )
       return true
     },
   }

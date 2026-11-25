@@ -46,6 +46,11 @@
       "dependsOn": ["^build"],
       "inputs": ["default", "^production"]
     },
+    "test:smoke": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["default", "^production"]
+    },
     "test:build": {
       "cache": true,
       "dependsOn": ["build"],
@@ -68,6 +73,8 @@
         "{workspaceRoot}/packages/*/src/**/*",
         "{workspaceRoot}/packages/*/skills/**/*",
         "{workspaceRoot}/skills/**/*",
+        "{workspaceRoot}/README.md",
+        "{workspaceRoot}/packages/*/README.md",
         "{workspaceRoot}/kiira.config.ts",
         "{workspaceRoot}/tsconfig.docs.json",
         "{workspaceRoot}/packages/ai-persistence/skills-test/stubs/**/*"

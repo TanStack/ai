@@ -15,15 +15,14 @@ import {
 
 const testLogger = resolveDebugOption(false)
 
-vi.mock('openai', () => {
-  return {
-    default: class {
-      responses = {
-        create: vi.fn(),
-      }
+vi.mock('@tanstack/openai-base', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/openai-base')>()),
+  createOpenAIClient: vi.fn(() => ({
+    responses: {
+      create: vi.fn(),
     },
-  }
-})
+  })),
+}))
 
 function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
   return {

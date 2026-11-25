@@ -22,7 +22,7 @@ export interface DockerSandboxConfig {
   dockerodeOptions?: Dockerode.DockerOptions
   /** Command that keeps the container alive. Defaults to `tail -f /dev/null`. */
   keepAliveCommand?: Array<string>
-  /** Container ports to publish to the host (for `ports.connect`). */
+  /** Container ports to publish on the host at 127.0.0.1 (for `ports.connect`). */
   publishPorts?: Array<number>
   /**
    * Add `host.docker.internal:host-gateway` so the container can reach the
@@ -76,17 +76,19 @@ class DockerProvider implements SandboxProvider {
 
   private readonly forkFactory = async (
     sourceContainerId: string,
+    signal?: AbortSignal,
   ): Promise<SandboxHandle> => {
     const source = this.docker.getContainer(sourceContainerId)
     const image = await source.commit({
       repo: 'tanstack-ai-sandbox-fork',
       tag: `${sourceContainerId.slice(0, 12)}-${Date.now()}`,
+      ...(signal && { abortSignal: signal }),
     })
     const imageRef =
       typeof image.Id === 'string'
         ? image.Id
         : `tanstack-ai-sandbox-fork:latest`
-    return this.startContainer(imageRef)
+    return this.startContainer(imageRef, signal ? { signal } : {})
   }
 
   private async startContainer(
@@ -100,10 +102,14 @@ class DockerProvider implements SandboxProvider {
   ): Promise<SandboxHandle> {
     const { env } = options
     const exposed: Record<string, Record<string, never>> = {}
-    const bindings: Record<string, Array<{ HostPort: string }>> = {}
+    const bindings: Record<
+      string,
+      Array<{ HostIp: string; HostPort: string }>
+    > = {}
     for (const port of this.config.publishPorts ?? []) {
       exposed[`${port}/tcp`] = {}
-      bindings[`${port}/tcp`] = [{ HostPort: '' }] // let Docker pick a free host port
+      // Only this machine can connect. Docker picks a free host port.
+      bindings[`${port}/tcp`] = [{ HostIp: '127.0.0.1', HostPort: '' }]
     }
 
     const container = await this.docker.createContainer({

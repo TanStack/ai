@@ -1,5 +1,25 @@
 # @tanstack/ai-isolate-daytona
 
+## 1.1.1
+
+### Patch Changes
+
+- [#2170](https://github.com/TanStack/ai/pull/2170) [`24ad184`](https://github.com/TanStack/ai/commit/24ad184dba14bb31529f5c2b813b1c941f395c9a) - Pin `@daytona/sdk` to `^0.231.1` in the install command. The usage example calls `daytona.create()`, which `@daytona/sdk` 2.0 moves to `daytona.v0`, so an unpinned install breaks the example once 2.0 becomes the default.
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@1.1.1
+
+## 1.1.0
+
+### Minor Changes
+
+- [#1978](https://github.com/TanStack/ai/pull/1978) [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32) - When the `execute()` signal aborts, `execute()` returns an `AbortError` failure and starts no more tool rounds. The Daytona SDK cannot cancel a `codeRun`, so a run that already started continues in the sandbox until its own timeout.
+
+### Patch Changes
+
+- Updated dependencies [[`5f62940`](https://github.com/TanStack/ai/commit/5f62940bb15c871a205de70e4e6b58fbe5016960), [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32)]:
+  - @tanstack/ai-code-mode@1.1.0
+
 ## 1.0.0
 
 ### Major Changes

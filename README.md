@@ -165,6 +165,7 @@ input and output types:
 ```typescript
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
+import { db } from './db'
 
 const getProducts = toolDefinition({
   name: 'getProducts',
@@ -239,6 +240,7 @@ Official adapters include:
 | [`@tanstack/ai-grok`](https://tanstack.com/ai/latest/docs/adapters/grok)             | xAI Grok chat, images, and realtime                                                    |
 | [`@tanstack/ai-groq`](https://tanstack.com/ai/latest/docs/adapters/groq)             | Groq low-latency inference                                                             |
 | [`@tanstack/ai-elevenlabs`](https://tanstack.com/ai/latest/docs/adapters/elevenlabs) | ElevenLabs realtime voice, speech, transcription, music, and sound effects             |
+| [`@tanstack/ai-cartesia`](https://tanstack.com/ai/latest/docs/adapters/cartesia)     | Cartesia Sonic speech and Ink Whisper transcription                                    |
 | [`@tanstack/ai-byteplus`](https://tanstack.com/ai/latest/docs/adapters/byteplus)     | BytePlus Seed chat, Seedance video, Seedream image, and Seed Speech TTS/ASR            |
 | [`@tanstack/ai-fal`](https://tanstack.com/ai/latest/docs/adapters/fal)               | fal.ai image, video, audio, speech, and transcription models                           |
 | [`@tanstack/ai-reactor`](https://tanstack.com/ai/latest/docs/adapters/reactor)       | Reactor live world and video generation (Orbis, Happy Oyster, LingBot, Helios, FastH3) |
@@ -296,20 +298,11 @@ on.
 <table align="center">
   <tr>
     <td>
-      <a href="https://www.coderabbit.ai/?via=tanstack&dub_id=aCcEEdAOqqutX6OS">
-        <picture>
-          <source media="(prefers-color-scheme: dark)" srcset="https://tanstack.com/assets/coderabbit-dark-D643Zkrv.svg" />
-          <source media="(prefers-color-scheme: light)" srcset="https://tanstack.com/assets/coderabbit-light-CIzGLYU_.svg" />
-          <img src="https://tanstack.com/assets/coderabbit-light-CIzGLYU_.svg" height="40" alt="CodeRabbit" />
-        </picture>
-      </a>
-    </td>
-    <td>
       <a href="https://www.cloudflare.com?utm_source=tanstack">
         <picture>
-          <source media="(prefers-color-scheme: dark)" srcset="https://tanstack.com/assets/cloudflare-white-Co-Tyjbl.svg" />
-          <source media="(prefers-color-scheme: light)" srcset="https://tanstack.com/assets/cloudflare-black-6Ojsn8yh.svg" />
-          <img src="https://tanstack.com/assets/cloudflare-white-Co-Tyjbl.svg" height="60" alt="Cloudflare" />
+          <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/TanStack/tanstack.com/main/src/images/cloudflare-white.svg" />
+          <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/TanStack/tanstack.com/main/src/images/cloudflare-black.svg" />
+          <img src="https://raw.githubusercontent.com/TanStack/tanstack.com/main/src/images/cloudflare-white.svg" height="60" alt="Cloudflare" />
         </picture>
       </a>
     </td>

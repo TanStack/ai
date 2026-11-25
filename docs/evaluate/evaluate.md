@@ -151,6 +151,7 @@ const refund = boolean({
 | [Vercel AI Gateway](../adapters/vercel-gateway) | `vercelGatewayDecider('typesafe-ai/jev')` (`@tanstack/ai-vercel-gateway`) | `AI_GATEWAY_API_KEY` (or `VERCEL_OIDC_TOKEN`) |
 | [Cloudflare](../adapters/cloudflare) | `cloudflareDecider('typesafe/jev')` (`@tanstack/ai-cloudflare`) | A Worker binding, or `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` |
 | [OpenAI](../adapters/openai#evaluate) | `openaiDecider('gpt-6-luna')` (`@tanstack/ai-openai`) | `OPENAI_API_KEY`                                     |
+| [Gemini](../adapters/gemini#evaluate) | `geminiDecider('gemini-decision-1')` (`@tanstack/ai-gemini`) | `GOOGLE_API_KEY` or `GEMINI_API_KEY`         |
 
 You only need the key for the adapter you pick. To use OpenRouter, install `@tanstack/ai-openrouter` and swap the adapter:
 
@@ -313,6 +314,7 @@ On the TypeSafe wire, the `boolean` question type is named `noul`.
 | `state`        | `string \| object \| array`   | The data that every question judges. Required.               |
 | `questions`    | `Record<string, Question>`    | Map of `choice`, `score`, and `boolean` questions. Required. |
 | `abortSignal`  | `AbortSignal`                 | Cancel the request                                           |
+| `timeout`      | `number`                      | Stop the request after this many milliseconds                |
 | `modelOptions` | provider options              | Provider-specific options                                    |
 | `middleware`   | `Array<GenerationMiddleware>` | Observe-only lifecycle hooks (usage, finish, error, abort)   |
 | `debug`        | `DebugOption`                 | Debug logging                                                |
@@ -325,7 +327,7 @@ On the TypeSafe wire, the `boolean` question type is named `noul`.
 
 ### Cancel a request
 
-Pass an `abortSignal`:
+Pass an `abortSignal`. To stop after a fixed time, pass `timeout` in milliseconds instead. A timeout rejects with a `TimeoutError`.
 
 ```typescript
 import { decide, boolean } from '@tanstack/ai'

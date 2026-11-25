@@ -8,9 +8,12 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
+import { readErrorUsage, rebuildTokenUsage } from '../../utilities/ag-ui-usage'
+import { tanstackMetadata } from '../../utilities/merge-metadata'
 import {
   applyGenerationResultTransforms,
   createGenerationContext,
+  runFailedGenerationUsage,
   runGenerationAbort,
   runGenerationError,
   runGenerationFinish,
@@ -27,7 +30,7 @@ import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { GenerationMiddleware } from '../middleware/types'
 import type { SummarizeAdapter } from './adapter'
-import type { StreamChunk, SummarizationResult } from '../../types'
+import type { StreamChunk, SummarizationResult, TokenUsage } from '../../types'
 
 // ===========================
 // Activity Kind
@@ -255,6 +258,7 @@ async function runSummarize(
 
   const mwCtx = createGenerationContext({
     requestId,
+    signal: abortControls.signal,
     activity: 'summarize',
     provider: adapter.name,
     model,
@@ -321,7 +325,15 @@ async function runSummarize(
       outputLength,
     })
 
-    if (result.usage) await runGenerationUsage(middleware, mwCtx, result.usage)
+    if (result.usage) {
+      aiEventClient.emit('summarize:usage', {
+        requestId,
+        model,
+        usage: result.usage,
+        timestamp: Date.now(),
+      })
+      await runGenerationUsage(middleware, mwCtx, result.usage)
+    }
     await runGenerationFinish(middleware, mwCtx, {
       duration,
       usage: result.usage,
@@ -331,6 +343,17 @@ async function runSummarize(
   } catch (error) {
     abortControls.clear()
     const duration = Date.now() - startTime
+    // A run cut off at `maxLength` fails, but the provider billed it.
+    const usage = readErrorUsage(error)
+    if (usage) {
+      aiEventClient.emit('summarize:usage', {
+        requestId,
+        model,
+        usage,
+        timestamp: Date.now(),
+      })
+      await runFailedGenerationUsage(middleware, mwCtx, usage, logger)
+    }
     if (isActivityAbortError(error, abortControls.signal)) {
       await runGenerationAbort(middleware, mwCtx, {
         reason: abortReasonMessage(error, abortControls.signal),
@@ -404,11 +427,26 @@ async function* runStreamingSummarize(
 
   // Use real streaming if the adapter supports it
   if (adapter.summarizeStream) {
-    yield* runNativeSummarizeStream(
-      options,
-      adapter.summarizeStream(summarizeOptions),
-      logger,
-    )
+    // Same abort/timeout composition as the non-streaming path.
+    const abortControls = createActivityAbortControls({
+      timeout: options.timeout,
+      abortSignal: options.abortSignal,
+    })
+    try {
+      yield* runNativeSummarizeStream(
+        options,
+        adapter.summarizeStream({
+          ...summarizeOptions,
+          ...(abortControls.signal
+            ? { abortSignal: abortControls.signal }
+            : {}),
+        }),
+        logger,
+        abortControls.signal,
+      )
+    } finally {
+      abortControls.clear()
+    }
     return
   }
 
@@ -447,6 +485,7 @@ async function* runNativeSummarizeStream(
   options: SummarizeActivityOptions<SummarizeAdapter<string, object>, true>,
   stream: AsyncIterable<StreamChunk>,
   logger: InternalLogger,
+  signal: AbortSignal | undefined,
 ): AsyncIterable<StreamChunk> {
   const { adapter, middleware, modelOptions } = options
   const mwCtx = createGenerationContext({
@@ -466,8 +505,25 @@ async function* runNativeSummarizeStream(
   // Tracks whether a terminal hook already fired, so the `finally` can report an
   // abandoned stream without double-firing. Mirrors the streaming video path.
   let settled = false
+  const reportUsage = async (usage: TokenUsage) => {
+    aiEventClient.emit('summarize:usage', {
+      requestId: mwCtx.requestId,
+      model: adapter.model,
+      usage,
+      timestamp: Date.now(),
+    })
+    await runGenerationUsage(middleware, mwCtx, usage)
+  }
   try {
     for await (const chunk of stream) {
+      // A run cut off at `maxLength` ends in RUN_ERROR, but it was billed.
+      if (chunk.type === 'RUN_ERROR') {
+        const usage = rebuildTokenUsage(
+          chunk.usage,
+          tanstackMetadata(chunk)?.usage,
+        )
+        if (usage) await reportUsage(usage)
+      }
       if (chunk.type === 'CUSTOM' && chunk.name === 'generation:result') {
         const result = await applyGenerationResultTransforms<unknown>(
           mwCtx,
@@ -476,7 +532,7 @@ async function* runNativeSummarizeStream(
         const usage = usageOf(result)
         // Finish before yielding the terminal chunks: a consumer that stops
         // reading once it has the result must not trip the abandonment path.
-        if (usage) await runGenerationUsage(middleware, mwCtx, usage)
+        if (usage) await reportUsage(usage)
         await runGenerationFinish(middleware, mwCtx, {
           duration: Date.now() - startTime,
           usage,
@@ -488,17 +544,31 @@ async function* runNativeSummarizeStream(
       yield chunk
     }
     if (!settled) {
-      await runGenerationFinish(middleware, mwCtx, {
-        duration: Date.now() - startTime,
-      })
       settled = true
+      // An adapter can end an aborted request with a RUN_ERROR chunk instead
+      // of a throw. The consumer got that chunk; middleware gets onAbort.
+      if (signal?.aborted) {
+        await runGenerationAbort(middleware, mwCtx, {
+          reason: abortReasonMessage(undefined, signal),
+          duration: Date.now() - startTime,
+        })
+      } else {
+        await runGenerationFinish(middleware, mwCtx, {
+          duration: Date.now() - startTime,
+        })
+      }
     }
   } catch (error) {
     settled = true
-    await runGenerationError(middleware, mwCtx, {
-      error,
-      duration: Date.now() - startTime,
-    })
+    const duration = Date.now() - startTime
+    if (isActivityAbortError(error, signal)) {
+      await runGenerationAbort(middleware, mwCtx, {
+        reason: abortReasonMessage(error, signal),
+        duration,
+      })
+    } else {
+      await runGenerationError(middleware, mwCtx, { error, duration })
+    }
     logger.errors('summarize activity failed', {
       error,
       source: 'summarize',

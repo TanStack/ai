@@ -8,6 +8,7 @@ import { EventType } from '@ag-ui/core'
 import { toRunErrorPayload } from './error-payload'
 import type { StreamChunk } from '../types'
 import { normalizeStreamChunk } from '../utilities/normalize-stream-chunk'
+import { isTanstackUsage, readErrorUsage } from '../utilities/ag-ui-usage'
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -75,12 +76,17 @@ export async function* streamGenerationResult<TResult>(
       timestamp: Date.now(),
     }
 
+    const usage =
+      typeof result === 'object' && result !== null && 'usage' in result
+        ? result.usage
+        : undefined
     yield* normalizeStreamChunk({
       type: EventType.RUN_FINISHED,
       runId,
       threadId,
       finishReason: 'stop',
       timestamp: Date.now(),
+      ...(isTanstackUsage(usage) ? { usage } : {}),
     })
   } catch (error: unknown) {
     const payload = toRunErrorPayload(error, 'Generation failed')
@@ -88,6 +94,7 @@ export async function* streamGenerationResult<TResult>(
     // AG-UI `code?: string` shape under `exactOptionalPropertyTypes`.
     const codeFields =
       payload.code !== undefined ? { code: payload.code } : undefined
+    const usage = readErrorUsage(error)
     yield* normalizeStreamChunk({
       type: EventType.RUN_ERROR,
       runId,
@@ -95,6 +102,7 @@ export async function* streamGenerationResult<TResult>(
       message: payload.message,
       ...codeFields,
       timestamp: Date.now(),
+      ...(usage ? { usage } : {}),
     })
   }
 }
