@@ -4,6 +4,7 @@ import {
   createOpenaiTranscription,
   createOpenaiVideo,
 } from '@tanstack/ai-openai'
+import type { OpenAITranscriptionModel } from '@tanstack/ai-openai'
 import {
   createGeminiAudio,
   createGeminiImage,
@@ -45,7 +46,7 @@ const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
 type TranscriptionAdapterOptions = {
-  model?: string
+  model?: OpenAITranscriptionModel
   responseFormat?: TranscriptionResponseFormat
   modelOptions?: Record<string, any>
 }
@@ -77,7 +78,9 @@ function testHeaders(testId?: string): Record<string, string> | undefined {
   return testId ? { 'X-Test-Id': testId } : undefined
 }
 
-function getOpenaiTranscriptionModel(options: TranscriptionAdapterOptions) {
+function getOpenaiTranscriptionModel(
+  options: TranscriptionAdapterOptions,
+): OpenAITranscriptionModel {
   if (options.model) return options.model
   const modelOptions = options.modelOptions
   const isDiarizationRequest =
@@ -202,16 +205,17 @@ export function createTranscriptionAdapter(
   options: TranscriptionAdapterOptions = {},
 ) {
   const headers = testHeaders(testId)
-  const openaiTranscriptionModel = getOpenaiTranscriptionModel(options)
   const factories: Record<string, () => any> = {
-    openai: () =>
-      createOpenaiTranscription(openaiTranscriptionModel, DUMMY_KEY, {
+    openai: () => {
+      const model = getOpenaiTranscriptionModel(options)
+      return createOpenaiTranscription(model, DUMMY_KEY, {
         baseURL:
-          openaiTranscriptionModel === 'gpt-transcribe'
+          model === 'gpt-transcribe'
             ? openaiTranscriptionStreamUrl(aimockPort)
             : openaiUrl(aimockPort),
         defaultHeaders: headers,
-      }),
+      })
+    },
     grok: () =>
       createGrokTranscription('grok-stt', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
