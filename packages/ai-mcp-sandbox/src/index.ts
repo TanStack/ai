@@ -8,7 +8,7 @@ export {
 // Unscoped core: run a snippet in an isolate with injected facades + limits,
 // without the MCP scope/manifest layer. For chat tools and server functions.
 export { runSandboxed } from './run'
-export type { RunSandboxedOptions, SandboxRunResult } from './run'
+export type { JsonValue, RunSandboxedOptions, SandboxRunResult } from './run'
 
 // Convenience: a sandboxed snippet → a plain ServerTool for `chat({ tools })`.
 export { sandboxedChatTool } from './chat-tool'

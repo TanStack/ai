@@ -46,12 +46,14 @@ export function buildBindings<TContext>(opts: {
   tick: () => void
 }): Record<string, ToolBinding> {
   const { allowed, facades, authInfo, signal, context, tick } = opts
-  const ctx: FacadeContext<TContext> = {
+  // Cast seam: callers' option types make `context` required when TContext
+  // is known; TS can't see that through the generic here.
+  const ctx = {
     authInfo,
     clientId: authInfo.clientId,
     signal,
     context,
-  }
+  } as FacadeContext<TContext>
 
   const bindings: Record<string, ToolBinding> = {}
   const seen = new Set<string>()

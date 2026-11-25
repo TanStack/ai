@@ -2,6 +2,7 @@ import { buildBindings, buildPrelude, resolveAllowed } from './capability'
 import { makeCallCounter } from './limits'
 import { ResultTooLargeError, shapeResult } from './result'
 import type { IsolateContext } from '@tanstack/ai-code-mode'
+import type { RuntimeContextField } from '@tanstack/ai'
 import type {
   AuthInfo,
   ClientPolicy,
@@ -14,29 +15,37 @@ import type {
  * single-tenant server function). A multi-tenant host passes the real caller. */
 const ANONYMOUS: AuthInfo = { token: '', clientId: 'anonymous', scopes: [] }
 
-export interface RunSandboxedOptions<TContext = unknown> {
-  /** Raw function body: top-level `await` / `return`, sees `input` + `host.*`. */
-  snippet: string
-  /** Validated args, JSON-copied into the isolate as `input`. */
-  input: unknown
-  /** Host functions the snippet may call as `host.<ns>.<fn>`. Its only egress. */
-  facades: Facades<TContext>
-  /** Facade names this run may call. Default: every key of `facades`. */
-  inject?: ReadonlyArray<string>
-  /** Isolate driver (e.g. `createQuickJSIsolateDriver()`). */
-  driver: IsolateDriver
-  limits: Limits
-  /** Dotted result paths the author allows truncating to fit the size cap. */
-  truncatable?: ReadonlyArray<string>
-  /** Caller identity passed to each facade; also what `policy` narrows by. */
-  authInfo?: AuthInfo
-  /** Per-caller facade filter (can only narrow what `facades` already allows). */
-  policy?: ClientPolicy
-  /** Aborts the run and is passed to each facade as `ctx.signal`. */
-  signal?: AbortSignal
-  /** Request context passed to each facade as `ctx.context`. Never enters the isolate. */
-  context?: TContext
-}
+export type RunSandboxedOptions<TContext = unknown> =
+  RuntimeContextField<TContext> & {
+    /** Raw function body: top-level `await` / `return`, sees `input` + `host.*`. */
+    snippet: string
+    /** Validated args, JSON-copied into the isolate as `input`. */
+    input: unknown
+    /** Host functions the snippet may call as `host.<ns>.<fn>`. Its only egress. */
+    facades: Facades<TContext>
+    /** Facade names this run may call. Default: every key of `facades`. */
+    inject?: ReadonlyArray<string>
+    /** Isolate driver (e.g. `createQuickJSIsolateDriver()`). */
+    driver: IsolateDriver
+    limits: Limits
+    /** Dotted result paths the author allows truncating to fit the size cap. */
+    truncatable?: ReadonlyArray<string>
+    /** Caller identity passed to each facade; also what `policy` narrows by. */
+    authInfo?: AuthInfo
+    /** Per-caller facade filter (can only narrow what `facades` already allows). */
+    policy?: ClientPolicy
+    /** Aborts the run and is passed to each facade as `ctx.signal`. */
+    signal?: AbortSignal
+  }
+
+/** What a snippet can return. The isolate round-trips the value through JSON. */
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: JsonValue }
+  | Array<JsonValue>
 
 interface RunStats {
   injectedCalls: number
@@ -44,7 +53,11 @@ interface RunStats {
 }
 
 export type SandboxRunResult =
-  | ({ ok: true; value: unknown } & RunStats)
+  | ({
+      ok: true
+      /** `undefined` when the snippet returns nothing. */
+      value: JsonValue | undefined
+    } & RunStats)
   | ({
       ok: false
       /** `limit`: a wall-clock, memory, call-budget or result-size trip.
@@ -80,6 +93,7 @@ function classifyFailure(
  *
  * A snippet failure or a tripped limit comes back as `{ ok: false }`.
  * Misconfiguration (an unknown facade, a driver that fails to start) throws.
+ * An abort through `signal` throws its reason, like `fetch` does.
  */
 export async function runSandboxed<TContext = unknown>(
   opts: RunSandboxedOptions<TContext>,
@@ -130,6 +144,8 @@ export async function runSandboxed<TContext = unknown>(
     const overBudget = counter.count > limits.maxInjectedCalls
 
     if (!result.success) {
+      // A caller's abort is not a snippet failure or a limit.
+      signal?.throwIfAborted()
       const error = result.error?.message ?? 'driver returned no error message'
       return fail(classifyFailure(error, overBudget), error)
     }
@@ -145,7 +161,8 @@ export async function runSandboxed<TContext = unknown>(
       const value = shapeResult(result.value, truncatable, limits.resultBytes)
       return {
         ok: true,
-        value,
+        // The driver JSON round-trips the result, so this holds by construction.
+        value: value as JsonValue | undefined,
         injectedCalls: counter.count,
         ms: Date.now() - started,
       }

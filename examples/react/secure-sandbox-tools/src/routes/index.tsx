@@ -4,7 +4,7 @@ import { Send, Square } from 'lucide-react'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import type { UIMessage } from '@tanstack/ai-react'
 import { runSandboxDemo } from '@/lib/sandbox-demo'
-import type { SandboxRun } from '@/lib/sandbox'
+import type { SandboxRunResult } from '@tanstack/ai-mcp-sandbox'
 
 const SCENARIOS = [
   { id: 'ok', label: 'Run (allowed)' },
@@ -22,7 +22,7 @@ function SandboxDemo() {
   const [busy, setBusy] = useState<string | null>(null)
   const [run, setRun] = useState<{
     scenario: string
-    result: SandboxRun
+    result: SandboxRunResult
   } | null>(null)
 
   const go = async (scenario: (typeof SCENARIOS)[number]['id']) => {

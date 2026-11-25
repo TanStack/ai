@@ -5,8 +5,7 @@
 // One snippet does real work; the other three each try to "go off the rails"
 // and get stopped by a different guardrail.
 import { DEFAULT_LIMITS, runSandboxed } from './sandbox'
-import type { SandboxRun } from './sandbox'
-import type { Facades } from '@tanstack/ai-mcp-sandbox'
+import type { Facades, SandboxRunResult } from '@tanstack/ai-mcp-sandbox'
 
 export const SCENARIO_IDS = ['ok', 'loop', 'fetch', 'budget'] as const
 export type Scenario = (typeof SCENARIO_IDS)[number]
@@ -48,7 +47,7 @@ const SNIPPETS: Record<Scenario, string> = {
 export function runScenario(
   scenario: Scenario,
   team: string,
-): Promise<SandboxRun> {
+): Promise<SandboxRunResult> {
   return runSandboxed({
     snippet: SNIPPETS[scenario],
     input: { team },

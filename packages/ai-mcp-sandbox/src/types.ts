@@ -1,5 +1,6 @@
 import type { AuthInfo } from '@tanstack/ai-mcp/server'
 import type { IsolateDriver, ToolBinding } from '@tanstack/ai-code-mode'
+import type { RuntimeContextField } from '@tanstack/ai'
 
 export type { AuthInfo, IsolateDriver, ToolBinding }
 
@@ -45,17 +46,17 @@ export interface Manifest {
   unreviewed?: boolean
 }
 
-/** Context a facade receives on every call. */
-export interface FacadeContext<TContext = unknown> {
-  authInfo: AuthInfo
-  clientId: string
-  signal?: AbortSignal
-  /**
-   * Request context from the host, e.g. `chat({ context })` for a
-   * `sandboxedChatTool`. Host-side only: it never enters the isolate.
-   */
-  context?: TContext
-}
+/**
+ * Context a facade receives on every call. `context` is the host's request
+ * context, e.g. `chat({ context })` for a `sandboxedChatTool`. It is required
+ * when `TContext` is known, and it never enters the isolate.
+ */
+export type FacadeContext<TContext = unknown> =
+  RuntimeContextField<TContext> & {
+    authInfo: AuthInfo
+    clientId: string
+    signal?: AbortSignal
+  }
 
 /**
  * A host-side capability. Narrow and typed: the snippet calls it as

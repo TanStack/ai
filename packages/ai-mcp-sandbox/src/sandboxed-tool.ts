@@ -149,7 +149,7 @@ export function sandboxedTool(config: SandboxedToolConfig) {
         signal,
       })
     } catch (error) {
-      // Setup failed before a run (unknown facade, driver start): one record.
+      // Setup failed (unknown facade, driver start) or the run was aborted: one record.
       const message = error instanceof Error ? error.message : String(error)
       audit('error', 0, 0, message)
       throw error

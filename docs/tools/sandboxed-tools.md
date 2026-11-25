@@ -149,7 +149,7 @@ const listOrders = sandboxedChatTool({
   facades: {
     'orders.list': {
       execute: async (_args: unknown, ctx: FacadeContext<AppContext>) =>
-        ORDERS.filter((order) => order.userId === ctx.context?.userId),
+        ORDERS.filter((order) => order.userId === ctx.context.userId),
     },
   },
   driver: createQuickJSIsolateDriver(),

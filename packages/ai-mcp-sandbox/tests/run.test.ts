@@ -170,6 +170,26 @@ describe('runSandboxed', () => {
     expect(run.ok).toBe(true)
     expect(sawSignal).toBe(controller.signal)
   })
+
+  it('throws the abort reason instead of reporting a snippet failure', async () => {
+    const controller = new AbortController()
+    const run = runSandboxed({
+      snippet: `await host.db.get({}); while (true) {}`,
+      input: {},
+      facades: {
+        'db.get': {
+          execute: async () => {
+            controller.abort(new Error('user stopped'))
+            return 1
+          },
+        },
+      },
+      driver,
+      limits: LIMITS,
+      signal: controller.signal,
+    })
+    await expect(run).rejects.toThrow('user stopped')
+  })
 })
 
 describe('sandboxedChatTool', () => {
@@ -221,7 +241,7 @@ describe('sandboxedChatTool', () => {
       facades: {
         'user.get': {
           execute: async (_args, ctx: FacadeContext<AppContext>) => {
-            const userId = ctx.context?.userId ?? 'none'
+            const userId = ctx.context.userId
             seen.push(userId)
             return userId
           },

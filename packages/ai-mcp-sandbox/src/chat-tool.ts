@@ -1,5 +1,6 @@
 import { toolDefinition } from '@tanstack/ai'
 import { runSandboxed } from './run'
+import type { RunSandboxedOptions } from './run'
 import type {
   InferSchemaType,
   SchemaInput,
@@ -51,7 +52,9 @@ export function sandboxedChatTool<
       args: InferSchemaType<TInput>,
       context?: ToolExecutionContext<TContext>,
     ) => {
-      const run = await runSandboxed({
+      // Cast seam: `ToolExecuteFunction` makes the execution context (and its
+      // `context`) required when TContext is known; TS can't see that here.
+      const run = await runSandboxed<TContext>({
         snippet,
         input: args,
         facades,
@@ -60,7 +63,7 @@ export function sandboxedChatTool<
         truncatable: config.truncatable,
         signal: context?.abortSignal,
         context: context?.context,
-      })
+      } as RunSandboxedOptions<TContext>)
       if (!run.ok) {
         const reason =
           run.kind === 'limit'

@@ -879,7 +879,11 @@ type IsUnknown<T> = unknown extends T
     : false
   : false
 
-type RuntimeContextField<TContext> =
+/**
+ * The `context` field of a context-carrying object: required when `TContext`
+ * is known, optional when it is `unknown`.
+ */
+export type RuntimeContextField<TContext> =
   IsUnknown<TContext> extends true
     ? {
         /**
