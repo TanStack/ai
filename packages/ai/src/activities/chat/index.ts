@@ -2748,6 +2748,10 @@ class TextEngine<
   private handleReasoningMessageContentEvent(
     chunk: Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
   ): void {
+    // An empty delta (a block whose text the provider omits, then signs) must
+    // not note a position: the signature that follows would note a second one,
+    // and the unfilled placeholder drops the turn's block order.
+    if (chunk.delta === '') return
     this.noteThinkingStepPosition()
     this.currentThinkingContent += chunk.delta
   }

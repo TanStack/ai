@@ -447,6 +447,56 @@ describe('provider-executed tools interleaved with signed thinking', () => {
       )
     })
 
+    it('keeps the provider block order when the thinking text is omitted', async () => {
+      // Anthropic with `display: "omitted"` (the default of adaptive thinking on
+      // the newest models) streams each thinking block as one empty delta and
+      // then its signature.
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ...reasoning('step-1', '', 'sig-a'),
+            providerToolStart('srvtoolu_1', 'one'),
+            ev.toolEnd('srvtoolu_1'),
+            ...reasoning('step-2', '', 'sig-b'),
+            ev.toolStart('call_1', 'lookup'),
+            ev.toolArgs('call_1', '{"id":"42"}'),
+            ev.toolEnd('call_1'),
+            ev.runFinished('tool_calls'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Final answer.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      await collectChunks(
+        chat({
+          threadId: 'thread-1',
+          adapter,
+          messages: [{ role: 'user', content: 'Research' }],
+          tools: [serverTool('lookup', () => ({ found: true }))],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const history = calls[1]!.messages as Array<any>
+      expect(
+        history
+          .filter((message) => message.role === 'assistant')
+          .map((message) => ({
+            thinking: message.thinking?.map((t: any) => t.signature),
+            toolCalls: message.toolCalls?.map((toolCall: any) => toolCall.id),
+          })),
+      ).toEqual([
+        { thinking: ['sig-a'], toolCalls: ['srvtoolu_1'] },
+        { thinking: ['sig-b'], toolCalls: ['call_1'] },
+      ])
+    })
+
     const DEFAULT_TEXT =
       'The answer stopped at the output limit, so no tool call in it ran. Send the tool calls again. Do not repeat text you already wrote. If one call has a large input, split the work into smaller calls.'
 
