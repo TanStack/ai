@@ -408,7 +408,7 @@ The `tool-result` part of the same call has the raw value in `part.metadata`. It
 
 ### Harness session view
 
-In a [harness session view](../harness/custom-ui#2-show-the-state), a `tool-call` part has the same `resultMetadata`, also after a reload. It is not typed.
+In a [harness session view](../harness/custom-ui#2-show-the-state), a `tool-call` part has `resultMetadata`, also after a reload. It is not typed. The view also removes the `harness` key, because the harness keeps its own data there. Do not use `harness` as an app key.
 
 ### MCP and middleware
 

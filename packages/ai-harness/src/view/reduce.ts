@@ -322,8 +322,10 @@ function applyOwn(parts: Array<ViewPart>, event: StreamChunk): Array<ViewPart> {
   if (event.type === EventType.TOOL_CALL_RESULT)
     return mapToolCall(parts, event.toolCallId, (call) => {
       const resultMetadata = resultMetadataOf(event.metadata)
+      // A later result replaces the result metadata of an earlier one.
+      const { resultMetadata: _earlier, ...rest } = call
       return {
-        ...call,
+        ...rest,
         // A failed call shows as failed live too, as it does from the transcript.
         status:
           recordOf(recordOf(event.metadata).tanstack).state === 'output-error'
@@ -1124,6 +1126,7 @@ export function messagesFromTranscript(
     call.result = parseJson(textOf(message.content))
     const resultMetadata = resultMetadataOf(message.metadata)
     if (resultMetadata !== undefined) call.resultMetadata = resultMetadata
+    else delete call.resultMetadata
     // An agent tool result names its child run. The view loads the child's
     // own messages into this part.
     const outcome = recordOf(call.result)

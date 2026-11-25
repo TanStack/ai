@@ -182,6 +182,19 @@ describe('view reducer', () => {
     expect(assistantParts(state)).toMatchObject([
       { id: 'c1', status: 'done', resultMetadata: { sources: ['a'] } },
     ])
+    // A later result with no app keys removes the earlier metadata.
+    const replaced = fold(
+      [
+        at({
+          type: EventType.TOOL_CALL_RESULT,
+          toolCallId: 'c1',
+          messageId: 'x',
+          content: '{"answer":"43"}',
+        }),
+      ],
+      state,
+    )
+    expect(assistantParts(replaced)[0]).not.toHaveProperty('resultMetadata')
   })
 
   it('ignores a tool result it has no call for', () => {
