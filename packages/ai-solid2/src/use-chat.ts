@@ -168,7 +168,8 @@ export function useChat<
     }),
     ({ target, forwardedProps, context, queue }) => {
       target.updateOptions({
-        ...(forwardedProps !== undefined && { forwardedProps }),
+        // `undefined` leaves the client's copy unchanged, so send `{}` to clear.
+        forwardedProps: forwardedProps ?? {},
         context,
         ...(queue !== undefined && { queue }),
       })

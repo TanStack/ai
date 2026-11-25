@@ -309,6 +309,37 @@ describe('useChat', () => {
       ).toHaveLength(2)
     })
 
+    it('clears forwardedProps when the reactive getter becomes undefined', async () => {
+      const bodies: Array<unknown> = []
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Response'),
+        onConnect: (_messages, data) => {
+          bodies.push(data)
+        },
+      })
+      const { result } = renderHook(() => {
+        const [props, setProps] = createSignal<
+          { provider: string } | undefined
+        >({ provider: 'openai' })
+        const chat = useChat({
+          threadId: 'thread-1',
+          connection: adapter,
+          get forwardedProps() {
+            return props()
+          },
+        })
+        return { chat, setProps }
+      })
+
+      await result.chat.sendMessage('First')
+      result.setProps(undefined)
+      flush()
+      await result.chat.sendMessage('Second')
+
+      expect(bodies[0]).toEqual({ provider: 'openai' })
+      expect(bodies[1]).not.toHaveProperty('provider')
+    })
+
     it('starts a new client when reactive threadId changes', async () => {
       const users: Array<number> = []
       const adapter = createMockConnectionAdapter({
