@@ -252,6 +252,48 @@
       "response": {
         "content": "The writer is done."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-routed-usage] count squid tokens",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Squids have three hearts.",
+        "usage": {
+          "prompt_tokens": 11,
+          "completion_tokens": 7,
+          "total_tokens": 18
+        }
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-routed-handoff] count squid tokens",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Squids have three hearts.",
+        "usage": {
+          "prompt_tokens": 11,
+          "completion_tokens": 7,
+          "total_tokens": 18
+        }
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-routed-handoff] count squid tokens",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Noted.",
+        "usage": {
+          "prompt_tokens": 23,
+          "completion_tokens": 5,
+          "total_tokens": 28
+        }
+      }
     }
   ]
 }
