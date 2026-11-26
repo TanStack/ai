@@ -2214,6 +2214,22 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             )
             continue
           }
+          // A delta after this call's END (from args.done or the
+          // output_item.done backstop) would reach consumers as ARGS after
+          // END, and they would append it to arguments that END already
+          // reported as complete. Drop it so the finalized arguments stand.
+          if (metadata.ended) {
+            options.logger.errors(
+              `${this.name}.processStreamChunks late function_call_arguments.delta after TOOL_CALL_END`,
+              {
+                source: `${this.name}.processStreamChunks`,
+                toolCallId: metadata.callId,
+                itemId: chunk.item_id,
+                rawDelta: chunk.delta,
+              },
+            )
+            continue
+          }
           yield {
             type: EventType.TOOL_CALL_ARGS,
             toolCallId: metadata.callId,
