@@ -699,6 +699,8 @@ export interface RoutedSubagentPersistence {
     interruptIds?: ReadonlyArray<string>
     /** Keep the parent run open because main chat() takes over from here. */
     handoffToMain?: boolean
+    /** What the children of this call spent. */
+    usage?: TokenUsage
   }) => Promise<void>
   /** The run stopped because a child waits for outside input. */
   suspend?: (input: {
@@ -707,11 +709,15 @@ export interface RoutedSubagentPersistence {
     interrupts: ReadonlyArray<Interrupt>
     /** Commit only these interrupt ids instead of the whole run batch. */
     interruptIds?: ReadonlyArray<string>
+    /** What the children of this call spent. */
+    usage?: TokenUsage
   }) => Promise<void>
   abort: (input: {
     threadId: string
     runId: string
     error?: unknown
+    /** What the children of this call spent. */
+    usage?: TokenUsage
   }) => Promise<void>
 }
 

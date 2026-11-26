@@ -17,6 +17,7 @@ import type {
   SubagentPart,
   SubagentStatus,
   SubagentWireInfo,
+  TokenUsage,
   UIMessage,
 } from '@tanstack/ai'
 import { isChatOwnedPendingInterrupt } from './interrupt-ownership'
@@ -452,6 +453,8 @@ type ChildNote = {
 
 export function createSubagentRunRecorder(stores: {
   messages: MessageStore
+  /** Adds the usage of two calls of one run. */
+  addUsage?: (current: TokenUsage | undefined, next: TokenUsage) => TokenUsage
   runs?: RunStore
   interrupts?: InterruptStore
   /** When present, each child gets a session index entry. */
@@ -851,6 +854,16 @@ export function createSubagentRunRecorder(stores: {
     })
   }
 
+  /**
+   * The usage patch for a run record. A resumed run keeps what its earlier
+   * calls spent.
+   */
+  async function usagePatch(runId: string, usage: TokenUsage | undefined) {
+    if (!usage || !stores.addUsage) return {}
+    const current = await stores.runs?.get(runId)
+    return { usage: stores.addUsage(current?.usage, usage) }
+  }
+
   async function commitAnswers(
     runId: string,
     interruptIds?: ReadonlyArray<string>,
@@ -1057,6 +1070,7 @@ export function createSubagentRunRecorder(stores: {
       runId: string
       interrupts: ReadonlyArray<Interrupt>
       interruptIds?: ReadonlyArray<string>
+      usage?: TokenUsage
     }) {
       await commitAnswers(input.runId, input.interruptIds)
       await saveParents(input.threadId)
@@ -1072,7 +1086,10 @@ export function createSubagentRunRecorder(stores: {
           payload: { ...interrupt },
         })
       }
-      await stores.runs?.update(input.runId, { status: 'interrupted' })
+      await stores.runs?.update(input.runId, {
+        status: 'interrupted',
+        ...(await usagePatch(input.runId, input.usage)),
+      })
       forget(input.runId)
     },
 
@@ -1081,21 +1098,32 @@ export function createSubagentRunRecorder(stores: {
       runId: string
       interruptIds?: ReadonlyArray<string>
       handoffToMain?: boolean
+      usage?: TokenUsage
     }) {
       dropCalls(input.runId)
       await commitAnswers(input.runId, input.interruptIds)
       await saveParents(input.threadId)
       await settleOpenChildren(input.runId, 'completed')
+      const usage = await usagePatch(input.runId, input.usage)
       if (!input.handoffToMain) {
         await stores.runs?.update(input.runId, {
           status: 'completed',
           finishedAt: Date.now(),
+          ...usage,
         })
+      } else if (usage.usage) {
+        // Main chat() loads this and adds its own usage to it.
+        await stores.runs?.update(input.runId, usage)
       }
       forget(input.runId)
     },
 
-    async abort(input: { threadId: string; runId: string; error?: unknown }) {
+    async abort(input: {
+      threadId: string
+      runId: string
+      error?: unknown
+      usage?: TokenUsage
+    }) {
       dropCalls(input.runId)
       const aborted =
         input.error instanceof Error && input.error.name === 'AbortError'
@@ -1111,6 +1139,7 @@ export function createSubagentRunRecorder(stores: {
         status: aborted ? 'aborted' : 'failed',
         finishedAt: Date.now(),
         ...(!aborted ? { error: { message } } : {}),
+        ...(await usagePatch(input.runId, input.usage)),
       })
       answered.delete(input.runId)
       forget(input.runId)

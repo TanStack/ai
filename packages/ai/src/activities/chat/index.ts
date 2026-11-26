@@ -7064,7 +7064,12 @@ async function* runRoutedSubagents(
     if (abortSignal?.aborted) {
       const error = new Error('Aborted')
       error.name = 'AbortError'
-      await subagentPersistence?.abort({ threadId, runId, error })
+      await subagentPersistence?.abort({
+        threadId,
+        runId,
+        error,
+        usage: sink.total,
+      })
       yield withChildUsage(
         {
           type: EventType.RUN_FINISHED,
@@ -7086,6 +7091,7 @@ async function* runRoutedSubagents(
         threadId,
         runId,
         error: new Error(message),
+        usage: sink.total,
       })
       yield withChildUsage(
         {
@@ -7108,6 +7114,7 @@ async function* runRoutedSubagents(
         runId,
         interrupts,
         ...(childResumeIds ? { interruptIds: childResumeIds } : {}),
+        usage: sink.total,
       })
       yield withChildUsage(
         {
@@ -7132,6 +7139,7 @@ async function* runRoutedSubagents(
         runId,
         ...(childResumeIds ? { interruptIds: childResumeIds } : {}),
         handoffToMain: true,
+        usage: sink.total,
       })
       yield* streamWithChildUsage(
         runChatEngine(
@@ -7160,7 +7168,7 @@ async function* runRoutedSubagents(
       return
     }
 
-    await subagentPersistence?.finish({ threadId, runId })
+    await subagentPersistence?.finish({ threadId, runId, usage: sink.total })
     yield withChildUsage(
       {
         type: EventType.RUN_FINISHED,

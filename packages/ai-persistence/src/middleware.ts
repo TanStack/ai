@@ -2400,6 +2400,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
   const subagentRuns = createSubagentRunRecorder({
     messages: messageStore,
     runs,
+    addUsage: accumulateTokenUsage,
     intervalMs: snapshotIntervalMs,
     ...(wantsInterrupts && persistence.stores.interrupts
       ? { interrupts: persistence.stores.interrupts }
