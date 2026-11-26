@@ -11,11 +11,16 @@ export const Route = createFileRoute('/chat-client-watcher-status')({
 
 const threadId = 'watched-thread'
 
-function runChunks(runId: string, answer: string): Array<StreamChunk> {
+function runChunks(
+  runId: string,
+  answer: string,
+  beforeAnswer: Array<StreamChunk> = [],
+): Array<StreamChunk> {
   const base = { threadId, runId, timestamp: Date.now() }
   const messageId = `${runId}-answer`
   return [
     { ...base, type: EventType.RUN_STARTED },
+    ...beforeAnswer,
     {
       type: EventType.TEXT_MESSAGE_START,
       messageId,
@@ -97,6 +102,53 @@ function ChatClientWatcherStatusPage() {
       >
         Run in another tab
       </button>
+      <button
+        type="button"
+        disabled={!hydrated}
+        onClick={() => {
+          const timestamp = Date.now()
+          watched.push(
+            runChunks('interleaved', 'Answer.', [
+              {
+                type: EventType.REASONING_MESSAGE_CONTENT,
+                messageId: 'reasoning',
+                delta: 'Thinking.',
+                timestamp,
+              },
+              {
+                type: EventType.TEXT_MESSAGE_START,
+                messageId: 'follow-up',
+                role: 'user',
+                timestamp,
+              },
+              {
+                type: EventType.TEXT_MESSAGE_CONTENT,
+                messageId: 'follow-up',
+                delta: 'Follow-up.',
+                timestamp,
+              },
+              {
+                type: EventType.TEXT_MESSAGE_END,
+                messageId: 'follow-up',
+                timestamp,
+              },
+            ]),
+          )
+        }}
+      >
+        Receive a follow-up during reasoning
+      </button>
+      <ul data-testid="transcript">
+        {messages.map((message) => (
+          <li key={message.id} data-role={message.role}>
+            {message.parts.map((part) =>
+              part.type === 'text' || part.type === 'thinking'
+                ? part.content
+                : null,
+            )}
+          </li>
+        ))}
+      </ul>
       <output data-testid="status">{status}</output>
       <output data-testid="answers">{answers.length}</output>
     </main>

@@ -5205,6 +5205,47 @@ describe('StreamProcessor', () => {
       expect(processor.getState().done).toBe(true)
     })
 
+    it.each(['user', 'system'] as const)(
+      'keeps a streamed %s message separate from assistant reasoning',
+      (role) => {
+        const processor = new StreamProcessor()
+        processor.processChunk(ev.runStarted())
+        processor.processChunk(ev.reasoningContent('Thinking.'))
+        processor.processChunk({ ...ev.textStart('side-message'), role })
+        processor.processChunk(ev.textContent('Side message.', 'side-message'))
+        processor.processChunk(ev.textEnd('side-message'))
+
+        expect(processor.getMessages()).toContainEqual(
+          expect.objectContaining({
+            id: 'side-message',
+            role,
+            parts: [{ type: 'text', content: 'Side message.' }],
+          }),
+        )
+
+        processor.processChunk(ev.textStart('reply'))
+        processor.processChunk(ev.textContent('Answer.', 'reply'))
+        processor.processChunk(ev.textEnd('reply'))
+        processor.processChunk(ev.runFinished('stop'))
+
+        expect(processor.getMessages()).toMatchObject([
+          {
+            id: 'reply',
+            role: 'assistant',
+            parts: [
+              { type: 'thinking', content: 'Thinking.' },
+              { type: 'text', content: 'Answer.' },
+            ],
+          },
+          {
+            id: 'side-message',
+            role,
+            parts: [{ type: 'text', content: 'Side message.' }],
+          },
+        ])
+      },
+    )
+
     it('appends leftover reasoning after a stop RUN_FINISHED onto the same thinking part', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
