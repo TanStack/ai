@@ -522,6 +522,54 @@ describe('OpenRouter adapter option mapping', () => {
     }
   })
 
+  it('reports length, not tool_calls, when the output limit cuts a tool call', async () => {
+    setupMockSdkClient([
+      {
+        id: 'chatcmpl-cut',
+        model: 'openai/gpt-4o-mini',
+        choices: [
+          {
+            delta: {
+              toolCalls: [
+                {
+                  index: 0,
+                  id: 'call_cut',
+                  type: 'function',
+                  function: {
+                    name: 'lookup_weather',
+                    arguments: '{"location":"Ber',
+                  },
+                },
+              ],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-cut',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'length' }],
+        usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
+      },
+    ])
+
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of createAdapter().chatStream({
+      threadId: 'thread-1',
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
+      tools: [weatherTool],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(chunks.filter((c) => c.type === 'TOOL_CALL_END')).toHaveLength(1)
+    const runFinished = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(runFinished).toMatchObject({ finishReason: 'length' })
+  })
+
   // finishReason=null closes the call in the post-stream drain.
   it.each([
     { raw: '{"n": 1.50}', finishReason: 'tool_calls' },
