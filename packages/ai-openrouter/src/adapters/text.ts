@@ -1283,6 +1283,9 @@ export class OpenRouterTextAdapter<
 
         // Map upstream finishReason to AG-UI's narrower vocabulary while
         // preserving the upstream value when it falls outside the AG-UI set.
+        // `length` wins over `tool_calls`, as in openai-base: the output limit
+        // cut a tool call that was closed above, and the engine must see
+        // `length` so it does not run that call.
         // Use `tool_calls` only when a TOOL_CALL_END was actually emitted.
         // OpenRouter emits 'error' as a finish reason for upstream errors;
         // collapse to 'content_filter' (the closest AG-UI equivalent).
@@ -1290,16 +1293,17 @@ export class OpenRouterTextAdapter<
           | 'tool_calls'
           | 'length'
           | 'content_filter'
-          | 'stop' = emittedAnyToolCallEnd
-          ? 'tool_calls'
-          : pendingFinishReason === 'tool_calls'
-            ? 'stop'
-            : pendingFinishReason === 'length'
-              ? 'length'
-              : pendingFinishReason === 'content_filter' ||
-                  pendingFinishReason === 'error'
-                ? 'content_filter'
-                : 'stop'
+          | 'stop' =
+          pendingFinishReason === 'length'
+            ? 'length'
+            : emittedAnyToolCallEnd
+              ? 'tool_calls'
+              : pendingFinishReason === 'tool_calls'
+                ? 'stop'
+                : pendingFinishReason === 'content_filter' ||
+                    pendingFinishReason === 'error'
+                  ? 'content_filter'
+                  : 'stop'
 
         const finalUsage = runUsage()
 
