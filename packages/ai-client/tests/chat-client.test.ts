@@ -3088,7 +3088,12 @@ describe('ChatClient', () => {
             return
           }
           if (call === 2) {
-            yield* createTextChunks('partial', 'a2-partial')
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: 'a2-partial',
+              delta: 'partial',
+              timestamp: Date.now(),
+            }
             throw new Error('stream aborted mid-response')
           }
           yield {
@@ -3292,7 +3297,12 @@ describe('ChatClient', () => {
             return
           }
           if (call === 2) {
-            yield* createTextChunks('partial', 'a2-partial')
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: 'a2-partial',
+              delta: 'partial',
+              timestamp: Date.now(),
+            }
             throw new Error('child continuation failed mid-response')
           }
           yield {
@@ -3379,7 +3389,12 @@ describe('ChatClient', () => {
             return
           }
           if (call === 2) {
-            yield* createTextChunks('partial', 'a2-partial')
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: 'a2-partial',
+              delta: 'partial',
+              timestamp: Date.now(),
+            }
             throw new Error('follow-up failed')
           }
           yield {
@@ -3431,6 +3446,150 @@ describe('ChatClient', () => {
         'assistant:a1',
         'tool:tool-tc1',
       ])
+    })
+
+    it('preserves client tool result when subscribe() errors mid-stream and onError triggers reload()', async () => {
+      const sent: Array<Array<string>> = []
+      let call = 0
+      let retryPromise: Promise<void> | null = null
+      const queue: Array<StreamChunk | Error> = []
+      let wake: (() => void) | null = null
+      const push = (item: StreamChunk | Error) => {
+        queue.push(item)
+        const fn = wake
+        wake = null
+        fn?.()
+      }
+
+      const adapter = {
+        async *subscribe(signal: AbortSignal) {
+          while (!signal.aborted) {
+            if (queue.length === 0) {
+              await new Promise<void>((resolve) => {
+                wake = resolve
+                signal.addEventListener('abort', () => resolve(), {
+                  once: true,
+                })
+              })
+              continue
+            }
+            const next = queue.shift()!
+            if (next instanceof Error) {
+              throw next
+            }
+            yield next
+          }
+        },
+        async send(
+          messages: Array<any>,
+          _data: Record<string, any>,
+          _signal: AbortSignal,
+          ctx: { runId: string; threadId: string },
+        ) {
+          call++
+          sent.push(uiMessagesToWire(messages).map((m) => `${m.role}:${m.id}`))
+          if (call === 1) {
+            push({
+              type: EventType.RUN_STARTED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              timestamp: Date.now(),
+            })
+            push({
+              type: EventType.TOOL_CALL_START,
+              toolCallId: 'tc1',
+              toolCallName: 'approve',
+              parentMessageId: 'a1',
+              timestamp: Date.now(),
+            })
+            push({
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: 'tc1',
+              delta: '{}',
+              timestamp: Date.now(),
+            })
+            push({
+              type: EventType.TOOL_CALL_END,
+              toolCallId: 'tc1',
+              timestamp: Date.now(),
+            })
+            push({
+              type: EventType.RUN_FINISHED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              finishReason: 'stop',
+              timestamp: Date.now(),
+            })
+            return
+          }
+          if (call === 2) {
+            push({
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: 'a2-partial',
+              delta: 'partial',
+              timestamp: Date.now(),
+            })
+            // Let send() resolve before subscription errors mid-stream.
+            queueMicrotask(() => {
+              push(new Error('subscription socket dropped'))
+            })
+            return
+          }
+          push({
+            type: EventType.RUN_STARTED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            timestamp: Date.now(),
+          })
+          push({
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'a3',
+            delta: 'Recovered',
+            timestamp: Date.now(),
+          })
+          push({
+            type: EventType.RUN_FINISHED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          })
+        },
+      }
+
+      const client = new ChatClient({
+        threadId: 'thread-subscribe-onerror',
+        connection: adapter as any,
+        tools: [
+          {
+            name: 'approve',
+            description: 'approve action',
+            __toolSide: 'client',
+          },
+        ],
+        onError: () => {
+          if (call === 2) {
+            retryPromise = client.reload()
+          }
+        },
+      })
+
+      await client.sendMessage('do it')
+      await client.addToolResult({
+        toolCallId: 'tc1',
+        tool: 'approve',
+        output: { approved: true },
+        state: 'output-available',
+      })
+      expect(retryPromise).not.toBeNull()
+      await retryPromise
+
+      expect(sent[2]).toEqual([
+        expect.stringMatching(/^user:/),
+        'assistant:a1',
+        'tool:tool-tc1',
+      ])
+      client.unsubscribe()
     })
   })
 

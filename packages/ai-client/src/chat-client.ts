@@ -932,6 +932,7 @@ export class ChatClient<
   // continuationPending was true (chained approval scenario)
   private continuationSkipped = false
   private failedToolContinuationAnchorId: string | null = null
+  private inFlightToolContinuationAnchorId: string | null = null
   private draining = false
   private readonly activeRunIds = new Set<string>()
   /** Latched by `dispose()`; stops any late async callback starting new work. */
@@ -2548,6 +2549,10 @@ export class ChatClient<
           this.setConnectionStatus('error')
           this.resetSessionGenerating()
           this.setIsSubscribed(false)
+          if (this.inFlightToolContinuationAnchorId !== null) {
+            this.failedToolContinuationAnchorId =
+              this.inFlightToolContinuationAnchorId
+          }
           this.reportStreamError(err)
         }
         // Resolve pending processing so streamResponse doesn't hang
@@ -3265,6 +3270,7 @@ export class ChatClient<
     const signal = this.abortController.signal
     // Reset pending tool executions for the new stream
     this.pendingToolExecutions.clear()
+    this.inFlightToolContinuationAnchorId = null
     let streamCompletedSuccessfully = false
     let activeDevtoolsRunId: string | null = null
     let runTerminalEventEmitted = false
@@ -3296,6 +3302,8 @@ export class ChatClient<
       if (signal.aborted) {
         return false
       }
+
+      this.inFlightToolContinuationAnchorId = toolContinuationAnchorId
 
       // Merge sources for the wire `forwardedProps` field (later spreads win):
       //   1. The `forwardedProps` option.
@@ -3503,6 +3511,7 @@ export class ChatClient<
         this.activeClientTools = null
         this.activeContext = undefined
         this.abortController = null
+        this.inFlightToolContinuationAnchorId = null
         this.setIsLoading(false)
         this.pendingMessageBody = undefined // Ensure it's cleared even on error
 
@@ -3526,6 +3535,10 @@ export class ChatClient<
           // Clear before draining post-stream actions so a queued child
           // stream retains its own failure anchor if it errors.
           this.failedToolContinuationAnchorId = null
+        } else {
+          // Record before draining so a child stream queued by the drain
+          // keeps its own failure anchor if it errors.
+          this.failedToolContinuationAnchorId = toolContinuationAnchorId
         }
 
         // Drain any actions that were queued while the stream was in progress
@@ -3546,7 +3559,6 @@ export class ChatClient<
             await this.drainQueue()
           }
         } else {
-          this.failedToolContinuationAnchorId = toolContinuationAnchorId
           // Error/abort settle for the active generation: don't strand or
           // later mis-order queued messages. A failed turn flushes the queue
           // (consistent with stop()); it must NOT auto-drain into a likely
