@@ -414,13 +414,16 @@ function RealtimeChat({
           {messages.length === 0 && status === 'idle' && (
             <div className="flex flex-col items-center justify-center h-full text-gray-500">
               <Mic className="w-16 h-16 mb-4" />
-              <p className="text-lg">Voice Chat with Tools & Vision</p>
+              <p className="text-lg">
+                Voice Chat with Tools
+                {provider === 'openai-live' ? '' : ' & Vision'}
+              </p>
               <p className="text-sm">
                 Click "Start Conversation" to begin talking with the AI
               </p>
               <p className="text-xs mt-2 text-gray-600">
-                Try asking: "What time is it?" or "What's the weather?" — or
-                send an image!
+                Try asking: "What time is it?" or "What's the weather?"
+                {provider === 'openai-live' ? '' : ' — or send an image!'}
               </p>
             </div>
           )}

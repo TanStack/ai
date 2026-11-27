@@ -68,6 +68,7 @@ const createLiveSessionFn = createServerFn({ method: 'POST' })
         delegation: { model: 'gpt-6.1-terra' },
       }),
       request: data,
+      // The client abort stops the OpenAI POST. ServerFnCtx has no signal.
       abortSignal: getRequest().signal,
     }),
   )
@@ -154,8 +155,11 @@ You can:
 
 Keep your responses concise and conversational since this is a voice interface.
 When using tools, briefly explain what you're doing and then share the results naturally.
-If the user sends an image, describe what you see and answer any questions about it.
-Be friendly and engaging!`,
+${
+  provider === 'openai-live'
+    ? ''
+    : 'If the user sends an image, describe what you see and answer any questions about it.\n'
+}Be friendly and engaging!`,
     voice: voice ?? defaultVoice(provider),
     tools: realtimeClientTools,
     outputModalities,
