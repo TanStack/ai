@@ -194,12 +194,17 @@ export async function* translateAcpStream(
     unresolvedToolCalls.clear()
   }
 
+  // ACP treats an omitted and a null rawInput alike: no input yet.
+  function hasRawInput(update: Pick<AcpToolCallUpdate, 'rawInput'>): boolean {
+    return update.rawInput != null
+  }
+
   function toolCallInput(
     update: Pick<AcpToolCallUpdate, 'title' | 'rawInput'>,
   ): Record<string, unknown> {
     return {
       ...(update.title != null && { title: update.title }),
-      ...(update.rawInput !== undefined && update.rawInput !== null
+      ...(hasRawInput(update)
         ? typeof update.rawInput === 'object'
           ? (update.rawInput as Record<string, unknown>)
           : { input: update.rawInput }
@@ -246,7 +251,7 @@ export async function* translateAcpStream(
     }
     unresolvedToolCalls.add(update.toolCallId)
     const resolved = update.status === 'completed' || update.status === 'failed'
-    if (update.rawInput === undefined && !resolved) {
+    if (!hasRawInput(update) && !resolved) {
       awaitingInput.set(update.toolCallId, {
         toolCallName,
         ...(update.title != null && { title: update.title }),
@@ -374,10 +379,7 @@ export async function* translateAcpStream(
     } else if (update.sessionUpdate === 'tool_call_update') {
       if (update.status === 'completed' || update.status === 'failed') {
         yield* resolveToolCall(update)
-      } else if (
-        update.status === 'in_progress' &&
-        update.rawInput !== undefined
-      ) {
+      } else if (update.status === 'in_progress' && hasRawInput(update)) {
         yield* closeText()
         yield* closeReasoning()
         if (!knownToolCalls.has(update.toolCallId)) {

@@ -271,6 +271,61 @@ describe('translateAcpStream', () => {
     })
   })
 
+  it('treats a null rawInput like an omitted one and keeps the call open', async () => {
+    const chunks = await collect([
+      session,
+      {
+        kind: 'update',
+        update: {
+          sessionUpdate: 'tool_call',
+          toolCallId: 'tc-null',
+          title: 'list_dir',
+          kind: 'list_dir',
+          status: 'in_progress',
+          rawInput: null,
+        },
+      },
+      {
+        kind: 'update',
+        update: {
+          sessionUpdate: 'tool_call_update',
+          toolCallId: 'tc-null',
+          status: 'in_progress',
+          rawInput: null,
+        },
+      },
+      {
+        kind: 'update',
+        update: {
+          sessionUpdate: 'tool_call_update',
+          toolCallId: 'tc-null',
+          status: 'in_progress',
+          rawInput: { target_directory: '.' },
+        },
+      },
+      {
+        kind: 'update',
+        update: {
+          sessionUpdate: 'tool_call_update',
+          toolCallId: 'tc-null',
+          status: 'completed',
+          rawOutput: 'ok',
+        },
+      },
+      done,
+    ])
+    const toolChunks = chunks.filter((c) => c.type.startsWith('TOOL_CALL_'))
+    expect(toolChunks.map((c) => c.type)).toEqual([
+      'TOOL_CALL_START',
+      'TOOL_CALL_ARGS',
+      'TOOL_CALL_END',
+      'TOOL_CALL_RESULT',
+    ])
+    expect(toolChunks[1]).toMatchObject({
+      args: JSON.stringify({ title: 'list_dir', target_directory: '.' }),
+    })
+  })
+
   it('closes a call opened without input when it resolves or is interrupted', async () => {
     const chunks = await collect([
       session,
