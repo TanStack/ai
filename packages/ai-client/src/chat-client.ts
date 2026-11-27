@@ -931,6 +931,7 @@ export class ChatClient<
   // Tracks whether a queued checkForContinuation was skipped because
   // continuationPending was true (chained approval scenario)
   private continuationSkipped = false
+  private failedToolContinuationAnchorId: string | null = null
   private draining = false
   private readonly activeRunIds = new Set<string>()
   /** Latched by `dispose()`; stops any late async callback starting new work. */
@@ -3267,11 +3268,20 @@ export class ChatClient<
     let streamCompletedSuccessfully = false
     let activeDevtoolsRunId: string | null = null
     let runTerminalEventEmitted = false
+    let toolContinuationAnchorId: string | null = null
 
     try {
       // Get UIMessages with parts (preserves approval state and client tool results).
       // Activity is frontend-only — never send it as model input.
       const messages = this.messagesForSend(this.processor.getMessages())
+      const lastSentMessage = messages.at(-1)
+      if (
+        lastSentMessage?.role === 'assistant' &&
+        lastSentMessage.metadata?.tanstack?.stopReason !== 'error' &&
+        lastSentMessage.parts.some((part) => part.type === 'tool-result')
+      ) {
+        toolContinuationAnchorId = lastSentMessage.id
+      }
       const clientTools = new Map(this.clientToolsRef.current)
       const runtimeContext = this.context
 
@@ -3515,6 +3525,7 @@ export class ChatClient<
         await this.drainPostStreamActions()
 
         if (streamCompletedSuccessfully) {
+          this.failedToolContinuationAnchorId = null
           this.rememberProcessorMessageIds()
           if (this.status !== 'ready') {
             // Terminal run, but onStreamEnd never fired: the processor had
@@ -3529,6 +3540,7 @@ export class ChatClient<
             await this.drainQueue()
           }
         } else {
+          this.failedToolContinuationAnchorId = toolContinuationAnchorId
           // Error/abort settle for the active generation: don't strand or
           // later mis-order queued messages. A failed turn flushes the queue
           // (consistent with stop()); it must NOT auto-drain into a likely
@@ -3579,20 +3591,45 @@ export class ChatClient<
     messages: ReadonlyArray<UIMessage>,
     lastUserMessageIndex: number,
   ): number {
-    let end = messages.length - 1
-    while (
-      end > lastUserMessageIndex &&
-      messages[end]?.role === 'assistant' &&
-      messages[end]?.metadata?.tanstack?.stopReason === 'error'
-    ) {
-      end--
+    if (this.failedToolContinuationAnchorId !== null) {
+      const recordedIndex = messages.findLastIndex(
+        (m) => m.id === this.failedToolContinuationAnchorId,
+      )
+      if (
+        recordedIndex > lastUserMessageIndex &&
+        messages[recordedIndex]?.role === 'assistant' &&
+        messages[recordedIndex]?.metadata?.tanstack?.stopReason !== 'error' &&
+        messages[recordedIndex]?.parts.some(
+          (part) => part.type === 'tool-result',
+        )
+      ) {
+        return recordedIndex
+      }
     }
 
-    const hasTrailingErrorRow = end < messages.length - 1
+    let end = messages.length - 1
+    let skippedErrorRow = false
+    while (end > lastUserMessageIndex) {
+      const msg = messages[end]
+      if (msg?.role === 'activity') {
+        end--
+        continue
+      }
+      if (
+        msg?.role === 'assistant' &&
+        msg.metadata?.tanstack?.stopReason === 'error'
+      ) {
+        skippedErrorRow = true
+        end--
+        continue
+      }
+      break
+    }
+
     const candidate = messages[end]
     if (
       end > lastUserMessageIndex &&
-      (hasTrailingErrorRow || this.status === 'error') &&
+      (skippedErrorRow || this.status === 'error') &&
       candidate?.role === 'assistant' &&
       candidate.metadata?.tanstack?.stopReason !== 'error' &&
       candidate.parts.some((part) => part.type === 'tool-result')
@@ -3622,6 +3659,7 @@ export class ChatClient<
       messages,
       lastUserMessageIndex,
     )
+    this.failedToolContinuationAnchorId = null
 
     // Cancel any active stream before reloading
     if (this.isLoading) {
@@ -3729,6 +3767,7 @@ export class ChatClient<
     this.pendingResumeThreadId = null
     this.pendingResumeParentRunId = null
     this.pendingResumeItems = null
+    this.failedToolContinuationAnchorId = null
     this.setError(undefined)
     this.events.messagesCleared()
   }

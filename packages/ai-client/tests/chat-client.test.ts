@@ -3045,6 +3045,210 @@ describe('ChatClient', () => {
         'tool:tool-tc1',
       ])
     })
+
+    it('preserves client tool result when retrying after partial follow-up text throws without RUN_ERROR', async () => {
+      const sent: Array<Array<string>> = []
+      let call = 0
+      const connection: ConnectConnectionAdapter = {
+        async *connect(messages, _data, _signal, ctx) {
+          call++
+          sent.push(uiMessagesToWire(messages).map((m) => `${m.role}:${m.id}`))
+          if (call === 1) {
+            yield {
+              type: EventType.RUN_STARTED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_START,
+              toolCallId: 'tc1',
+              toolCallName: 'approve',
+              parentMessageId: 'a1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: 'tc1',
+              delta: '{}',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_END,
+              toolCallId: 'tc1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.RUN_FINISHED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              finishReason: 'tool_calls',
+              timestamp: Date.now(),
+            }
+            return
+          }
+          if (call === 2) {
+            yield* createTextChunks('partial', 'a2-partial')
+            throw new Error('stream aborted mid-response')
+          }
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            timestamp: Date.now(),
+          }
+          yield* createTextChunks('Recovered', 'a3')
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          }
+        },
+      }
+
+      const client = new ChatClient({
+        threadId: 'thread-reload-partial-throw',
+        connection,
+        tools: [
+          {
+            name: 'approve',
+            description: 'approve action',
+            __toolSide: 'client',
+          },
+        ],
+      })
+
+      await client.sendMessage('do it')
+      await client.addToolResult({
+        toolCallId: 'tc1',
+        tool: 'approve',
+        output: { approved: true },
+        state: 'output-available',
+      })
+
+      await client.reload()
+
+      expect(sent[2]).toEqual([
+        expect.stringMatching(/^user:/),
+        'assistant:a1',
+        'tool:tool-tc1',
+      ])
+    })
+
+    it('skips trailing activity rows cleanly for both failed and successful tool follow-up runs', async () => {
+      const sent: Array<Array<string>> = []
+      let call = 0
+      const connection: ConnectConnectionAdapter = {
+        async *connect(messages, _data, _signal, ctx) {
+          call++
+          sent.push(uiMessagesToWire(messages).map((m) => `${m.role}:${m.id}`))
+          if (call === 1) {
+            yield {
+              type: EventType.RUN_STARTED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_START,
+              toolCallId: 'tc1',
+              toolCallName: 'approve',
+              parentMessageId: 'a1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: 'tc1',
+              delta: '{}',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_END,
+              toolCallId: 'tc1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.RUN_FINISHED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              finishReason: 'tool_calls',
+              timestamp: Date.now(),
+            }
+            return
+          }
+          if (call === 2) {
+            yield {
+              type: EventType.RUN_ERROR,
+              message: 'transport failure',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.ACTIVITY_SNAPSHOT,
+              messageId: 'act-err',
+              activityType: 'STATUS',
+              content: { text: 'failed' },
+              timestamp: Date.now(),
+            }
+            return
+          }
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            timestamp: Date.now(),
+          }
+          yield* createTextChunks('Done', 'a2')
+          yield {
+            type: EventType.ACTIVITY_SNAPSHOT,
+            messageId: 'act-ok',
+            activityType: 'STATUS',
+            content: { text: 'done' },
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          }
+        },
+      }
+
+      const client = new ChatClient({
+        threadId: 'thread-reload-activity',
+        connection,
+        tools: [
+          {
+            name: 'approve',
+            description: 'approve action',
+            __toolSide: 'client',
+          },
+        ],
+      })
+
+      await client.sendMessage('do it')
+      await client.addToolResult({
+        toolCallId: 'tc1',
+        tool: 'approve',
+        output: { approved: true },
+        state: 'output-available',
+      })
+
+      // Activity after RUN_ERROR must still preserve [user, assistant, tool]
+      await client.reload()
+      expect(sent[2]).toEqual([
+        expect.stringMatching(/^user:/),
+        'assistant:a1',
+        'tool:tool-tc1',
+      ])
+
+      // Activity after a completed answer must regenerate from [user]
+      await client.reload()
+      expect(sent[3]).toEqual([expect.stringMatching(/^user:/)])
+    })
   })
 
   describe('stop', () => {
