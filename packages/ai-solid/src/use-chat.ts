@@ -172,7 +172,12 @@ export function useChat<
 
   // Track which client instance we subscribed so initial `live: false` never
   // calls `unsubscribe()` and cancels an in-flight resume.
-  let subscribedClient: ChatClient<TTools, TContext, TInterrupts> | null = null
+  let subscribedClient: ChatClient<
+    TTools,
+    TContext,
+    TInterrupts,
+    TActivities
+  > | null = null
 
   // Apply initial live mode immediately on hook creation.
   if (options.live) {

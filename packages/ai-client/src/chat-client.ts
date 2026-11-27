@@ -3807,19 +3807,14 @@ export class ChatClient<
       }
     }
     if (this.isLoading) {
-      const continuationGeneration = this.continuationGeneration
-      this.postStreamActions.push(async () => {
-        if (continuationGeneration !== this.continuationGeneration) {
-          restorePending()
-          return
-        }
+      this.queuePostStreamAction(async () => {
         try {
           await continueRun()
         } catch {
           // streamResponse already reported it. A rethrow here would reject
           // the previous run and stop the other queued actions.
         }
-      })
+      }, restorePending)
       return
     }
     await continueRun()
