@@ -1431,6 +1431,45 @@ describe('createMCPServer', () => {
     )
   })
 
+  it('sends instructions to the client, on spec 2026 and spec 2025', async () => {
+    const cases = [
+      { era: '2026', sessions: 'stateless' },
+      { era: '2025', sessions: 'stateless' },
+      { era: '2025', sessions: 'memory' },
+    ] as const
+    for (const { era, sessions } of cases) {
+      const server = createMCPServer({
+        name: 'guided',
+        version: '1.0.0',
+        sessions,
+        tools: [echoTool()],
+        instructions: 'Call echo first.',
+      })
+      await withClient(server, { era }, async (client) => {
+        expect(client.getInstructions()).toBe('Call echo first.')
+      })
+    }
+  })
+
+  it('sends no instructions when the option is omitted', async () => {
+    const cases = [
+      { era: '2026', sessions: 'stateless' },
+      { era: '2025', sessions: 'stateless' },
+      { era: '2025', sessions: 'memory' },
+    ] as const
+    for (const { era, sessions } of cases) {
+      const server = createMCPServer({
+        name: 'plain',
+        version: '1.0.0',
+        sessions,
+        tools: [echoTool()],
+      })
+      await withClient(server, { era }, async (client) => {
+        expect(client.getInstructions()).toBeUndefined()
+      })
+    }
+  })
+
   it('serves an extension that setup registers, on spec 2026 and spec 2025', async () => {
     const cases = [
       { era: '2026', sessions: 'stateless' },

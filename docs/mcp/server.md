@@ -224,6 +224,20 @@ const server = createMCPServer({
 })
 ```
 
+### Send instructions to the client
+
+Pass `instructions` to tell a client how to use the server, for example how its tools relate or which one to call first. The server sends the text in the `instructions` field of the `initialize` result on spec 2025 and of the `server/discover` result on spec 2026-07-28. A client or host may add it to the model's context. Without `instructions`, the server sends none.
+
+```ts
+import { createMCPServer } from '@tanstack/ai-mcp/server'
+
+const server = createMCPServer({
+  name: 'notes',
+  version: '1.0.0',
+  instructions: 'Call `search_notes` before `read_note`. A note id is stable.',
+})
+```
+
 ### Serve an MCP extension
 
 An [MCP extension](https://modelcontextprotocol.io/extensions/overview) adds methods that the core spec does not have. For example, the [Skills extension](https://modelcontextprotocol.io/extensions/skills/overview) adds `skills/list` and `skills/get`. A client uses an extension only when the server lists it in `capabilities.extensions`.

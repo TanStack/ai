@@ -74,6 +74,7 @@ export const typedServer = createMCPServer({
  * - `show_note` links an MCP Apps view through `metadata._meta`.
  * - `setup` serves the `com.example/notes` extension with a `notes/count`
  *   method that reads the `tenant` from the `handle` context.
+ * - `instructions` tells a client how to use the server.
  */
 const note = resourceDefinition({
   name: 'note',
@@ -99,6 +100,7 @@ export const statelessServer = createMCPServer({
   name: 'stateless-notes',
   version: '1.0.0',
   sessions: 'stateless',
+  instructions: 'Call show_note to open a note in its view.',
   tools: [showNote],
   resources: [note],
   setup: (server, context) => {

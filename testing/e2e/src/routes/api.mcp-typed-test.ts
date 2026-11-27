@@ -46,6 +46,8 @@ async function* closeMcpOnDrain(
  *   It also calls `forecast` with the typed `callTool`.
  * - GET `?extension` calls the `notes/count` extension method of the
  *   stateless server with `request`.
+ * - GET `?instructions` returns the `instructions` the stateless server
+ *   sends to a client.
  * - GET `?prior` connects to the stateless server twice. The second client
  *   gets the first one's discover result as `prior`.
  * - POST runs chat() with those tools.
@@ -71,6 +73,19 @@ export const Route = createFileRoute('/api/mcp-typed-test')({
               extensions: notes.capabilities.extensions ?? null,
               counted,
             })
+          } finally {
+            await notes.close()
+          }
+        }
+        if (url.searchParams.has('instructions')) {
+          const notes = await createMCPClient({
+            transport: {
+              type: 'http',
+              url: `${url.origin}/api/mcp-typed-server?stateless`,
+            },
+          })
+          try {
+            return Response.json({ instructions: notes.instructions ?? null })
           } finally {
             await notes.close()
           }

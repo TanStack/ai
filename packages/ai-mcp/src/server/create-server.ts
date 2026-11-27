@@ -110,6 +110,15 @@ export type MCPServerOptions = {
   prompts?: ReadonlyArray<McpPrompt>
   taskStore?: TaskStore
   /**
+   * Text for the model that tells a client how to use this server, for
+   * example how its tools relate or which one to call first. The server
+   * sends it as the MCP `instructions` field in the `initialize` result
+   * (spec 2025) and in the `server/discover` result (spec 2026-07-28). A
+   * client or host may add it to the model's context. Without it, the server
+   * sends no `instructions`.
+   */
+  instructions?: string
+  /**
    * Bearer-token auth, in the shape the MCP SDK uses.
    * `verifier` is an `OAuthTokenVerifier`. See `jwtVerifier` and
    * `introspectionVerifier`. `requiredScopes` and `resourceMetadataUrl`
@@ -214,6 +223,7 @@ type LegacySessions = Map<string, LegacySession>
  * `options.resources` uses `resourceDefinition().read()`.
  * `options.prompts` uses `promptDefinition().render()`.
  * `options.taskStore` keeps task records. The default store is in memory.
+ * `options.instructions` is sent to the client as the MCP `instructions` field.
  * `options.auth` checks the bearer token with the SDK gate.
  * A missing or bad token gets a 401. A token without a required scope gets a 403.
  * Spec 2025 sessions and tasks belong to the caller: the `clientId` of the
@@ -489,7 +499,7 @@ function buildMcpServer(input: {
 }) {
   const server = new McpServer(
     { name: input.options.name, version: input.options.version },
-    serverOptions(input.era, input.hasTaskTool),
+    serverOptions(input.era, input.hasTaskTool, input.options.instructions),
   )
   if (input.options.onerror !== undefined) {
     server.server.onerror = input.options.onerror
@@ -514,8 +524,13 @@ function buildMcpServer(input: {
 }
 
 // Tasks exist on spec 2025-11-25 only. Spec 2026-07-28 has no tasks yet.
-function serverOptions(era: ProtocolYear, hasTaskTool: boolean) {
+function serverOptions(
+  era: ProtocolYear,
+  hasTaskTool: boolean,
+  instructions: string | undefined,
+) {
   return {
+    instructions,
     capabilities: {
       tools: { listChanged: false },
       resources: { listChanged: false },

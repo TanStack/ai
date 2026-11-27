@@ -236,6 +236,17 @@ test.describe('mcp: createMCPServer with auth, output schema, and a task', () =>
     })
   })
 
+  test('a client reads the instructions that the server sends', async ({
+    request,
+  }) => {
+    const res = await request.get('/api/mcp-typed-test?instructions')
+    const body = await res.text()
+    expect(res.ok(), body).toBe(true)
+    expect(JSON.parse(body)).toEqual({
+      instructions: 'Call show_note to open a note in its view.',
+    })
+  })
+
   test('a client with a saved discover result as prior skips server/discover', async ({
     request,
   }) => {
