@@ -219,6 +219,8 @@ Some fields have a different shape in process and on the SSE or HTTP wire:
 | `RUN_FINISHED` usage | TanStack `TokenUsage` (`promptTokens`) | the spec `usage` array (`inputTokens`) |
 | `TOOL_CALL_END` input | `input`, parsed from the argument string | no `input`. `metadata.tanstack.args` has the argument string as the provider sent it. |
 
+`TOOL_CALL_END` finalizes the arguments. TanStack AI ignores later `TOOL_CALL_ARGS` events for the same tool call.
+
 Read `finishReason` from `metadata.tanstack.finishReason` in both cases. If you write a custom server, see [Event metadata](../protocol/metadata).
 
 ### Chunk events

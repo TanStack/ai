@@ -139,6 +139,7 @@ import { Route as ApiJoinRunClientToolRouteImport } from './routes/api.join-run-
 import { Route as ApiJsonSchemaToolInputRouteImport } from './routes/api.json-schema-tool-input'
 import { Route as ApiJsonTransportRouteImport } from './routes/api.json-transport'
 import { Route as ApiKeyedAdapterRouteImport } from './routes/api.keyed-adapter'
+import { Route as ApiLateToolArgsWireRouteImport } from './routes/api.late-tool-args-wire'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
 import { Route as ApiLoneSurrogatesWireRouteImport } from './routes/api.lone-surrogates-wire'
 import { Route as ApiLoopStoppedRouteImport } from './routes/api.loop-stopped'
@@ -925,6 +926,11 @@ const ApiKeyedAdapterRoute = ApiKeyedAdapterRouteImport.update({
   path: '/api/keyed-adapter',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLateToolArgsWireRoute = ApiLateToolArgsWireRouteImport.update({
+  id: '/api/late-tool-args-wire',
+  path: '/api/late-tool-args-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLazyToolsWireRoute = ApiLazyToolsWireRouteImport.update({
   id: '/api/lazy-tools-wire',
   path: '/api/lazy-tools-wire',
@@ -1614,6 +1620,7 @@ export interface FileRoutesByFullPath {
   '/api/json-schema-tool-input': typeof ApiJsonSchemaToolInputRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
+  '/api/late-tool-args-wire': typeof ApiLateToolArgsWireRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/loop-stopped': typeof ApiLoopStoppedRoute
@@ -1852,6 +1859,7 @@ export interface FileRoutesByTo {
   '/api/json-schema-tool-input': typeof ApiJsonSchemaToolInputRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
+  '/api/late-tool-args-wire': typeof ApiLateToolArgsWireRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/loop-stopped': typeof ApiLoopStoppedRoute
@@ -2091,6 +2099,7 @@ export interface FileRoutesById {
   '/api/json-schema-tool-input': typeof ApiJsonSchemaToolInputRoute
   '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
+  '/api/late-tool-args-wire': typeof ApiLateToolArgsWireRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/loop-stopped': typeof ApiLoopStoppedRoute
@@ -2331,6 +2340,7 @@ export interface FileRouteTypes {
     | '/api/json-schema-tool-input'
     | '/api/json-transport'
     | '/api/keyed-adapter'
+    | '/api/late-tool-args-wire'
     | '/api/lazy-tools-wire'
     | '/api/lone-surrogates-wire'
     | '/api/loop-stopped'
@@ -2569,6 +2579,7 @@ export interface FileRouteTypes {
     | '/api/json-schema-tool-input'
     | '/api/json-transport'
     | '/api/keyed-adapter'
+    | '/api/late-tool-args-wire'
     | '/api/lazy-tools-wire'
     | '/api/lone-surrogates-wire'
     | '/api/loop-stopped'
@@ -2807,6 +2818,7 @@ export interface FileRouteTypes {
     | '/api/json-schema-tool-input'
     | '/api/json-transport'
     | '/api/keyed-adapter'
+    | '/api/late-tool-args-wire'
     | '/api/lazy-tools-wire'
     | '/api/lone-surrogates-wire'
     | '/api/loop-stopped'
@@ -3046,6 +3058,7 @@ export interface RootRouteChildren {
   ApiJsonSchemaToolInputRoute: typeof ApiJsonSchemaToolInputRoute
   ApiJsonTransportRoute: typeof ApiJsonTransportRoute
   ApiKeyedAdapterRoute: typeof ApiKeyedAdapterRoute
+  ApiLateToolArgsWireRoute: typeof ApiLateToolArgsWireRoute
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
   ApiLoneSurrogatesWireRoute: typeof ApiLoneSurrogatesWireRoute
   ApiLoopStoppedRoute: typeof ApiLoopStoppedRoute
@@ -4062,6 +4075,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiKeyedAdapterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/late-tool-args-wire': {
+      id: '/api/late-tool-args-wire'
+      path: '/api/late-tool-args-wire'
+      fullPath: '/api/late-tool-args-wire'
+      preLoaderRoute: typeof ApiLateToolArgsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/lazy-tools-wire': {
       id: '/api/lazy-tools-wire'
       path: '/api/lazy-tools-wire'
@@ -5000,6 +5020,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiJsonSchemaToolInputRoute: ApiJsonSchemaToolInputRoute,
   ApiJsonTransportRoute: ApiJsonTransportRoute,
   ApiKeyedAdapterRoute: ApiKeyedAdapterRoute,
+  ApiLateToolArgsWireRoute: ApiLateToolArgsWireRoute,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
   ApiLoneSurrogatesWireRoute: ApiLoneSurrogatesWireRoute,
   ApiLoopStoppedRoute: ApiLoopStoppedRoute,

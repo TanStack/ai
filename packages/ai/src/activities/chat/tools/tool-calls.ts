@@ -313,6 +313,7 @@ export class ToolCallManager<
     : TToolsOrContext,
 > {
   private readonly toolCallsMap = new Map<number, ToolCall>()
+  private readonly endedToolCallIds = new Set<string>()
   private readonly tools: TToolsOrContext extends ReadonlyArray<AnyTool>
     ? TToolsOrContext
     : ReadonlyArray<AnyTool>
@@ -355,6 +356,8 @@ export class ToolCallManager<
    * Add a TOOL_CALL_ARGS event to accumulate arguments (AG-UI)
    */
   addToolCallArgsEvent(event: ToolCallArgsEvent): void {
+    if (this.endedToolCallIds.has(event.toolCallId)) return
+
     const extra = event as AdapterYieldChunk
     for (const [, toolCall] of this.toolCallsMap.entries()) {
       if (toolCall.id === event.toolCallId) {
@@ -379,6 +382,7 @@ export class ToolCallManager<
       if (toolCall.id !== event.toolCallId) continue
       const final = finishToolCallArguments(toolCall.function.arguments, event)
       toolCall.function.arguments = final.args
+      this.endedToolCallIds.add(toolCall.id)
       return final
     }
     return undefined
@@ -533,6 +537,7 @@ export class ToolCallManager<
    */
   clear(): void {
     this.toolCallsMap.clear()
+    this.endedToolCallIds.clear()
   }
 }
 

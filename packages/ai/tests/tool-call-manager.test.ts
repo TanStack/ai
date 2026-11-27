@@ -494,6 +494,33 @@ describe('ToolCallManager', () => {
       expect(toolCalls[0]?.function.arguments).toBe('{"location":"New York"}')
     })
 
+    it.each([
+      ['delta', { delta: '}' }],
+      ['full arguments', { delta: '', args: '{"location":"London"}' }],
+    ])('ignores late TOOL_CALL_ARGS carrying %s', async (_kind, lateArgs) => {
+      const execute = vi.fn(() => 'weather result')
+      const manager = new ToolCallManager([{ ...mockWeatherTool, execute }])
+      const toolCallId = 'call_123'
+      manager.addToolCallStartEvent(
+        toolCallStart({ toolCallId, toolCallName: 'get_weather' }),
+      )
+      manager.addToolCallArgsEvent(
+        toolCallArgs({ toolCallId, delta: '{"location":"Paris"}' }),
+      )
+      manager.completeToolCall(toolCallEnd({ toolCallId }))
+      manager.addToolCallArgsEvent({
+        ...toolCallArgs({ toolCallId, delta: '' }),
+        ...lateArgs,
+      })
+
+      await collectGeneratorOutput(manager.executeTools(mockFinishedEvent))
+
+      expect(execute).toHaveBeenCalledExactlyOnceWith(
+        { location: 'Paris' },
+        expect.objectContaining({ toolCallId }),
+      )
+    })
+
     it('should ignore a repeat TOOL_CALL_START for an already-tracked toolCallId (same explicit index)', () => {
       const manager = new ToolCallManager([mockWeatherTool])
 
