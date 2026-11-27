@@ -22,6 +22,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": true,
       "decision": false
     },
@@ -73,6 +74,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -117,12 +119,68 @@
     "blended_cost": 20,
     "capabilities": {
       "entitled": true,
-      "chat": "conforms",
-      "deviations": [],
+      "chat": "array-content",
+      "deviations": [
+        "`content` is an array[2] of {reasoning, text} with keys {summary, text, type}; the spec requires a string"
+      ],
       "native_dialect": "anthropic",
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
+      "embeddings": false,
+      "decision": false
+    },
+    "use_case": "chat"
+  },
+  {
+    "id": "claude-fable-5-2",
+    "name": "Claude Fable 5.2",
+    "lab": "anthropic",
+    "provider": "databricks",
+    "family": "claude-fable",
+    "released": true,
+    "attachment": true,
+    "reasoning": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "tool_call": true,
+    "temperature": false,
+    "structured_output": false,
+    "open_weights": false,
+    "knowledge": "2026-06",
+    "release_date": "2026-11-09",
+    "last_updated": "2026-11-09",
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    },
+    "cost": {
+      "input": 8,
+      "output": 40,
+      "cache_read": 0.2,
+      "cache_write": 10
+    },
+    "blended_cost": 16,
+    "capabilities": {
+      "entitled": true,
+      "chat": "array-content",
+      "deviations": [
+        "`content` is an array[2] of {reasoning, text} with keys {summary, text, type}; the spec requires a string"
+      ],
+      "native_dialect": "anthropic",
+      "responses": false,
+      "web_search": false,
+      "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -177,6 +235,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -250,6 +309,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -304,6 +364,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -358,6 +419,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -412,6 +474,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -465,6 +528,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -518,6 +582,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -571,6 +636,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -623,6 +689,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -677,6 +744,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -731,6 +799,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -784,6 +853,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -836,48 +906,62 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
     "use_case": "chat"
   },
   {
-    "id": "deepseek-v4-1-flash",
-    "name": "DeepSeek V4.1 Flash",
-    "lab": "deepseek",
+    "id": "gemini-3-1-flash-image",
+    "name": "Gemini 3.1 Flash Image",
+    "lab": "google",
     "provider": "databricks",
-    "family": "deepseek-flash",
+    "family": "gemini-flash",
     "released": true,
     "attachment": true,
     "reasoning": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "max"]
+      }
+    ],
     "tool_call": true,
     "temperature": true,
-    "structured_output": false,
-    "open_weights": true,
-    "release_date": "2026-09-10",
-    "last_updated": "2026-09-10",
+    "structured_output": true,
+    "open_weights": false,
+    "knowledge": "2025-01",
+    "release_date": "2026-02-26",
+    "last_updated": "2026-02-26",
     "modalities": {
-      "input": ["text", "image"],
-      "output": ["text"]
+      "input": ["text", "image", "pdf"],
+      "output": ["text", "image"]
     },
     "limit": {
-      "context": 128000,
-      "output": 8192
+      "context": 131072,
+      "output": 32768
     },
     "cost": {
-      "input": 0.3,
-      "output": 1.2,
-      "cache_read": 0.03
+      "input": 0.5,
+      "output": 3,
+      "output_image": 60
     },
-    "blended_cost": 0.525,
+    "blended_cost": 1.125,
     "capabilities": {
       "entitled": true,
-      "chat": "conforms",
-      "deviations": [],
-      "native_dialect": "none",
+      "chat": "array-content",
+      "deviations": [
+        "`id` is null; the spec requires a string",
+        "`content` is an array[1] of {text} with keys {text, thoughtSignature, type}; the spec requires a string",
+        "`usage.total_tokens` is 788, but prompt + completion is 242",
+        "`usage.reasoning_tokens` is top-level; the spec nests it under `completion_tokens_details`"
+      ],
+      "native_dialect": "gemini",
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": true,
       "embeddings": false,
       "decision": false
     },
@@ -928,6 +1012,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -993,6 +1078,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -1043,6 +1129,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -1092,6 +1179,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -1142,6 +1230,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -1195,6 +1284,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -1246,6 +1336,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -1296,6 +1387,65 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
+      "embeddings": false,
+      "decision": false
+    },
+    "use_case": "chat"
+  },
+  {
+    "id": "gemini-3-pro-image",
+    "name": "Gemini 3 Pro Image",
+    "lab": "google",
+    "provider": "databricks",
+    "family": "gemini-pro",
+    "released": true,
+    "attachment": true,
+    "reasoning": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "tool_call": true,
+    "temperature": true,
+    "structured_output": true,
+    "open_weights": false,
+    "knowledge": "2025-01",
+    "release_date": "2025-11-20",
+    "last_updated": "2025-11-20",
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text", "image"]
+    },
+    "limit": {
+      "context": 65536,
+      "output": 32768
+    },
+    "cost": {
+      "input": 2,
+      "output": 12,
+      "output_image": 120
+    },
+    "blended_cost": 4.5,
+    "capabilities": {
+      "entitled": true,
+      "chat": "array-content",
+      "deviations": [
+        "`id` is null; the spec requires a string",
+        "`content` is an array[2] of {reasoning, text} with keys {summary, text, thoughtSignature, type}; the spec requires a string",
+        "`usage.total_tokens` is 964, but prompt + completion is 225",
+        "`usage.reasoning_tokens` is top-level; the spec nests it under `completion_tokens_details`"
+      ],
+      "native_dialect": "gemini",
+      "responses": false,
+      "web_search": false,
+      "image_generation": false,
+      "image_output": true,
       "embeddings": false,
       "decision": false
     },
@@ -1350,6 +1500,61 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
+      "embeddings": false,
+      "decision": false
+    },
+    "use_case": "chat"
+  },
+  {
+    "id": "gemini-4-carbon",
+    "name": "Gemini 4 Carbon",
+    "lab": "google",
+    "provider": "databricks",
+    "family": "gemini",
+    "released": true,
+    "attachment": true,
+    "reasoning": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high"]
+      }
+    ],
+    "tool_call": true,
+    "temperature": false,
+    "structured_output": true,
+    "open_weights": false,
+    "release_date": "2026-11-10",
+    "last_updated": "2026-11-10",
+    "modalities": {
+      "input": ["text", "image", "video", "audio", "pdf"],
+      "output": ["text"]
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 65536
+    },
+    "cost": {
+      "input": 4,
+      "output": 20,
+      "cache_read": 0.2
+    },
+    "blended_cost": 8,
+    "capabilities": {
+      "entitled": true,
+      "chat": "array-content",
+      "deviations": [
+        "`id` is null; the spec requires a string",
+        "`content` is an array[1] of {text} with keys {text, thoughtSignature, type}; the spec requires a string",
+        "`usage.total_tokens` is 441, but prompt + completion is 267",
+        "`usage.reasoning_tokens` is top-level; the spec nests it under `completion_tokens_details`"
+      ],
+      "native_dialect": "gemini",
+      "responses": false,
+      "web_search": false,
+      "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -1392,6 +1597,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -1443,6 +1649,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -1491,6 +1698,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -1539,6 +1747,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -1589,6 +1798,7 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -1639,6 +1849,7 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -1689,6 +1900,7 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -1739,6 +1951,7 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -1805,6 +2018,7 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -1855,6 +2069,7 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -1905,6 +2120,7 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -1971,6 +2187,7 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -2034,6 +2251,7 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -2103,6 +2321,7 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -2172,6 +2391,7 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -2241,6 +2461,7 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -2291,6 +2512,7 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -2341,6 +2563,7 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -2409,6 +2632,77 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
+      "image_output": false,
+      "embeddings": false,
+      "decision": false
+    },
+    "use_case": "chat"
+  },
+  {
+    "id": "gpt-6-1-terra",
+    "name": "GPT-6.1 Terra",
+    "lab": "openai",
+    "provider": "databricks",
+    "family": "gpt-terra",
+    "released": true,
+    "attachment": true,
+    "reasoning": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high", "xhigh"]
+      }
+    ],
+    "tool_call": true,
+    "temperature": false,
+    "structured_output": true,
+    "open_weights": false,
+    "knowledge": "2026-06-01",
+    "release_date": "2026-10-27",
+    "last_updated": "2026-10-27",
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "limit": {
+      "context": 1050000,
+      "input": 922000,
+      "output": 128000
+    },
+    "cost": {
+      "input": 1,
+      "output": 5,
+      "cache_read": 0.05,
+      "cache_write": 1.25,
+      "tiers": [
+        {
+          "input": 2,
+          "output": 7.5,
+          "cache_read": 0.1,
+          "cache_write": 2.5,
+          "tier": {
+            "type": "context",
+            "size": 272000
+          }
+        }
+      ],
+      "context_over_200k": {
+        "input": 2,
+        "output": 7.5,
+        "cache_read": 0.1,
+        "cache_write": 2.5
+      }
+    },
+    "blended_cost": 2,
+    "capabilities": {
+      "entitled": true,
+      "chat": "conforms",
+      "deviations": [],
+      "native_dialect": "openai-responses",
+      "responses": true,
+      "web_search": true,
+      "image_generation": true,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -2478,6 +2772,7 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -2546,6 +2841,7 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -2614,6 +2910,7 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -2661,6 +2958,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -2708,6 +3006,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -2757,6 +3056,7 @@
       "responses": true,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -2805,6 +3105,7 @@
       "responses": true,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -2833,62 +3134,12 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": true,
       "decision": false
     },
     "use_case": "chat",
     "unsupported": "gte-large-en does not serve chat completions. It is an embedding model — see the embeddings use case."
-  },
-  {
-    "id": "inkling",
-    "name": "Inkling",
-    "lab": "thinkingmachines",
-    "provider": "databricks",
-    "family": "ling",
-    "released": true,
-    "attachment": true,
-    "reasoning": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "max"]
-      }
-    ],
-    "tool_call": true,
-    "temperature": true,
-    "structured_output": false,
-    "open_weights": true,
-    "release_date": "2026-07-15",
-    "last_updated": "2026-07-15",
-    "modalities": {
-      "input": ["text", "image", "audio"],
-      "output": ["text"]
-    },
-    "limit": {
-      "context": 1048576,
-      "output": 65536
-    },
-    "cost": {
-      "input": 1,
-      "output": 4.05,
-      "cache_read": 0.17
-    },
-    "blended_cost": 1.763,
-    "capabilities": {
-      "entitled": true,
-      "chat": "conforms",
-      "deviations": [],
-      "native_dialect": "none",
-      "responses": false,
-      "web_search": false,
-      "image_generation": false,
-      "embeddings": false,
-      "decision": false
-    },
-    "use_case": "chat"
   },
   {
     "id": "kimi-k3",
@@ -2936,6 +3187,59 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
+      "embeddings": false,
+      "decision": false
+    },
+    "use_case": "chat"
+  },
+  {
+    "id": "kimi-k3-1-pro",
+    "name": "Kimi K3.1 Pro",
+    "lab": "moonshotai",
+    "provider": "databricks",
+    "family": "kimi-k3-1",
+    "released": true,
+    "attachment": true,
+    "reasoning": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "minimal", "low", "medium", "high", "max"]
+      }
+    ],
+    "tool_call": true,
+    "temperature": true,
+    "structured_output": true,
+    "open_weights": true,
+    "release_date": "2026-11-04",
+    "last_updated": "2026-11-04",
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 65536
+    },
+    "cost": {
+      "input": 2,
+      "output": 10,
+      "cache_read": 0.2
+    },
+    "blended_cost": 4,
+    "capabilities": {
+      "entitled": true,
+      "chat": "conforms",
+      "deviations": [],
+      "native_dialect": "none",
+      "responses": false,
+      "web_search": false,
+      "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -2978,6 +3282,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -3020,6 +3325,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -3062,6 +3368,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -3070,7 +3377,7 @@
   {
     "id": "openjev-qwen35-4b",
     "name": "OpenJev (Qwen 3.5 4B)",
-    "lab": "typesafe",
+    "lab": "alibaba",
     "provider": "databricks",
     "family": "openjev",
     "released": true,
@@ -3092,6 +3399,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": true
     },
@@ -3121,6 +3429,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": true,
       "decision": false
     },
@@ -3164,6 +3473,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -3211,6 +3521,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": false
     },
@@ -3241,6 +3552,7 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
+      "image_output": false,
       "embeddings": false,
       "decision": true
     },

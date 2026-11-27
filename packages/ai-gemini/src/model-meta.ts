@@ -990,7 +990,91 @@ const GEMINI_4_ARGON = {
     GeminiStructuredOutputOptions
 >
 
+const GEMINI_4_CARBON = {
+  name: 'gemini-4-carbon',
+  max_input_tokens: 1_048_576,
+  max_output_tokens: 943_718,
+  supports: {
+    input: ['audio', 'document', 'image', 'text', 'video'],
+    output: ['text'],
+    capabilities: ['function_calling', 'structured_output', 'thinking'],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
+  },
+  pricing: {
+    input: {
+      normal: 2,
+      cached: 0.1,
+    },
+    output: {
+      normal: 10,
+    },
+  },
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions
+>
+
+const GEMINI_4_HYDROGEN = {
+  name: 'gemini-4-hydrogen',
+  max_input_tokens: 1_048_576,
+  max_output_tokens: 943_718,
+  supports: {
+    input: ['audio', 'document', 'image', 'text', 'video'],
+    output: ['text'],
+    capabilities: ['function_calling', 'structured_output', 'thinking'],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
+  },
+  pricing: {
+    input: {
+      normal: 1.5,
+      cached: 0.075,
+    },
+    output: {
+      normal: 7.5,
+    },
+  },
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions
+>
+
+const GEMINI_4_NEON = {
+  name: 'gemini-4-neon',
+  max_input_tokens: 1_048_576,
+  max_output_tokens: 943_718,
+  supports: {
+    input: ['audio', 'document', 'image', 'text', 'video'],
+    output: ['text'],
+    capabilities: ['function_calling', 'structured_output', 'thinking'],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
+  },
+  pricing: {
+    input: {
+      normal: 3,
+      cached: 0.15,
+    },
+    output: {
+      normal: 15,
+    },
+  },
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions
+>
+
 export const GEMINI_MODELS = [
+  GEMINI_4_CARBON.name,
+  GEMINI_4_HYDROGEN.name,
+  GEMINI_4_NEON.name,
   GEMINI_4_ARGON.name,
   GEMINI_3_8_FLASH.name,
   GEMINI_3_7_FLASH.name,
@@ -1209,6 +1293,21 @@ export type GeminiChatModelProviderOptionsByName = {
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
     GeminiStructuredOutputOptions
+  [GEMINI_4_CARBON.name]: GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions
+  [GEMINI_4_HYDROGEN.name]: GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions
+  [GEMINI_4_NEON.name]: GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions
 }
 
 /**
@@ -1229,6 +1328,9 @@ export type GeminiChatModelToolCapabilitiesByName = {
   [GEMINI_2_5_FLASH.name]: typeof GEMINI_2_5_FLASH.supports.tools
   [GEMINI_2_5_FLASH_LITE.name]: typeof GEMINI_2_5_FLASH_LITE.supports.tools
   [GEMINI_4_ARGON.name]: typeof GEMINI_4_ARGON.supports.tools
+  [GEMINI_4_CARBON.name]: typeof GEMINI_4_CARBON.supports.tools
+  [GEMINI_4_HYDROGEN.name]: typeof GEMINI_4_HYDROGEN.supports.tools
+  [GEMINI_4_NEON.name]: typeof GEMINI_4_NEON.supports.tools
 }
 
 /**
@@ -1261,6 +1363,9 @@ export type GeminiModelInputModalitiesByName = {
   // Models with text, image, audio, video (no document)
   [GEMINI_2_5_FLASH.name]: typeof GEMINI_2_5_FLASH.supports.input
   [GEMINI_4_ARGON.name]: typeof GEMINI_4_ARGON.supports.input
+  [GEMINI_4_CARBON.name]: typeof GEMINI_4_CARBON.supports.input
+  [GEMINI_4_HYDROGEN.name]: typeof GEMINI_4_HYDROGEN.supports.input
+  [GEMINI_4_NEON.name]: typeof GEMINI_4_NEON.supports.input
 }
 
 /**
@@ -1285,6 +1390,9 @@ export const GEMINI_MODEL_INPUT_MODALITIES: Readonly<
   [GEMINI_2_5_FLASH_LITE.name]: GEMINI_2_5_FLASH_LITE.supports.input,
   [GEMINI_2_5_FLASH.name]: GEMINI_2_5_FLASH.supports.input,
   [GEMINI_4_ARGON.name]: GEMINI_4_ARGON.supports.input,
+  [GEMINI_4_CARBON.name]: GEMINI_4_CARBON.supports.input,
+  [GEMINI_4_HYDROGEN.name]: GEMINI_4_HYDROGEN.supports.input,
+  [GEMINI_4_NEON.name]: GEMINI_4_NEON.supports.input,
 } satisfies GeminiModelInputModalitiesByName
 
 // Reasoning
