@@ -546,10 +546,17 @@ describe('openaiLive', () => {
     expect(sentTypes()).toEqual(['session.input_audio.mute'])
   })
 
-  it('logs on sendImage', async () => {
+  it('reports an error on sendText and sendImage', async () => {
     const { connection } = await connectLive()
+    const errors = record(connection, 'error')
 
-    expect(() => connection.sendImage('abc', 'image/png')).not.toThrow()
+    connection.sendText('hello')
+    connection.sendImage('abc', 'image/png')
+
+    expect(errors.map((event) => event.error.message)).toEqual([
+      'openai.live sendText not supported',
+      'openai.live sendImage not supported',
+    ])
     expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining('openai.live sendImage not supported'),
       { source: 'openai.live' },

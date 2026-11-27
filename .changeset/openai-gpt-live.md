@@ -22,3 +22,5 @@ The options type is now a union of the token form and the relay form. If you rea
 Realtime adapters now get `RealtimeConnectOptions` (`abortSignal`, `autoCapture`) in `connect()`. With `autoCapture: false`, `openaiRealtime()` and `openaiLive()` open the microphone on the first `startAudioCapture()`, not on connect.
 
 `RealtimeClient` sends a tool result only to the connection that asked for it. After a reconnect, a result from the old session is dropped.
+
+`createSession` receives the connect `AbortSignal` as its second argument. Pass it to the session request so a cancelled connect does not open a provider session.

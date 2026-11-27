@@ -60,11 +60,15 @@ import { useRealtimeChat } from '@tanstack/ai-react'
 import { openaiLive } from '@tanstack/ai-openai'
 import type { RealtimeSessionRequest } from '@tanstack/ai'
 
-function createSession(request: RealtimeSessionRequest) {
+function createSession(
+  request: RealtimeSessionRequest,
+  abortSignal?: AbortSignal,
+) {
   return fetch('/api/live-session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
+    signal: abortSignal,
   }).then((r) => r.json())
 }
 
@@ -244,8 +248,8 @@ The server sets the start values of `delegation`, which include the model. But t
 
 GPT-Live does not support these hook functions:
 
-- `sendText()` and `sendImage()`: GPT-Live has no text or image input. The calls log an error and do nothing.
-- `updateSession()`: it changes only `providerOptions.delegation`, and not `delegation.model`. It logs an error for the other fields.
+- `sendText()` and `sendImage()`: the client adds a local message. GPT-Live does not send it. The adapter reports an error.
+- `updateSession()`: the open session changes only `providerOptions.delegation`. It does not change `delegation.model`. The client stores `instructions` and `voice`. The next `connect()` sends them.
 
 These functions work in a different way:
 
@@ -272,11 +276,12 @@ import { openaiLive } from '@tanstack/ai-openai'
 
 const client = new RealtimeClient({
   adapter: openaiLive(),
-  createSession: (request) =>
+  createSession: (request, abortSignal) =>
     fetch('/api/live-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
+      signal: abortSignal,
     }).then((r) => r.json()),
   instructions: 'You are a helpful voice assistant.',
   onMessage: (message) => console.log(`${message.role}:`, message.parts),
@@ -349,8 +354,10 @@ function getMicrophone(signal?: AbortSignal): Promise<MediaStream> {
       .getUserMedia({ audio: true })
       .then((stream) => {
         // The stream can come after the abort. Then nothing uses it.
-        if (signal?.aborted) {
+        if (signal && signal.aborted) {
           stream.getTracks().forEach((track) => track.stop())
+          reject(signal.reason)
+          return
         }
         resolve(stream)
       }, reject)
@@ -380,10 +387,38 @@ export function myProviderLive(): RealtimeRelayAdapter {
 
         const offer = await peer.createOffer()
         await peer.setLocalDescription(offer)
-        if (!offer.sdp) throw new Error('The offer has no SDP')
+        // Candidates arrive after setLocalDescription. Wait, then send that SDP.
+        if (peer.iceGatheringState !== 'complete') {
+          await new Promise<void>((resolve, reject) => {
+            const signal = options?.abortSignal
+            const timer = setTimeout(() => {
+              cleanup()
+              reject(new Error('ICE gathering timed out'))
+            }, 10_000)
+            const onChange = () => {
+              if (peer.iceGatheringState !== 'complete') return
+              cleanup()
+              resolve()
+            }
+            const onAbort = () => {
+              cleanup()
+              reject(signal?.reason)
+            }
+            function cleanup() {
+              clearTimeout(timer)
+              peer.removeEventListener('icegatheringstatechange', onChange)
+              signal?.removeEventListener('abort', onAbort)
+            }
+            if (signal?.aborted) return onAbort()
+            signal?.addEventListener('abort', onAbort, { once: true })
+            peer.addEventListener('icegatheringstatechange', onChange)
+          })
+        }
+        const sdp = peer.localDescription?.sdp
+        if (!sdp) throw new Error('The offer has no SDP')
         options?.abortSignal?.throwIfAborted()
 
-        const answer = await createSession({ sdp: offer.sdp })
+        const answer = await createSession({ sdp })
         await peer.setRemoteDescription({ type: 'answer', sdp: answer.sdp })
         return createMyConnection({
           peer,

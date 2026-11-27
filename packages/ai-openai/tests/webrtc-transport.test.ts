@@ -7,6 +7,8 @@ interface FakeChannel {
   close: Mock
   send: Mock
   readyState: string
+  bufferedAmount: number
+  bufferedAmountLowThreshold: number
   onopen: (() => void) | null
   onclose: (() => void) | null
   onerror: ((event: Event) => void) | null
@@ -21,6 +23,8 @@ function stubBrowser() {
     close: vi.fn(),
     send: vi.fn(),
     readyState: 'connecting',
+    bufferedAmount: 0,
+    bufferedAmountLowThreshold: 0,
     onopen: null,
     onclose: null,
     onerror: null,
@@ -63,6 +67,7 @@ function connect(
     onClose?: () => void
     abortSignal?: AbortSignal
     autoCapture?: boolean
+    exchangeSdp?: (sdp: string) => Promise<string>
   } = {},
 ) {
   const error = vi.fn()
@@ -72,7 +77,7 @@ function connect(
   const pending = createOpenAIWebRTCTransport({
     logger,
     source: 'openai.test',
-    exchangeSdp: async () => 'v=0',
+    exchangeSdp: overrides.exchangeSdp ?? (async () => 'v=0'),
     onServerEvent: () => {},
     onOpen: () => {},
     onError: overrides.onError ?? (() => {}),
@@ -297,6 +302,7 @@ describe('createOpenAIWebRTCTransport', () => {
     const { pending } = connect({ onError })
     const transport = await openTransport(browser, pending)
     const sent = recordSentTypes(browser.channel)
+    browser.channel.bufferedAmount = 64 * 1024 + 1
     browser.channel.send.mockImplementationOnce(() => {
       throw new DOMException(
         'RTCDataChannel send queue is full',
@@ -330,5 +336,80 @@ describe('createOpenAIWebRTCTransport', () => {
       new Error('Failed to send session.update: Message too large'),
     )
     expect(sent).toEqual(['response.create'])
+  })
+
+  it('drops an OperationError when the send buffer is not full', async () => {
+    const browser = stubBrowser()
+    const onError = vi.fn()
+    const { pending } = connect({ onError })
+    const transport = await openTransport(browser, pending)
+    const sent = recordSentTypes(browser.channel)
+    browser.channel.send.mockImplementationOnce(() => {
+      throw new DOMException('The payload is too large', 'OperationError')
+    })
+
+    transport.sendEvent({ type: 'session.update' })
+    transport.sendEvent({ type: 'response.create' })
+
+    expect(onError).toHaveBeenCalledWith(
+      new Error('Failed to send session.update: The payload is too large'),
+    )
+    expect(sent).toEqual(['response.create'])
+  })
+
+  it('sends the gathered local SDP after ICE gathering completes', async () => {
+    const browser = stubBrowser()
+    const offers: Array<string> = []
+    const listeners = new Set<() => void>()
+    Object.assign(browser.pc, {
+      iceGatheringState: 'gathering',
+      localDescription: { type: 'offer', sdp: 'v=0 candidates' },
+      addEventListener(_type: string, listener: () => void) {
+        listeners.add(listener)
+      },
+      removeEventListener(_type: string, listener: () => void) {
+        listeners.delete(listener)
+      },
+    })
+    const { pending } = connect({
+      exchangeSdp: async (sdp) => {
+        offers.push(sdp)
+        return 'v=0'
+      },
+    })
+
+    await vi.waitFor(() => expect(listeners.size).toBe(1))
+    expect(offers).toEqual([])
+    Object.assign(browser.pc, { iceGatheringState: 'complete' })
+    for (const listener of listeners) listener()
+
+    await untilWaitingForChannel(browser.pc)
+    expect(offers).toEqual(['v=0 candidates'])
+    browser.channel.readyState = 'open'
+    browser.channel.onopen?.()
+    await pending
+  })
+
+  it('stops waiting for ICE when connect aborts', async () => {
+    const browser = stubBrowser()
+    const listeners = new Set<() => void>()
+    Object.assign(browser.pc, {
+      iceGatheringState: 'gathering',
+      addEventListener(_type: string, listener: () => void) {
+        listeners.add(listener)
+      },
+      removeEventListener(_type: string, listener: () => void) {
+        listeners.delete(listener)
+      },
+    })
+    const abort = new AbortController()
+    const { pending } = connect({ abortSignal: abort.signal })
+
+    await vi.waitFor(() => expect(listeners.size).toBe(1))
+    abort.abort()
+
+    await expect(pending).rejects.toBe(abort.signal.reason)
+    expect(listeners.size).toBe(0)
+    expect(browser.pc.close).toHaveBeenCalled()
   })
 })

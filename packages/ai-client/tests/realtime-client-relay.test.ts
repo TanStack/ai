@@ -151,27 +151,111 @@ describe('RealtimeClient relay connect', () => {
     await client.connect()
 
     expect(createSession).toHaveBeenCalledTimes(1)
-    expect(createSession).toHaveBeenCalledWith({
-      sdp: 'offer-sdp',
-      config: {
-        instructions: 'Answer in one sentence.',
-        voice: 'marin',
-        vadMode: 'server',
-        tools: [
-          {
-            name: 'getWeather',
-            description: 'Get the weather for a city',
-            inputSchema: {
-              type: 'object',
-              properties: { city: { type: 'string' } },
-              required: ['city'],
+    expect(createSession).toHaveBeenCalledWith(
+      {
+        sdp: 'offer-sdp',
+        config: {
+          instructions: 'Answer in one sentence.',
+          voice: 'marin',
+          vadMode: 'server',
+          tools: [
+            {
+              name: 'getWeather',
+              description: 'Get the weather for a city',
+              inputSchema: {
+                type: 'object',
+                properties: { city: { type: 'string' } },
+                required: ['city'],
+              },
             },
-          },
-        ],
+          ],
+        },
       },
-    })
+      expect.any(AbortSignal),
+    )
     expect(answers).toEqual([answer])
     expect(client.getSnapshot().status).toBe('connected')
+    client.destroy()
+  })
+
+  it('drops the connection when the session goes idle', async () => {
+    const { connection, emit } = fakeConnection()
+    const onDisconnect = vi.fn()
+    let connects = 0
+    const client = new RealtimeClient({
+      ...clientConfig,
+      onDisconnect,
+      adapter: {
+        provider: 'test',
+        kind: 'relay',
+        connect: async (createSession) => {
+          connects += 1
+          await createSession({ sdp: 'offer-sdp' })
+          return connection
+        },
+      },
+      createSession: async () => answer,
+    })
+
+    await client.connect()
+    emit('status_change', { status: 'idle' })
+
+    expect(onDisconnect).toHaveBeenCalledTimes(1)
+    expect(client.status).toBe('idle')
+    expect(Reflect.get(client, 'connection')).toBeNull()
+
+    await client.connect()
+    expect(connects).toBe(2)
+    expect(onDisconnect).toHaveBeenCalledTimes(1)
+    await client.disconnect()
+    expect(onDisconnect).toHaveBeenCalledTimes(2)
+  })
+
+  it('stays connected and idle when the microphone is denied', async () => {
+    const { connection } = fakeConnection()
+    connection.startAudioCapture = async () => {
+      throw new Error('Permission denied')
+    }
+    const onError = vi.fn()
+    const client = new RealtimeClient({
+      ...clientConfig,
+      onError,
+      adapter: { provider: 'test', connect: async () => connection },
+      getToken: async () => token,
+    })
+
+    await client.connect()
+    client.startListening()
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledTimes(1))
+
+    expect(client.mode).toBe('idle')
+    expect(client.status).toBe('connected')
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Permission denied' }),
+    )
+    client.destroy()
+  })
+
+  it('does not mark listening when stopListening wins the microphone prompt', async () => {
+    const { connection } = fakeConnection()
+    let grant = () => {}
+    connection.startAudioCapture = () =>
+      new Promise<void>((resolve) => {
+        grant = resolve
+      })
+    const client = new RealtimeClient({
+      ...clientConfig,
+      adapter: { provider: 'test', connect: async () => connection },
+      getToken: async () => token,
+    })
+
+    await client.connect()
+    client.startListening()
+    client.stopListening()
+    grant()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(client.mode).toBe('idle')
     client.destroy()
   })
 

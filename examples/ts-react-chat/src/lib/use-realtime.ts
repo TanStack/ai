@@ -74,8 +74,14 @@ function connectionForProvider(provider: Provider, language?: string) {
   if (provider === 'openai-live') {
     return {
       adapter: openaiLive(),
-      createSession: (request: RealtimeSessionRequest) =>
-        createLiveSessionFn({ data: request }),
+      createSession: (
+        request: RealtimeSessionRequest,
+        abortSignal?: AbortSignal,
+      ) =>
+        createLiveSessionFn({
+          data: request,
+          ...(abortSignal ? { signal: abortSignal } : {}),
+        }),
     }
   }
   return {

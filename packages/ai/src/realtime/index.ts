@@ -71,6 +71,9 @@ function parseSessionRequest(request: unknown) {
       'realtimeSession(): the request `config` must be an object.',
     )
   }
+  if (config.tools !== undefined && !Array.isArray(config.tools)) {
+    throw new Error('realtimeSession(): `config.tools` must be an array.')
+  }
   return { sdp, config }
 }
 
@@ -83,8 +86,8 @@ function parseSessionRequest(request: unknown) {
  * browser.
  *
  * The request comes from the browser, so it is not trusted. The call rejects
- * when `sdp` is not a non-empty string or `config` is not an object. Other
- * keys are dropped.
+ * when `sdp` is not a non-empty string, `config` is not an object, or
+ * `config.tools` is set and is not an array. Other keys are dropped.
  *
  * @param options - The adapter, the request body, and an optional `abortSignal`
  * @returns Promise resolving to a RealtimeSessionAnswer

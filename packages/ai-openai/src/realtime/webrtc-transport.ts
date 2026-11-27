@@ -156,13 +156,13 @@ export async function createOpenAIWebRTCTransport(options: {
       }
     }
 
-    // Create and set local description (now includes audio track)
+    // The audio m-line is on the offer. Candidates arrive after this.
     const offer = await pc.createOffer()
     await pc.setLocalDescription(offer)
-
-    // ponytail: the WebRTC types mark `sdp` as optional, but createOffer()
-    // always sets it. The empty string only satisfies the type.
-    const answerSdp = await options.exchangeSdp(offer.sdp ?? '', abortSignal)
+    await waitForIceGathering(pc, abortSignal)
+    const sdp = pc.localDescription?.sdp || offer.sdp
+    if (!sdp) throw new Error('WebRTC offer has no SDP.')
+    const answerSdp = await options.exchangeSdp(sdp, abortSignal)
     await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
   } catch (error) {
     if (localStream) stopTracks(localStream)
@@ -293,10 +293,12 @@ export async function createOpenAIWebRTCTransport(options: {
     try {
       channel.send(JSON.stringify(event))
     } catch (error) {
+      // An oversized payload also throws OperationError. Only a full buffer waits.
       const isBufferFull =
         channel.readyState === 'open' &&
         error instanceof DOMException &&
-        error.name === 'OperationError'
+        error.name === 'OperationError' &&
+        channel.bufferedAmount > channel.bufferedAmountLowThreshold
       if (isBufferFull) return false
       options.onError(
         new Error(
@@ -452,6 +454,48 @@ export async function createOpenAIWebRTCTransport(options: {
       }
     },
   }
+}
+
+// ponytail: 10s ceiling. A stuck network never finishes gathering.
+const ICE_TIMEOUT_MS = 10_000
+
+/**
+ * Wait until the browser has put ICE candidates on the local description.
+ * A fake peer with no gathering state skips the wait.
+ */
+function waitForIceGathering(
+  pc: RTCPeerConnection,
+  abortSignal?: AbortSignal,
+): Promise<void> {
+  const state = pc.iceGatheringState
+  if (state == null || state === 'complete') return Promise.resolve()
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup()
+      reject(new Error('ICE gathering timed out.'))
+    }, ICE_TIMEOUT_MS)
+
+    const onChange = () => {
+      if (pc.iceGatheringState !== 'complete') return
+      cleanup()
+      resolve()
+    }
+    const onAbort = () => {
+      cleanup()
+      reject(abortSignal?.reason)
+    }
+    function cleanup() {
+      clearTimeout(timer)
+      pc.removeEventListener('icegatheringstatechange', onChange)
+      abortSignal?.removeEventListener('abort', onAbort)
+    }
+
+    if (abortSignal?.aborted) return onAbort()
+    abortSignal?.addEventListener('abort', onAbort, { once: true })
+    pc.addEventListener('icegatheringstatechange', onChange)
+    if (pc.iceGatheringState === 'complete') onChange()
+  })
 }
 
 /** Settle like `promise`, or reject with the abort reason when `signal` aborts first. */

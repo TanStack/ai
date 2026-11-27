@@ -183,10 +183,13 @@ describe('createRealtimeChat', () => {
     await chat.connect()
 
     expect(chat.status).toBe('connected')
-    expect(createSession).toHaveBeenCalledWith({
-      sdp: 'v=0 offer',
-      config: { instructions: 'be brief', vadMode: 'server' },
-    })
+    expect(createSession).toHaveBeenCalledWith(
+      {
+        sdp: 'v=0 offer',
+        config: { instructions: 'be brief', vadMode: 'server' },
+      },
+      expect.any(AbortSignal),
+    )
     expect(relay.answers).toEqual([answer])
   })
 })

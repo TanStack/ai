@@ -951,7 +951,8 @@
         {
           "label": "GPT-Live Voice",
           "to": "media/live-voice",
-          "addedAt": "2026-11-23"
+          "addedAt": "2026-11-23",
+          "updatedAt": "2026-11-27"
         },
         {
           "label": "Text-to-Speech",

@@ -113,9 +113,12 @@ export type RealtimeClientOptions = RealtimeClientBaseOptions &
          * Sends the SDP offer and the client config to your server.
          * Your server gives the request to `realtimeSession()` and returns
          * the answer. Called once on each connect.
+         * Pass `abortSignal` to that request. A cancelled connect then stops
+         * before the provider opens a billed session.
          */
         createSession: (
           request: RealtimeSessionRequest,
+          abortSignal?: AbortSignal,
         ) => Promise<RealtimeSessionAnswer>
         getToken?: never
       }

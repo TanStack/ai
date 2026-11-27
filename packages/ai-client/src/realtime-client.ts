@@ -64,6 +64,10 @@ export class RealtimeClient {
   private connection: RealtimeConnection | null = null
   /** Aborts the `adapter.connect()` setup when `disconnect()` runs. */
   private connectAbort: AbortController | null = null
+  /** Bumps on start or stop, so a late microphone grant cannot mark listening. */
+  private captureEpoch = 0
+  /** True during disconnect(), so the adapter idle event does not notify twice. */
+  private endingLocally = false
   private token: RealtimeToken | null = null
   /** Changes from updateSession() after the relay offer left, before connect ends. */
   private relaySetupChanges: Partial<RealtimeSessionConfig> | null = null
@@ -117,6 +121,13 @@ export class RealtimeClient {
     if (this.state.status === 'connected') {
       return
     }
+    // A remote close can leave the peer up. Drop it before a new connect.
+    if (this.connection && this.state.status === 'idle') {
+      const stale = this.connection
+      this.connection = null
+      await stale.disconnect().catch(() => {})
+      this.options.onDisconnect?.()
+    }
 
     this.updateState({
       status: 'connecting',
@@ -138,15 +149,17 @@ export class RealtimeClient {
 
       let connection: RealtimeConnection
       if (isRelay) {
-        // The session config goes to the server with the offer, so the
-        // relay path has no token and no updateSession() after connect.
+        // The session config goes to the server with the offer. There is no token.
         connection = await options.adapter.connect(
           (offer) => {
             const config = this.buildSessionConfig() ?? {}
             // From here, updateSession() changes go to the session after
             // connect, because the server already has this config.
             this.relaySetupChanges = {}
-            return options.createSession({ sdp: offer.sdp, config })
+            return options.createSession(
+              { sdp: offer.sdp, config },
+              connectAbort.signal,
+            )
           },
           toolsList,
           { abortSignal: connectAbort.signal, autoCapture },
@@ -230,31 +243,36 @@ export class RealtimeClient {
    * Disconnect from the realtime session.
    */
   async disconnect(): Promise<void> {
-    this.connectAbort?.abort()
-    if (this.tokenRefreshTimeout) {
-      clearTimeout(this.tokenRefreshTimeout)
-      this.tokenRefreshTimeout = null
-    }
+    this.endingLocally = true
+    try {
+      this.connectAbort?.abort()
+      if (this.tokenRefreshTimeout) {
+        clearTimeout(this.tokenRefreshTimeout)
+        this.tokenRefreshTimeout = null
+      }
 
-    // Unsubscribe from all events
-    for (const unsub of this.unsubscribers) {
-      unsub()
-    }
-    this.unsubscribers = []
+      // Unsubscribe from all events
+      for (const unsub of this.unsubscribers) {
+        unsub()
+      }
+      this.unsubscribers = []
 
-    if (this.connection) {
-      await this.connection.disconnect()
-      this.connection = null
-    }
+      if (this.connection) {
+        await this.connection.disconnect()
+        this.connection = null
+      }
 
-    this.token = null
-    this.updateState({
-      status: 'idle',
-      mode: 'idle',
-      pendingUserTranscript: null,
-      pendingAssistantTranscript: null,
-    })
-    this.options.onDisconnect?.()
+      this.token = null
+      this.updateState({
+        status: 'idle',
+        mode: 'idle',
+        pendingUserTranscript: null,
+        pendingAssistantTranscript: null,
+      })
+      this.options.onDisconnect?.()
+    } finally {
+      this.endingLocally = false
+    }
   }
 
   // ============================================================================
@@ -266,11 +284,25 @@ export class RealtimeClient {
    * Only needed when vadMode is 'manual'.
    */
   startListening(): void {
-    if (!this.connection || this.state.status !== 'connected') {
+    const connection = this.connection
+    if (!connection || this.state.status !== 'connected') {
       return
     }
-    void this.connection.startAudioCapture()
-    this.updateState({ mode: 'listening' })
+    const epoch = ++this.captureEpoch
+    void connection.startAudioCapture().then(
+      () => {
+        if (this.connection !== connection || this.captureEpoch !== epoch)
+          return
+        this.updateState({ mode: 'listening' })
+      },
+      (error: unknown) => {
+        if (this.connection !== connection || this.captureEpoch !== epoch)
+          return
+        const err = error instanceof Error ? error : new Error(String(error))
+        this.updateState({ mode: 'idle', error: err })
+        this.options.onError?.(err)
+      },
+    )
   }
 
   /**
@@ -281,6 +313,7 @@ export class RealtimeClient {
     if (!this.connection) {
       return
     }
+    this.captureEpoch++
     this.connection.stopAudioCapture()
     this.updateState({ mode: 'idle' })
   }
@@ -560,6 +593,14 @@ export class RealtimeClient {
     // Status changes
     this.unsubscribers.push(
       on('status_change', ({ status }) => {
+        if (status === 'idle' && !this.endingLocally) {
+          this.connection = null
+          for (const unsub of this.unsubscribers) unsub()
+          this.unsubscribers = []
+          this.updateState({ status })
+          this.options.onDisconnect?.()
+          return
+        }
         this.updateState({ status })
       }),
     )

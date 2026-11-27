@@ -360,11 +360,15 @@ async function createLiveConnection(
     },
 
     sendText() {
-      logger.errors(`${SOURCE} sendText not supported`, { source: SOURCE })
+      const error = new Error(`${SOURCE} sendText not supported`)
+      logger.errors(error.message, { source: SOURCE })
+      emit('error', { error })
     },
 
     sendImage() {
-      logger.errors(`${SOURCE} sendImage not supported`, { source: SOURCE })
+      const error = new Error(`${SOURCE} sendImage not supported`)
+      logger.errors(error.message, { source: SOURCE })
+      emit('error', { error })
     },
 
     sendToolResult(callId: string, result: string) {

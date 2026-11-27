@@ -105,9 +105,10 @@ export function useRealtimeChat(
       ...(initial.createSession
         ? {
             adapter: initial.adapter,
-            createSession: (request) =>
+            createSession: (request, abortSignal) =>
               (optionsRef.current.createSession ?? initial.createSession)(
                 request,
+                abortSignal,
               ),
           }
         : {

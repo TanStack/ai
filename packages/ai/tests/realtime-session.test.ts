@@ -38,6 +38,17 @@ describe('realtimeSession()', () => {
     expect(calls).toHaveLength(0)
   })
 
+  it('rejects a config whose tools value is not an array', async () => {
+    const { adapter, calls } = recordingAdapter()
+    await expect(
+      realtimeSession({
+        adapter,
+        request: { sdp: 'v=0 offer', config: { tools: 'nope' } },
+      }),
+    ).rejects.toThrow('`config.tools` must be an array')
+    expect(calls).toHaveLength(0)
+  })
+
   it('rejects a request whose config is not an object', async () => {
     const { adapter, calls } = recordingAdapter()
     await expect(

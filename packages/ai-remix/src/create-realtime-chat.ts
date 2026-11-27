@@ -85,7 +85,8 @@ export function createRealtimeChat(
     // A relay adapter takes `createSession`. A token adapter takes `getToken`.
     ...(options.createSession
       ? {
-          createSession: (request) => options.createSession(request),
+          createSession: (request, abortSignal) =>
+            options.createSession(request, abortSignal),
           adapter: {
             kind: 'relay',
             get provider() {
