@@ -8,7 +8,7 @@
  * `tools` array; this file covers `modelOptions`. Compile-time only.
  */
 import { beforeAll, describe, expectTypeOf, it } from 'vitest'
-import { chat } from '@tanstack/ai'
+import { chat, createChatOptions } from '@tanstack/ai'
 import { openaiText } from '../src'
 import type { OpenAIChatModelProviderOptionsByName } from '../src'
 
@@ -242,6 +242,131 @@ describe('OpenAI per-model chat modelOptions gating', () => {
           reasoning: { effort: 'low' },
         },
       })
+    })
+  })
+
+  describe.each(['gpt-6.1-terra', 'gpt-6.1-terra-pro'] as const)(
+    '%s — reasoning none to max',
+    (model) => {
+      it('accepts its reasoning levels', () => {
+        for (const reasoning of ['off', 'low', 'max'] as const) {
+          chat({
+            threadId: 'thread-1',
+            adapter: openaiText(model),
+            messages: [{ role: 'user', content: 'hi' }],
+            reasoning,
+          })
+        }
+      })
+    },
+  )
+
+  describe('sampling options and reasoning', () => {
+    const messages = [{ role: 'user' as const, content: 'hi' }]
+
+    it('accepts temperature, top_p and top_logprobs on a reasoning model when reasoning is off', () => {
+      chat({
+        threadId: 'thread-1',
+        adapter: openaiText('gpt-5.5'),
+        messages,
+        reasoning: 'off',
+        modelOptions: { temperature: 0.2, top_p: 0.9, top_logprobs: 2 },
+      })
+      chat({
+        threadId: 'thread-1',
+        adapter: openaiText('gpt-5.5'),
+        messages,
+        reasoning: { level: 'off' },
+        modelOptions: { temperature: 0.2 },
+      })
+    })
+
+    it('rejects temperature on a reasoning model when reasoning is on', () => {
+      chat({
+        threadId: 'thread-1',
+        adapter: openaiText('gpt-5.5'),
+        messages,
+        reasoning: 'high',
+        // @ts-expect-error - the adapter drops temperature unless reasoning is 'off'
+        modelOptions: { temperature: 0.2 },
+      })
+      chat({
+        threadId: 'thread-1',
+        adapter: openaiText('gpt-5.5'),
+        messages,
+        reasoning: { level: 'low', summary: false },
+        // @ts-expect-error - the adapter drops top_p unless reasoning is 'off'
+        modelOptions: { top_p: 0.9 },
+      })
+    })
+
+    it('rejects temperature on a reasoning model when reasoning is not set', () => {
+      chat({
+        threadId: 'thread-1',
+        adapter: openaiText('gpt-5.5'),
+        messages,
+        // @ts-expect-error - the default effort is not 'off', so the adapter drops temperature
+        modelOptions: { temperature: 0.2 },
+      })
+    })
+
+    it('keeps temperature on models that accept it', () => {
+      chat({
+        threadId: 'thread-1',
+        adapter: openaiText('gpt-4.1'),
+        messages,
+        modelOptions: { temperature: 0.2 },
+      })
+      chat({
+        threadId: 'thread-1',
+        adapter: openaiText('gpt-5.2-chat-latest'),
+        messages,
+        reasoning: 'medium',
+        modelOptions: { temperature: 0.2 },
+      })
+    })
+  })
+
+  describe('sampling options through createChatOptions', () => {
+    const messages = [{ role: 'user' as const, content: 'hi' }]
+
+    it('spreads options into chat() with the same rule', () => {
+      const plain = createChatOptions({ adapter: openaiText('gpt-6.1-sol') })
+      chat({ ...plain, messages, threadId: 'thread-1' })
+
+      const off = createChatOptions({
+        adapter: openaiText('gpt-5.5'),
+        reasoning: 'off',
+        modelOptions: { temperature: 0.2 },
+      })
+      chat({ ...off, messages, threadId: 'thread-1' })
+
+      const base = createChatOptions({
+        adapter: openaiText('gpt-5.5'),
+        modelOptions: { max_output_tokens: 100 },
+      })
+      chat({ ...base, messages, threadId: 'thread-1', reasoning: 'high' })
+    })
+
+    it('rejects temperature when reasoning is not off', () => {
+      createChatOptions({
+        adapter: openaiText('gpt-5.5'),
+        // @ts-expect-error - the adapter drops temperature unless reasoning is 'off'
+        modelOptions: { temperature: 0.2 },
+      })
+    })
+  })
+
+  describe('service_tier', () => {
+    it('accepts the known tiers and new tier names', () => {
+      for (const service_tier of ['flex', 'priority', 'ultrafast'] as const) {
+        chat({
+          threadId: 'thread-1',
+          adapter: openaiText('gpt-6-astra'),
+          messages: [{ role: 'user', content: 'hi' }],
+          modelOptions: { service_tier },
+        })
+      }
     })
   })
 

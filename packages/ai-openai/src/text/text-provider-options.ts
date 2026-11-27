@@ -109,14 +109,21 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
 
 If set to 'auto', then the request will be processed with the service tier configured in the Project settings. Unless otherwise configured, the Project will use 'default'.
 If set to 'default', then the request will be processed with the standard pricing and performance for the selected model.
-If set to 'flex' or 'priority', then the request will be processed with the corresponding service tier.
+If set to 'flex', 'priority' or 'ultrafast', then the request will be processed with the corresponding service tier.
+Not every model has every tier. Other tier names are accepted for tiers that are newer than this list.
 When not set, the default behavior is 'auto'.
 When the service_tier parameter is set, the response body will include the service_tier value based on the processing mode actually used to serve the request. This response value may be different from the value set in the parameter.
 
 https://platform.openai.com/docs/api-reference/responses/create#responses_create-service_tier
 @default 'auto'
    */
-  service_tier?: 'auto' | 'default' | 'flex' | 'priority'
+  service_tier?:
+    | 'auto'
+    | 'default'
+    | 'flex'
+    | 'priority'
+    | 'ultrafast'
+    | (string & {})
 
   /**
    * Whether to store the generated model response for later retrieval via API.

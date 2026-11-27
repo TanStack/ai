@@ -11,6 +11,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createGroqText('openai/gpt-oss-120b', 'k'),
   messages,
   // @ts-expect-error gpt-oss cannot turn thinking off
@@ -18,6 +19,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createGroqText('openai/gpt-oss-120b', 'k'),
   messages,
   // @ts-expect-error reasoning_effort is the chat() reasoning option now

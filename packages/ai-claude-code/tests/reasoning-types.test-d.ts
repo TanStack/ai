@@ -12,6 +12,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: claudeCodeText('claude-opus-4-8'),
   messages,
   // @ts-expect-error claude-opus-4-8 takes no token budget
@@ -19,6 +20,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: claudeCodeText('claude-haiku-4-5'),
   messages,
   // @ts-expect-error claude-haiku-4-5 has no max level

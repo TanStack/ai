@@ -22,6 +22,7 @@ chat({
 chat({ adapter: createGrokText('grok-4.7', 'k'), messages, reasoning: 'off' })
 
 chat({
+  threadId: 'thread-1',
   adapter: createGrokText('grok-build-0.1', 'k'),
   messages,
   // @ts-expect-error the xAI API refuses reasoning for grok-build-0.1
@@ -29,6 +30,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: grokVertexText('grok-4.20-reasoning', { project: 'p' }),
   messages,
   // @ts-expect-error grok-4.20-reasoning always thinks, and has no levels
@@ -36,6 +38,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createGrokText('grok-4.3', 'k'),
   messages,
   // @ts-expect-error reasoning lives on chat({ reasoning }), not modelOptions

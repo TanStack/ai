@@ -43,9 +43,9 @@ export const supportChatOptions = createChatOptions({
   systemPrompts: ['You are a customer-support assistant for Acme Corp.'],
   tools: [lookupOrder],
   reasoning: 'medium',
-  // Sampling settings go in modelOptions, under the key of the provider.
+  // Provider settings go in modelOptions, under the key of the provider.
   modelOptions: {
-    temperature: 0.3,
+    max_output_tokens: 1000,
   },
 })
 ```

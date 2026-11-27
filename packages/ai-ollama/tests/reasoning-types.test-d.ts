@@ -27,6 +27,7 @@ chat({
 chat({ adapter: createOllamaChat('qwen3:8b'), messages, reasoning: 'low' })
 
 chat({
+  threadId: 'thread-1',
   adapter: createOllamaChat('athene-v2:latest'),
   messages,
   // @ts-expect-error a listed model that does not reason takes no reasoning
@@ -34,6 +35,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createOllamaChat('qwen3:8b'),
   messages,
   // @ts-expect-error think is set with chat({ reasoning })

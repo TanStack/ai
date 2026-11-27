@@ -36,7 +36,29 @@ export type ReasoningLevels = Partial<Record<ReasoningLevel, string>>
 export interface ReasoningCapability {
   levels: ReasoningLevel
   budget: boolean
+  /**
+   * The `modelOptions` keys that the model takes only when `reasoning` is
+   * `'off'`, for example `temperature` on OpenAI reasoning models. `chat()`
+   * makes them a type error when `reasoning` is not `'off'` or not set.
+   */
+  offOnlyOptions?: string
 }
+
+/**
+ * The `modelOptions` type of `chat()`. The keys in `offOnlyOptions` are
+ * `never`, unless the `reasoning` option is `'off'`.
+ */
+export type ModelOptionsForReasoning<
+  TProviderOptions,
+  TCapability,
+  TReasoningOption,
+> = [TReasoningOption] extends ['off' | { level: 'off' }]
+  ? TProviderOptions
+  : TProviderOptions & {
+      [K in TCapability extends { offOnlyOptions: infer TKeys extends string }
+        ? TKeys
+        : never]?: never
+    }
 
 /**
  * The `reasoning` option of `chat()`: a level, or an object. `summary` asks

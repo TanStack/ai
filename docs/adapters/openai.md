@@ -356,10 +356,12 @@ const stream = chat({
 });
 ```
 
-- OpenAI rejects `temperature`, `top_p`, and `top_logprobs` on the reasoning models. `openaiText` drops the three options for these model ids:
-  - The `o` models (`o1`, `o3`, `o4-mini`, and so on).
+- On a reasoning model, `temperature`, `top_p`, and `top_logprobs` type-check only with `reasoning: "off"`. OpenAI rejects them at other efforts.
+- This rule applies to these model ids:
+  - The `o` models (`o1`, `o3`, `o4-mini`, and more).
   - Every `gpt-5` and `gpt-6` model, except ids that end in `-chat-latest`.
-- When reasoning effort is `none` (`reasoning: "off"`), OpenAI accepts the three options, so `openaiText` keeps them.
+- Some models have no `"off"` level (for example `gpt-6.1-sol`). On these models, the three options are always a type error.
+- `service_tier` takes `"auto"`, `"default"`, `"flex"`, `"priority"`, `"ultrafast"`, or a newer tier name. Not every model has every tier.
 - With `openaiChatCompletions`, the token limit is `max_tokens`.
 - Sampling options do not go at the root of `chat()`. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 

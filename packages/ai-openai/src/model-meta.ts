@@ -2697,6 +2697,7 @@ const GPT_6_1_TERRA = {
       normal: 5,
     },
   },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -2737,6 +2738,7 @@ const GPT_6_1_TERRA_PRO = {
       normal: 5,
     },
   },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
     OpenAIStructuredOutputOptions &
@@ -3440,6 +3442,8 @@ const OPENAI_REASONING = {
   [GPT_6_SOL_PRO.name]: GPT_6_SOL_PRO.reasoning,
   [GPT_6_1_SOL.name]: GPT_6_1_SOL.reasoning,
   [GPT_6_1_SOL_PRO.name]: GPT_6_1_SOL_PRO.reasoning,
+  [GPT_6_1_TERRA.name]: GPT_6_1_TERRA.reasoning,
+  [GPT_6_1_TERRA_PRO.name]: GPT_6_1_TERRA_PRO.reasoning,
 }
 
 /**

@@ -43,6 +43,19 @@ test.describe('chat({ reasoning }) — wire format', () => {
     })
   })
 
+  test('openai sends reasoning.effort for gpt-6.1-terra', async ({
+    request,
+    testId,
+  }) => {
+    const { bodies } = await run(request, 'openai-terra', testId)
+    expect(bodies[0]?.['model']).toBe('gpt-6.1-terra')
+    expect(bodies[0]?.['reasoning']).toEqual({
+      effort: 'medium',
+      summary: 'auto',
+    })
+    expect(bodies[0]?.['include']).toEqual(['reasoning.encrypted_content'])
+  })
+
   test('openai-compatible sends reasoning_effort from the reasoning option', async ({
     request,
     testId,

@@ -57,12 +57,10 @@ chat({
   // Reasoning: goes out as reasoning.effort, with a summary
   reasoning: { level: 'high', summary: true },
   modelOptions: {
-    // Sampling
-    temperature: 0.7,
-    top_p: 0.9,
+    // Sampling: temperature, top_p and top_logprobs need reasoning: 'off'
     max_output_tokens: 1000,
     // Service tier
-    service_tier: 'auto', // 'auto' | 'default' | 'flex' | 'priority'
+    service_tier: 'auto', // 'auto' | 'default' | 'flex' | 'priority' | 'ultrafast'
     // Response storage
     store: true,
     // Truncation strategy

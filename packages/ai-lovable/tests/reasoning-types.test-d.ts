@@ -11,6 +11,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createLovableText('openai/gpt-5', 'k'),
   messages,
   // @ts-expect-error gpt-5 has no max level
@@ -18,6 +19,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createLovableText('openai/gpt-5', 'k'),
   messages,
   // @ts-expect-error reasoning is the chat() option, not a model option

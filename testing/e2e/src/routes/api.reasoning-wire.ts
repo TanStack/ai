@@ -91,10 +91,14 @@ export const Route = createFileRoute('/api/reasoning-wire')({
                       defaultHeaders: headers,
                       reasoning: compatibleLevels,
                     })
-                  : createOpenaiChat('o3', DUMMY_KEY, {
-                      baseURL: `${LLMOCK_DEFAULT_BASE}/v1`,
-                      defaultHeaders: headers,
-                    })
+                  : createOpenaiChat(
+                      provider === 'openai-terra' ? 'gpt-6.1-terra' : 'o3',
+                      DUMMY_KEY,
+                      {
+                        baseURL: `${LLMOCK_DEFAULT_BASE}/v1`,
+                        defaultHeaders: headers,
+                      },
+                    )
 
         let text = ''
         try {

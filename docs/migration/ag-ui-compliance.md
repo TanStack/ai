@@ -190,10 +190,11 @@ export async function POST(req: Request) {
   // SAFE: an explicit allowlist. Sampling options go in modelOptions, under
   // the key names of the provider (OpenAI: temperature, max_output_tokens).
   const stream = chat({
-    adapter: openaiText('gpt-6.1-sol'),
+    adapter: openaiText('gpt-6.1-terra'),
     messages: params.messages,
     threadId: params.threadId,
     tools: mergeAgentTools(serverTools, params.tools),
+    reasoning: 'off',
     modelOptions: {
       temperature:
         typeof params.forwardedProps.temperature === 'number'

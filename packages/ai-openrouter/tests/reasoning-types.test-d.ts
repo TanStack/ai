@@ -12,6 +12,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createOpenRouterText('google/gemini-2.5-pro', 'k'),
   messages,
   // @ts-expect-error the chat request schema has no token budget field
@@ -19,6 +20,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createOpenRouterText('google/gemini-2.5-pro', 'k'),
   messages,
   // @ts-expect-error gemini-2.5-pro has no max level
@@ -34,6 +36,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createOpenRouterText('openai/gpt-5.5', 'k'),
   messages,
   // @ts-expect-error reasoning lives on chat({ reasoning }), not modelOptions

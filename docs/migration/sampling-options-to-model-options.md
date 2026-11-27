@@ -9,11 +9,12 @@ A codemod moves them for you. `metadata` is not a sampling option, so it stays a
 
 ```diff
   chat({
-    adapter: openaiText('gpt-6.1-sol'),
+    adapter: openaiText('gpt-6.1-terra'),
     messages,
 -   temperature: 0.3,
 -   topP: 0.9,
 -   maxTokens: 100,
+    reasoning: 'off',
 +   modelOptions: {
 +     temperature: 0.3,
 +     top_p: 0.9,
@@ -73,9 +74,10 @@ import { openaiText } from '@tanstack/ai-openai'
 const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 chat({
-  adapter: openaiText('gpt-6.1-sol'),
+  adapter: openaiText('gpt-6.1-terra'),
   messages,
   threadId: 'thread-1',
+  reasoning: 'off',
   modelOptions: {
     temperature: 0.3,
     top_p: 0.9,
@@ -154,10 +156,11 @@ import { openaiText } from '@tanstack/ai-openai'
 const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 chat({
-  adapter: openaiText('gpt-6.1-sol'),
+  adapter: openaiText('gpt-6.1-terra'),
   messages,
   threadId: 'thread-1',
   metadata: { requestId: 'abc-123' },
+  reasoning: 'off',
   modelOptions: {
     temperature: 0.3,
     max_output_tokens: 100,

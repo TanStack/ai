@@ -12,6 +12,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createAzureOpenaiText('gpt-5.2', 'key', config),
   messages,
   // @ts-expect-error gpt-5.2 has no max level
@@ -19,6 +20,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createAzureOpenaiText('gpt-5.5', 'key', config),
   messages,
   // @ts-expect-error reasoning is the chat() option, not a model option
@@ -26,6 +28,7 @@ chat({
 })
 
 chat({
+  threadId: 'thread-1',
   adapter: createAzureOpenaiText('my-deployment', 'key', config),
   messages,
   // @ts-expect-error a deployment name is not an OpenAI model, so no levels
