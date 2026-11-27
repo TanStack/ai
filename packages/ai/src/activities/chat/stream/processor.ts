@@ -2528,7 +2528,13 @@ export class StreamProcessor {
     if (!state) return
 
     const existingToolCall = state.toolCalls.get(toolCallId)
-    if (!existingToolCall) return
+    if (
+      !existingToolCall ||
+      existingToolCall.state === 'input-complete' ||
+      this.isToolCallPartTerminal(toolCallId)
+    ) {
+      return
+    }
 
     const wasAwaitingInput = existingToolCall.state === 'awaiting-input'
 

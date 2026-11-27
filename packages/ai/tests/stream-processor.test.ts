@@ -2814,6 +2814,39 @@ describe('StreamProcessor', () => {
       expect(processor.getMessages()).toHaveLength(0)
     })
 
+    it.each(['input-complete', 'complete', 'error'])(
+      'ignores late TOOL_CALL_ARGS for a tool call in %s',
+      (state) => {
+        const processor = new StreamProcessor()
+        processor.prepareAssistantMessage()
+        const args = '{"city":"Paris"}'
+        processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
+        processor.processChunk(ev.toolArgs('tc-1', args))
+
+        if (state !== 'error') processor.processChunk(ev.toolEnd('tc-1'))
+        if (state === 'complete') {
+          processor.processChunk(ev.toolResult('tc-1', '{"temp":72}'))
+        }
+        if (state === 'error') {
+          processor.processChunk(
+            chunk(EventType.TOOL_CALL_RESULT, {
+              ...ev.toolResult('tc-1', 'Weather unavailable'),
+              metadata: { tanstack: { state: 'output-error' } },
+            }),
+          )
+        }
+
+        const toolPart = () =>
+          processor.getMessages()[0]?.parts.find((p) => p.type === 'tool-call')
+        expect(toolPart()).toMatchObject({ state, arguments: args })
+
+        processor.processChunk(ev.toolArgs('tc-1', '}'))
+
+        expect(toolPart()).toMatchObject({ state, arguments: args })
+        expect(processor.getState().toolCalls.get('tc-1')?.arguments).toBe(args)
+      },
+    )
+
     it('empty delta in TOOL_CALL_ARGS should not transition from awaiting-input', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
