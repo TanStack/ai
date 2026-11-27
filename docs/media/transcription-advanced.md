@@ -162,7 +162,7 @@ export function Transcriber() {
 `generateTranscription({ stream: true })` sends AG-UI text events and the final `generation:result` event.
 
 - For `json` or no format, `gpt-transcribe` sends text deltas as it transcribes. For another format, it sends one final delta.
-- `gpt-4o-transcribe` and `gpt-4o-mini-transcribe` accept only `json`. Another format returns an API error.
+- `gpt-4o-transcribe` and `gpt-4o-mini-transcribe` accept `json` and `text`. If the format is not `json`, each model waits and sends one delta. The format `verbose_json` returns an API error.
 - An adapter without `transcribeStream`, including `whisper-1`, sends the completed text in one delta.
 - If you pass `middleware`, the activity sends one delta after the middleware completes.
 

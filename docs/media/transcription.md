@@ -152,8 +152,9 @@ To record from the microphone instead of a file, see [Audio Recording](./audio-r
 - **The component** reads the file as a data URL. The hook sends its input as JSON, so the audio must be a string. A data URL also tells the provider the real audio type.
 - **The route** reads the input with `generationParamsFromRequest()`. Then `generateTranscription()` sends the audio to the model.
 - **The hook** gets the result back over Server-Sent Events. With `gpt-transcribe`, `gpt-4o-transcribe`, and `gpt-4o-mini-transcribe`, `onChunk` receives standard AG-UI text events as the transcription arrives. `result.text` holds the completed result.
-- When the format is `json` or omitted, `gpt-transcribe` sends each text delta. If the format is not `json`, `gpt-transcribe` waits for the full result and sends one text delta. `gpt-4o-transcribe` and `gpt-4o-mini-transcribe` accept only `json`. A different format is an API error.
-- Whisper and adapters without incremental transcription support return the full text when they finish.
+- When the format is `json`, or when you omit the format, `gpt-transcribe`, `gpt-4o-transcribe`, and `gpt-4o-mini-transcribe` send each text delta. When the format is not `json`, those models wait for the full result and send one text delta.
+- `gpt-4o-transcribe` and `gpt-4o-mini-transcribe` accept `json` and `text`. The format `verbose_json` returns an API error.
+- When the request finishes, Whisper and an adapter without `transcribeStream` send the completed text in one delta.
 
 The result can also hold:
 
