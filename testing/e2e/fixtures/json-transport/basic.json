@@ -33,7 +33,7 @@
         "content": "The lighthouse keeper climbed the stairs each night, trimmed the wick, wound the clockwork, and watched the beam sweep the dark water until morning came. JSON_LONG_END"
       },
       "chunkSize": 4,
-      "streamingProfile": { "tps": 10 }
+      "streamingProfile": { "tps": 4 }
     },
     {
       "match": {
