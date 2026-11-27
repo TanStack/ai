@@ -3575,8 +3575,37 @@ export class ChatClient<
     this.setConnectionStatus('disconnected')
   }
 
+  private findReloadAnchorIndex(
+    messages: ReadonlyArray<UIMessage>,
+    lastUserMessageIndex: number,
+  ): number {
+    let end = messages.length - 1
+    while (
+      end > lastUserMessageIndex &&
+      messages[end]?.role === 'assistant' &&
+      messages[end]?.metadata?.tanstack?.stopReason === 'error'
+    ) {
+      end--
+    }
+
+    const hasTrailingErrorRow = end < messages.length - 1
+    const candidate = messages[end]
+    if (
+      end > lastUserMessageIndex &&
+      (hasTrailingErrorRow || this.status === 'error') &&
+      candidate?.role === 'assistant' &&
+      candidate.metadata?.tanstack?.stopReason !== 'error' &&
+      candidate.parts.some((part) => part.type === 'tool-result')
+    ) {
+      return end
+    }
+
+    return lastUserMessageIndex
+  }
+
   /**
-   * Reload the last assistant message
+   * Reload the last assistant message, or retry a failed tool-result
+   * continuation without discarding the client tool result.
    */
   async reload(): Promise<void> {
     const messages = this.processor.getMessages()
@@ -3588,6 +3617,11 @@ export class ChatClient<
     )
 
     if (lastUserMessageIndex === -1) return
+
+    const reloadAnchorIndex = this.findReloadAnchorIndex(
+      messages,
+      lastUserMessageIndex,
+    )
 
     // Cancel any active stream before reloading
     if (this.isLoading) {
@@ -3613,10 +3647,12 @@ export class ChatClient<
       this.interruptManager.reset()
     }
 
-    this.events.reloaded(lastUserMessageIndex)
+    this.events.reloaded(reloadAnchorIndex)
 
-    // Remove all messages after the last user message
-    this.processor.removeMessagesAfter(lastUserMessageIndex)
+    // Remove all messages after the reload anchor (last user message, or the
+    // assistant message holding a completed tool result when retrying a failed
+    // follow-up run)
+    this.processor.removeMessagesAfter(reloadAnchorIndex)
     this.devtoolsBridge.emitSnapshot()
 
     // Resend
