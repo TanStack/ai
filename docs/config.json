@@ -2093,6 +2093,11 @@
           "to": "community-adapters/upstash",
           "addedAt": "2026-09-29",
           "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "WBX Sandbox",
+          "to": "community-adapters/wbx-sandbox",
+          "addedAt": "2026-11-27"
         }
       ]
     },
