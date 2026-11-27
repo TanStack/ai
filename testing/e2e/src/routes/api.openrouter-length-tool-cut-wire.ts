@@ -107,16 +107,30 @@ export const Route = createFileRoute('/api/openrouter-length-tool-cut-wire')({
           httpClient,
         })
 
+        const toolCallNames: Array<string> = []
+        const finishReasons: Array<string | null | undefined> = []
+        let runError: { message: string } | undefined
+
         try {
-          for await (const _ of chat({
+          for await (const chunk of chat({
             threadId: 'openrouter-length-tool-cut-wire',
             ...createChatOptions({ adapter }),
             messages: [{ role: 'user', content: 'Save a long note' }],
             tools: [saveNote],
-            agentLoopStrategy: maxIterations(3),
+            // One model call: a loop that may continue reports the cut turn as
+            // `tool_calls` and asks again. Stopping here leaves the `length`
+            // finish on the wire.
+            agentLoopStrategy: maxIterations(1),
             debug: false,
           })) {
-            // drain
+            if (chunk.type === 'TOOL_CALL_START') {
+              toolCallNames.push(chunk.toolCallName)
+            }
+            if (chunk.type === 'RUN_FINISHED') {
+              finishReasons.push(chunk.metadata?.tanstack?.finishReason)
+            }
+            if (chunk.type === 'RUN_ERROR')
+              runError = { message: chunk.message }
           }
         } catch (error) {
           return Response.json({
@@ -129,6 +143,9 @@ export const Route = createFileRoute('/api/openrouter-length-tool-cut-wire')({
           ok: true,
           requestCount,
           executedInputs,
+          toolCallNames,
+          finishReasons,
+          runError,
         })
       },
     },
