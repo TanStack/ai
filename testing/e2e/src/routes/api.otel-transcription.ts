@@ -54,10 +54,13 @@ export const Route = createFileRoute('/api/otel-transcription')({
             }
           }
 
-          return new Response(JSON.stringify({ ok: true, spans, streamedText }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          })
+          return new Response(
+            JSON.stringify({ ok: true, spans, streamedText }),
+            {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          )
         } catch (error) {
           return new Response(
             JSON.stringify({
