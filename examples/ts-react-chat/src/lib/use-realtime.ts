@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
+import { getRequest } from '@tanstack/react-start/server'
 import { realtimeSession, realtimeToken } from '@tanstack/ai'
 import { useRealtimeChat } from '@tanstack/ai-react'
 import {
@@ -67,6 +68,7 @@ const createLiveSessionFn = createServerFn({ method: 'POST' })
         delegation: { model: 'gpt-6.1-terra' },
       }),
       request: data,
+      abortSignal: getRequest().signal,
     }),
   )
 
