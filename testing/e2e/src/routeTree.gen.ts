@@ -191,6 +191,7 @@ import { Route as ApiOpencodeEventsRouteImport } from './routes/api.opencode-eve
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
 import { Route as ApiOpenrouterJsonObjectWireRouteImport } from './routes/api.openrouter-json-object-wire'
 import { Route as ApiOpenrouterReasoningWireRouteImport } from './routes/api.openrouter-reasoning-wire'
+import { Route as ApiOpenrouterResponsesErrorTypeWireRouteImport } from './routes/api.openrouter-responses-error-type-wire'
 import { Route as ApiOpenrouterResponsesStreamFieldsRouteImport } from './routes/api.openrouter-responses-stream-fields'
 import { Route as ApiOpenrouterRetryCodesRouteImport } from './routes/api.openrouter-retry-codes'
 import { Route as ApiOpenrouterSignInRouteImport } from './routes/api.openrouter-sign-in'
@@ -1197,6 +1198,12 @@ const ApiOpenrouterReasoningWireRoute =
     path: '/api/openrouter-reasoning-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiOpenrouterResponsesErrorTypeWireRoute =
+  ApiOpenrouterResponsesErrorTypeWireRouteImport.update({
+    id: '/api/openrouter-responses-error-type-wire',
+    path: '/api/openrouter-responses-error-type-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOpenrouterResponsesStreamFieldsRoute =
   ApiOpenrouterResponsesStreamFieldsRouteImport.update({
     id: '/api/openrouter-responses-stream-fields',
@@ -1666,6 +1673,7 @@ export interface FileRoutesByFullPath {
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
+  '/api/openrouter-responses-error-type-wire': typeof ApiOpenrouterResponsesErrorTypeWireRoute
   '/api/openrouter-responses-stream-fields': typeof ApiOpenrouterResponsesStreamFieldsRoute
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
   '/api/openrouter-sign-in': typeof ApiOpenrouterSignInRoute
@@ -1904,6 +1912,7 @@ export interface FileRoutesByTo {
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
+  '/api/openrouter-responses-error-type-wire': typeof ApiOpenrouterResponsesErrorTypeWireRoute
   '/api/openrouter-responses-stream-fields': typeof ApiOpenrouterResponsesStreamFieldsRoute
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
   '/api/openrouter-sign-in': typeof ApiOpenrouterSignInRoute
@@ -2143,6 +2152,7 @@ export interface FileRoutesById {
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
+  '/api/openrouter-responses-error-type-wire': typeof ApiOpenrouterResponsesErrorTypeWireRoute
   '/api/openrouter-responses-stream-fields': typeof ApiOpenrouterResponsesStreamFieldsRoute
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
   '/api/openrouter-sign-in': typeof ApiOpenrouterSignInRoute
@@ -2383,6 +2393,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
     | '/api/openrouter-reasoning-wire'
+    | '/api/openrouter-responses-error-type-wire'
     | '/api/openrouter-responses-stream-fields'
     | '/api/openrouter-retry-codes'
     | '/api/openrouter-sign-in'
@@ -2621,6 +2632,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
     | '/api/openrouter-reasoning-wire'
+    | '/api/openrouter-responses-error-type-wire'
     | '/api/openrouter-responses-stream-fields'
     | '/api/openrouter-retry-codes'
     | '/api/openrouter-sign-in'
@@ -2859,6 +2871,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
     | '/api/openrouter-reasoning-wire'
+    | '/api/openrouter-responses-error-type-wire'
     | '/api/openrouter-responses-stream-fields'
     | '/api/openrouter-retry-codes'
     | '/api/openrouter-sign-in'
@@ -3098,6 +3111,7 @@ export interface RootRouteChildren {
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
   ApiOpenrouterJsonObjectWireRoute: typeof ApiOpenrouterJsonObjectWireRoute
   ApiOpenrouterReasoningWireRoute: typeof ApiOpenrouterReasoningWireRoute
+  ApiOpenrouterResponsesErrorTypeWireRoute: typeof ApiOpenrouterResponsesErrorTypeWireRoute
   ApiOpenrouterResponsesStreamFieldsRoute: typeof ApiOpenrouterResponsesStreamFieldsRoute
   ApiOpenrouterRetryCodesRoute: typeof ApiOpenrouterRetryCodesRoute
   ApiOpenrouterSignInRoute: typeof ApiOpenrouterSignInRoute
@@ -4426,6 +4440,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpenrouterReasoningWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/openrouter-responses-error-type-wire': {
+      id: '/api/openrouter-responses-error-type-wire'
+      path: '/api/openrouter-responses-error-type-wire'
+      fullPath: '/api/openrouter-responses-error-type-wire'
+      preLoaderRoute: typeof ApiOpenrouterResponsesErrorTypeWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/openrouter-responses-stream-fields': {
       id: '/api/openrouter-responses-stream-fields'
       path: '/api/openrouter-responses-stream-fields'
@@ -5052,6 +5073,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
   ApiOpenrouterJsonObjectWireRoute: ApiOpenrouterJsonObjectWireRoute,
   ApiOpenrouterReasoningWireRoute: ApiOpenrouterReasoningWireRoute,
+  ApiOpenrouterResponsesErrorTypeWireRoute:
+    ApiOpenrouterResponsesErrorTypeWireRoute,
   ApiOpenrouterResponsesStreamFieldsRoute:
     ApiOpenrouterResponsesStreamFieldsRoute,
   ApiOpenrouterRetryCodesRoute: ApiOpenrouterRetryCodesRoute,
