@@ -3471,6 +3471,7 @@ export class ChatClient<
         this.byok?.request(error.provider, 'locked')
       }
       if (generation === this.streamGeneration) {
+        this.failedToolContinuationAnchorId = toolContinuationAnchorId
         this.reportStreamError(error)
         if (activeDevtoolsRunId) {
           this.devtoolsBridge.emitRunLifecycle(
@@ -3521,11 +3522,16 @@ export class ChatClient<
           }
         }
 
+        if (streamCompletedSuccessfully) {
+          // Clear before draining post-stream actions so a queued child
+          // stream retains its own failure anchor if it errors.
+          this.failedToolContinuationAnchorId = null
+        }
+
         // Drain any actions that were queued while the stream was in progress
         await this.drainPostStreamActions()
 
         if (streamCompletedSuccessfully) {
-          this.failedToolContinuationAnchorId = null
           this.rememberProcessorMessageIds()
           if (this.status !== 'ready') {
             // Terminal run, but onStreamEnd never fired: the processor had
