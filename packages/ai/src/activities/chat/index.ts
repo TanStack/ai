@@ -115,6 +115,7 @@ import {
   interleaveActivityRecords,
   isActivityChunk,
   isUnchangedActivityDelta,
+  mergeActivityRecords,
   peelInboundActivities,
 } from './activity-records'
 import {
@@ -1032,24 +1033,6 @@ function waitOrAbort(ms: number, signal: AbortSignal | undefined) {
     const timer = setTimeout(done, Math.min(ms, 2 ** 31 - 1))
     signal?.addEventListener('abort', done, { once: true })
   })
-}
-
-/**
- * Merge live activity rows into a config list by id. A live row with a new
- * id is appended. When both lists share an id, the live content is kept at
- * the `index` of the config row. Persistence can move a row of `setup` there,
- * because `chat()` gave the row its place from the request only.
- */
-function mergeLiveActivities(
-  configActivities: ReadonlyArray<ActivityRecord>,
-  liveActivities: ReadonlyArray<ActivityRecord>,
-): Array<ActivityRecord> {
-  const byId = new Map(configActivities.map((record) => [record.id, record]))
-  for (const record of liveActivities) {
-    const index = byId.get(record.id)?.index ?? record.index
-    byId.set(record.id, { ...record, index })
-  }
-  return [...byId.values()]
 }
 
 /**
@@ -2509,8 +2492,10 @@ class TextEngine<
 
   /**
    * Add or replace the activity row of a snapshot. An activity is its own
-   * message. If a transcript message already has the id, two messages would
-   * share one id, so the row is dropped with a warning and the run goes on.
+   * message, so an id that a transcript message already has is a bug in the
+   * code that sent the snapshot.
+   *
+   * @throws Error when a transcript message already has the id.
    */
   private handleActivitySnapshotEvent(
     chunk: Extract<StreamChunk, { type: 'ACTIVITY_SNAPSHOT' }>,
@@ -2520,11 +2505,9 @@ class TextEngine<
       messageId === this.currentMessageId ||
       this.messages.some((message) => message.id === messageId)
     if (isTranscriptMessageId) {
-      this.logger.warn(
-        `activity=chat ACTIVITY_SNAPSHOT id '${messageId}' is the id of a message, so the activity row is dropped`,
-        { messageId, activityType: chunk.activityType },
+      throw new Error(
+        `ACTIVITY_SNAPSHOT id '${messageId}' (activity type '${chunk.activityType}') is the id of a message. Give the activity an id that no message has.`,
       )
-      return
     }
     this.setActivities(
       applyActivitySnapshotToRecords(
@@ -6111,8 +6094,11 @@ class TextEngine<
     this.applyResumeToolState(config.resumeToolState)
     this.messages = config.messages
     if (config.activities !== undefined) {
+      // Persistence can move a row of `setup` to its stored place, because
+      // `chat()` gave the row its place from the request only. Keep that
+      // place, with the live content.
       this.setActivities(
-        mergeLiveActivities(config.activities, this.activities),
+        mergeActivityRecords(config.activities, this.activities),
       )
     }
     this.providerMessages = config.providerMessages ?? config.messages

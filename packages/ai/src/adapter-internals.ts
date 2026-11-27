@@ -52,6 +52,7 @@ export {
   applyActivityDeltaToRecords,
   applyActivitySnapshotToRecords,
   isActivityChunk,
+  mergeActivityRecords,
 } from './activities/chat/activity-records'
 export {
   readInterruptBinding,

@@ -16,6 +16,7 @@ import {
   createInterruptBinding,
   getGenericInterruptDefinitionRegistry,
   isActivityChunk,
+  mergeActivityRecords,
   providePendingTurn,
   rehydrateInterruptRequest,
   toRunErrorPayload,
@@ -564,23 +565,6 @@ function inboundActivityOffset(
     (record) => !incomingIds.has(record.id),
   ).length
   return extraUi + extraActivities
-}
-
-/**
- * Merge the rows of this run into the stored rows by id, as the messages
- * merge. A stored row keeps its place and its `index`, and the current
- * content of its id wins. A new row keeps its own `index`.
- */
-function mergeActivities(
-  stored: ReadonlyArray<ActivityRecord>,
-  current: ReadonlyArray<ActivityRecord>,
-) {
-  const byId = new Map(stored.map((record) => [record.id, record]))
-  for (const record of current) {
-    const index = byId.get(record.id)?.index ?? record.index
-    byId.set(record.id, { ...record, index })
-  }
-  return [...byId.values()]
 }
 
 /** `metadata.tanstack.run.id` of a stored message, when set. */
@@ -2538,7 +2522,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         )
         list = placeEarlyActivities(
           rebaseInboundActivities(
-            mergeActivities(stored, ctx.activities),
+            mergeActivityRecords(stored, ctx.activities),
             storedIds,
             isEarly,
             inboundActivityOffset(
@@ -2890,7 +2874,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
               state?.earlyActivityIds.has(record.id) === true
             patch.activities = placeEarlyActivities(
               rebaseInboundActivities(
-                mergeActivities(
+                mergeActivityRecords(
                   keptActivities(
                     storedRows,
                     stored,

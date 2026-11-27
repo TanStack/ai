@@ -292,7 +292,7 @@ A type that no check selects still gets to the last `else`, or to the `default` 
 
 ## Things to know
 
-- **Pick an id that no message has**, for example `deploy-<toolCallId>`. If the id is the id of a message, the engine logs a warning and does not keep the row.
+- **Pick an id that no message has**, for example `deploy-<toolCallId>`. If the id is the id of a message, the run fails with an error.
 - **The schema checks each call.** Bad content makes `emitActivity` throw a `TypeError`. In a tool, the tool call fails, and the model gets the error. The check is synchronous, so a schema with an async check also makes it throw.
 - **`chat()` gives a tool `emitActivity`, also through the [sandbox tool bridge](../sandbox/tools).** A tool has no `emitActivity` on an MCP server, in WebMCP, or in a direct `execute()` call. That is why step 2 calls it with `?.`.
 - **Each call sends one AG-UI `ACTIVITY_SNAPSHOT` event** with the full content.

@@ -313,9 +313,9 @@ describe('emitActivity', () => {
     ['an earlier message', 'msg-2'],
     ['the message that streams', 'msg-1'],
   ])(
-    'drops a row with the id of %s, logs a warning, and finishes the run',
+    'fails the run for a row with the id of %s',
     async (_case, streamingId) => {
-      const { chunks, activities, logger } = await runDeploy({
+      const run = runDeploy({
         middleware: [
           {
             name: 'emit-with-message-id',
@@ -329,14 +329,9 @@ describe('emitActivity', () => {
         ],
       })
 
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(
-          "ACTIVITY_SNAPSHOT id 'msg-1' is the id of a message",
-        ),
-        { messageId: 'msg-1', activityType: 'deploy.progress' },
+      await expect(run).rejects.toThrow(
+        "ACTIVITY_SNAPSHOT id 'msg-1' (activity type 'deploy.progress') is the id of a message",
       )
-      expect(activities).toEqual([])
-      expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
     },
   )
 

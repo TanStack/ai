@@ -264,6 +264,23 @@ export function applyActivitySnapshotToRecords(
 }
 
 /**
+ * Merge `current` rows into `base` rows by id. A row that `base` has keeps
+ * its `index`, and the `current` content wins. A new row keeps its own
+ * `index`.
+ */
+export function mergeActivityRecords(
+  base: ReadonlyArray<ActivityRecord>,
+  current: ReadonlyArray<ActivityRecord>,
+): Array<ActivityRecord> {
+  const byId = new Map(base.map((record) => [record.id, record]))
+  for (const record of current) {
+    const index = byId.get(record.id)?.index ?? record.index
+    byId.set(record.id, { ...record, index })
+  }
+  return [...byId.values()]
+}
+
+/**
  * Returns `true` when a delta leaves the content of its row as it is. For a
  * row that `records` does not have, it returns `false`, because a client can
  * have that row.
