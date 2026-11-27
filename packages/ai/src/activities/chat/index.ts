@@ -1783,7 +1783,7 @@ class TextEngine<
                 )
               ) {
                 this.setToolPhase('wait')
-                await this.runTerminalHook()
+                yield* this.runTerminalHook()
                 return
               }
 
@@ -1799,7 +1799,7 @@ class TextEngine<
               )
             ) {
               this.setToolPhase('wait')
-              await this.runTerminalHook()
+              yield* this.runTerminalHook()
               return
             }
             if (this.shouldExecuteToolPhase()) {
