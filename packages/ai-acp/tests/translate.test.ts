@@ -220,7 +220,7 @@ describe('translateAcpStream', () => {
     expect(chunks[5]).toMatchObject({ content: 'found it' })
   })
 
-  it('streams in_progress tool_call_update args after the tool is opened', async () => {
+  it('sends the args from a later in_progress update before TOOL_CALL_END', async () => {
     const chunks = await collect([
       session,
       {
@@ -255,12 +255,67 @@ describe('translateAcpStream', () => {
       },
       done,
     ])
-    const argChunks = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
-    expect(argChunks).toHaveLength(2)
-    expect(argChunks[1]).toMatchObject({
+    const toolChunks = chunks.filter((c) => c.type.startsWith('TOOL_CALL_'))
+    expect(toolChunks.map((c) => c.type)).toEqual([
+      'TOOL_CALL_START',
+      'TOOL_CALL_ARGS',
+      'TOOL_CALL_END',
+      'TOOL_CALL_RESULT',
+    ])
+    expect(toolChunks[1]).toMatchObject({
       toolCallId: 'tc-stream',
       args: JSON.stringify({ title: 'list_dir', target_directory: '.' }),
     })
+    expect(toolChunks[2]).toMatchObject({
+      input: { title: 'list_dir', target_directory: '.' },
+    })
+  })
+
+  it('closes a call opened without input when it resolves or is interrupted', async () => {
+    const chunks = await collect([
+      session,
+      {
+        kind: 'update',
+        update: {
+          sessionUpdate: 'tool_call',
+          toolCallId: 'tc-resolved',
+          title: 'read_file',
+          kind: 'read',
+          status: 'pending',
+        },
+      },
+      {
+        kind: 'update',
+        update: {
+          sessionUpdate: 'tool_call_update',
+          toolCallId: 'tc-resolved',
+          status: 'completed',
+          rawOutput: 'contents',
+        },
+      },
+      {
+        kind: 'update',
+        update: {
+          sessionUpdate: 'tool_call',
+          toolCallId: 'tc-interrupted',
+          title: 'run',
+          kind: 'execute',
+          status: 'in_progress',
+        },
+      },
+      done,
+    ])
+    for (const id of ['tc-resolved', 'tc-interrupted']) {
+      const types = chunks
+        .filter((c) => 'toolCallId' in c && c.toolCallId === id)
+        .map((c) => c.type)
+      expect(types).toEqual([
+        'TOOL_CALL_START',
+        'TOOL_CALL_ARGS',
+        'TOOL_CALL_END',
+        'TOOL_CALL_RESULT',
+      ])
+    }
   })
 
   it('opens a synthetic pair for a tool_call_update with an unknown id', async () => {

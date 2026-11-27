@@ -123,6 +123,13 @@ export async function* translateAcpStream(
   let runStarted = false
   const unresolvedToolCalls = new Set<string>()
   const knownToolCalls = new Set<string>()
+  // Calls started without `rawInput`: their ARGS + END wait for the
+  // tool_call_update that carries it, or for the call to resolve, so no
+  // TOOL_CALL_ARGS follows TOOL_CALL_END.
+  const awaitingInput = new Map<
+    string,
+    { toolCallName: string; title?: string }
+  >()
 
   let textMessageId: string | null = null
   let textContent = ''
@@ -174,6 +181,7 @@ export async function* translateAcpStream(
 
   function* synthesizeUnresolvedResults(): Generator<AdapterYieldChunk> {
     for (const toolCallId of unresolvedToolCalls) {
+      yield* closeAwaitingToolCall({ toolCallId })
       yield {
         type: EventType.TOOL_CALL_RESULT,
         toolCallId,
@@ -186,13 +194,10 @@ export async function* translateAcpStream(
     unresolvedToolCalls.clear()
   }
 
-  function* openToolCall(
-    update: AcpToolCallUpdate,
-  ): Generator<AdapterYieldChunk> {
-    if (knownToolCalls.has(update.toolCallId)) return
-    knownToolCalls.add(update.toolCallId)
-    const toolCallName = resolveToolName(update, ctx.bridgedToolNames)
-    const input = {
+  function toolCallInput(
+    update: Pick<AcpToolCallUpdate, 'title' | 'rawInput'>,
+  ): Record<string, unknown> {
+    return {
       ...(update.title != null && { title: update.title }),
       ...(update.rawInput !== undefined && update.rawInput !== null
         ? typeof update.rawInput === 'object'
@@ -200,17 +205,17 @@ export async function* translateAcpStream(
           : { input: update.rawInput }
         : {}),
     }
+  }
+
+  function* emitArgsAndEnd(
+    toolCallId: string,
+    toolCallName: string,
+    input: Record<string, unknown>,
+  ): Generator<AdapterYieldChunk> {
     const args = JSON.stringify(input)
     yield {
-      type: EventType.TOOL_CALL_START,
-      toolCallId: update.toolCallId,
-      toolCallName,
-      model,
-      timestamp: now(),
-    }
-    yield {
       type: EventType.TOOL_CALL_ARGS,
-      toolCallId: update.toolCallId,
+      toolCallId,
       model,
       timestamp: now(),
       delta: args,
@@ -218,19 +223,63 @@ export async function* translateAcpStream(
     }
     yield {
       type: EventType.TOOL_CALL_END,
-      toolCallId: update.toolCallId,
+      toolCallId,
       toolCallName,
       model,
       timestamp: now(),
       input,
     }
+  }
+
+  function* openToolCall(
+    update: AcpToolCallUpdate,
+  ): Generator<AdapterYieldChunk> {
+    if (knownToolCalls.has(update.toolCallId)) return
+    knownToolCalls.add(update.toolCallId)
+    const toolCallName = resolveToolName(update, ctx.bridgedToolNames)
+    yield {
+      type: EventType.TOOL_CALL_START,
+      toolCallId: update.toolCallId,
+      toolCallName,
+      model,
+      timestamp: now(),
+    }
     unresolvedToolCalls.add(update.toolCallId)
+    const resolved = update.status === 'completed' || update.status === 'failed'
+    if (update.rawInput === undefined && !resolved) {
+      awaitingInput.set(update.toolCallId, {
+        toolCallName,
+        ...(update.title != null && { title: update.title }),
+      })
+      return
+    }
+    yield* emitArgsAndEnd(
+      update.toolCallId,
+      toolCallName,
+      toolCallInput(update),
+    )
+  }
+
+  // Sends the ARGS + END of a call opened without input, using the latest
+  // title and any rawInput this update carries. No-op once the call is closed.
+  function* closeAwaitingToolCall(
+    update: Pick<AcpToolCallUpdate, 'toolCallId' | 'title' | 'rawInput'>,
+  ): Generator<AdapterYieldChunk> {
+    const open = awaitingInput.get(update.toolCallId)
+    if (!open) return
+    awaitingInput.delete(update.toolCallId)
+    const input = toolCallInput({
+      title: update.title ?? open.title,
+      rawInput: update.rawInput,
+    })
+    yield* emitArgsAndEnd(update.toolCallId, open.toolCallName, input)
   }
 
   function* resolveToolCall(
     update: AcpToolCallUpdate,
   ): Generator<AdapterYieldChunk> {
     yield* openToolCall(update)
+    yield* closeAwaitingToolCall(update)
     unresolvedToolCalls.delete(update.toolCallId)
     yield {
       type: EventType.TOOL_CALL_RESULT,
@@ -334,21 +383,9 @@ export async function* translateAcpStream(
         if (!knownToolCalls.has(update.toolCallId)) {
           yield* openToolCall(update)
         } else {
-          const input = {
-            ...(update.title != null && { title: update.title }),
-            ...(typeof update.rawInput === 'object' && update.rawInput !== null
-              ? (update.rawInput as Record<string, unknown>)
-              : { input: update.rawInput }),
-          }
-          const args = JSON.stringify(input)
-          yield {
-            type: EventType.TOOL_CALL_ARGS,
-            toolCallId: update.toolCallId,
-            model,
-            timestamp: now(),
-            delta: args,
-            args,
-          }
+          // A call already closed keeps its arguments: AG-UI has no
+          // TOOL_CALL_ARGS after TOOL_CALL_END.
+          yield* closeAwaitingToolCall(update)
         }
       }
     } else if (
