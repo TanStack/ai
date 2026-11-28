@@ -46,6 +46,27 @@ export interface MCPClients<
     options?: { serverId?: string; meta?: Record<string, unknown> },
   ) => Promise<ReadResourceResult>
   /**
+   * Lists concrete resources from every server in the pool. Used by
+   * `chat({ mcp: { attachResources: { auto: true } } })`.
+   */
+  resources: (options?: {
+    signal?: AbortSignal
+  }) => Promise<Array<{ uri: string; name?: string; mimeType?: string }>>
+  /**
+   * Renders a prompt from the first server that has it. Used by
+   * `chat({ mcp: { prompts } })`.
+   */
+  getPrompt: (
+    name: string,
+    args?: Record<string, unknown>,
+    options?: { signal?: AbortSignal },
+  ) => Promise<{
+    messages: Array<{
+      role: string
+      content?: { type: string; text?: string } | null
+    }>
+  }>
+  /**
    * The connection descriptors for every server in the pool, keyed by config
    * key (the serverId / default prefix). Used by `createMcpAppCallHandler` to
    * reconnect per-call (serverless-safe) without a separate transport-config
@@ -177,6 +198,48 @@ export async function createMCPClients<
       // client's original descriptor via getInfo().
       return Object.fromEntries(
         Object.entries(clients).map(([key, c]) => [key, c.getInfo()]),
+      )
+    },
+    async resources(options?: {
+      signal?: AbortSignal
+    }): Promise<Array<{ uri: string; name?: string; mimeType?: string }>> {
+      const listed = await Promise.allSettled(
+        Object.values(clients).map((c) =>
+          (c as MCPClient<ServerDescriptor>).resources(options),
+        ),
+      )
+      const uris = new Set<string>()
+      const out: Array<{ uri: string; name?: string; mimeType?: string }> = []
+      for (const result of listed) {
+        if (result.status !== 'fulfilled') continue
+        for (const item of result.value) {
+          if (uris.has(item.uri)) continue
+          uris.add(item.uri)
+          out.push(item)
+        }
+      }
+      return out
+    },
+    async getPrompt(
+      name: string,
+      args?: Record<string, unknown>,
+      options?: { signal?: AbortSignal },
+    ) {
+      const errors: Array<unknown> = []
+      for (const c of Object.values(clients)) {
+        try {
+          return await (c as MCPClient<ServerDescriptor>).getPrompt(
+            name,
+            args,
+            options,
+          )
+        } catch (err) {
+          errors.push(err)
+        }
+      }
+      throw new Error(
+        `Failed to get MCP prompt "${name}" from any pooled client`,
+        { cause: errors.length ? new AggregateError(errors) : undefined },
       )
     },
     async readResource(

@@ -603,7 +603,7 @@
           "to": "ui/recipes/index",
           "tab": "guides",
           "addedAt": "2026-08-31",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-23"
         },
         {
           "label": "Chat with no tools",
@@ -639,6 +639,18 @@
           "tab": "guides",
           "addedAt": "2026-08-31",
           "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "MCP form interrupt",
+          "to": "ui/recipes/mcp-form-interrupt",
+          "tab": "guides",
+          "addedAt": "2026-11-23"
+        },
+        {
+          "label": "MCP URL elicitation",
+          "to": "ui/recipes/mcp-url-elicitation",
+          "tab": "guides",
+          "addedAt": "2026-11-23"
         }
       ]
     },
@@ -697,7 +709,12 @@
           "label": "MCP Server Tools",
           "to": "tools/mcp",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-23"
+        },
+        {
+          "label": "Attach MCP resources and prompts",
+          "to": "tools/mcp-context",
+          "addedAt": "2026-11-23"
         },
         {
           "label": "Managed MCP with chat()",
@@ -709,7 +726,7 @@
           "label": "Manual MCP",
           "to": "tools/mcp-manual",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-11-09"
+          "updatedAt": "2026-11-23"
         },
         {
           "label": "MCP Type Generation",
@@ -721,12 +738,13 @@
           "label": "MCP Client Input",
           "to": "tools/mcp-input",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-23"
         },
         {
           "label": "MCP Server Tools: Advanced",
           "to": "tools/mcp-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-11-23"
         },
         {
           "label": "MCP Events",

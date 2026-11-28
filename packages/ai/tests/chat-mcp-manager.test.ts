@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   MCPDuplicateToolNameError,
   MCPManager,
+  mergeMcpContextIntoMessages,
 } from '../src/activities/chat/mcp/manager'
+import { mcpResourceToContentPart } from '../src/activities/chat/mcp/resource-parts'
 import {
   executeServerTool,
   type ToolResult,
@@ -139,6 +141,18 @@ describe('MCPManager', () => {
     await m.discover()
     await m.dispose()
     expect(a.closed).toBe(false)
+  })
+
+  it('dispose() does not throw when close() throws synchronously', async () => {
+    const a = {
+      tools: async () => [tool('a')],
+      close: () => {
+        throw new Error('sync close boom')
+      },
+    }
+    const m = MCPManager.from({ clients: [a] })
+    await m.discover()
+    await expect(m.dispose()).resolves.toBeUndefined()
   })
 
   it('rethrows by default on discovery failure and self-cleans (close policy)', async () => {
@@ -428,5 +442,278 @@ describe('executeServerTool — ui:// resource emit (MCP Apps)', () => {
     const emitted: Array<unknown> = []
     await runToolResult(tool('plain'), 'call_1', () => emitted.push(1))
     expect(emitted).toHaveLength(0)
+  })
+})
+
+describe('MCPManager maxTools / rankTools', () => {
+  it('marks overflow tools as lazy when maxTools is set', async () => {
+    const tools = [tool('a'), tool('b'), tool('c')]
+    const m = MCPManager.from({
+      clients: [source(tools)],
+      maxTools: 2,
+    })
+    const discovered = await m.discover()
+    expect(discovered.map((t) => t.name)).toEqual(['a', 'b', 'c'])
+    expect(discovered[0]?.lazy).toBeUndefined()
+    expect(discovered[1]?.lazy).toBeUndefined()
+    expect(discovered[2]?.lazy).toBe(true)
+  })
+
+  it('ranks readOnlyHint tools first', async () => {
+    const write = tool('write')
+    write.metadata = {
+      mcp: { annotations: { destructiveHint: true } },
+    }
+    const read = tool('read')
+    read.metadata = {
+      mcp: { annotations: { readOnlyHint: true } },
+    }
+    const m = MCPManager.from({
+      clients: [source([write, read])],
+      rankTools: 'annotation',
+      maxTools: 1,
+    })
+    const discovered = await m.discover()
+    expect(discovered[0]?.name).toBe('read')
+    expect(discovered[0]?.lazy).toBeUndefined()
+    expect(discovered[1]?.name).toBe('write')
+    expect(discovered[1]?.lazy).toBe(true)
+  })
+})
+
+describe('MCPManager resolveContext', () => {
+  it('resolves prompts and attachResources uris', async () => {
+    const s = {
+      closed: false,
+      tools: async () => [] as Array<AnyServerTool>,
+      close: async () => {
+        s.closed = true
+      },
+      getPrompt: async (name: string) => ({
+        messages: [
+          { role: 'user', content: { type: 'text', text: `prompt:${name}` } },
+        ],
+      }),
+      readResource: async (uri: string) => ({
+        contents: [
+          {
+            uri,
+            mimeType: 'image/png',
+            blob: 'aGk=',
+          },
+        ],
+      }),
+      resources: async () => [{ uri: 'file:///a.png' }],
+    }
+    const m = MCPManager.from({
+      clients: [s],
+      prompts: { name: 'summarize' },
+      attachResources: { uris: ['file:///a.png'] },
+      connection: 'keep-alive',
+    })
+    const ctx = await m.resolveContext()
+    expect(ctx.promptMessages).toEqual([
+      { role: 'user', content: 'prompt:summarize' },
+    ])
+    expect(ctx.contentParts).toEqual([
+      {
+        type: 'image',
+        source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
+      },
+    ])
+  })
+
+  it('auto-lists resources up to max', async () => {
+    const s = {
+      tools: async () => [] as Array<AnyServerTool>,
+      close: async () => {},
+      resources: async () => [
+        { uri: 'file:///1' },
+        { uri: 'file:///2' },
+        { uri: 'file:///3' },
+      ],
+      readResource: async (uri: string) => ({
+        contents: [{ uri, text: uri }],
+      }),
+    }
+    const m = MCPManager.from({
+      clients: [s],
+      attachResources: { auto: true, max: 2 },
+      connection: 'keep-alive',
+    })
+    const ctx = await m.resolveContext()
+    expect(ctx.contentParts).toHaveLength(2)
+    expect(ctx.contentParts[0]).toMatchObject({
+      type: 'text',
+      content: 'file:///1',
+    })
+  })
+
+  it('continues auto-attach when the first source list throws', async () => {
+    const failing = {
+      tools: async () => [] as Array<AnyServerTool>,
+      close: async () => {},
+      resources: async () => {
+        throw new Error('tools-only')
+      },
+    }
+    const owner = {
+      tools: async () => [] as Array<AnyServerTool>,
+      close: async () => {},
+      resources: async () => [{ uri: 'file:///ok' }],
+      readResource: async (uri: string) => ({
+        contents: [{ uri, text: 'from-second' }],
+      }),
+    }
+    const m = MCPManager.from({
+      clients: [failing, owner],
+      attachResources: { auto: true },
+      connection: 'keep-alive',
+    })
+    const ctx = await m.resolveContext()
+    expect(ctx.contentParts).toEqual([{ type: 'text', content: 'from-second' }])
+  })
+
+  it('says the URI was not found when clients implement readResource but none own it', async () => {
+    const s = {
+      tools: async () => [] as Array<AnyServerTool>,
+      close: async () => {},
+      readResource: async () => ({ contents: [] }),
+    }
+    const m = MCPManager.from({
+      clients: [s],
+      attachResources: { uris: ['file:///missing'] },
+      connection: 'keep-alive',
+    })
+    await expect(m.resolveContext()).rejects.toThrow(
+      /no configured MCP server owns this uri/,
+    )
+  })
+
+  it('throws when every attached resource block is omitted', async () => {
+    const s = {
+      tools: async () => [] as Array<AnyServerTool>,
+      close: async () => {},
+      readResource: async (uri: string) => ({
+        contents: [
+          {
+            uri,
+            mimeType: 'application/octet-stream',
+            blob: 'abc',
+          },
+        ],
+      }),
+    }
+    const m = MCPManager.from({
+      clients: [s],
+      attachResources: { uris: ['file:///x.bin'] },
+      resourcePartOptions: { onReject: 'omit' },
+      connection: 'keep-alive',
+    })
+    await expect(m.resolveContext()).rejects.toThrow(/every content block was omitted/)
+  })
+
+  it('surfaces source errors when every getPrompt fails', async () => {
+    const s = {
+      tools: async () => [] as Array<AnyServerTool>,
+      close: async () => {},
+      getPrompt: async () => {
+        throw new Error('network down')
+      },
+    }
+    const m = MCPManager.from({
+      clients: [s],
+      prompts: { name: 'summarize' },
+      connection: 'keep-alive',
+    })
+    await expect(m.resolveContext()).rejects.toMatchObject({
+      message: expect.stringContaining('failed on every'),
+      cause: expect.objectContaining({
+        errors: [expect.objectContaining({ message: 'network down' })],
+      }),
+    })
+  })
+})
+
+describe('mcpResourceToContentPart (internal)', () => {
+  it('treats a non-string mimeType as missing (no toLowerCase crash)', () => {
+    const part = mcpResourceToContentPart({
+      uri: 'file:///img.png',
+      blob: 'abc123',
+      mimeType: 42 as unknown as string,
+    })
+    expect(part?.type).toBe('text')
+    expect((part as { type: 'text'; content: string }).content).toBe(
+      '[binary resource file:///img.png]',
+    )
+  })
+})
+
+describe('mergeMcpContextIntoMessages', () => {
+  it('prepends prompts and appends parts to the last user message', () => {
+    const merged = mergeMcpContextIntoMessages(
+      [{ role: 'user', content: 'hi' }],
+      {
+        promptMessages: [{ role: 'user', content: 'from-prompt' }],
+        contentParts: [{ type: 'text', content: 'doc' }],
+      },
+    )
+    expect(merged).toEqual([
+      { role: 'user', content: 'from-prompt' },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', content: 'hi' },
+          { type: 'text', content: 'doc' },
+        ],
+      },
+    ])
+  })
+
+  it('appends to UIMessage parts so conversion keeps MCP content', () => {
+    const merged = mergeMcpContextIntoMessages(
+      [
+        {
+          id: 'u1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'hi' }],
+        } as never,
+      ],
+      {
+        promptMessages: [],
+        contentParts: [{ type: 'text', content: 'doc' }],
+      },
+    )
+    expect(merged[0]).toMatchObject({
+      role: 'user',
+      parts: [
+        { type: 'text', content: 'hi' },
+        { type: 'text', content: 'doc' },
+      ],
+    })
+  })
+})
+
+describe('MCPManager readUri fallback', () => {
+  it('tries the next source when the first returns no matching URI', async () => {
+    const empty = {
+      tools: async () => [] as Array<AnyServerTool>,
+      close: async () => {},
+      readResource: async () => ({ contents: [] }),
+    }
+    const owner = {
+      tools: async () => [] as Array<AnyServerTool>,
+      close: async () => {},
+      readResource: async (uri: string) => ({
+        contents: [{ uri, text: 'from-owner' }],
+      }),
+    }
+    const m = MCPManager.from({
+      clients: [empty, owner],
+      attachResources: { uris: ['file:///x'] },
+      connection: 'keep-alive',
+    })
+    const ctx = await m.resolveContext()
+    expect(ctx.contentParts).toEqual([{ type: 'text', content: 'from-owner' }])
   })
 })

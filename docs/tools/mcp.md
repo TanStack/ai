@@ -116,6 +116,7 @@ Now ask the model something that needs one of the server tools. The model calls 
 
 - `createMCPClient` connects to the server. It tries protocol `2026-07-28` first. If the server does not support it, the client uses the 2025 handshake.
 - `chat({ mcp })` asks each client for its tools before the first model call.
+- Optional `attachResources` / `prompts` inject MCP context before the model turn. See [Attach MCP resources and prompts](./mcp-context).
 - When the model calls a tool, `chat()` sends the call to the MCP server and gives the result back to the model.
 - When the run ends, `chat()` closes the client. This happens on success, on error, and on abort.
 

@@ -146,6 +146,7 @@ import { Route as ApiMaxToolCallsWireRouteImport } from './routes/api.max-tool-c
 import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
 import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
 import { Route as ApiMcpAppsServerRouteImport } from './routes/api.mcp-apps-server'
+import { Route as ApiMcpContextTestRouteImport } from './routes/api.mcp-context-test'
 import { Route as ApiMcpEventsControlRouteImport } from './routes/api.mcp-events-control'
 import { Route as ApiMcpEventsServerRouteImport } from './routes/api.mcp-events-server'
 import { Route as ApiMcpEventsWebhookRouteImport } from './routes/api.mcp-events-webhook'
@@ -961,6 +962,11 @@ const ApiMcpAppsServerRoute = ApiMcpAppsServerRouteImport.update({
   path: '/api/mcp-apps-server',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpContextTestRoute = ApiMcpContextTestRouteImport.update({
+  id: '/api/mcp-context-test',
+  path: '/api/mcp-context-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpEventsControlRoute = ApiMcpEventsControlRouteImport.update({
   id: '/api/mcp-events-control',
   path: '/api/mcp-events-control',
@@ -1627,6 +1633,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
+  '/api/mcp-context-test': typeof ApiMcpContextTestRoute
   '/api/mcp-events-control': typeof ApiMcpEventsControlRoute
   '/api/mcp-events-server': typeof ApiMcpEventsServerRoute
   '/api/mcp-events-webhook': typeof ApiMcpEventsWebhookRoute
@@ -1866,6 +1873,7 @@ export interface FileRoutesByTo {
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
+  '/api/mcp-context-test': typeof ApiMcpContextTestRoute
   '/api/mcp-events-control': typeof ApiMcpEventsControlRoute
   '/api/mcp-events-server': typeof ApiMcpEventsServerRoute
   '/api/mcp-events-webhook': typeof ApiMcpEventsWebhookRoute
@@ -2106,6 +2114,7 @@ export interface FileRoutesById {
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
+  '/api/mcp-context-test': typeof ApiMcpContextTestRoute
   '/api/mcp-events-control': typeof ApiMcpEventsControlRoute
   '/api/mcp-events-server': typeof ApiMcpEventsServerRoute
   '/api/mcp-events-webhook': typeof ApiMcpEventsWebhookRoute
@@ -2347,6 +2356,7 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
+    | '/api/mcp-context-test'
     | '/api/mcp-events-control'
     | '/api/mcp-events-server'
     | '/api/mcp-events-webhook'
@@ -2586,6 +2596,7 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
+    | '/api/mcp-context-test'
     | '/api/mcp-events-control'
     | '/api/mcp-events-server'
     | '/api/mcp-events-webhook'
@@ -2825,6 +2836,7 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
+    | '/api/mcp-context-test'
     | '/api/mcp-events-control'
     | '/api/mcp-events-server'
     | '/api/mcp-events-webhook'
@@ -3065,6 +3077,7 @@ export interface RootRouteChildren {
   ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
   ApiMcpAppsChatRoute: typeof ApiMcpAppsChatRoute
   ApiMcpAppsServerRoute: typeof ApiMcpAppsServerRoute
+  ApiMcpContextTestRoute: typeof ApiMcpContextTestRoute
   ApiMcpEventsControlRoute: typeof ApiMcpEventsControlRoute
   ApiMcpEventsServerRoute: typeof ApiMcpEventsServerRoute
   ApiMcpEventsWebhookRoute: typeof ApiMcpEventsWebhookRoute
@@ -4124,6 +4137,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpAppsServerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-context-test': {
+      id: '/api/mcp-context-test'
+      path: '/api/mcp-context-test'
+      fullPath: '/api/mcp-context-test'
+      preLoaderRoute: typeof ApiMcpContextTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-events-control': {
       id: '/api/mcp-events-control'
       path: '/api/mcp-events-control'
@@ -5027,6 +5047,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,
   ApiMcpAppsChatRoute: ApiMcpAppsChatRoute,
   ApiMcpAppsServerRoute: ApiMcpAppsServerRoute,
+  ApiMcpContextTestRoute: ApiMcpContextTestRoute,
   ApiMcpEventsControlRoute: ApiMcpEventsControlRoute,
   ApiMcpEventsServerRoute: ApiMcpEventsServerRoute,
   ApiMcpEventsWebhookRoute: ApiMcpEventsWebhookRoute,

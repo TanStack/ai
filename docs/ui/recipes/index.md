@@ -2,7 +2,7 @@
 title: Chat UI recipes
 id: ui-recipes
 order: 0
-description: "Five small React chat UIs that each add one thing: a plain chat box, a formatted tool, an approval, a custom question, and per-request context."
+description: "Small React chat UIs that each add one thing: plain chat, tools, approvals, interrupts, MCP forms, and per-request context."
 keywords:
   - tanstack ai
   - createChatHook
@@ -19,6 +19,8 @@ If you have not built a chat UI here yet, start with the first one.
 3. [Ask before a tool runs](./tool-approval): a yes or no gate, next to the tool or in a list.
 4. [Ask the user your own question](./custom-interrupt): an interrupt with your own schemas.
 5. [Send the current user to the server](./request-context): a tenant or user id on each request, kept out of the prompt.
+6. [Answer an MCP form interrupt](./mcp-form-interrupt): show the form an MCP server asks for.
+7. [Open an MCP URL elicitation](./mcp-url-elicitation): consent, then open the URL the server needs.
 
 The code is React. The other framework pages use the same option names and component names. Only the framework syntax changes:
 
