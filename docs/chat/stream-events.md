@@ -348,7 +348,7 @@ You got a `RUN_ERROR` and want to know why the provider failed, or you want to s
 - `errorType`: the error type from the provider, for example `overloaded_error` or `rate_limit_exceeded`. A string of at most 128 characters.
 - `requestId`: the id of the failed request, from the SDK error or the `request-id` / `x-request-id` header.
 
-`code` stays the HTTP status, for example `"529"`. The Anthropic adapter and the adapters built on `@tanstack/openai-base` set both fields when the provider sends them.
+`code` stays the HTTP status, for example `"529"`. The Anthropic adapter and the adapters built on `@tanstack/openai-base` set both fields when the provider sends them. The OpenRouter Responses adapter sets `errorType` from the `error_type` of a `response.failed` event.
 
 On the server:
 

@@ -2607,6 +2607,60 @@ describe('OpenRouter responses adapter — usage on errors', () => {
     },
   })
 
+  const failedWithErrorType = {
+    known: {
+      type: 'response.failed',
+      sequenceNumber: 1,
+      response: {
+        model: 'openai/gpt-4o-mini',
+        output: [],
+        error: { code: 'server_error', message: 'boom' },
+        errorType: 'provider_overloaded',
+      },
+    },
+    unknown: {
+      type: 'UNKNOWN',
+      isUnknown: true,
+      raw: {
+        type: 'response.failed',
+        response: {
+          model: 'openai/gpt-4o-mini',
+          output: [],
+          error: { code: 'server_error', message: 'boom' },
+          error_type: 'provider_overloaded',
+        },
+      },
+    },
+  }
+
+  it.each(['known', 'unknown'] as const)(
+    'chatStream sets errorType on the RUN_ERROR for a %s response.failed event',
+    async (shape) => {
+      setupMockSdkClient([failedWithErrorType[shape]])
+      const chunks = await chatChunks()
+      expect(chunks.at(-1)).toMatchObject({
+        type: 'RUN_ERROR',
+        code: 'server_error',
+        errorType: 'provider_overloaded',
+      })
+    },
+  )
+
+  it.each(['known', 'unknown'] as const)(
+    'structuredOutputStream sets errorType on the RUN_ERROR for a %s response.failed event',
+    async (shape) => {
+      setupMockSdkClient([failedWithErrorType[shape]])
+      const chunks = await collect(
+        createAdapter().structuredOutputStream(structuredOptions),
+      )
+      expect(chunks.at(-1)).toMatchObject({
+        type: 'RUN_ERROR',
+        code: 'server_error',
+        errorType: 'provider_overloaded',
+      })
+    },
+  )
+
   it.each(['response.incomplete', 'response.failed'] as const)(
     'chatStream reports usage on the RUN_ERROR for %s',
     async (type) => {

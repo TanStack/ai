@@ -12,6 +12,7 @@ import {
   orderedAssistantBlocks,
   resolveReasoning,
   tanstackMetadata,
+  toRunErrorDetails,
   toRunErrorPayload,
   toRunErrorRawEvent,
   transformMessagesForReplay,
@@ -673,6 +674,7 @@ export class OpenRouterResponsesTextAdapter<
             timestamp: Date.now(),
             message,
             ...(code !== undefined && { code }),
+            ...toRunErrorDetails({ type: chunk.response?.errorType }),
             // Forward the provider's structured error body when the failure
             // carried one, so consumers can recover the upstream detail.
             ...(rawError != null && { rawEvent: rawError }),
@@ -1179,6 +1181,7 @@ export class OpenRouterResponsesTextAdapter<
             timestamp: Date.now(),
             message: errorMessage,
             ...(errorCode !== undefined && { code: errorCode }),
+            ...toRunErrorDetails({ type: chunk.response?.errorType }),
             ...(rawError != null && { rawEvent: rawError }),
             error: {
               message: errorMessage,
@@ -2444,6 +2447,7 @@ function camelCaseResponseShape(
   const out: Record<string, unknown> = { ...src }
   if ('incomplete_details' in src)
     out.incompleteDetails = src.incomplete_details
+  if ('error_type' in src) out.errorType = src.error_type
   if ('output_text' in src) out.outputText = src.output_text
   if (
     'input_tokens' in src ||

@@ -249,7 +249,7 @@
           "label": "Stream Events",
           "to": "chat/stream-events",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-26"
         },
         {
           "label": "Subagents",
