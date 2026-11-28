@@ -396,6 +396,56 @@ describe('readJournal — poll strategy', () => {
   it('defaults the poll interval to 250ms, matching the cloudflare tail loop', () => {
     expect(DEFAULT_JOURNAL_POLL_MS).toBe(250)
   })
+
+  it('ends iteration cleanly when exec rejects after the signal aborts', async () => {
+    const controller = new AbortController()
+    let markExecStarted!: () => void
+    const execStarted = new Promise<void>((resolve) => {
+      markExecStarted = resolve
+    })
+    const handle = fakeHandle({
+      capabilities: { killableProcesses: false },
+      exec: () => {
+        markExecStarted()
+        return new Promise((_resolve, reject) => {
+          controller.signal.addEventListener(
+            'abort',
+            () =>
+              reject(new DOMException('The operation was aborted', 'AbortError')),
+            { once: true },
+          )
+        })
+      },
+    })
+
+    const iterPromise = collect(
+      readJournal(handle, {
+        paths: journalPaths('r1'),
+        signal: controller.signal,
+        pollIntervalMs: 0,
+      }),
+    )
+
+    await execStarted
+    controller.abort()
+    await expect(iterPromise).resolves.toEqual([])
+  })
+
+  it('rethrows exec errors when the signal is not aborted', async () => {
+    const handle = fakeHandle({
+      capabilities: { killableProcesses: false },
+      exec: () => Promise.reject(new Error('exec failed')),
+    })
+
+    await expect(
+      collect(
+        readJournal(handle, {
+          paths: journalPaths('r1'),
+          pollIntervalMs: 0,
+        }),
+      ),
+    ).rejects.toThrow('exec failed')
+  })
 })
 
 describe('readJournal — explicit strategy override', () => {

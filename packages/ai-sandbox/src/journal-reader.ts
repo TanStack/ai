@@ -305,10 +305,16 @@ async function* pollJournal(
   let sawBytes = false
   let position = options.fromByte ?? 0
   while (!options.signal?.aborted) {
-    const result = await handle.process.exec(
-      journalReadCommand(options.paths, position),
-      processOptions(options),
-    )
+    let result: Awaited<ReturnType<SandboxHandle['process']['exec']>>
+    try {
+      result = await handle.process.exec(
+        journalReadCommand(options.paths, position),
+        processOptions(options),
+      )
+    } catch (error) {
+      if (options.signal?.aborted) return
+      throw error
+    }
     if (result.stdout.trim() !== '') sawBytes = true
     if (
       !sawBytes &&
