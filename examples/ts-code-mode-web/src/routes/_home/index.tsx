@@ -24,7 +24,7 @@ export const Route = createFileRoute('/_home/')({
   component: ProductDemoPage,
 })
 
-type Provider = 'anthropic' | 'openai' | 'gemini' | 'muse'
+type Provider = 'anthropic' | 'openai' | 'gemini' | 'muse' | 'zai'
 
 interface ModelOption {
   provider: Provider
@@ -60,6 +60,8 @@ const MODEL_OPTIONS: Array<ModelOption> = [
     label: 'Gemini 2.5 Flash',
   },
   { provider: 'muse', model: 'muse-ember-1.0', label: 'Ember' },
+  { provider: 'zai', model: 'glm-4.7', label: 'Z.AI GLM-4.7' },
+  { provider: 'zai', model: 'glm-5-turbo', label: 'Z.AI GLM-5 Turbo' },
 ]
 
 const PROMPT_SUGGESTIONS = [

@@ -4,7 +4,7 @@ import Square from 'lucide-solid/icons/square'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
 import { createChatClientOptions } from '@tanstack/ai-client'
 import { TextPart, ThinkingPart } from '@tanstack/ai-solid/ui'
-import { For, createSignal } from 'solid-js'
+import { For, createSignal, onMount } from 'solid-js'
 
 import type {
   BoundInterrupts,
@@ -15,6 +15,13 @@ import type {
 import type { JSXElement } from 'solid-js'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
 import { clientTools } from '@/lib/guitar-tools'
+import {
+  DEFAULT_MODEL_OPTION,
+  MODEL_OPTIONS,
+  getDefaultModelOption,
+  setStoredModelPreference,
+  type ModelOption,
+} from '@/lib/model-selection'
 
 // Create typed chat options for type inference
 const chatOptions = createChatClientOptions({
@@ -298,6 +305,20 @@ function DebugPanel(props: {
 
 function ChatPage() {
   const [chunks, setChunks] = createSignal<Array<any>>([])
+  const [selectedModel, setSelectedModel] =
+    createSignal<ModelOption>(DEFAULT_MODEL_OPTION)
+
+  onMount(() => setSelectedModel(getDefaultModelOption()))
+
+  const chooseModel = (option: ModelOption) => {
+    setSelectedModel(option)
+    setStoredModelPreference(option)
+  }
+
+  const bodyData = () => ({
+    provider: selectedModel().provider,
+    model: selectedModel().model,
+  })
 
   const { messages, sendMessage, isLoading, interrupts, stop } = useChat({
     ...chatOptions,
@@ -313,10 +334,39 @@ function ChatPage() {
     <div class="flex h-[calc(100vh-72px)]  bg-gray-900">
       {/* Left side - Chat (1/4 width) */}
       <div class="w-1/2 flex flex-col border-r border-orange-500/20">
-        <div class="p-4 border-b border-orange-500/20">
-          <h1 class="text-2xl font-bold bg-linear-to-r from-orange-500 to-red-600 text-transparent bg-clip-text">
+        <div class="p-4 border-b border-orange-500/20 bg-gray-800">
+          <h1 class="text-2xl font-bold bg-linear-to-r from-orange-500 to-red-600 text-transparent bg-clip-text mb-3">
             TanStack AI on SolidJS
           </h1>
+          <div class="flex items-end gap-3">
+            <div class="flex-1">
+              <label
+                for="model-select"
+                class="text-sm text-gray-400 mb-1 block"
+              >
+                Select Model:
+              </label>
+              <select
+                id="model-select"
+                value={MODEL_OPTIONS.findIndex(
+                  (opt) =>
+                    opt.provider === selectedModel().provider &&
+                    opt.model === selectedModel().model,
+                )}
+                onChange={(e) => {
+                  chooseModel(MODEL_OPTIONS[parseInt(e.currentTarget.value)])
+                }}
+                disabled={isLoading()}
+                class="w-full rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
+              >
+                <For each={MODEL_OPTIONS}>
+                  {(option, index) => (
+                    <option value={index()}>{option.label}</option>
+                  )}
+                </For>
+              </select>
+            </div>
+          </div>
         </div>
 
         <Messages messages={messages()} interrupts={interrupts()} />
@@ -352,7 +402,7 @@ function ChatPage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey && input().trim()) {
                     e.preventDefault()
-                    sendMessage(input())
+                    sendMessage(input(), { body: bodyData() })
                     setInput('')
                   }
                 }}
@@ -360,7 +410,7 @@ function ChatPage() {
               <button
                 onClick={() => {
                   if (input().trim()) {
-                    sendMessage(input())
+                    sendMessage(input(), { body: bodyData() })
                     setInput('')
                   }
                 }}

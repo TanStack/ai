@@ -127,6 +127,8 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
   'multimodal-image': {
     tools: [],
     modelOptions: {},
+    // glm-5.2 is text-only; the 5V model accepts image and video input.
+    modelOverrides: { zai: 'glm-5v-turbo' },
   },
   'multimodal-document': {
     tools: [],
@@ -135,7 +137,10 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
   'multimodal-structured': {
     tools: [],
     modelOptions: {},
-    modelOverrides: { byteplus: BYTEPLUS_STRUCTURED_MODEL },
+    modelOverrides: {
+      byteplus: BYTEPLUS_STRUCTURED_MODEL,
+      zai: 'glm-5v-turbo',
+    },
   },
   summarize: {
     tools: [],

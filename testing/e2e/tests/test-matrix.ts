@@ -43,6 +43,7 @@ export const providers: Provider[] = [
   'neon-anthropic',
   'neon-responses',
   'muse',
+  'zai',
 ]
 
 export { isSupported }
