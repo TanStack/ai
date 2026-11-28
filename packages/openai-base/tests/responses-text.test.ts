@@ -1876,6 +1876,120 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(starts).toHaveLength(1)
       expect(ends).toHaveLength(1)
     })
+
+    it.each<{ completion: string; event: Record<string, unknown> }>([
+      {
+        completion: 'function_call_arguments.done',
+        event: {
+          type: 'response.function_call_arguments.done',
+          item_id: 'fc_late',
+          arguments: '{"location":"Paris"}',
+        },
+      },
+      {
+        completion: 'output_item.done',
+        event: {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'fc_late',
+            name: 'lookup_weather',
+            arguments: '{"location":"Paris"}',
+          },
+        },
+      },
+    ])(
+      'drops an arguments delta that arrives after $completion',
+      async ({ event }) => {
+        // One more arguments delta for an already-completed call. Emitting it
+        // as TOOL_CALL_ARGS after TOOL_CALL_END would append it to arguments
+        // that END already reported as final.
+        const streamChunks = [
+          {
+            type: 'response.created',
+            response: {
+              id: 'resp-late',
+              model: 'test-model',
+              status: 'in_progress',
+            },
+          },
+          {
+            type: 'response.output_item.added',
+            output_index: 0,
+            item: {
+              type: 'function_call',
+              id: 'fc_late',
+              name: 'lookup_weather',
+            },
+          },
+          {
+            type: 'response.function_call_arguments.delta',
+            item_id: 'fc_late',
+            delta: '{"location":"Paris"}',
+          },
+          event,
+          {
+            type: 'response.function_call_arguments.delta',
+            item_id: 'fc_late',
+            delta: '}',
+          },
+          {
+            type: 'response.completed',
+            response: {
+              id: 'resp-late',
+              model: 'test-model',
+              status: 'completed',
+              output: [
+                {
+                  type: 'function_call',
+                  id: 'fc_late',
+                  name: 'lookup_weather',
+                  arguments: '{"location":"Paris"}',
+                },
+              ],
+              usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+            },
+          },
+        ]
+        setupMockResponsesClient(streamChunks)
+        const error = vi.fn()
+        const logger = resolveDebugOption({
+          logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error },
+        })
+        const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+        const chunks: Array<AdapterYieldChunk> = []
+        for await (const chunk of adapter.chatStream({
+          threadId: 'thread-1',
+          logger,
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'q' }],
+          tools: [weatherTool],
+        })) {
+          chunks.push(chunk)
+        }
+
+        const lateDeltaLogs = error.mock.calls.filter(([message]) =>
+          String(message).includes('late function_call_arguments.delta'),
+        )
+        expect(lateDeltaLogs).toHaveLength(1)
+
+        const args = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
+        expect(args).toHaveLength(1)
+        if (args[0]?.type === 'TOOL_CALL_ARGS') {
+          expect(args[0].delta).toBe('{"location":"Paris"}')
+        }
+        const ends = chunks.filter((c) => c.type === 'TOOL_CALL_END')
+        expect(ends).toHaveLength(1)
+        if (ends[0]?.type === 'TOOL_CALL_END') {
+          expect(ends[0].input).toEqual({ location: 'Paris' })
+        }
+        const endIndex = chunks.findIndex((c) => c.type === 'TOOL_CALL_END')
+        expect(
+          chunks.slice(endIndex + 1).some((c) => c.type === 'TOOL_CALL_ARGS'),
+        ).toBe(false)
+      },
+    )
   })
 
   describe('raw tool arguments', () => {
