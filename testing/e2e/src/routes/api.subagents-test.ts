@@ -59,6 +59,9 @@ import type { SubagentScenario } from '@/lib/subagents-test'
  *   `withPersistence` stores the child, so that call loads its transcript.
  * - `routed-brief`: a router picks `researcher` and gives it the `task` as
  *   `{ name, input }`. The child's only message is that task.
+ * - `routed-usage`, `routed-usage-handoff`: a router picks `researcher`,
+ *   with the `exclusive` or `handoff` strategy. `withPersistence` stores the
+ *   run, and GET returns the run record so a spec can read its `usage`.
  */
 /** One store per test, for scenarios whose resume is a second request. */
 const stores = new Map<string, ReturnType<typeof memoryPersistence>>()
@@ -199,6 +202,15 @@ function subagentsFor(
       keys: (provider: ByokProvider | string) => getByokKey(request, provider),
     }
   }
+  if (scenario === 'routed-usage' || scenario === 'routed-usage-handoff') {
+    const strategy: 'exclusive' | 'handoff' =
+      scenario === 'routed-usage' ? 'exclusive' : 'handoff'
+    return {
+      agents: [child('researcher', [])],
+      strategy,
+      router: () => 'researcher',
+    }
+  }
   return { agents: [child('researcher', [])] }
 }
 
@@ -241,6 +253,13 @@ function fillSessionId(): ChatMiddleware {
 export const Route = createFileRoute('/api/subagents-test')({
   server: {
     handlers: {
+      GET: async ({ request }) => {
+        const query = new URL(request.url).searchParams
+        const run = await storeFor(
+          query.get('testId') ?? undefined,
+        ).stores.runs.get(query.get('runId') ?? '')
+        return Response.json(run ?? null)
+      },
       POST: async ({ request }) => {
         if (request.signal?.aborted) return new Response(null, { status: 499 })
         let params
@@ -278,8 +297,11 @@ export const Route = createFileRoute('/api/subagents-test')({
                   ],
                 }
               : {}),
-            // The resume is a second request, so the store outlives one.
-            ...(scenario === 'tool-approval'
+            // The resume and the usage read are second requests, so the store
+            // outlives one.
+            ...(scenario === 'tool-approval' ||
+            scenario === 'routed-usage' ||
+            scenario === 'routed-usage-handoff'
               ? { middleware: [withPersistence(storeFor(testId))] }
               : {}),
             agentLoopStrategy: maxIterations(4),

@@ -29,6 +29,8 @@ export type SubagentScenario =
   | 'session'
   | 'keys'
   | 'routed-brief'
+  | 'routed-usage'
+  | 'routed-usage-handoff'
 
 /** The key the `keys` scenario passes in `subagents.keys`. */
 export const SUBAGENT_E2E_KEY = 'sk-e2e-subagent-key'
@@ -45,6 +47,8 @@ export const SUBAGENT_PROMPTS: Record<SubagentScenario, string> = {
   session: '[subagent-session] take squid notes',
   keys: '[subagent-keys] write a draft',
   'routed-brief': '[subagent-routed-brief] compare squid facts',
+  'routed-usage': '[subagent-routed-usage] count squid tokens',
+  'routed-usage-handoff': '[subagent-routed-handoff] count squid tokens',
 }
 
 export function isSubagentScenario(value: unknown): value is SubagentScenario {
@@ -58,6 +62,8 @@ export function isSubagentScenario(value: unknown): value is SubagentScenario {
     value === 'limits' ||
     value === 'session' ||
     value === 'keys' ||
-    value === 'routed-brief'
+    value === 'routed-brief' ||
+    value === 'routed-usage' ||
+    value === 'routed-usage-handoff'
   )
 }
