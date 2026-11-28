@@ -931,6 +931,8 @@ export class ChatClient<
   // Tracks whether a queued checkForContinuation was skipped because
   // continuationPending was true (chained approval scenario)
   private continuationSkipped = false
+  private failedToolContinuationAnchorId: string | null = null
+  private inFlightToolContinuationAnchorId: string | null = null
   private draining = false
   private readonly activeRunIds = new Set<string>()
   /** Latched by `dispose()`; stops any late async callback starting new work. */
@@ -2547,6 +2549,10 @@ export class ChatClient<
           this.setConnectionStatus('error')
           this.resetSessionGenerating()
           this.setIsSubscribed(false)
+          if (this.inFlightToolContinuationAnchorId !== null) {
+            this.failedToolContinuationAnchorId =
+              this.inFlightToolContinuationAnchorId
+          }
           this.reportStreamError(err)
         }
         // Resolve pending processing so streamResponse doesn't hang
@@ -3264,14 +3270,24 @@ export class ChatClient<
     const signal = this.abortController.signal
     // Reset pending tool executions for the new stream
     this.pendingToolExecutions.clear()
+    this.inFlightToolContinuationAnchorId = null
     let streamCompletedSuccessfully = false
     let activeDevtoolsRunId: string | null = null
     let runTerminalEventEmitted = false
+    let toolContinuationAnchorId: string | null = null
 
     try {
       // Get UIMessages with parts (preserves approval state and client tool results).
       // Activity is frontend-only — never send it as model input.
       const messages = this.messagesForSend(this.processor.getMessages())
+      const lastSentMessage = messages.at(-1)
+      if (
+        lastSentMessage?.role === 'assistant' &&
+        lastSentMessage.metadata?.tanstack?.stopReason !== 'error' &&
+        lastSentMessage.parts.some((part) => part.type === 'tool-result')
+      ) {
+        toolContinuationAnchorId = lastSentMessage.id
+      }
       const clientTools = new Map(this.clientToolsRef.current)
       const runtimeContext = this.context
 
@@ -3286,6 +3302,8 @@ export class ChatClient<
       if (signal.aborted) {
         return false
       }
+
+      this.inFlightToolContinuationAnchorId = toolContinuationAnchorId
 
       // Merge sources for the wire `forwardedProps` field (later spreads win):
       //   1. The `forwardedProps` option.
@@ -3461,6 +3479,7 @@ export class ChatClient<
         this.byok?.request(error.provider, 'locked')
       }
       if (generation === this.streamGeneration) {
+        this.failedToolContinuationAnchorId = toolContinuationAnchorId
         this.reportStreamError(error)
         if (activeDevtoolsRunId) {
           this.devtoolsBridge.emitRunLifecycle(
@@ -3492,6 +3511,7 @@ export class ChatClient<
         this.activeClientTools = null
         this.activeContext = undefined
         this.abortController = null
+        this.inFlightToolContinuationAnchorId = null
         this.setIsLoading(false)
         this.pendingMessageBody = undefined // Ensure it's cleared even on error
 
@@ -3509,6 +3529,16 @@ export class ChatClient<
               'cancelled',
             )
           }
+        }
+
+        if (streamCompletedSuccessfully) {
+          // Clear before draining post-stream actions so a queued child
+          // stream retains its own failure anchor if it errors.
+          this.failedToolContinuationAnchorId = null
+        } else {
+          // Record before draining so a child stream queued by the drain
+          // keeps its own failure anchor if it errors.
+          this.failedToolContinuationAnchorId = toolContinuationAnchorId
         }
 
         // Drain any actions that were queued while the stream was in progress
@@ -3575,8 +3605,62 @@ export class ChatClient<
     this.setConnectionStatus('disconnected')
   }
 
+  private findReloadAnchorIndex(
+    messages: ReadonlyArray<UIMessage>,
+    lastUserMessageIndex: number,
+  ): number {
+    if (this.failedToolContinuationAnchorId !== null) {
+      const recordedIndex = messages.findLastIndex(
+        (m) => m.id === this.failedToolContinuationAnchorId,
+      )
+      if (
+        recordedIndex > lastUserMessageIndex &&
+        messages[recordedIndex]?.role === 'assistant' &&
+        messages[recordedIndex]?.metadata?.tanstack?.stopReason !== 'error' &&
+        messages[recordedIndex]?.parts.some(
+          (part) => part.type === 'tool-result',
+        )
+      ) {
+        return recordedIndex
+      }
+    }
+
+    let end = messages.length - 1
+    let skippedErrorRow = false
+    while (end > lastUserMessageIndex) {
+      const msg = messages[end]
+      if (msg?.role === 'activity') {
+        end--
+        continue
+      }
+      if (
+        msg?.role === 'assistant' &&
+        msg.metadata?.tanstack?.stopReason === 'error'
+      ) {
+        skippedErrorRow = true
+        end--
+        continue
+      }
+      break
+    }
+
+    const candidate = messages[end]
+    if (
+      end > lastUserMessageIndex &&
+      (skippedErrorRow || this.status === 'error') &&
+      candidate?.role === 'assistant' &&
+      candidate.metadata?.tanstack?.stopReason !== 'error' &&
+      candidate.parts.some((part) => part.type === 'tool-result')
+    ) {
+      return end
+    }
+
+    return lastUserMessageIndex
+  }
+
   /**
-   * Reload the last assistant message
+   * Reload the last assistant message, or retry a failed tool-result
+   * continuation without discarding the client tool result.
    */
   async reload(): Promise<void> {
     const messages = this.processor.getMessages()
@@ -3588,6 +3672,12 @@ export class ChatClient<
     )
 
     if (lastUserMessageIndex === -1) return
+
+    const reloadAnchorIndex = this.findReloadAnchorIndex(
+      messages,
+      lastUserMessageIndex,
+    )
+    this.failedToolContinuationAnchorId = null
 
     // Cancel any active stream before reloading
     if (this.isLoading) {
@@ -3613,10 +3703,12 @@ export class ChatClient<
       this.interruptManager.reset()
     }
 
-    this.events.reloaded(lastUserMessageIndex)
+    this.events.reloaded(reloadAnchorIndex)
 
-    // Remove all messages after the last user message
-    this.processor.removeMessagesAfter(lastUserMessageIndex)
+    // Remove all messages after the reload anchor (last user message, or the
+    // assistant message holding a completed tool result when retrying a failed
+    // follow-up run)
+    this.processor.removeMessagesAfter(reloadAnchorIndex)
     this.devtoolsBridge.emitSnapshot()
 
     // Resend
@@ -3693,6 +3785,7 @@ export class ChatClient<
     this.pendingResumeThreadId = null
     this.pendingResumeParentRunId = null
     this.pendingResumeItems = null
+    this.failedToolContinuationAnchorId = null
     this.setError(undefined)
     this.events.messagesCleared()
   }
@@ -4365,6 +4458,7 @@ export class ChatClient<
    * Manually set messages
    */
   setMessagesManually(messages: ReadonlyArray<UIMessage<TTools>>): void {
+    this.failedToolContinuationAnchorId = null
     const hadResume =
       this.lastResume !== null ||
       this.rejoinRunId !== null ||

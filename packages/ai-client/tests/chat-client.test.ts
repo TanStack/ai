@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { EventType, withTanstackMetadata } from '@tanstack/ai/client'
+import {
+  EventType,
+  uiMessagesToWire,
+  withTanstackMetadata,
+} from '@tanstack/ai/client'
 import { ChatClient } from '../src/chat-client'
 import {
   createCustomEventChunks,
@@ -2842,6 +2846,862 @@ describe('ChatClient', () => {
       await client.reload()
 
       expect(client.getMessages().length).toBe(0)
+    })
+
+    it('preserves client tool result when retrying after RUN_ERROR in addToolResult follow-up run', async () => {
+      const sent: Array<Array<string>> = []
+      let call = 0
+      const connection: ConnectConnectionAdapter = {
+        async *connect(messages, _data, _signal, ctx) {
+          call++
+          sent.push(uiMessagesToWire(messages).map((m) => `${m.role}:${m.id}`))
+          if (call === 1) {
+            yield {
+              type: EventType.RUN_STARTED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_START,
+              toolCallId: 'tc1',
+              toolCallName: 'approve',
+              parentMessageId: 'a1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: 'tc1',
+              delta: '{}',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_END,
+              toolCallId: 'tc1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.RUN_FINISHED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              finishReason: 'tool_calls',
+              timestamp: Date.now(),
+            }
+            return
+          }
+          if (call === 2 || call === 3) {
+            yield {
+              type: EventType.RUN_ERROR,
+              message: 'transport failure',
+              timestamp: Date.now(),
+            }
+            return
+          }
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            timestamp: Date.now(),
+          }
+          yield* createTextChunks('Approved', 'a2')
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          }
+        },
+      }
+
+      const client = new ChatClient({
+        threadId: 'thread-reload-tool-error',
+        connection,
+        tools: [
+          {
+            name: 'approve',
+            description: 'approve action',
+            __toolSide: 'client',
+          },
+        ],
+      })
+
+      await client.sendMessage('do it')
+      await client.addToolResult({
+        toolCallId: 'tc1',
+        tool: 'approve',
+        output: { approved: true },
+        state: 'output-available',
+      })
+
+      // First retry after RUN_ERROR preserves [user, assistant, tool]
+      await client.reload()
+      expect(sent[2]).toEqual([
+        expect.stringMatching(/^user:/),
+        'assistant:a1',
+        'tool:tool-tc1',
+      ])
+
+      // Second consecutive retry after another RUN_ERROR still preserves tool result
+      await client.reload()
+      expect(sent[3]).toEqual([
+        expect.stringMatching(/^user:/),
+        'assistant:a1',
+        'tool:tool-tc1',
+      ])
+
+      // Once follow-up completes successfully, normal reload regenerates from user message
+      await client.reload()
+      expect(sent[4]).toEqual([expect.stringMatching(/^user:/)])
+    })
+
+    it('preserves client tool result when retrying after thrown transport error in addToolResult follow-up run', async () => {
+      const sent: Array<Array<string>> = []
+      let call = 0
+      const connection: ConnectConnectionAdapter = {
+        async *connect(messages, _data, _signal, ctx) {
+          call++
+          sent.push(uiMessagesToWire(messages).map((m) => `${m.role}:${m.id}`))
+          if (call === 1) {
+            yield {
+              type: EventType.RUN_STARTED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_START,
+              toolCallId: 'tc1',
+              toolCallName: 'approve',
+              parentMessageId: 'a1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: 'tc1',
+              delta: '{}',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_END,
+              toolCallId: 'tc1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.RUN_FINISHED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              finishReason: 'tool_calls',
+              timestamp: Date.now(),
+            }
+            return
+          }
+          if (call === 2) {
+            throw new Error('503 Service Unavailable')
+          }
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            timestamp: Date.now(),
+          }
+          yield* createTextChunks('Done', 'a2')
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          }
+        },
+      }
+
+      const client = new ChatClient({
+        threadId: 'thread-reload-tool-throw',
+        connection,
+        tools: [
+          {
+            name: 'approve',
+            description: 'approve action',
+            __toolSide: 'client',
+          },
+        ],
+      })
+
+      await client.sendMessage('do it')
+      await client.addToolResult({
+        toolCallId: 'tc1',
+        tool: 'approve',
+        output: { approved: true },
+        state: 'output-available',
+      })
+
+      await client.reload()
+
+      expect(sent).toHaveLength(3)
+      expect(sent[2]).toEqual([
+        expect.stringMatching(/^user:/),
+        'assistant:a1',
+        'tool:tool-tc1',
+      ])
+    })
+
+    it('preserves client tool result when retrying after partial follow-up text throws without RUN_ERROR', async () => {
+      const sent: Array<Array<string>> = []
+      let call = 0
+      const connection: ConnectConnectionAdapter = {
+        async *connect(messages, _data, _signal, ctx) {
+          call++
+          sent.push(uiMessagesToWire(messages).map((m) => `${m.role}:${m.id}`))
+          if (call === 1) {
+            yield {
+              type: EventType.RUN_STARTED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_START,
+              toolCallId: 'tc1',
+              toolCallName: 'approve',
+              parentMessageId: 'a1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: 'tc1',
+              delta: '{}',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_END,
+              toolCallId: 'tc1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.RUN_FINISHED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              finishReason: 'tool_calls',
+              timestamp: Date.now(),
+            }
+            return
+          }
+          if (call === 2) {
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: 'a2-partial',
+              delta: 'partial',
+              timestamp: Date.now(),
+            }
+            throw new Error('stream aborted mid-response')
+          }
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            timestamp: Date.now(),
+          }
+          yield* createTextChunks('Recovered', 'a3')
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          }
+        },
+      }
+
+      const client = new ChatClient({
+        threadId: 'thread-reload-partial-throw',
+        connection,
+        tools: [
+          {
+            name: 'approve',
+            description: 'approve action',
+            __toolSide: 'client',
+          },
+        ],
+      })
+
+      await client.sendMessage('do it')
+      await client.addToolResult({
+        toolCallId: 'tc1',
+        tool: 'approve',
+        output: { approved: true },
+        state: 'output-available',
+      })
+
+      await client.reload()
+
+      expect(sent[2]).toEqual([
+        expect.stringMatching(/^user:/),
+        'assistant:a1',
+        'tool:tool-tc1',
+      ])
+    })
+
+    it('skips trailing activity rows cleanly for both failed and successful tool follow-up runs', async () => {
+      const sent: Array<Array<string>> = []
+      let call = 0
+      const connection: ConnectConnectionAdapter = {
+        async *connect(messages, _data, _signal, ctx) {
+          call++
+          sent.push(uiMessagesToWire(messages).map((m) => `${m.role}:${m.id}`))
+          if (call === 1) {
+            yield {
+              type: EventType.RUN_STARTED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_START,
+              toolCallId: 'tc1',
+              toolCallName: 'approve',
+              parentMessageId: 'a1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: 'tc1',
+              delta: '{}',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_END,
+              toolCallId: 'tc1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.RUN_FINISHED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              finishReason: 'tool_calls',
+              timestamp: Date.now(),
+            }
+            return
+          }
+          if (call === 2) {
+            yield {
+              type: EventType.RUN_ERROR,
+              message: 'transport failure',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.ACTIVITY_SNAPSHOT,
+              messageId: 'act-err',
+              activityType: 'STATUS',
+              content: { text: 'failed' },
+              timestamp: Date.now(),
+            }
+            return
+          }
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            timestamp: Date.now(),
+          }
+          yield* createTextChunks('Done', 'a2')
+          yield {
+            type: EventType.ACTIVITY_SNAPSHOT,
+            messageId: 'act-ok',
+            activityType: 'STATUS',
+            content: { text: 'done' },
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          }
+        },
+      }
+
+      const client = new ChatClient({
+        threadId: 'thread-reload-activity',
+        connection,
+        tools: [
+          {
+            name: 'approve',
+            description: 'approve action',
+            __toolSide: 'client',
+          },
+        ],
+      })
+
+      await client.sendMessage('do it')
+      await client.addToolResult({
+        toolCallId: 'tc1',
+        tool: 'approve',
+        output: { approved: true },
+        state: 'output-available',
+      })
+
+      // Activity after RUN_ERROR must still preserve [user, assistant, tool]
+      await client.reload()
+      expect(sent[2]).toEqual([
+        expect.stringMatching(/^user:/),
+        'assistant:a1',
+        'tool:tool-tc1',
+      ])
+
+      // Activity after a completed answer must regenerate from [user]
+      await client.reload()
+      expect(sent[3]).toEqual([expect.stringMatching(/^user:/)])
+    })
+
+    it('preserves client tool result when a queued post-stream continuation fails after partial text', async () => {
+      const sent: Array<Array<string>> = []
+      let call = 0
+      const connection: ConnectConnectionAdapter = {
+        async *connect(messages, _data, _signal, ctx) {
+          call++
+          sent.push(uiMessagesToWire(messages).map((m) => `${m.role}:${m.id}`))
+          if (call === 1) {
+            yield {
+              type: EventType.RUN_STARTED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_START,
+              toolCallId: 'tc1',
+              toolCallName: 'approve',
+              parentMessageId: 'a1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: 'tc1',
+              delta: '{}',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_END,
+              toolCallId: 'tc1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.RUN_FINISHED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              finishReason: 'tool_calls',
+              timestamp: Date.now(),
+            }
+            return
+          }
+          if (call === 2) {
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: 'a2-partial',
+              delta: 'partial',
+              timestamp: Date.now(),
+            }
+            throw new Error('child continuation failed mid-response')
+          }
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            timestamp: Date.now(),
+          }
+          yield* createTextChunks('Recovered', 'a3')
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          }
+        },
+      }
+
+      const client = new ChatClient({
+        threadId: 'thread-reload-queued-child',
+        connection,
+        tools: [
+          {
+            name: 'approve',
+            description: 'approve action',
+            __toolSide: 'client',
+            execute: () => ({ approved: true }),
+          },
+        ],
+      })
+
+      await client.sendMessage('do it')
+      expect(sent).toHaveLength(2)
+
+      await client.reload()
+      expect(sent[2]).toEqual([
+        expect.stringMatching(/^user:/),
+        'assistant:a1',
+        'tool:tool-tc1',
+      ])
+    })
+
+    it('preserves client tool result when onError triggers reload after partial follow-up error', async () => {
+      const sent: Array<Array<string>> = []
+      let call = 0
+      let retryPromise: Promise<void> | null = null
+      const connection: ConnectConnectionAdapter = {
+        async *connect(messages, _data, _signal, ctx) {
+          call++
+          sent.push(uiMessagesToWire(messages).map((m) => `${m.role}:${m.id}`))
+          if (call === 1) {
+            yield {
+              type: EventType.RUN_STARTED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_START,
+              toolCallId: 'tc1',
+              toolCallName: 'approve',
+              parentMessageId: 'a1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: 'tc1',
+              delta: '{}',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_END,
+              toolCallId: 'tc1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.RUN_FINISHED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              finishReason: 'tool_calls',
+              timestamp: Date.now(),
+            }
+            return
+          }
+          if (call === 2) {
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: 'a2-partial',
+              delta: 'partial',
+              timestamp: Date.now(),
+            }
+            throw new Error('follow-up failed')
+          }
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            timestamp: Date.now(),
+          }
+          yield* createTextChunks('Recovered', 'a3')
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          }
+        },
+      }
+
+      const client = new ChatClient({
+        threadId: 'thread-reload-onerror',
+        connection,
+        tools: [
+          {
+            name: 'approve',
+            description: 'approve action',
+            __toolSide: 'client',
+          },
+        ],
+        onError: () => {
+          if (call === 2) {
+            retryPromise = client.reload()
+          }
+        },
+      })
+
+      await client.sendMessage('do it')
+      await client.addToolResult({
+        toolCallId: 'tc1',
+        tool: 'approve',
+        output: { approved: true },
+        state: 'output-available',
+      })
+      expect(retryPromise).not.toBeNull()
+      await retryPromise
+
+      expect(sent[2]).toEqual([
+        expect.stringMatching(/^user:/),
+        'assistant:a1',
+        'tool:tool-tc1',
+      ])
+    })
+
+    it('preserves client tool result when subscribe() errors mid-stream and onError triggers reload()', async () => {
+      const sent: Array<Array<string>> = []
+      let call = 0
+      let retryPromise: Promise<void> | null = null
+      const queue: Array<StreamChunk | Error> = []
+      let wake: (() => void) | null = null
+      const push = (item: StreamChunk | Error) => {
+        queue.push(item)
+        const fn = wake
+        wake = null
+        fn?.()
+      }
+
+      const adapter = {
+        async *subscribe(signal: AbortSignal) {
+          while (!signal.aborted) {
+            if (queue.length === 0) {
+              await new Promise<void>((resolve) => {
+                wake = resolve
+                signal.addEventListener('abort', () => resolve(), {
+                  once: true,
+                })
+              })
+              continue
+            }
+            const next = queue.shift()!
+            if (next instanceof Error) {
+              throw next
+            }
+            yield next
+          }
+        },
+        async send(
+          messages: Array<any>,
+          _data: Record<string, any>,
+          _signal: AbortSignal,
+          ctx: { runId: string; threadId: string },
+        ) {
+          call++
+          sent.push(uiMessagesToWire(messages).map((m) => `${m.role}:${m.id}`))
+          if (call === 1) {
+            push({
+              type: EventType.RUN_STARTED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              timestamp: Date.now(),
+            })
+            push({
+              type: EventType.TOOL_CALL_START,
+              toolCallId: 'tc1',
+              toolCallName: 'approve',
+              parentMessageId: 'a1',
+              timestamp: Date.now(),
+            })
+            push({
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: 'tc1',
+              delta: '{}',
+              timestamp: Date.now(),
+            })
+            push({
+              type: EventType.TOOL_CALL_END,
+              toolCallId: 'tc1',
+              timestamp: Date.now(),
+            })
+            push({
+              type: EventType.RUN_FINISHED,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+              finishReason: 'stop',
+              timestamp: Date.now(),
+            })
+            return
+          }
+          if (call === 2) {
+            push({
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: 'a2-partial',
+              delta: 'partial',
+              timestamp: Date.now(),
+            })
+            // Let send() resolve before subscription errors mid-stream.
+            queueMicrotask(() => {
+              push(new Error('subscription socket dropped'))
+            })
+            return
+          }
+          push({
+            type: EventType.RUN_STARTED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            timestamp: Date.now(),
+          })
+          push({
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'a3',
+            delta: 'Recovered',
+            timestamp: Date.now(),
+          })
+          push({
+            type: EventType.RUN_FINISHED,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          })
+        },
+      }
+
+      const client = new ChatClient({
+        threadId: 'thread-subscribe-onerror',
+        connection: adapter as any,
+        tools: [
+          {
+            name: 'approve',
+            description: 'approve action',
+            __toolSide: 'client',
+          },
+        ],
+        onError: () => {
+          if (call === 2) {
+            retryPromise = client.reload()
+          }
+        },
+      })
+
+      await client.sendMessage('do it')
+      await client.addToolResult({
+        toolCallId: 'tc1',
+        tool: 'approve',
+        output: { approved: true },
+        state: 'output-available',
+      })
+      expect(retryPromise).not.toBeNull()
+      await retryPromise
+
+      expect(sent[2]).toEqual([
+        expect.stringMatching(/^user:/),
+        'assistant:a1',
+        'tool:tool-tc1',
+      ])
+      client.unsubscribe()
+    })
+
+    it('clears failed continuation anchor when setMessagesManually() replaces the transcript', async () => {
+      const sent: Array<Array<string>> = []
+      let call = 0
+      const connection: ConnectConnectionAdapter = {
+        async *connect(messages, _data, _signal, ctx) {
+          call++
+          sent.push(uiMessagesToWire(messages).map((m) => `${m.role}:${m.id}`))
+          if (call === 1) {
+            yield {
+              type: EventType.RUN_STARTED,
+              runId: ctx!.runId,
+              threadId: ctx!.threadId,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_START,
+              toolCallId: 'tc1',
+              toolCallName: 'approve',
+              parentMessageId: 'a1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: 'tc1',
+              delta: '{}',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_END,
+              toolCallId: 'tc1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.RUN_FINISHED,
+              runId: ctx!.runId,
+              threadId: ctx!.threadId,
+              finishReason: 'tool_calls',
+              timestamp: Date.now(),
+            }
+            return
+          }
+          if (call === 2) {
+            throw new Error('continuation boom')
+          }
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: ctx!.runId,
+            threadId: ctx!.threadId,
+            timestamp: Date.now(),
+          }
+          yield* createTextChunks('Regenerated answer', 'a3')
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId: ctx!.runId,
+            threadId: ctx!.threadId,
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          }
+        },
+      }
+
+      const client = new ChatClient({
+        threadId: 'thread-set-messages-clears-anchor',
+        connection,
+        tools: [
+          {
+            name: 'approve',
+            description: 'approve action',
+            __toolSide: 'client',
+          },
+        ],
+      })
+
+      await client.sendMessage('do it')
+      await client.addToolResult({
+        toolCallId: 'tc1',
+        tool: 'approve',
+        output: { approved: true },
+        state: 'output-available',
+      })
+      expect(client.getError()?.message).toBe('continuation boom')
+
+      const snapshot = client.getMessages()
+      client.setMessagesManually([
+        ...snapshot.slice(0, 2),
+        {
+          id: 'a2',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'Completed later answer' }],
+        },
+        {
+          id: 'u2',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Next prompt' }],
+        },
+        {
+          id: 'a2-reply',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'Stale reply' }],
+        },
+      ])
+
+      await client.reload()
+      expect(sent[2]).toEqual([
+        expect.stringMatching(/^user:/),
+        'assistant:a1',
+        'tool:tool-tc1',
+        'assistant:a2',
+        'user:u2',
+      ])
     })
   })
 
