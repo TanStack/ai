@@ -388,7 +388,16 @@ function buildInteractionsInput(
 /**
  * Configuration for Gemini text adapter
  */
-export interface GeminiTextConfig extends GeminiClientConfig {}
+export interface GeminiTextConfig<
+  TModel extends string = string,
+> extends GeminiClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: ResolveProviderOptions<TModel>
+}
 
 /**
  * Gemini-specific provider options for text/chat
@@ -469,9 +478,14 @@ export class GeminiTextAdapter<
 
   private readonly client: GeminiClient
   private readonly timeoutMs: number | undefined
+  readonly defaultModelOptions: ResolveProviderOptions<TModel> | undefined
 
-  constructor(config: GeminiTextConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: GeminiTextConfig<TModel>,
+    model: TModel,
+  ) {
     super({}, model)
+    this.defaultModelOptions = defaultModelOptions
     this.provider =
       config.vertexai === true || config.enterprise === true
         ? 'google-vertex'
@@ -1874,7 +1888,7 @@ function structuredStreamError(
 export function createGeminiChat<TModel extends (typeof GEMINI_MODELS)[number]>(
   model: TModel,
   apiKey: string,
-  config?: Omit<GeminiTextConfig, 'apiKey'>,
+  config?: Omit<GeminiTextConfig<TModel>, 'apiKey'>,
 ): GeminiTextAdapter<
   TModel,
   ResolveProviderOptions<TModel>,
@@ -1890,7 +1904,7 @@ export function createGeminiChat<TModel extends (typeof GEMINI_MODELS)[number]>(
  */
 export function geminiText<TModel extends (typeof GEMINI_MODELS)[number]>(
   model: TModel,
-  config?: Omit<GeminiTextConfig, 'apiKey'>,
+  config?: Omit<GeminiTextConfig<TModel>, 'apiKey'>,
 ): GeminiTextAdapter<
   TModel,
   ResolveProviderOptions<TModel>,

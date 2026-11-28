@@ -23,7 +23,14 @@ function isPlainFormat(format: string): format is 'json' | 'text' {
   return format === 'json' || format === 'text'
 }
 
-export interface LovableTranscriptionConfig extends LovableClientConfig {}
+export interface LovableTranscriptionConfig extends LovableClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: LovableTranscriptionProviderOptions
+}
 
 function buildTranscriptionUsage(
   response?: OpenAI_SDK.Audio.TranscriptionCreateResponse,
@@ -75,10 +82,15 @@ export class LovableTranscriptionAdapter<
   readonly name = 'lovable' as const
 
   protected client: OpenAIClientLike
+  readonly defaultModelOptions: LovableTranscriptionProviderOptions | undefined
 
-  constructor(config: LovableTranscriptionConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: LovableTranscriptionConfig,
+    model: TModel,
+  ) {
     super(model, {})
     this.client = createOpenAIClient(withLovableDefaults(config))
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async transcribe(

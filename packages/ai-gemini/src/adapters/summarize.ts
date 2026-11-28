@@ -2,13 +2,23 @@ import { ChatStreamSummarizeAdapter } from '@tanstack/ai/adapters'
 import { getGeminiApiKeyFromEnv } from '../utils'
 import { GeminiTextAdapter } from './text'
 import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
+import type { GeminiTextConfig } from './text'
 import type { GEMINI_MODELS } from '../model-meta'
 import type { GeminiClientConfig } from '../utils/client'
 
 /**
  * Configuration for Gemini summarize adapter
  */
-export interface GeminiSummarizeConfig extends GeminiClientConfig {}
+export interface GeminiSummarizeConfig<
+  TModel extends string = string,
+> extends GeminiClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: GeminiTextConfig<TModel>['defaultModelOptions']
+}
 
 export type GeminiSummarizeModel = (typeof GEMINI_MODELS)[number]
 
@@ -26,7 +36,7 @@ export type GeminiSummarizeModel = (typeof GEMINI_MODELS)[number]
 export function createGeminiSummarize<TModel extends GeminiSummarizeModel>(
   apiKey: string,
   model: TModel,
-  config?: Omit<GeminiSummarizeConfig, 'apiKey'>,
+  config?: Omit<GeminiSummarizeConfig<TModel>, 'apiKey'>,
 ): ChatStreamSummarizeAdapter<
   TModel,
   InferTextProviderOptions<GeminiTextAdapter<TModel>>
@@ -50,7 +60,7 @@ export function createGeminiSummarize<TModel extends GeminiSummarizeModel>(
  */
 export function geminiSummarize<TModel extends GeminiSummarizeModel>(
   model: TModel,
-  config?: Omit<GeminiSummarizeConfig, 'apiKey'>,
+  config?: Omit<GeminiSummarizeConfig<TModel>, 'apiKey'>,
 ): ChatStreamSummarizeAdapter<
   TModel,
   InferTextProviderOptions<GeminiTextAdapter<TModel>>

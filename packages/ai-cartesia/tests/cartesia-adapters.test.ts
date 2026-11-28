@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { generateTranscription } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { createCartesiaSpeech, createCartesiaTranscription } from '../src/index'
 import { getCartesiaApiKeyFromEnv, toAudioFile } from '../src/client'
@@ -144,6 +145,32 @@ describe('Cartesia adapters', () => {
     expect(form.get('timestamp_granularities[]')).toBe('word')
     expect(result).toMatchObject({ id: 'stt-1', text: 'hello', duration: 1.5 })
     expect(result.words).toEqual([{ word: 'hello', start: 0, end: 1.5 }])
+  })
+
+  it('sends defaultModelOptions on the STT request when responseFormat is omitted', async () => {
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        Response.json({
+          text: 'hello',
+          request_id: 'stt-defaults',
+        }),
+    )
+
+    await generateTranscription({
+      adapter: createCartesiaTranscription('ink-whisper', 'test-key', {
+        fetch: fetchMock,
+        defaultModelOptions: { timestamp_granularities: ['word'] },
+      }),
+      audio: new File([new Uint8Array([1, 2])], 'voice.wav', {
+        type: 'audio/wav',
+      }),
+      threadId: 'thread-1',
+    })
+
+    const [, init] = fetchMock.mock.calls.at(-1)!
+    expect(init?.body).toBeInstanceOf(FormData)
+    const form = init?.body as FormData
+    expect(form.get('timestamp_granularities[]')).toBe('word')
   })
 
   it('throws the Cartesia status and body on a non-OK response', async () => {

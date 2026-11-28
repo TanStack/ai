@@ -129,7 +129,14 @@ function buildTranscriptionUsage(
 /**
  * Configuration for OpenAI Transcription adapter
  */
-export interface OpenAITranscriptionConfig extends OpenAIClientConfig {}
+export interface OpenAITranscriptionConfig extends OpenAIClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: OpenAITranscriptionProviderOptions
+}
 
 /**
  * OpenAI Transcription (Speech-to-Text) Adapter
@@ -153,10 +160,13 @@ export class OpenAITranscriptionAdapter<
   readonly name = 'openai' as const
 
   protected client: OpenAIClientLike
+  readonly defaultModelOptions: OpenAITranscriptionProviderOptions | undefined
 
   constructor(config: OpenAITranscriptionConfig, model: TModel) {
     super(model, {})
-    this.client = createOpenAIClient(config)
+    const { defaultModelOptions, ...clientConfig } = config
+    this.client = createOpenAIClient(clientConfig)
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async transcribe(

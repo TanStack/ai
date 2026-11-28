@@ -54,7 +54,7 @@ export type OllamaTextModel =
 type ResolveModelOptions<TModel extends string> =
   TModel extends keyof OllamaChatModelOptionsByName
     ? OllamaChatModelOptionsByName[TModel]
-    : Omit<ChatRequest, 'think'>
+    : Omit<ChatRequest, 'think' | 'model'>
 
 /**
  * The reasoning levels of a model, for `chat({ reasoning })`. A model name
@@ -94,6 +94,18 @@ function ollamaThink(
     return { think: value }
   }
   return {}
+}
+
+/** Configuration for the Ollama text adapter. */
+export interface OllamaTextConfig<
+  TModel extends string = string,
+> extends OllamaClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: ResolveModelOptions<TModel>
 }
 
 export interface OllamaTextAdapterOptions {
@@ -141,9 +153,14 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   private readonly client: Ollama
   /** The config of the adapter's own client. An injected client has none. */
   private readonly clientConfig: OllamaClientConfig | undefined
+  readonly defaultModelOptions: ResolveModelOptions<TModel> | undefined
 
   constructor(
-    hostOrClientOrConfig: string | Ollama | OllamaClientConfig | undefined,
+    hostOrClientOrConfig:
+      | string
+      | Ollama
+      | OllamaTextConfig<TModel>
+      | undefined,
     model: TModel,
   ) {
     super({}, model)
@@ -157,9 +174,11 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       // Ollama client instance (has a chat method)
       this.client = hostOrClientOrConfig
     } else {
-      // OllamaClientConfig object
-      this.clientConfig = hostOrClientOrConfig
-      this.client = createOllamaClient(hostOrClientOrConfig)
+      // OllamaTextConfig object
+      const { defaultModelOptions, ...clientConfig } = hostOrClientOrConfig
+      this.clientConfig = clientConfig
+      this.client = createOllamaClient(clientConfig)
+      this.defaultModelOptions = defaultModelOptions
     }
   }
 
@@ -679,7 +698,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
  */
 export function createOllamaChat<TModel extends string>(
   model: TModel,
-  hostOrConfig?: string | OllamaClientConfig,
+  hostOrConfig?: string | OllamaTextConfig<TModel>,
 ): OllamaTextAdapter<TModel> {
   return new OllamaTextAdapter(hostOrConfig, model)
 }
@@ -690,7 +709,8 @@ export function createOllamaChat<TModel extends string>(
  */
 export function ollamaText<TModel extends string>(
   model: TModel,
+  config?: Pick<OllamaTextConfig<TModel>, 'defaultModelOptions'>,
 ): OllamaTextAdapter<TModel> {
   const host = getOllamaHostFromEnv()
-  return new OllamaTextAdapter(host, model)
+  return new OllamaTextAdapter({ host, ...config }, model)
 }

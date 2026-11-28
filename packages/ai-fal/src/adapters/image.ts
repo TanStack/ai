@@ -8,7 +8,7 @@ import { buildFalUsage, takeBillableUnits } from '../utils/billing'
 import { mapSizeToFalFormat } from '../image/image-provider-options'
 import { mapImageInputsToFalFields } from '../image/image-inputs'
 import type { OutputType, Result } from '@fal-ai/client'
-import type { FalClientConfig } from '../utils/client'
+import type { FalAdapterConfig } from '../utils/client'
 import type { FalClient } from '../client/index'
 import type {
   GeneratedImage,
@@ -54,12 +54,17 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
   override readonly kind = 'image' as const
   readonly name = 'fal' as const
   private readonly client: FalClient
+  readonly defaultModelOptions: FalImageProviderOptions<TModel> | undefined
   // Consumes fal storage URLs uploaded via falFiles().
   override readonly supportsFileSources = true
 
-  constructor(model: TModel, config?: FalClientConfig) {
+  constructor(
+    model: TModel,
+    config?: FalAdapterConfig<FalImageProviderOptions<TModel>>,
+  ) {
     super(model, {})
     this.client = createAdapterFalClient(config)
+    this.defaultModelOptions = config?.defaultModelOptions
   }
 
   async generateImages(
@@ -126,7 +131,8 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
     // Order matters: size and derived image-input fields first, then
     // modelOptions (so explicit user overrides win for mask_url /
     // control_image_url / reference_image_urls), then the call-controlled
-    // prompt / num_images, which always take precedence.
+    // prompt. Set num_images only when the call sets numberOfImages so a
+    // default num_images is not replaced with undefined.
     const inputFields = mapImageInputsToFalFields(this.model, resolved.images)
     const input = {
       ...sizeParams,
@@ -135,7 +141,9 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
       // Media-only prompts (e.g. upscalers, background removal) omit the
       // prompt field entirely rather than sending an empty string.
       ...(resolved.text ? { prompt: resolved.text } : {}),
-      num_images: options.numberOfImages,
+      ...(options.numberOfImages !== undefined
+        ? { num_images: options.numberOfImages }
+        : {}),
     } as FalModelInput<TModel>
     return input
   }
@@ -209,14 +217,14 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
 
 export function createFalImage<TModel extends FalModel>(
   model: TModel,
-  config?: FalClientConfig,
+  config?: FalAdapterConfig<FalImageProviderOptions<TModel>>,
 ): FalImageAdapter<TModel> {
   return new FalImageAdapter(model, config)
 }
 
 export function falImage<TModel extends FalModel>(
   model: TModel,
-  config?: FalClientConfig,
+  config?: FalAdapterConfig<FalImageProviderOptions<TModel>>,
 ): FalImageAdapter<TModel> {
   return createFalImage(model, config)
 }

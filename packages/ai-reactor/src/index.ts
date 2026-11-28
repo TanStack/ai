@@ -8,7 +8,8 @@ export {
   reactorVideo,
   createReactorVideo,
 } from './adapters/video'
-export type { ReactorClientConfig } from './adapters/world'
+export type { ReactorClientConfig, ReactorWorldConfig } from './adapters/world'
+export type { ReactorVideoConfig } from './adapters/video'
 
 export {
   REACTOR_WORLD_MODELS,

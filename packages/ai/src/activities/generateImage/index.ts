@@ -8,6 +8,7 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
+import { withDefaultModelOptions } from '../default-model-options'
 import { readErrorUsage } from '../../utilities/ag-ui-usage'
 import {
   applyGenerationResultTransforms,
@@ -278,6 +279,8 @@ async function runGenerateImage<
 >(
   options: ImageActivityOptions<TAdapter, boolean>,
 ): Promise<ImageGenerationResult> {
+  // Merge the adapter defaults once here, so middleware, devtools events and
+  // the adapter all read the same `modelOptions`.
   const {
     adapter,
     stream: _stream,
@@ -288,7 +291,7 @@ async function runGenerateImage<
     timeout,
     abortSignal: callerAbortSignal,
     ...rest
-  } = options
+  } = withDefaultModelOptions(options)
   const model = adapter.model
   const requestId = createId('image')
   const startTime = Date.now()

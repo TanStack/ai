@@ -70,6 +70,11 @@ function throwRunError(
 export interface ChatStreamCapable {
   /** Native token-limit option for adapters whose provider name is user-defined. */
   readonly maxTokensKey?: string
+  /**
+   * The text adapter's default `modelOptions`. The summarize wrapper exposes
+   * them as its own, so `summarize()` merges them under the call's options.
+   */
+  readonly defaultModelOptions?: object | undefined
   chatStream: (options: TextOptions<any>) => AsyncIterable<AdapterYieldChunk>
 }
 
@@ -235,6 +240,8 @@ export class ChatStreamSummarizeAdapter<
   TProviderOptions extends object = Record<string, unknown>,
 > extends BaseSummarizeAdapter<TModel, TProviderOptions> {
   readonly name: string
+  /** The wrapped text adapter's default `modelOptions`. */
+  readonly defaultModelOptions: TProviderOptions | undefined
 
   private readonly textAdapter: ChatStreamCapable
 
@@ -246,6 +253,12 @@ export class ChatStreamSummarizeAdapter<
     super({}, model)
     this.name = name
     this.textAdapter = textAdapter
+    // ponytail: the provider factory pins TProviderOptions to the text
+    // adapter's own options, so its defaults have that type. A generic
+    // ChatStreamCapable cannot check this when the model is generic.
+    this.defaultModelOptions = textAdapter.defaultModelOptions as
+      | TProviderOptions
+      | undefined
   }
 
   async summarize(

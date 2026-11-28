@@ -13,7 +13,14 @@ import type {
 /** OpenRouter Decisions API. Jev is not chat completions. */
 const OPENROUTER_DECISIONS_URL = 'https://openrouter.ai/api/alpha/decisions'
 
-export interface OpenRouterEvaluateConfig extends OpenRouterClientConfig {}
+export interface OpenRouterEvaluateConfig extends OpenRouterClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: OpenRouterEvaluateProviderOptions
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -126,10 +133,13 @@ export class OpenRouterEvaluateAdapter<
   readonly name = 'openrouter' as const
 
   private readonly clientConfig: OpenRouterClientConfig
+  readonly defaultModelOptions: OpenRouterEvaluateProviderOptions | undefined
 
   constructor(config: OpenRouterEvaluateConfig, model: TModel) {
     super({}, model)
-    this.clientConfig = config
+    const { defaultModelOptions, ...clientConfig } = config
+    this.clientConfig = clientConfig
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async evaluate(options: EvaluateOptions<OpenRouterEvaluateProviderOptions>) {

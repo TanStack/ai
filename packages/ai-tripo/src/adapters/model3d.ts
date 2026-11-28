@@ -29,6 +29,19 @@ import type {
   TripoModelFor,
 } from '../model-meta'
 
+/** Configuration for the Tripo 3D model adapter. */
+export interface TripoModel3dConfig<
+  E extends TripoModel3dEndpoint,
+  M extends TripoModelFor<E> = TripoDefaultModelFor<E>,
+> extends TripoClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: TripoModel3dProviderOptions<E, M>
+}
+
 /** Turns a source into a Tripo input value. A `data` source is uploaded. */
 type TripoUpload = (source: ContentPartSource) => Promise<string>
 
@@ -316,17 +329,20 @@ export class TripoModel3dAdapter<
   private readonly client: TripoClient
   private readonly tripoModel: TripoModelFor<E> | undefined
   private readonly convertFormats = new Map<string, Model3dFormat>()
+  readonly defaultModelOptions: TripoModel3dProviderOptions<E, M> | undefined
 
   // ponytail: `M` only types `modelOptions`. `tripo3dModel()` infers it from
   // the model argument, so the constructor takes any model of the endpoint.
   constructor(
     endpoint: E,
     model: TripoModelFor<E> | undefined,
-    config?: TripoClientConfig,
+    config?: TripoModel3dConfig<E, M>,
   ) {
     super({}, endpoint)
+    const { defaultModelOptions, ...clientConfig } = config ?? {}
     this.tripoModel = model
-    this.client = createTripoClient(config)
+    this.client = createTripoClient(clientConfig)
+    this.defaultModelOptions = defaultModelOptions
   }
 
   private readTask(jobId: string, signal: AbortSignal | undefined) {
@@ -422,9 +438,16 @@ export class TripoModel3dAdapter<
   }
 }
 
+// One tuple per model, so the config types its defaults for that model.
 type TripoModel3dArgs<E extends TripoModel3dEndpoint> =
-  | [model?: TripoModelFor<E>, config?: TripoClientConfig]
-  | [config?: TripoClientConfig]
+  | {
+      [Model in TripoModelFor<E>]: [
+        model: Model,
+        config?: TripoModel3dConfig<E, Model>,
+      ]
+    }[TripoModelFor<E>]
+  | [model?: undefined, config?: TripoModel3dConfig<E>]
+  | [config?: TripoModel3dConfig<E>]
 
 // The model in the factory arguments, or the default model when the
 // arguments have none. A config object is not a model, so it gives the
@@ -488,16 +511,20 @@ export function tripo3dModel<
   A extends TripoModel3dArgs<E>,
 >(endpoint: E, ...args: A) {
   const [first, second]: TripoModel3dArgs<E> = args
+  // ponytail: TripoModel3dArgs pairs each model with the config for that
+  // model at the call site. A generic body cannot see that pairing, so the
+  // config is typed for the model here.
+  type Config = TripoModel3dConfig<E, TripoModelFromArgs<E, A>> | undefined
   if (typeof first === 'object') {
     return new TripoModel3dAdapter<E, TripoModelFromArgs<E, A>>(
       endpoint,
       undefined,
-      first,
+      first as Config,
     )
   }
   return new TripoModel3dAdapter<E, TripoModelFromArgs<E, A>>(
     endpoint,
     first,
-    second,
+    second as Config,
   )
 }

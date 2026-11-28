@@ -2,13 +2,23 @@ import { ChatStreamSummarizeAdapter } from '@tanstack/ai/adapters'
 import { getAnthropicCredentialFromEnv } from '../utils/client'
 import { AnthropicTextAdapter } from './text'
 import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
+import type { AnthropicTextConfig } from './text'
 import type { ANTHROPIC_MODELS } from '../model-meta'
 import type { AnthropicClientConfig } from '../utils/client'
 
 /**
  * Configuration for Anthropic summarize adapter
  */
-export interface AnthropicSummarizeConfig extends AnthropicClientConfig {}
+export interface AnthropicSummarizeConfig<
+  TModel extends string = string,
+> extends AnthropicClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: AnthropicTextConfig<TModel>['defaultModelOptions']
+}
 
 /** Model type for Anthropic summarization */
 export type AnthropicSummarizeModel = (typeof ANTHROPIC_MODELS)[number]
@@ -32,7 +42,7 @@ export function createAnthropicSummarize<
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<AnthropicSummarizeConfig, 'apiKey'>,
+  config?: Omit<AnthropicSummarizeConfig<TModel>, 'apiKey'>,
 ): ChatStreamSummarizeAdapter<
   TModel,
   InferTextProviderOptions<AnthropicTextAdapter<TModel>>
@@ -61,7 +71,7 @@ export function createAnthropicSummarize<
  */
 export function anthropicSummarize<TModel extends AnthropicSummarizeModel>(
   model: TModel,
-  config?: Omit<AnthropicSummarizeConfig, 'apiKey'>,
+  config?: Omit<AnthropicSummarizeConfig<TModel>, 'apiKey'>,
 ): ChatStreamSummarizeAdapter<
   TModel,
   InferTextProviderOptions<AnthropicTextAdapter<TModel>>

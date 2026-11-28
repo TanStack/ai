@@ -8,7 +8,7 @@ import {
 import { buildFalUsage, takeBillableUnits } from '../utils/billing'
 import type { OutputType, Result } from '@fal-ai/client'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
-import type { FalClientConfig } from '../utils/client'
+import type { FalAdapterConfig } from '../utils/client'
 import type { FalClient } from '../client/index'
 import type { FalModel, FalModelInput } from '../model-meta'
 
@@ -41,10 +41,15 @@ export class FalSpeechAdapter<TModel extends FalModel> extends BaseTTSAdapter<
 > {
   readonly name = 'fal' as const
   private readonly client: FalClient
+  readonly defaultModelOptions: FalSpeechProviderOptions<TModel> | undefined
 
-  constructor(model: TModel, config?: FalClientConfig) {
+  constructor(
+    model: TModel,
+    config?: FalAdapterConfig<FalSpeechProviderOptions<TModel>>,
+  ) {
     super(model, {})
     this.client = createAdapterFalClient(config)
+    this.defaultModelOptions = config?.defaultModelOptions
   }
 
   async generateSpeech(
@@ -167,7 +172,7 @@ export class FalSpeechAdapter<TModel extends FalModel> extends BaseTTSAdapter<
 
 export function falSpeech<TModel extends FalModel>(
   model: TModel,
-  config?: FalClientConfig,
+  config?: FalAdapterConfig<FalSpeechProviderOptions<TModel>>,
 ): FalSpeechAdapter<TModel> {
   return new FalSpeechAdapter(model, config)
 }

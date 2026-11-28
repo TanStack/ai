@@ -8,6 +8,7 @@
 
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
+import { withDefaultModelOptions } from '../default-model-options'
 import { resolveDebugOption } from '../../logger/resolve'
 import {
   applyGenerationResultTransforms,
@@ -208,6 +209,8 @@ export function generateVoice<
 async function runGenerateVoice<
   TAdapter extends VoiceAdapter<string, VoiceProviderOptions<TAdapter>>,
 >(options: VoiceActivityOptions<TAdapter, boolean>): Promise<VoiceResult> {
+  // Merge the adapter defaults once here, so middleware, devtools events and
+  // the adapter all read the same value.
   const {
     adapter,
     stream: _stream,
@@ -218,7 +221,7 @@ async function runGenerateVoice<
     timeout,
     abortSignal: callerAbortSignal,
     ...rest
-  } = options
+  } = withDefaultModelOptions(options)
 
   if (rest.prompt == null && rest.referenceAudio == null) {
     throw new Error(

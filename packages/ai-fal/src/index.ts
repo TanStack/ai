@@ -103,6 +103,7 @@ export {
 export {
   getFalApiKeyFromEnv,
   generateId,
+  type FalAdapterConfig,
   type FalClientConfig,
 } from './utils/client'
 export { configureFalClient } from './utils/configure'

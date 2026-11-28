@@ -4,23 +4,27 @@ import { VercelGatewayResponsesTextAdapter } from './responses-text'
 import type { VercelGatewayClientConfig } from '../utils/client'
 import type { VercelGatewayTextConfig } from './text'
 import type { VercelGatewayResponsesTextConfig } from './responses-text'
-import type { VercelGatewayChatModel } from '../model-meta'
+import type {
+  ResolveProviderOptions,
+  VercelGatewayChatModel,
+} from '../model-meta'
 
 export type VercelGatewayTextApi = 'responses' | 'chat' | 'chat-completions'
 
 /** Config for the branching factory's Responses mode (default, or api: 'responses'). */
-export type VercelGatewayResponsesApiConfig = Omit<
-  VercelGatewayResponsesTextConfig,
+export type VercelGatewayResponsesApiConfig<
+  TModel extends VercelGatewayChatModel = VercelGatewayChatModel,
+> = Omit<
+  VercelGatewayResponsesTextConfig<ResolveProviderOptions<TModel>>,
   'apiKey'
 > & {
   api?: 'responses'
 }
 
 /** Config for the branching factory's Chat Completions mode (api required). */
-export type VercelGatewayChatApiConfig = Omit<
-  VercelGatewayTextConfig,
-  'apiKey'
-> & {
+export type VercelGatewayChatApiConfig<
+  TModel extends VercelGatewayChatModel = VercelGatewayChatModel,
+> = Omit<VercelGatewayTextConfig<ResolveProviderOptions<TModel>>, 'apiKey'> & {
   api: 'chat' | 'chat-completions'
 }
 
@@ -47,32 +51,36 @@ function build<TModel extends VercelGatewayChatModel>(
 export function createVercelGatewayText<TModel extends VercelGatewayChatModel>(
   model: TModel,
   apiKey: string,
-  config?: VercelGatewayResponsesApiConfig,
+  config?: VercelGatewayResponsesApiConfig<TModel>,
 ): VercelGatewayResponsesTextAdapter<TModel>
 export function createVercelGatewayText<TModel extends VercelGatewayChatModel>(
   model: TModel,
   apiKey: string,
-  config: VercelGatewayChatApiConfig,
+  config: VercelGatewayChatApiConfig<TModel>,
 ): VercelGatewayTextAdapter<TModel>
 export function createVercelGatewayText<TModel extends VercelGatewayChatModel>(
   model: TModel,
   apiKey: string,
-  config?: VercelGatewayResponsesApiConfig | VercelGatewayChatApiConfig,
+  config?:
+    | VercelGatewayResponsesApiConfig<TModel>
+    | VercelGatewayChatApiConfig<TModel>,
 ): AnyVercelGatewayTextAdapter<TModel> {
   return build(model, { ...config, apiKey })
 }
 
 export function vercelGatewayText<TModel extends VercelGatewayChatModel>(
   model: TModel,
-  config?: VercelGatewayResponsesApiConfig,
+  config?: VercelGatewayResponsesApiConfig<TModel>,
 ): VercelGatewayResponsesTextAdapter<TModel>
 export function vercelGatewayText<TModel extends VercelGatewayChatModel>(
   model: TModel,
-  config: VercelGatewayChatApiConfig,
+  config: VercelGatewayChatApiConfig<TModel>,
 ): VercelGatewayTextAdapter<TModel>
 export function vercelGatewayText<TModel extends VercelGatewayChatModel>(
   model: TModel,
-  config?: VercelGatewayResponsesApiConfig | VercelGatewayChatApiConfig,
+  config?:
+    | VercelGatewayResponsesApiConfig<TModel>
+    | VercelGatewayChatApiConfig<TModel>,
 ): AnyVercelGatewayTextAdapter<TModel> {
   return build(model, {
     ...config,

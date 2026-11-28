@@ -154,6 +154,40 @@ const stream = chat({
 });
 ```
 
+### Route every call the same way
+
+Pass `defaultModelOptions` to the adapter. Every `chat()` call with this adapter sends them. This adapter asks OpenRouter for the provider with the lowest latency:
+
+```typescript group=default-model-options
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+
+const adapter = openRouterText("openai/gpt-6.1-sol", {
+  defaultModelOptions: {
+    provider: { sort: "latency", preferredMaxLatency: { p90: 2.5 } },
+  },
+});
+
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
+});
+```
+
+A call can still set its own `modelOptions`. A key that the call sets replaces the default key in full. This call sends `provider: { only: ["openai"] }`, with no `sort`:
+
+```typescript group=default-model-options
+const fromOpenAI = chat({
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-2",
+  modelOptions: { provider: { only: ["openai"] } },
+});
+```
+
+`openRouterResponsesText()` takes the same `defaultModelOptions` option.
+
 For all the `provider` fields, model variants such as `:free`, and plugins, see [OpenRouter: Advanced](./openrouter-advanced#provider-preferences).
 
 ## Provider tools

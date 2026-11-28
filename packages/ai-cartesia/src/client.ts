@@ -8,6 +8,16 @@ export type CartesiaConfig = Pick<
   'apiKey' | 'baseURL' | 'defaultHeaders' | 'fetch'
 >
 
+/** `CartesiaConfig` plus the options of one adapter. */
+export type CartesiaAdapterConfig<TProviderOptions> = CartesiaConfig & {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under the
+   * call's `modelOptions`. A key the call sets replaces the default key in
+   * full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
+
 /** Read the Cartesia API key from the server environment. */
 export function getCartesiaApiKeyFromEnv(): string {
   const key =

@@ -1674,6 +1674,89 @@ describe('GeminiTextInteractionsAdapter', () => {
     expect(secondPayload.previous_interaction_id).toBe('int_tool_chain')
   })
 
+  it('does not let a default previous_interaction_id replace the captured id on a tool-loop continuation', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValueOnce(
+      mkStream([
+        {
+          event_type: 'interaction.created',
+          interaction: { id: 'int_p1', status: 'in_progress' },
+        },
+        {
+          event_type: 'step.start',
+          index: 0,
+          step: {
+            type: 'function_call',
+            id: 'call_x',
+            name: 'lookup',
+            arguments: { q: 'madrid' },
+          },
+        },
+        { event_type: 'step.stop', index: 0 },
+        {
+          event_type: 'interaction.completed',
+          interaction: {
+            id: 'int_p1',
+            status: 'requires_action',
+          },
+        },
+      ]),
+    )
+    mocks.interactionsCreateSpy.mockResolvedValueOnce(
+      mkStream([
+        {
+          event_type: 'interaction.created',
+          interaction: { id: 'int_p2', status: 'in_progress' },
+        },
+        {
+          event_type: 'interaction.completed',
+          interaction: { id: 'int_p2', status: 'completed' },
+        },
+      ]),
+    )
+
+    const adapter = new GeminiTextInteractionsAdapter(
+      {
+        apiKey: 'test-key',
+        defaultModelOptions: { previous_interaction_id: 'int_p0' },
+      },
+      'gemini-2.5-flash',
+    )
+    await collectChunks(
+      chat({
+        adapter,
+        threadId: 'thread_default_chain',
+        messages: [{ role: 'user', content: 'Weather?' }],
+        tools: [{ name: 'lookup', description: 'lookup' }],
+      }),
+    )
+    await collectChunks(
+      chat({
+        adapter,
+        threadId: 'thread_default_chain',
+        messages: [
+          { role: 'user', content: 'Weather?' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'call_x',
+                type: 'function',
+                function: { name: 'lookup', arguments: '{"q":"madrid"}' },
+              },
+            ],
+          },
+          { role: 'tool', toolCallId: 'call_x', content: '{"tempC":22}' },
+        ],
+      }),
+    )
+
+    const firstPayload = mocks.interactionsCreateSpy.mock.calls[0]![0]
+    expect(firstPayload.previous_interaction_id).toBe('int_p0')
+    const secondPayload = mocks.interactionsCreateSpy.mock.calls[1]![0]
+    expect(secondPayload.previous_interaction_id).toBe('int_p1')
+  })
+
   it('evicts the captured interactionId after a terminal RUN_FINISHED(stop)', async () => {
     mocks.interactionsCreateSpy.mockResolvedValueOnce(
       mkStream([

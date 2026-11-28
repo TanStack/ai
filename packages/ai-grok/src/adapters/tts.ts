@@ -21,6 +21,12 @@ export interface GrokSpeechConfig {
   baseURL?: string
   /** Additional headers to merge into every request (e.g., test IDs). */
   defaultHeaders?: Record<string, string>
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: GrokTTSProviderOptions
 }
 
 /**
@@ -37,9 +43,14 @@ export class GrokSpeechAdapter<
   private readonly apiKey: string
   private readonly baseURL: string
   private readonly defaultHeaders: Record<string, string>
+  readonly defaultModelOptions: GrokTTSProviderOptions | undefined
 
-  constructor(config: GrokSpeechConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: GrokSpeechConfig,
+    model: TModel,
+  ) {
     super(model, config)
+    this.defaultModelOptions = defaultModelOptions
     this.apiKey = config.apiKey
     this.baseURL = (config.baseURL ?? DEFAULT_GROK_BASE_URL).replace(/\/+$/, '')
     this.defaultHeaders = config.defaultHeaders ?? {}

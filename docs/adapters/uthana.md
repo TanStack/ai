@@ -276,6 +276,7 @@ The `config` fields:
 - `apiKey`: the Uthana API key. The default is `UTHANA_API_KEY`.
 - `baseUrl`: the API base URL. The default is `https://uthana.com`.
 - `fetch`: your own `fetch` function.
-- `defaults`: model options for every job on this adapter.
+- `defaultModelOptions`: model options for every job on this adapter. A key in the call's `modelOptions` replaces the default key.
+- `defaults`: deprecated. Use `defaultModelOptions`.
 
 `createUthanaCharacter` takes `file`, `fileName`, `name`, and `autoRig`, plus `apiKey`, `baseUrl`, `fetch`, and `abortSignal`.

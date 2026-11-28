@@ -16,6 +16,7 @@ import type {
   ResolveProviderOptions,
 } from '../model-meta'
 import type { MuseMessageMetadataByModality } from '../message-types'
+import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type { MuseClientConfig } from '../utils/client'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
@@ -33,8 +34,15 @@ type ResolveToolCapabilities<TModel extends string> =
 /**
  * Configuration for the Muse text adapter.
  */
-export interface MuseTextConfig
-  extends MuseClientConfig, OpenAIBaseTextAdapterOptions {}
+export interface MuseTextConfig<TProviderOptions = ExternalTextProviderOptions>
+  extends MuseClientConfig, OpenAIBaseTextAdapterOptions {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
 
 /**
  * Re-export of the public provider options type.
@@ -69,8 +77,14 @@ export class MuseTextAdapter<
   override readonly name = 'muse' as const
   override readonly inputModalities = MUSE_MODEL_INPUT_MODALITIES[this.model]
 
-  constructor(config: MuseTextConfig, model: TModel) {
-    super(model, 'muse', createOpenAIClient(withMuseDefaults(config)), config)
+  constructor(
+    { defaultModelOptions, ...config }: MuseTextConfig<TProviderOptions>,
+    model: TModel,
+  ) {
+    super(model, 'muse', createOpenAIClient(withMuseDefaults(config)), {
+      ...config,
+      defaultModelOptions,
+    })
   }
 
   protected override modelReasoning(model: string) {
@@ -91,7 +105,7 @@ export function createMuseText<
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<MuseTextConfig, 'apiKey'>,
+  config?: Omit<MuseTextConfig<ResolveProviderOptions<TModel>>, 'apiKey'>,
 ): MuseTextAdapter<TModel> {
   return new MuseTextAdapter({ apiKey, ...config }, model)
 }
@@ -106,7 +120,7 @@ export function createMuseText<
  */
 export function museText<TModel extends (typeof MUSE_CHAT_MODELS)[number]>(
   model: TModel,
-  config?: Omit<MuseTextConfig, 'apiKey'>,
+  config?: Omit<MuseTextConfig<ResolveProviderOptions<TModel>>, 'apiKey'>,
 ): MuseTextAdapter<TModel> {
   const apiKey = getMuseApiKeyFromEnv()
   return createMuseText(model, apiKey, config)

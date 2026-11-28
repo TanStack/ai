@@ -22,14 +22,20 @@ import type {
   BedrockChatModels,
   BedrockConverseModels,
   BedrockResponsesModels,
+  ResolveConverseProviderOptions,
+  ResolveProviderOptions,
 } from './model-meta'
 
 /** Config for the branching factory's converse mode (default, or api: 'converse'). */
-export type BedrockConverseApiConfig = BedrockConverseConfig & {
+export type BedrockConverseApiConfig<
+  TModel extends BedrockConverseModels = BedrockConverseModels,
+> = BedrockConverseConfig<ResolveConverseProviderOptions<TModel>> & {
   api?: 'converse'
 }
 /** Config for the branching factory's chat mode (api: 'chat' required). */
-export type BedrockChatApiConfig = BedrockTextConfig & {
+export type BedrockChatApiConfig<
+  TModel extends BedrockChatModels = BedrockChatModels,
+> = BedrockTextConfig<ResolveProviderOptions<TModel>> & {
   api: 'chat'
 }
 /** Config for the branching factory's responses mode (api: 'responses' required). */
@@ -114,12 +120,12 @@ function build(
 export function createBedrockText<TModel extends BedrockConverseModels>(
   model: TModel,
   apiKey: string,
-  config?: BedrockConverseApiConfig,
+  config?: BedrockConverseApiConfig<TModel>,
 ): BedrockConverseTextAdapter<TModel>
 export function createBedrockText<TModel extends BedrockChatModels>(
   model: TModel,
   apiKey: string,
-  config: BedrockChatApiConfig,
+  config: BedrockChatApiConfig<TModel>,
 ): BedrockTextAdapter<TModel>
 export function createBedrockText<TModel extends BedrockResponsesModels>(
   model: TModel,
@@ -141,11 +147,11 @@ export function createBedrockText(
 // --- bedrockText: env-key counterpart, same overloads ---
 export function bedrockText<TModel extends BedrockConverseModels>(
   model: TModel,
-  config?: BedrockConverseApiConfig,
+  config?: BedrockConverseApiConfig<TModel>,
 ): BedrockConverseTextAdapter<TModel>
 export function bedrockText<TModel extends BedrockChatModels>(
   model: TModel,
-  config: BedrockChatApiConfig,
+  config: BedrockChatApiConfig<TModel>,
 ): BedrockTextAdapter<TModel>
 export function bedrockText<TModel extends BedrockResponsesModels>(
   model: TModel,

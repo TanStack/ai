@@ -3,7 +3,7 @@ import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import { createCartesiaClient } from './client'
 import type { Cartesia } from '@cartesia/cartesia-js'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
-import type { CartesiaConfig } from './client'
+import type { CartesiaAdapterConfig } from './client'
 import type { CartesiaTTSModel } from './model-meta'
 
 export interface CartesiaSpeechOptions extends Pick<
@@ -20,11 +20,17 @@ export class CartesiaSpeechAdapter<
 > extends BaseTTSAdapter<TModel, CartesiaSpeechOptions> {
   readonly name = 'cartesia' as const
   private readonly client: Cartesia
+  readonly defaultModelOptions: CartesiaSpeechOptions | undefined
 
   /** Configure the model and API connection for speech generation. */
-  constructor(model: TModel, config?: CartesiaConfig) {
+  constructor(
+    model: TModel,
+    config: CartesiaAdapterConfig<CartesiaSpeechOptions> = {},
+  ) {
     super(model)
-    this.client = createCartesiaClient(config)
+    const { defaultModelOptions, ...clientConfig } = config
+    this.client = createCartesiaClient(clientConfig)
+    this.defaultModelOptions = defaultModelOptions
   }
 
   /** Generate audio for text using the requested voice and format. */
@@ -119,7 +125,7 @@ export class CartesiaSpeechAdapter<
 /** Create a speech adapter using the environment API key or supplied config. */
 export function cartesiaSpeech<TModel extends CartesiaTTSModel>(
   model: TModel,
-  config?: CartesiaConfig,
+  config?: CartesiaAdapterConfig<CartesiaSpeechOptions>,
 ): CartesiaSpeechAdapter<TModel> {
   return new CartesiaSpeechAdapter(model, config)
 }
@@ -128,7 +134,7 @@ export function cartesiaSpeech<TModel extends CartesiaTTSModel>(
 export function createCartesiaSpeech<TModel extends CartesiaTTSModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<CartesiaConfig, 'apiKey'>,
+  config?: Omit<CartesiaAdapterConfig<CartesiaSpeechOptions>, 'apiKey'>,
 ): CartesiaSpeechAdapter<TModel> {
   return new CartesiaSpeechAdapter(model, { ...config, apiKey })
 }

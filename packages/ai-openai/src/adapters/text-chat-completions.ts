@@ -30,8 +30,18 @@ import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
  * chat-completions-only knob (e.g. legacy `function_call`) has a place to land
  * without leaking into the Responses adapter's surface.
  */
-export interface OpenAIChatCompletionsConfig
-  extends OpenAIClientConfig, OpenAIBaseTextAdapterOptions {}
+export interface OpenAIChatCompletionsConfig<
+  TProviderOptions extends Record<string, any> =
+    OpenAIChatCompletionsProviderOptions,
+>
+  extends OpenAIClientConfig, OpenAIBaseTextAdapterOptions {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
 
 export type OpenAIChatCompletionsProviderOptions = ExternalTextProviderOptions
 
@@ -82,8 +92,13 @@ export class OpenAIChatCompletionsTextAdapter<
   override readonly kind = 'text' as const
   override readonly inputModalities = OPENAI_MODEL_INPUT_MODALITIES[this.model]
 
-  constructor(config: OpenAIChatCompletionsConfig, model: TModel) {
-    super(model, 'openai-chat', createOpenAIClient(config), config)
+  constructor(
+    config: OpenAIChatCompletionsConfig<TProviderOptions>,
+    model: TModel,
+  ) {
+    const { defaultModelOptions: _defaultModelOptions, ...clientConfig } =
+      config
+    super(model, 'openai-chat', createOpenAIClient(clientConfig), config)
   }
 
   /** `chat({ reasoning })` goes out as `reasoning_effort`. */
@@ -110,7 +125,10 @@ export function createOpenaiChatCompletions<
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<OpenAIChatCompletionsConfig, 'apiKey'>,
+  config?: Omit<
+    OpenAIChatCompletionsConfig<ResolveProviderOptions<TModel>>,
+    'apiKey'
+  >,
 ): OpenAIChatCompletionsTextAdapter<TModel> {
   return new OpenAIChatCompletionsTextAdapter({ apiKey, ...config }, model)
 }
@@ -119,7 +137,10 @@ export function openaiChatCompletions<
   TModel extends (typeof OPENAI_CHAT_MODELS)[number],
 >(
   model: TModel,
-  config?: Omit<OpenAIChatCompletionsConfig, 'apiKey'>,
+  config?: Omit<
+    OpenAIChatCompletionsConfig<ResolveProviderOptions<TModel>>,
+    'apiKey'
+  >,
 ): OpenAIChatCompletionsTextAdapter<TModel> {
   const apiKey = getOpenAIApiKeyFromEnv()
   return createOpenaiChatCompletions(model, apiKey, config)

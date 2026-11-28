@@ -17,6 +17,7 @@ import type {
   ChatCompletionMessageParam,
 } from 'openai/resources/chat/completions/completions'
 import type {
+  CloudflareAdapterConfig,
   CloudflareConfigInput,
   CloudflareTextConfig,
   CloudflareTextRestConfig,
@@ -106,11 +107,18 @@ export class CloudflareTextAdapter<
   override readonly kind = 'text' as const
   override readonly name = 'cloudflare' as const
 
-  constructor(config: CloudflareTextConfig, model: TModel) {
+  constructor(
+    {
+      defaultModelOptions,
+      ...config
+    }: CloudflareAdapterConfig<CloudflareTextConfig, TProviderOptions>,
+    model: TModel,
+  ) {
     const options = clientOptions(config)
     super(model, 'cloudflare', createOpenAIClient(options), {
       ...config,
       fetch: options.fetch,
+      defaultModelOptions,
     })
   }
 
@@ -189,7 +197,10 @@ export class CloudflareTextAdapter<
  */
 export function createCloudflareText<TModel extends CloudflareTextModel>(
   model: TModel,
-  config: CloudflareTextConfig,
+  config: CloudflareAdapterConfig<
+    CloudflareTextConfig,
+    CloudflareTextProviderOptions
+  >,
 ): CloudflareTextAdapter<TModel> {
   return new CloudflareTextAdapter(config, model)
 }
@@ -200,7 +211,16 @@ export function createCloudflareText<TModel extends CloudflareTextModel>(
  */
 export function cloudflareText<TModel extends CloudflareTextModel>(
   model: TModel,
-  config?: CloudflareConfigInput<CloudflareTextRestConfig>,
+  config?: CloudflareAdapterConfig<
+    CloudflareConfigInput<CloudflareTextRestConfig>,
+    CloudflareTextProviderOptions
+  >,
 ): CloudflareTextAdapter<TModel> {
-  return new CloudflareTextAdapter(resolveConfigFromEnv(config), model)
+  return new CloudflareTextAdapter(
+    {
+      ...resolveConfigFromEnv(config),
+      defaultModelOptions: config?.defaultModelOptions,
+    },
+    model,
+  )
 }

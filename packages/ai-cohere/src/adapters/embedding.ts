@@ -28,7 +28,14 @@ import type { CohereClientConfig } from '../utils/client'
 /**
  * Configuration for Cohere embedding adapter.
  */
-export interface CohereEmbeddingConfig extends CohereClientConfig {}
+export interface CohereEmbeddingConfig extends CohereClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: CohereEmbeddingProviderOptions
+}
 
 const DEFAULT_TIMEOUT_MS = 30_000
 
@@ -120,11 +127,14 @@ export class CohereEmbeddingAdapter<
 > {
   readonly name = 'cohere' as const
 
-  protected clientConfig: CohereEmbeddingConfig
+  protected clientConfig: CohereClientConfig
+  readonly defaultModelOptions: CohereEmbeddingProviderOptions | undefined
 
   constructor(config: CohereEmbeddingConfig, model: TModel) {
     super(model, {})
-    this.clientConfig = config
+    const { defaultModelOptions, ...clientConfig } = config
+    this.clientConfig = clientConfig
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async createEmbeddings(

@@ -19,7 +19,7 @@ import type {
   TTSSegment,
   VoiceOrigin,
 } from '@tanstack/ai'
-import type { ElevenLabsClientConfig } from '../utils/client'
+import type { ElevenLabsAdapterConfig } from '../utils/client'
 import type { ElevenLabsOutputFormat, ElevenLabsTTSModel } from '../model-meta'
 
 /**
@@ -103,10 +103,16 @@ export class ElevenLabsSpeechAdapter<
   }
 
   private readonly client: ElevenLabsClient
+  readonly defaultModelOptions: ElevenLabsSpeechProviderOptions | undefined
 
-  constructor(model: TModel, config?: ElevenLabsClientConfig) {
-    super(model, config ?? {})
-    this.client = createElevenLabsClient(config)
+  constructor(
+    model: TModel,
+    config: ElevenLabsAdapterConfig<ElevenLabsSpeechProviderOptions> = {},
+  ) {
+    const { defaultModelOptions, ...clientConfig } = config
+    super(model, clientConfig)
+    this.client = createElevenLabsClient(clientConfig)
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async generateSpeech(
@@ -457,7 +463,7 @@ function wrapPcmAsWav(pcm: ArrayBuffer): ArrayBuffer {
  */
 export function elevenlabsSpeech<TModel extends ElevenLabsTTSModel>(
   model: TModel,
-  config?: ElevenLabsClientConfig,
+  config?: ElevenLabsAdapterConfig<ElevenLabsSpeechProviderOptions>,
 ): ElevenLabsSpeechAdapter<TModel> {
   return new ElevenLabsSpeechAdapter(model, config)
 }
@@ -468,7 +474,10 @@ export function elevenlabsSpeech<TModel extends ElevenLabsTTSModel>(
 export function createElevenLabsSpeech<TModel extends ElevenLabsTTSModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<ElevenLabsClientConfig, 'apiKey'>,
+  config?: Omit<
+    ElevenLabsAdapterConfig<ElevenLabsSpeechProviderOptions>,
+    'apiKey'
+  >,
 ): ElevenLabsSpeechAdapter<TModel> {
   return new ElevenLabsSpeechAdapter(model, { apiKey, ...config })
 }

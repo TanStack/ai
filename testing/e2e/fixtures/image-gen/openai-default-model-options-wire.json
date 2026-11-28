@@ -1,0 +1,12 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[default-model-options-wire] a red kite" },
+      "response": {
+        "image": {
+          "url": "https://example.com/default-model-options-wire.png"
+        }
+      }
+    }
+  ]
+}

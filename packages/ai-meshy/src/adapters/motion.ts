@@ -1,7 +1,7 @@
 import { BaseMotion3dAdapter } from '@tanstack/ai/adapters'
 import { cancelMeshyTask, createMeshyClient, mapMeshyStatus } from '../client'
 import type { Motion3dGenerationOptions } from '@tanstack/ai'
-import type { MeshyClient, MeshyClientConfig, MeshyTask } from '../client'
+import type { MeshyAdapterConfig, MeshyClient, MeshyTask } from '../client'
 
 /**
  * The Meshy text to motion mode. `prime` gives a higher quality FBX clip.
@@ -41,10 +41,12 @@ export class MeshyMotion3dAdapter<
 > extends BaseMotion3dAdapter<TMode, Record<string, never>> {
   readonly name = 'meshy' as const
   private readonly client: MeshyClient
+  readonly defaultModelOptions: Record<string, never> | undefined
 
-  constructor(mode: TMode, config?: MeshyClientConfig) {
+  constructor(mode: TMode, config?: MeshyAdapterConfig<Record<string, never>>) {
     super(mode)
     this.client = createMeshyClient(config)
+    this.defaultModelOptions = config?.defaultModelOptions
   }
 
   async create3dMotionJob(
@@ -159,7 +161,7 @@ export class MeshyMotion3dAdapter<
  */
 export function meshy3dMotion<TMode extends MeshyMotion3dMode>(
   mode: TMode,
-  config?: MeshyClientConfig,
+  config?: MeshyAdapterConfig<Record<string, never>>,
 ) {
   return new MeshyMotion3dAdapter(mode, config)
 }

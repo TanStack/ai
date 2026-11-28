@@ -25,6 +25,7 @@ export {
   CohereRerankAdapter,
   createCohereRerank,
   cohereRerank,
+  type CohereRerankConfig,
 } from './adapters/rerank'
 
 // Client config + env helpers

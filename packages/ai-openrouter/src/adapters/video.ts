@@ -46,7 +46,16 @@ import type { OpenRouterClientConfig } from '../utils/client'
 /**
  * Configuration for the OpenRouter video adapter.
  */
-export interface OpenRouterVideoConfig extends OpenRouterClientConfig {}
+export interface OpenRouterVideoConfig<
+  TModel extends OpenRouterVideoModel = OpenRouterVideoModel,
+> extends OpenRouterClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: OpenRouterVideoModelProviderOptionsByName[TModel]
+}
 
 /**
  * Convert a TanStack ImagePart into the URL string accepted by OpenRouter's
@@ -224,14 +233,19 @@ export class OpenRouterVideoAdapter<
   readonly name = 'openrouter' as const
 
   private readonly client: Pick<OpenRouterClient, 'videoGeneration'>
+  readonly defaultModelOptions:
+    | OpenRouterVideoModelProviderOptionsByName[TModel]
+    | undefined
 
-  constructor(config: OpenRouterVideoConfig, model: TModel) {
+  constructor(config: OpenRouterVideoConfig<TModel>, model: TModel) {
     super({}, model)
+    const { defaultModelOptions, ...clientConfig } = config
     this.client = createOpenRouterVideoClient({
-      ...config,
-      apiKey: config.apiKey,
-      serverURL: config.baseURL,
+      ...clientConfig,
+      apiKey: clientConfig.apiKey,
+      serverURL: clientConfig.baseURL,
     })
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async createVideoJob(
@@ -394,7 +408,7 @@ export class OpenRouterVideoAdapter<
 export function createOpenRouterVideo<TModel extends OpenRouterVideoModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<OpenRouterVideoConfig, 'apiKey'>,
+  config?: Omit<OpenRouterVideoConfig<TModel>, 'apiKey'>,
 ): OpenRouterVideoAdapter<TModel> {
   return new OpenRouterVideoAdapter({ apiKey, ...config }, model)
 }
@@ -418,7 +432,7 @@ export function createOpenRouterVideo<TModel extends OpenRouterVideoModel>(
  */
 export function openRouterVideo<TModel extends OpenRouterVideoModel>(
   model: TModel,
-  config?: Omit<OpenRouterVideoConfig, 'apiKey'>,
+  config?: Omit<OpenRouterVideoConfig<TModel>, 'apiKey'>,
 ): OpenRouterVideoAdapter<TModel> {
   const apiKey = getOpenRouterApiKeyFromEnv()
   return createOpenRouterVideo(model, apiKey, config)

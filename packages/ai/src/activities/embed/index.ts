@@ -22,6 +22,7 @@ import {
 } from '../middleware/run'
 import { countEmbeddingInputModalities } from '../../utilities/embedding-input'
 import { assertPromptFileSourceSupport } from '../../utilities/content-source'
+import { withDefaultModelOptions } from '../default-model-options'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { GenerationMiddleware } from '../middleware/types'
@@ -208,7 +209,8 @@ function createId(prefix: string): string {
 export async function embed<
   TAdapter extends EmbeddingAdapter<string, any, any, any>,
 >(options: EmbedOptions<TAdapter>): Promise<EmbeddingResult> {
-  const { adapter, middleware } = options
+  const merged = withDefaultModelOptions(options)
+  const { adapter, middleware } = merged
   // Fail closed on `{ type: 'file' }` sources before middleware start. No
   // embedding adapter consumes file handles today; this matches chat /
   // generateImage / generateVideo.
@@ -217,8 +219,7 @@ export async function embed<
   const requestId = createId('embedding')
   const startTime = Date.now()
   const logger: InternalLogger = resolveDebugOption(options.debug)
-  const modelOptions = (options as { modelOptions?: Record<string, unknown> })
-    .modelOptions
+  const modelOptions = merged.modelOptions
 
   // Normalize once: adapters always receive an array of items.
   const inputItems: Array<EmbeddingInputItem> = Array.isArray(options.input)

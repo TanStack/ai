@@ -39,7 +39,16 @@ import type { GrokClientConfig } from '../utils/client'
 /**
  * Configuration for Grok video adapter.
  */
-export interface GrokVideoConfig extends GrokClientConfig {}
+export interface GrokVideoConfig<
+  TModel extends GrokVideoModel = GrokVideoModel,
+> extends GrokClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: GrokVideoModelProviderOptionsByName[TModel]
+}
 
 /**
  * xAI bills video generation in "USD ticks": 10^10 ticks per US dollar
@@ -141,10 +150,17 @@ export class GrokVideoAdapter<
 > {
   readonly name = 'grok' as const
 
-  private readonly clientConfig: GrokVideoConfig
+  private readonly clientConfig: GrokClientConfig
+  readonly defaultModelOptions:
+    | GrokVideoModelProviderOptionsByName[TModel]
+    | undefined
 
-  constructor(config: GrokVideoConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: GrokVideoConfig<TModel>,
+    model: TModel,
+  ) {
     super({}, model)
+    this.defaultModelOptions = defaultModelOptions
     this.clientConfig = withGrokDefaults(config)
   }
 
@@ -682,7 +698,7 @@ export class GrokVideoAdapter<
 export function createGrokVideo<TModel extends GrokVideoModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<GrokVideoConfig, 'apiKey'>,
+  config?: Omit<GrokVideoConfig<TModel>, 'apiKey'>,
 ): GrokVideoAdapter<TModel> {
   return new GrokVideoAdapter({ apiKey, ...config }, model)
 }
@@ -721,7 +737,7 @@ export function createGrokVideo<TModel extends GrokVideoModel>(
  */
 export function grokVideo<TModel extends GrokVideoModel>(
   model: TModel,
-  config?: Omit<GrokVideoConfig, 'apiKey'>,
+  config?: Omit<GrokVideoConfig<TModel>, 'apiKey'>,
 ): GrokVideoAdapter<TModel> {
   const apiKey = getGrokApiKeyFromEnv()
   return createGrokVideo(model, apiKey, config)

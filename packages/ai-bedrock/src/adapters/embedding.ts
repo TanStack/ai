@@ -21,6 +21,7 @@ import type {
 } from '@tanstack/ai'
 import type { ResolvedBedrockAuth } from '../utils/auth'
 import type { BedrockClientConfig } from '../utils/client'
+import type { BedrockEmbeddingProviderOptions } from '../embedding/embedding-provider-options'
 import type {
   BedrockEmbeddingModel,
   BedrockEmbeddingModelInputModalitiesByName,
@@ -33,10 +34,16 @@ import type {
  * other Bedrock adapters (apiKey → env → SigV4 via `resolveBedrockAuth`),
  * minus the OpenAI-compat client options that don't apply to `InvokeModel`.
  */
-export interface BedrockEmbeddingConfig extends Pick<
-  BedrockClientConfig,
-  'apiKey' | 'region' | 'auth' | 'baseURL'
-> {}
+export interface BedrockEmbeddingConfig<
+  TProviderOptions = BedrockEmbeddingProviderOptions,
+> extends Pick<BedrockClientConfig, 'apiKey' | 'region' | 'auth' | 'baseURL'> {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
 
 /** InvokeModel calls issued concurrently during a per-item fan-out. */
 const MAX_CONCURRENT_INVOCATIONS = 5
@@ -86,10 +93,21 @@ export class BedrockEmbeddingAdapter<
 > {
   readonly name = 'bedrock' as const
   private clientPromise?: Promise<BedrockRuntimeClient>
-  private readonly clientConfig: BedrockEmbeddingConfig
+  private readonly clientConfig: Pick<
+    BedrockClientConfig,
+    'apiKey' | 'region' | 'auth' | 'baseURL'
+  >
+  readonly defaultModelOptions: TProviderOptions | undefined
 
-  constructor(config: BedrockEmbeddingConfig, model: TModel) {
+  constructor(
+    {
+      defaultModelOptions,
+      ...config
+    }: BedrockEmbeddingConfig<TProviderOptions>,
+    model: TModel,
+  ) {
     super(model, {})
+    this.defaultModelOptions = defaultModelOptions
     // Defer client construction and auth resolution: the AWS SDK is Node/
     // server-only, so we must not pull it into the static graph here. The
     // client (and its dynamic import) is built lazily on first SDK call.
@@ -515,7 +533,10 @@ async function mapWithConcurrency<T, TResult>(
 export function createBedrockEmbedding<TModel extends BedrockEmbeddingModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<BedrockEmbeddingConfig, 'apiKey'>,
+  config?: Omit<
+    BedrockEmbeddingConfig<ResolveEmbeddingProviderOptions<TModel>>,
+    'apiKey'
+  >,
 ): BedrockEmbeddingAdapter<TModel> {
   // Explicit apiKey is authoritative — spread config first so it can't override.
   return new BedrockEmbeddingAdapter({ ...config, apiKey }, model)
@@ -546,7 +567,7 @@ export function createBedrockEmbedding<TModel extends BedrockEmbeddingModel>(
  */
 export function bedrockEmbedding<TModel extends BedrockEmbeddingModel>(
   model: TModel,
-  config?: BedrockEmbeddingConfig,
+  config?: BedrockEmbeddingConfig<ResolveEmbeddingProviderOptions<TModel>>,
 ): BedrockEmbeddingAdapter<TModel> {
   return new BedrockEmbeddingAdapter(config ?? {}, model)
 }

@@ -5,6 +5,16 @@ import { resolveOllayaTransport } from '../utils/client'
 import type { OllayaClientConfig } from '../utils/client'
 import type { OllayaEvaluateModel } from '../model-meta'
 
+/** Configuration for the Ollaya evaluate adapter. */
+export interface OllayaEvaluateConfig extends OllayaClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: Record<string, unknown>
+}
+
 /** Shape of the Ollaya `POST /v1/systemone` response we depend on. */
 interface OllayaEvaluateResponse {
   model: string
@@ -41,33 +51,37 @@ function isOllayaEvaluateResponse(
  */
 export class OllayaEvaluateAdapter<
   TModel extends OllayaEvaluateModel,
-> extends BaseEvaluateAdapter<TModel> {
+> extends BaseEvaluateAdapter<TModel, Record<string, unknown>> {
   readonly name = 'ollaya' as const
 
   private readonly apiKey: string | undefined
   private readonly baseUrl: string
   private readonly headers: Record<string, string>
   private readonly fetchFn: typeof fetch | undefined
+  readonly defaultModelOptions: Record<string, unknown> | undefined
 
-  constructor(config: OllayaClientConfig, model: TModel) {
+  constructor(config: OllayaEvaluateConfig, model: TModel) {
     super({}, model)
-    this.apiKey = config.apiKey
-    const transport = resolveOllayaTransport(config)
+    const { defaultModelOptions, ...clientConfig } = config
+    this.apiKey = clientConfig.apiKey
+    const transport = resolveOllayaTransport(clientConfig)
     this.baseUrl = transport.baseUrl
     this.headers = transport.headers
-    this.fetchFn = config.fetch
+    this.fetchFn = clientConfig.fetch
+    this.defaultModelOptions = defaultModelOptions
   }
 
   /**
-   * POST `{ model, state, questions }` to Ollaya and return wire answers plus
+   * POST `{ ...modelOptions, model, state, questions }` to Ollaya and return wire answers plus
    * mapped token usage. Does not invent unified `.value` fields.
    *
    * @throws An `Error` with a numeric `status` (the HTTP status code) when
    * Ollaya answers with a non-OK response.
    */
   async evaluate(options: EvaluateOptions) {
-    const { model, state, questions, abortSignal, logger } = options
-    const body = { model, state, questions }
+    const { model, state, questions, modelOptions, abortSignal, logger } =
+      options
+    const body = { ...modelOptions, model, state, questions }
     const fetchFn = this.fetchFn ?? globalThis.fetch
 
     logger.request(`activity=evaluate provider=${this.name} model=${model}`, {
@@ -158,7 +172,7 @@ export class OllayaEvaluateAdapter<
  */
 export function ollayaDecider<TModel extends OllayaEvaluateModel>(
   model: TModel,
-  config?: OllayaClientConfig,
+  config?: OllayaEvaluateConfig,
 ) {
   return new OllayaEvaluateAdapter({ ...config }, model)
 }

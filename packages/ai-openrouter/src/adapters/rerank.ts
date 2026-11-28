@@ -14,7 +14,14 @@ import type {
   TokenUsage,
 } from '@tanstack/ai'
 
-export interface OpenRouterRerankConfig extends SDKOptions {}
+export interface OpenRouterRerankConfig extends SDKOptions {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: OpenRouterRerankProviderOptions
+}
 
 /**
  * OpenRouter rerank adapter.
@@ -32,10 +39,13 @@ export class OpenRouterRerankAdapter<
   readonly name = 'openrouter' as const
 
   private readonly client: Pick<OpenRouterClient, 'rerank'>
+  readonly defaultModelOptions: OpenRouterRerankProviderOptions | undefined
 
   constructor(config: OpenRouterRerankConfig, model: TModel) {
     super({}, model)
-    this.client = createOpenRouterRerankClient(config)
+    const { defaultModelOptions, ...sdkOptions } = config
+    this.client = createOpenRouterRerankClient(sdkOptions)
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async rerank(

@@ -101,6 +101,47 @@ export async function POST(request: Request) {
 }
 ```
 
+## Keep model options when a route sets its own
+
+The spread replaces the whole `modelOptions` object. If a route sets `modelOptions`, the shared `modelOptions` are gone.
+
+To keep a model option on every call, put it on the adapter with `defaultModelOptions`. Every text adapter takes this option:
+
+```typescript
+// lib/ai/chat-options.ts
+import { createChatOptions } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+export const supportChatOptions = createChatOptions({
+  adapter: openaiText('gpt-6.1-sol', {
+    defaultModelOptions: { verbosity: 'low' },
+  }),
+  systemPrompts: ['You are a customer-support assistant for Acme Corp.'],
+})
+```
+
+This route sends `verbosity: 'low'` and `max_output_tokens: 500`:
+
+```typescript
+import { chat } from '@tanstack/ai'
+import { supportChatOptions } from './lib/ai/chat-options'
+
+const stream = chat({
+  ...supportChatOptions,
+  messages: [{ role: 'user', content: 'Where is my order?' }],
+  threadId: 'thread-1',
+  modelOptions: { max_output_tokens: 500 },
+})
+```
+
+When more than one place sets the same key, the value closest to the request wins:
+
+1. `defaultModelOptions` on the adapter.
+2. `modelOptions` on the `chat()` call, spread options included.
+3. The config that a middleware returns from `onConfig`.
+
+`chat()` merges one level deep. A nested key, like `text`, is replaced in full.
+
 ## When to use it
 
 - You share one config across many routes.

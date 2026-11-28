@@ -18,6 +18,7 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { toRunErrorPayload } from '../error-payload'
 import { resolveDebugOption } from '../../logger/resolve'
+import { withDefaultModelOptions } from '../default-model-options'
 import {
   applyGenerationResultTransforms,
   createGenerationContext,
@@ -251,8 +252,10 @@ async function runCreateMotionJob<
 >(
   options: Motion3dActivityOptions<TAdapter, boolean>,
 ): Promise<Motion3dJobResult> {
+  // Merge the adapter defaults once here, so middleware, devtools events and
+  // the adapter all read the same value.
   const { adapter, prompt, duration, modelOptions, middleware, threadId } =
-    options
+    withDefaultModelOptions(options)
   const model = adapter.model
   const requestId = createId('motion3d')
   const startTime = Date.now()
@@ -366,8 +369,10 @@ async function* runStreamingMotion<
 >(
   options: Motion3dActivityOptions<TAdapter, boolean>,
 ): AsyncIterable<StreamChunk> {
+  // Merge the adapter defaults once here, so middleware, devtools events and
+  // the adapter all read the same value.
   const { adapter, prompt, duration, modelOptions, middleware, threadId } =
-    options
+    withDefaultModelOptions(options)
   const model = adapter.model
   const runId = options.runId ?? createId('run')
   const requestId = createId('motion3d')

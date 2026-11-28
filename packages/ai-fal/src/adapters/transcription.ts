@@ -11,7 +11,7 @@ import type {
   TranscriptionResult,
   TranscriptionSegment,
 } from '@tanstack/ai'
-import type { FalClientConfig } from '../utils/client'
+import type { FalAdapterConfig } from '../utils/client'
 import type { FalClient } from '../client/index'
 import type { FalModel, FalModelInput } from '../model-meta'
 
@@ -52,10 +52,17 @@ export class FalTranscriptionAdapter<
 > {
   readonly name = 'fal' as const
   private readonly client: FalClient
+  readonly defaultModelOptions:
+    | FalTranscriptionProviderOptions<TModel>
+    | undefined
 
-  constructor(model: TModel, config?: FalClientConfig) {
+  constructor(
+    model: TModel,
+    config?: FalAdapterConfig<FalTranscriptionProviderOptions<TModel>>,
+  ) {
     super(model, {})
     this.client = createAdapterFalClient(config)
+    this.defaultModelOptions = config?.defaultModelOptions
   }
 
   async transcribe(
@@ -181,7 +188,7 @@ export class FalTranscriptionAdapter<
 
 export function falTranscription<TModel extends FalModel>(
   model: TModel,
-  config?: FalClientConfig,
+  config?: FalAdapterConfig<FalTranscriptionProviderOptions<TModel>>,
 ): FalTranscriptionAdapter<TModel> {
   return new FalTranscriptionAdapter(model, config)
 }

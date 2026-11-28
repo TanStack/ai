@@ -1,4 +1,5 @@
 export { tripo3dModel, TripoModel3dAdapter } from './adapters/model3d'
+export type { TripoModel3dConfig } from './adapters/model3d'
 export { checkTripoRig, getTripoBalance, uploadTripoFile } from './helpers'
 export type {
   CheckTripoRigOptions,

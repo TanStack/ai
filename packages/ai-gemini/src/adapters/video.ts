@@ -52,7 +52,16 @@ type InteractionContent = Interactions.Content
 /**
  * Configuration for Gemini video adapter.
  */
-export interface GeminiVideoConfig extends GeminiClientConfig {
+export interface GeminiVideoConfig<
+  TModel extends GeminiVideoModel = GeminiVideoModel,
+> extends GeminiClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: GeminiVideoModelProviderOptionsByName[TModel]
+
   /**
    * Opt into fetching HTTP(S) image URL inputs. Veo's predict API accepts
    * only inline `imageBytes` or a `gcsUri`, so an HTTP(S) URL has to be
@@ -280,9 +289,16 @@ export class GeminiVideoAdapter<
   protected client: GeminiClient
   private readonly allowUrlFetch: boolean
   private readonly timeoutMs: number | undefined
+  readonly defaultModelOptions:
+    | GeminiVideoModelProviderOptionsByName[TModel]
+    | undefined
 
-  constructor(config: GeminiVideoConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: GeminiVideoConfig<TModel>,
+    model: TModel,
+  ) {
     super({}, model)
+    this.defaultModelOptions = defaultModelOptions
     this.client = createGeminiClient(config)
     this.allowUrlFetch = config.allowUrlFetch ?? false
     this.timeoutMs = config.httpOptions?.timeout
@@ -746,12 +762,12 @@ export class GeminiVideoAdapter<
 export function createGeminiVideo<TModel extends GeminiVideoModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<GeminiVideoConfig, 'apiKey'>,
+  config?: Omit<GeminiVideoConfig<TModel>, 'apiKey'>,
 ): GeminiVideoAdapter<TModel>
 export function createGeminiVideo<TModel extends GeminiVideoModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<GeminiVideoConfig, 'apiKey'>,
+  config?: Omit<GeminiVideoConfig<TModel>, 'apiKey'>,
 ): GeminiVideoAdapter<TModel> {
   return new GeminiVideoAdapter({ apiKey, ...config }, model)
 }
@@ -787,11 +803,11 @@ export function createGeminiVideo<TModel extends GeminiVideoModel>(
  */
 export function geminiVideo<TModel extends GeminiVideoModel>(
   model: TModel,
-  config?: Omit<GeminiVideoConfig, 'apiKey'>,
+  config?: Omit<GeminiVideoConfig<TModel>, 'apiKey'>,
 ): GeminiVideoAdapter<TModel>
 export function geminiVideo<TModel extends GeminiVideoModel>(
   model: TModel,
-  config?: Omit<GeminiVideoConfig, 'apiKey'>,
+  config?: Omit<GeminiVideoConfig<TModel>, 'apiKey'>,
 ): GeminiVideoAdapter<TModel> {
   const apiKey = getGeminiApiKeyFromEnv()
   return createGeminiVideo(model, apiKey, config)

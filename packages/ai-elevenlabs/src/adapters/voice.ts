@@ -11,7 +11,7 @@ import type {
   VoiceGenerationOptions,
   VoiceResult,
 } from '@tanstack/ai'
-import type { ElevenLabsClientConfig } from '../utils/client'
+import type { ElevenLabsAdapterConfig } from '../utils/client'
 import type {
   ElevenLabsOutputFormat,
   ElevenLabsVoiceModel,
@@ -84,10 +84,16 @@ export class ElevenLabsVoiceAdapter<
   readonly name = 'elevenlabs' as const
 
   private readonly client: ElevenLabsClient
+  readonly defaultModelOptions: ElevenLabsVoiceProviderOptions | undefined
 
-  constructor(model: TModel, config?: ElevenLabsClientConfig) {
-    super(model, config ?? {})
-    this.client = createElevenLabsClient(config)
+  constructor(
+    model: TModel,
+    config: ElevenLabsAdapterConfig<ElevenLabsVoiceProviderOptions> = {},
+  ) {
+    const { defaultModelOptions, ...clientConfig } = config
+    super(model, clientConfig)
+    this.client = createElevenLabsClient(clientConfig)
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async generateVoice(
@@ -280,7 +286,7 @@ async function toReferenceAudioBase64(
  */
 export function elevenlabsVoiceDesign<TModel extends ElevenLabsVoiceModel>(
   model: TModel,
-  config?: ElevenLabsClientConfig,
+  config?: ElevenLabsAdapterConfig<ElevenLabsVoiceProviderOptions>,
 ): ElevenLabsVoiceAdapter<TModel> {
   return new ElevenLabsVoiceAdapter(model, config)
 }
@@ -293,7 +299,10 @@ export function createElevenLabsVoiceDesign<
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<ElevenLabsClientConfig, 'apiKey'>,
+  config?: Omit<
+    ElevenLabsAdapterConfig<ElevenLabsVoiceProviderOptions>,
+    'apiKey'
+  >,
 ): ElevenLabsVoiceAdapter<TModel> {
   return new ElevenLabsVoiceAdapter(model, { apiKey, ...config })
 }

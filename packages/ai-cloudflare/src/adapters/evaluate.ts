@@ -4,8 +4,15 @@ import { buildBaseUsage } from '@tanstack/ai'
 import { resolveConfigFromEnv } from '../utils/config'
 import { runModel } from '../utils/run'
 import type { EvaluateOptions, WireAnswer } from '@tanstack/ai/adapters'
-import type { CloudflareConfig, CloudflareConfigInput } from '../utils/config'
+import type {
+  CloudflareAdapterConfig,
+  CloudflareConfig,
+  CloudflareConfigInput,
+} from '../utils/config'
 import type { CloudflareEvaluateModel } from '../utils/models'
+
+/** Extra Workers AI inputs sent next to `state` and `questions`. */
+export type CloudflareEvaluateProviderOptions = Record<string, unknown>
 
 /** TypeSafe-shaped Workers AI evaluate output. */
 interface CloudflareEvaluateOutput {
@@ -24,18 +31,30 @@ interface CloudflareEvaluateOutput {
  */
 export class CloudflareEvaluateAdapter<
   TModel extends CloudflareEvaluateModel,
-> extends BaseEvaluateAdapter<TModel> {
+> extends BaseEvaluateAdapter<TModel, CloudflareEvaluateProviderOptions> {
   readonly name = 'cloudflare' as const
 
+  private readonly cfConfig: CloudflareConfig
+  readonly defaultModelOptions: CloudflareEvaluateProviderOptions | undefined
+
   constructor(
-    private readonly cfConfig: CloudflareConfig,
+    {
+      defaultModelOptions,
+      ...cfConfig
+    }: CloudflareAdapterConfig<
+      CloudflareConfig,
+      CloudflareEvaluateProviderOptions
+    >,
     model: TModel,
   ) {
     super({}, model)
+    this.cfConfig = cfConfig
+    this.defaultModelOptions = defaultModelOptions
   }
 
-  async evaluate(options: EvaluateOptions) {
-    const { model, state, questions, abortSignal, logger } = options
+  async evaluate(options: EvaluateOptions<CloudflareEvaluateProviderOptions>) {
+    const { model, state, questions, modelOptions, abortSignal, logger } =
+      options
     try {
       logger.request(`activity=evaluate provider=${this.name} model=${model}`, {
         provider: this.name,
@@ -45,7 +64,7 @@ export class CloudflareEvaluateAdapter<
       const { result: output } = (await runModel(
         this.cfConfig,
         model,
-        { state, questions },
+        { ...modelOptions, state, questions },
         { signal: abortSignal },
       )) as { result: CloudflareEvaluateOutput }
       const inputTokens = output.usage.input_tokens
@@ -82,7 +101,10 @@ export class CloudflareEvaluateAdapter<
  */
 export function createCloudflareDecider<TModel extends CloudflareEvaluateModel>(
   model: TModel,
-  config: CloudflareConfig,
+  config: CloudflareAdapterConfig<
+    CloudflareConfig,
+    CloudflareEvaluateProviderOptions
+  >,
 ) {
   return new CloudflareEvaluateAdapter(config, model)
 }
@@ -93,7 +115,16 @@ export function createCloudflareDecider<TModel extends CloudflareEvaluateModel>(
  */
 export function cloudflareDecider<TModel extends CloudflareEvaluateModel>(
   model: TModel,
-  config?: CloudflareConfigInput,
+  config?: CloudflareAdapterConfig<
+    CloudflareConfigInput,
+    CloudflareEvaluateProviderOptions
+  >,
 ) {
-  return new CloudflareEvaluateAdapter(resolveConfigFromEnv(config), model)
+  return new CloudflareEvaluateAdapter(
+    {
+      ...resolveConfigFromEnv(config),
+      defaultModelOptions: config?.defaultModelOptions,
+    },
+    model,
+  )
 }

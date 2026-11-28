@@ -24,8 +24,17 @@ import type { ExternalResponsesProviderOptions } from '../text/responses-provide
 import type { VercelGatewayClientConfig } from '../utils/client'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
-export interface VercelGatewayResponsesTextConfig
-  extends VercelGatewayClientConfig, OpenAIBaseTextAdapterOptions {}
+export interface VercelGatewayResponsesTextConfig<
+  TProviderOptions = ExternalResponsesProviderOptions,
+>
+  extends VercelGatewayClientConfig, OpenAIBaseTextAdapterOptions {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
 
 export type VercelGatewayResponsesTextProviderOptions =
   ExternalResponsesProviderOptions
@@ -72,12 +81,18 @@ export class VercelGatewayResponsesTextAdapter<
   override readonly kind = 'text' as const
   override readonly name = 'vercel-gateway' as const
 
-  constructor(config: VercelGatewayResponsesTextConfig, model: TModel) {
+  constructor(
+    {
+      defaultModelOptions,
+      ...config
+    }: VercelGatewayResponsesTextConfig<TProviderOptions>,
+    model: TModel,
+  ) {
     super(
       model,
       'vercel-gateway',
       createOpenAIClient(withVercelGatewayDefaults(config)),
-      config,
+      { ...config, defaultModelOptions },
     )
   }
 
@@ -114,7 +129,10 @@ export function createVercelGatewayResponsesText<
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<VercelGatewayResponsesTextConfig, 'apiKey'>,
+  config?: Omit<
+    VercelGatewayResponsesTextConfig<ResolveProviderOptions<TModel>>,
+    'apiKey'
+  >,
 ): VercelGatewayResponsesTextAdapter<TModel> {
   return new VercelGatewayResponsesTextAdapter({ apiKey, ...config }, model)
 }
@@ -123,7 +141,10 @@ export function vercelGatewayResponsesText<
   TModel extends (typeof VERCEL_GATEWAY_CHAT_MODELS)[number],
 >(
   model: TModel,
-  config?: Omit<VercelGatewayResponsesTextConfig, 'apiKey'>,
+  config?: Omit<
+    VercelGatewayResponsesTextConfig<ResolveProviderOptions<TModel>>,
+    'apiKey'
+  >,
 ): VercelGatewayResponsesTextAdapter<TModel> {
   return createVercelGatewayResponsesText(
     model,

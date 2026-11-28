@@ -8,6 +8,7 @@ export {
   createOpenRouterText,
   openRouterText,
   type OpenRouterConfig,
+  type OpenRouterTextConfig,
   type OpenRouterTextModelOptions,
 } from './adapters/text'
 

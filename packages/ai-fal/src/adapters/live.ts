@@ -5,7 +5,7 @@ import type {
   LiveVideoGenerationOptions,
   LiveVideoGenerationResult,
 } from '@tanstack/ai'
-import type { FalClientConfig } from '../utils/client'
+import type { FalAdapterConfig, FalClientConfig } from '../utils/client'
 
 const DEFAULT_FAL_TOKEN_URL = 'https://rest.fal.ai/tokens/'
 const DEFAULT_TOKEN_DURATION_SECONDS = 300
@@ -109,11 +109,16 @@ export class FalLiveVideoAdapter<
   readonly name = 'fal' as const
   private readonly clientConfig: FalClientConfig | undefined
   private readonly apiKey: string
+  readonly defaultModelOptions: FalLiveVideoProviderOptions | undefined
 
-  constructor(model: TModel, config?: FalClientConfig) {
+  constructor(
+    model: TModel,
+    config?: FalAdapterConfig<FalLiveVideoProviderOptions>,
+  ) {
     super(model, {})
     this.apiKey = resolveFalLiveApiKey(config)
     this.clientConfig = config
+    this.defaultModelOptions = config?.defaultModelOptions
   }
 
   async createLiveVideo(
@@ -195,7 +200,7 @@ export class FalLiveVideoAdapter<
  */
 export function falLiveVideo<TModel extends FalLiveVideoModel>(
   model: TModel,
-  config?: FalClientConfig,
+  config?: FalAdapterConfig<FalLiveVideoProviderOptions>,
 ): FalLiveVideoAdapter<TModel> {
   return new FalLiveVideoAdapter(model, config)
 }
@@ -206,7 +211,7 @@ export function falLiveVideo<TModel extends FalLiveVideoModel>(
 export function createFalLiveVideo<TModel extends FalLiveVideoModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<FalClientConfig, 'apiKey'>,
+  config?: Omit<FalAdapterConfig<FalLiveVideoProviderOptions>, 'apiKey'>,
 ): FalLiveVideoAdapter<TModel> {
   return new FalLiveVideoAdapter(model, { ...config, apiKey })
 }

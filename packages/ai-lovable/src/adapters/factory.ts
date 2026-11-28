@@ -4,20 +4,24 @@ import { LovableResponsesTextAdapter } from './responses-text'
 import type { LovableClientConfig } from '../utils/client'
 import type { LovableTextConfig } from './text'
 import type { LovableResponsesTextConfig } from './responses-text'
-import type { LovableModelId } from '../model-meta'
+import type { LovableModelId, ResolveProviderOptions } from '../model-meta'
 
 export type LovableTextApi = 'responses' | 'chat' | 'chat-completions'
 
 /** Config for the branching factory's Responses mode (default, or api: 'responses'). */
-export type LovableResponsesApiConfig = Omit<
-  LovableResponsesTextConfig,
+export type LovableResponsesApiConfig<
+  TModel extends LovableModelId = LovableModelId,
+> = Omit<
+  LovableResponsesTextConfig<ResolveProviderOptions<TModel>>,
   'apiKey'
 > & {
   api?: 'responses'
 }
 
 /** Config for the branching factory's Chat Completions mode (api required). */
-export type LovableChatApiConfig = Omit<LovableTextConfig, 'apiKey'> & {
+export type LovableChatApiConfig<
+  TModel extends LovableModelId = LovableModelId,
+> = Omit<LovableTextConfig<ResolveProviderOptions<TModel>>, 'apiKey'> & {
   api: 'chat' | 'chat-completions'
 }
 
@@ -44,32 +48,32 @@ function build<TModel extends LovableModelId>(
 export function createLovableText<TModel extends LovableModelId>(
   model: TModel,
   apiKey: string,
-  config?: LovableResponsesApiConfig,
+  config?: LovableResponsesApiConfig<TModel>,
 ): LovableResponsesTextAdapter<TModel>
 export function createLovableText<TModel extends LovableModelId>(
   model: TModel,
   apiKey: string,
-  config: LovableChatApiConfig,
+  config: LovableChatApiConfig<TModel>,
 ): LovableTextAdapter<TModel>
 export function createLovableText<TModel extends LovableModelId>(
   model: TModel,
   apiKey: string,
-  config?: LovableResponsesApiConfig | LovableChatApiConfig,
+  config?: LovableResponsesApiConfig<TModel> | LovableChatApiConfig<TModel>,
 ): AnyLovableTextAdapter<TModel> {
   return build(model, { ...config, apiKey })
 }
 
 export function lovableText<TModel extends LovableModelId>(
   model: TModel,
-  config?: LovableResponsesApiConfig,
+  config?: LovableResponsesApiConfig<TModel>,
 ): LovableResponsesTextAdapter<TModel>
 export function lovableText<TModel extends LovableModelId>(
   model: TModel,
-  config: LovableChatApiConfig,
+  config: LovableChatApiConfig<TModel>,
 ): LovableTextAdapter<TModel>
 export function lovableText<TModel extends LovableModelId>(
   model: TModel,
-  config?: LovableResponsesApiConfig | LovableChatApiConfig,
+  config?: LovableResponsesApiConfig<TModel> | LovableChatApiConfig<TModel>,
 ): AnyLovableTextAdapter<TModel> {
   return build(model, {
     ...config,

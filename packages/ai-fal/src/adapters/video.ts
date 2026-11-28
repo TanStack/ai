@@ -32,7 +32,7 @@ import type {
   FalVideoPromptModalitiesFor,
   FalVideoProviderOptions,
 } from '../model-meta'
-import type { FalClientConfig } from '../utils/client'
+import type { FalAdapterConfig } from '../utils/client'
 import type { FalClient } from '../client/index'
 
 /**
@@ -140,12 +140,17 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
   override readonly kind = 'video' as const
   readonly name = 'fal' as const
   private readonly client: FalClient
+  readonly defaultModelOptions: FalVideoProviderOptions<TModel> | undefined
   // Consumes fal storage URLs uploaded via falFiles().
   override readonly supportsFileSources = true
 
-  constructor(model: TModel, config?: FalClientConfig) {
+  constructor(
+    model: TModel,
+    config?: FalAdapterConfig<FalVideoProviderOptions<TModel>>,
+  ) {
     super({}, model)
     this.client = createAdapterFalClient(config)
+    this.defaultModelOptions = config?.defaultModelOptions
   }
 
   async createVideoJob(
@@ -299,7 +304,7 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
  */
 export function createFalVideo<TModel extends FalModel>(
   model: TModel,
-  config?: FalClientConfig,
+  config?: FalAdapterConfig<FalVideoProviderOptions<TModel>>,
 ): FalVideoAdapter<TModel> {
   return new FalVideoAdapter(model, config)
 }
@@ -309,7 +314,7 @@ export function createFalVideo<TModel extends FalModel>(
  */
 export function falVideo<TModel extends FalModel>(
   model: TModel,
-  config?: FalClientConfig,
+  config?: FalAdapterConfig<FalVideoProviderOptions<TModel>>,
 ): FalVideoAdapter<TModel> {
   return createFalVideo(model, config)
 }

@@ -14,6 +14,7 @@ import type {
   ResolveProviderOptions,
 } from '../model-meta'
 import type { GrokVertexConfig } from './auth'
+import type { GrokTextConfig } from '../adapters/text'
 
 export {
   GrokVertexAuthError,
@@ -77,7 +78,11 @@ class GrokVertexTextAdapter<
  */
 export function grokVertexText<TModel extends GrokVertexChatModel>(
   model: TModel,
-  config: GrokVertexConfig = {},
+  config: GrokVertexConfig &
+    Pick<
+      GrokTextConfig<ResolveProviderOptions<TModel>>,
+      'defaultModelOptions'
+    > = {},
 ): GrokTextAdapter<
   TModel,
   ResolveProviderOptions<TModel>,
@@ -91,6 +96,7 @@ export function grokVertexText<TModel extends GrokVertexChatModel>(
       apiKey: 'vertex',
       baseURL,
       defaultHeaders: config.defaultHeaders,
+      defaultModelOptions: config.defaultModelOptions,
       fetch: async (input, init) => {
         const token = await resolveGrokVertexAccessToken(config)
         const headers = new Headers(init?.headers)

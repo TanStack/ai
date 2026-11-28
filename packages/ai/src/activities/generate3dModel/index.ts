@@ -11,6 +11,7 @@
 import { EventType } from '@ag-ui/core'
 import { toRunErrorPayload } from '../error-payload'
 import { resolveDebugOption } from '../../logger/resolve'
+import { withDefaultModelOptions } from '../default-model-options'
 import { assertPromptFileSourceSupport } from '../../utilities/content-source'
 import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
 import {
@@ -266,13 +267,16 @@ export function generate3dModel<
 >(
   options: Model3dActivityOptions<TAdapter, TStream, TWait>,
 ): Model3dActivityResult<TStream, TWait> {
-  if (options.stream) {
-    return stream3dModel(options) as Model3dActivityResult<TStream, TWait>
+  // Merge the adapter defaults once here, so middleware, the logs and the
+  // adapter all read the same value.
+  const merged = withDefaultModelOptions(options)
+  if (merged.stream) {
+    return stream3dModel(merged) as Model3dActivityResult<TStream, TWait>
   }
-  if (options.wait) {
-    return wait3dModel(options) as Model3dActivityResult<TStream, TWait>
+  if (merged.wait) {
+    return wait3dModel(merged) as Model3dActivityResult<TStream, TWait>
   }
-  return submit3dModelJob(options) as Model3dActivityResult<TStream, TWait>
+  return submit3dModelJob(merged) as Model3dActivityResult<TStream, TWait>
 }
 
 function contextFor(

@@ -39,13 +39,21 @@ const DEFAULT_NAME = 'openai-compatible'
  * The options argument of an adapter that a factory makes.
  * ponytail: the cast is safe because the levels and `TReasoning` come from the
  * same value (the `createModel` def or the `reasoning` config). TypeScript
- * cannot follow that link through the generic factory.
+ * cannot follow that link through the generic factory. `defaultModelOptions`
+ * is one value for all models of the factory, so it is typed per factory,
+ * not per model.
  */
-function optionsArg<TReasoning extends ReasoningCapability>(
-  options: OpenAIBaseTextAdapterOptions & Pick<ClientOptions, 'fetch'>,
+function optionsArg<
+  TReasoning extends ReasoningCapability,
+  TProviderOptions extends Record<string, any>,
+>(
+  options: OpenAIBaseTextAdapterOptions &
+    Pick<ClientOptions, 'fetch'> & {
+      defaultModelOptions?: Record<string, any> | undefined
+    },
   reasoning: CompatibleReasoning | undefined,
 ) {
-  return [{ ...options, reasoning }] as OptionsArg<TReasoning>
+  return [{ ...options, reasoning }] as OptionsArg<TReasoning, TProviderOptions>
 }
 
 /**
@@ -72,6 +80,7 @@ export function openaiCompatible<
     models,
     api = 'chat-completions',
     strictFallbackWarning,
+    defaultModelOptions,
     ...clientOptions
   } = config
   const client = createOpenAIClient(clientOptions)
@@ -80,8 +89,15 @@ export function openaiCompatible<
     const def = models.find(
       (entry) => typeof entry !== 'string' && entry.name === model,
     )
-    const options = optionsArg<ResolveCompatReasoning<TModels, TModelName>>(
-      { strictFallbackWarning, fetch: clientOptions.fetch },
+    const options = optionsArg<
+      ResolveCompatReasoning<TModels, TModelName>,
+      ResolveCompatOptions<TModels, TModelName>
+    >(
+      {
+        strictFallbackWarning,
+        fetch: clientOptions.fetch,
+        defaultModelOptions,
+      },
       typeof def === 'string' ? undefined : def?.reasoning,
     )
     if (api === 'responses') {
@@ -126,11 +142,12 @@ export function openaiCompatibleText<
     api = 'chat-completions',
     strictFallbackWarning,
     reasoning,
+    defaultModelOptions,
     ...clientOptions
   } = config
   const client = createOpenAIClient(clientOptions)
-  const options = optionsArg<ReasoningOf<TReasoning>>(
-    { strictFallbackWarning, fetch: clientOptions.fetch },
+  const options = optionsArg<ReasoningOf<TReasoning>, Record<string, any>>(
+    { strictFallbackWarning, fetch: clientOptions.fetch, defaultModelOptions },
     reasoning,
   )
   if (api === 'responses') {

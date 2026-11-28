@@ -7,7 +7,11 @@
  * decision models.
  */
 
-export { OllayaEvaluateAdapter, ollayaDecider } from './adapters/evaluate'
+export {
+  OllayaEvaluateAdapter,
+  ollayaDecider,
+  type OllayaEvaluateConfig,
+} from './adapters/evaluate'
 
 export { type OllayaClientConfig } from './utils/client'
 

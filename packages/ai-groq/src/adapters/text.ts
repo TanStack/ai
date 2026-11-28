@@ -19,6 +19,7 @@ import type {
 } from '../model-meta'
 import type { GroqMessageMetadataByModality } from '../message-types'
 import type { GroqClientConfig } from '../utils/client'
+import type { GroqTextProviderOptions } from '../text/text-provider-options'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 import type OpenAI from 'openai'
 
@@ -36,8 +37,15 @@ type ResolveToolCapabilities<TModel extends string> =
 /**
  * Configuration for Groq text adapter
  */
-export interface GroqTextConfig
-  extends GroqClientConfig, OpenAIBaseTextAdapterOptions {}
+export interface GroqTextConfig<TProviderOptions = GroqTextProviderOptions>
+  extends GroqClientConfig, OpenAIBaseTextAdapterOptions {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
 
 /**
  * Re-export of the public provider options type
@@ -76,8 +84,14 @@ export class GroqTextAdapter<
   override readonly name = 'groq' as const
   override readonly inputModalities = GROQ_MODEL_INPUT_MODALITIES[this.model]
 
-  constructor(config: GroqTextConfig, model: TModel) {
-    super(model, 'groq', createOpenAIClient(withGroqDefaults(config)), config)
+  constructor(
+    { defaultModelOptions, ...config }: GroqTextConfig<TProviderOptions>,
+    model: TModel,
+  ) {
+    super(model, 'groq', createOpenAIClient(withGroqDefaults(config)), {
+      ...config,
+      defaultModelOptions,
+    })
   }
 
   protected override modelReasoning(model: string) {
@@ -243,7 +257,7 @@ export function createGroqText<
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<GroqTextConfig, 'apiKey'>,
+  config?: Omit<GroqTextConfig<ResolveProviderOptions<TModel>>, 'apiKey'>,
 ): GroqTextAdapter<TModel> {
   return new GroqTextAdapter({ apiKey, ...config }, model)
 }
@@ -258,7 +272,7 @@ export function createGroqText<
  */
 export function groqText<TModel extends (typeof GROQ_CHAT_MODELS)[number]>(
   model: TModel,
-  config?: Omit<GroqTextConfig, 'apiKey'>,
+  config?: Omit<GroqTextConfig<ResolveProviderOptions<TModel>>, 'apiKey'>,
 ): GroqTextAdapter<TModel> {
   const apiKey = getGroqApiKeyFromEnv()
   return createGroqText(model, apiKey, config)

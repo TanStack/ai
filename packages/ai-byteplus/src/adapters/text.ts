@@ -56,6 +56,7 @@ import type {
   BytePlusVideoMetadata,
 } from '../message-types'
 import type { BytePlusArkConfig } from '../utils/client'
+import type { BytePlusTextProviderOptions } from '../text/text-provider-options'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
 type ResolveToolCapabilities<TModel extends string> =
@@ -66,8 +67,17 @@ type ResolveToolCapabilities<TModel extends string> =
 /**
  * Configuration for the BytePlus text adapter.
  */
-export interface BytePlusTextConfig
-  extends BytePlusArkConfig, OpenAIBaseTextAdapterOptions {}
+export interface BytePlusTextConfig<
+  TProviderOptions = BytePlusTextProviderOptions,
+>
+  extends BytePlusArkConfig, OpenAIBaseTextAdapterOptions {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
 
 /**
  * Re-export of the public provider options type.
@@ -139,12 +149,15 @@ export class BytePlusTextAdapter<
   override readonly inputModalities =
     BYTEPLUS_MODEL_INPUT_MODALITIES[this.model]
 
-  constructor(config: BytePlusTextConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: BytePlusTextConfig<TProviderOptions>,
+    model: TModel,
+  ) {
     super(
       model,
       'byteplus',
       createOpenAIClient(withBytePlusArkDefaults(config)),
-      config,
+      { ...config, defaultModelOptions },
     )
   }
 
@@ -582,7 +595,7 @@ export function createBytePlusText<
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<BytePlusTextConfig, 'apiKey'>,
+  config?: Omit<BytePlusTextConfig<ResolveProviderOptions<TModel>>, 'apiKey'>,
 ): BytePlusTextAdapter<TModel> {
   return new BytePlusTextAdapter({ apiKey, ...config }, model)
 }
@@ -608,7 +621,7 @@ export function byteplusText<
   TModel extends (typeof BYTEPLUS_CHAT_MODELS)[number],
 >(
   model: TModel,
-  config?: Omit<BytePlusTextConfig, 'apiKey'>,
+  config?: Omit<BytePlusTextConfig<ResolveProviderOptions<TModel>>, 'apiKey'>,
 ): BytePlusTextAdapter<TModel> {
   const apiKey = getBytePlusArkApiKeyFromEnv()
   return createBytePlusText(model, apiKey, config)

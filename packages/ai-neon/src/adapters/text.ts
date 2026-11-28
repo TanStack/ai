@@ -58,8 +58,15 @@ export function dropRejectedSampling<TRequest extends object>(
   return request
 }
 
-export interface NeonTextConfig
-  extends NeonClientConfig, OpenAIBaseTextAdapterOptions {}
+export interface NeonTextConfig<TProviderOptions = NeonTextProviderOptions>
+  extends NeonClientConfig, OpenAIBaseTextAdapterOptions {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
 
 /**
  * Neon AI Gateway adapter for the unified Chat Completions route
@@ -87,13 +94,17 @@ export class NeonTextAdapter<
   /** The gateway's output cap on this route, for `summarize({ maxLength })`. */
   readonly maxTokensKey = 'max_tokens'
 
-  constructor(config: NeonTextConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: NeonTextConfig<TProviderOptions>,
+    model: TModel,
+  ) {
     const options = withNeonDefaults(config, 'chat')
     // The base wraps `options.fetch` for `wrapFetch`, so it must be the
     // normalizing fetch the client uses.
     super(model, 'neon', createOpenAIClient(options), {
       ...config,
       fetch: options.fetch,
+      defaultModelOptions,
     })
   }
 

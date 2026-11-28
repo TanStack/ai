@@ -51,7 +51,14 @@ import type { BytePlusArkConfig } from '../utils/client'
 /**
  * Configuration for the BytePlus Seedream image adapter.
  */
-export interface BytePlusImageConfig extends BytePlusArkConfig {}
+export interface BytePlusImageConfig extends BytePlusArkConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: BytePlusImageProviderOptions
+}
 
 /**
  * Roles Seedream can honour. Every input image is a reference — there is no
@@ -156,12 +163,17 @@ export class BytePlusImageAdapter<
   readonly name = 'byteplus' as const
 
   /** Config with the Ark base URL resolved and trailing slashes trimmed. */
-  private readonly clientConfig: Omit<BytePlusImageConfig, 'baseURL'> & {
+  private readonly clientConfig: Omit<BytePlusArkConfig, 'baseURL'> & {
     baseURL: string
   }
+  readonly defaultModelOptions: BytePlusImageProviderOptions | undefined
 
-  constructor(model: TModel, config: BytePlusImageConfig) {
+  constructor(
+    model: TModel,
+    { defaultModelOptions, ...config }: BytePlusImageConfig,
+  ) {
     super(model, {})
+    this.defaultModelOptions = defaultModelOptions
     this.clientConfig = withBytePlusArkDefaults(config)
   }
 

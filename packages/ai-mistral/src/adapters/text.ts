@@ -98,7 +98,15 @@ function parseToolCallInput(
 /**
  * Configuration for Mistral text adapter.
  */
-export type MistralTextConfig = MistralClientConfig
+export type MistralTextConfig<TModel extends string = string> =
+  MistralClientConfig & {
+    /**
+     * Default `modelOptions` for every call. The activity merges them under
+     * the call's `modelOptions`. A key the call sets replaces the default key
+     * in full.
+     */
+    defaultModelOptions?: ResolveProviderOptions<TModel>
+  }
 
 /**
  * Alias for TextProviderOptions for external use.
@@ -318,9 +326,14 @@ export class MistralTextAdapter<
 
   private readonly client: MistralClient
   private readonly rawConfig: MistralClientConfig
+  readonly defaultModelOptions: ResolveProviderOptions<TModel> | undefined
 
-  constructor(config: MistralTextConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: MistralTextConfig<TModel>,
+    model: TModel,
+  ) {
     super(config, model)
+    this.defaultModelOptions = defaultModelOptions
     // The client serves `structuredOutput` (non-streaming). The streaming
     // path uses `fetchRawMistralStream`, which reads partial tool-call
     // argument deltas as they come.
@@ -1541,7 +1554,7 @@ export function createMistralText<
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<MistralTextConfig, 'apiKey'>,
+  config?: Omit<MistralTextConfig<TModel>, 'apiKey'>,
 ): MistralTextAdapter<TModel> {
   return new MistralTextAdapter({ apiKey, ...config }, model)
 }
@@ -1563,7 +1576,7 @@ export function mistralText<
   TModel extends (typeof MISTRAL_CHAT_MODELS)[number],
 >(
   model: TModel,
-  config?: Omit<MistralTextConfig, 'apiKey'>,
+  config?: Omit<MistralTextConfig<TModel>, 'apiKey'>,
 ): MistralTextAdapter<TModel> {
   const apiKey = getMistralApiKeyFromEnv()
   return createMistralText(model, apiKey, config)

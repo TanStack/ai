@@ -161,3 +161,21 @@ async function expectStatus(status: number, statusText: string, body: string) {
     ),
   })
 }
+
+describe('TypesafeEvaluateAdapter modelOptions', () => {
+  it('sends modelOptions in the request body, and cannot replace model, state, or questions', async () => {
+    fetchMock.mockResolvedValue(typesafeResponse(successBody))
+
+    await adapter().evaluate({
+      ...evaluateOptions(),
+      modelOptions: { temperature: 0, model: 'other', state: 'other' },
+    })
+
+    expect(lastRequestBody()).toEqual({
+      temperature: 0,
+      model: 'jev-latest',
+      state,
+      questions,
+    })
+  })
+})

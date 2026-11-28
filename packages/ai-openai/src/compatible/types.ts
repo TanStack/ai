@@ -111,6 +111,12 @@ export interface OpenAICompatibleConfig<
   apiKey: NonNullable<ClientOptions['apiKey']>
   models: TModels
   api?: CompatibleApi
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: Record<string, any>
 }
 
 /** One-shot helper configuration (single model). */
@@ -126,4 +132,10 @@ export interface OpenAICompatibleTextConfig<
   api?: CompatibleApi
   /** The model's reasoning levels for `chat({ reasoning })`. */
   reasoning?: TReasoning
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: Record<string, any>
 }

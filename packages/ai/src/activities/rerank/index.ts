@@ -8,6 +8,7 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { resolveDebugOption } from '../../logger/resolve'
 import { isAbortShapedError } from '../error-payload'
+import { withDefaultModelOptions } from '../default-model-options'
 import {
   createActivityAbortControls,
   isActivityAbortError,
@@ -169,7 +170,8 @@ export async function rerank<
 >(
   options: RerankActivityOptions<TAdapter, TDocument>,
 ): Promise<RerankResult<TDocument>> {
-  const { adapter, query, documents, topN, modelOptions, middleware } = options
+  const { adapter, query, documents, topN, modelOptions, middleware } =
+    withDefaultModelOptions(options)
   const model = adapter.model
   const requestId = createId('rerank')
   const startTime = Date.now()

@@ -37,6 +37,12 @@ export interface LovableImageConfig extends LovableClientConfig {
    * HTTP(S) URL image inputs throw.
    */
   allowUrlFetch?: boolean
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: LovableImageProviderOptions
 }
 
 function supportsImageMask(model: string): boolean {
@@ -91,12 +97,14 @@ export class LovableImageAdapter<
 
   protected client: OpenAIClientLike
   private readonly allowUrlFetch: boolean
+  readonly defaultModelOptions: LovableImageProviderOptions | undefined
 
   constructor(config: LovableImageConfig, model: TModel) {
     super(model, {})
-    const { allowUrlFetch, ...clientOptions } = config
+    const { allowUrlFetch, defaultModelOptions, ...clientOptions } = config
     this.client = createOpenAIClient(withLovableDefaults(clientOptions))
     this.allowUrlFetch = allowUrlFetch ?? false
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async generateImages(

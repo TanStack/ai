@@ -43,7 +43,9 @@ import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 /**
  * Configuration for OpenAI text adapter
  */
-export interface OpenAITextConfig
+export interface OpenAITextConfig<
+  TProviderOptions extends Record<string, any> = OpenAITextProviderOptions,
+>
   extends OpenAIClientConfig, OpenAIBaseTextAdapterOptions {
   /**
    * The mid-conversation channels (`additional_tools` and a mid-conversation
@@ -54,6 +56,12 @@ export interface OpenAITextConfig
    * `false` turns them off, so every request is built as before.
    */
   midConversationChannels?: boolean
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: TProviderOptions
 }
 
 /**
@@ -142,8 +150,10 @@ export class OpenAITextAdapter<
     | MidConversationChannels
     | undefined = undefined
 
-  constructor(config: OpenAITextConfig, model: TModel) {
-    super(model, 'openai', createOpenAIClient(config), config)
+  constructor(config: OpenAITextConfig<TProviderOptions>, model: TModel) {
+    const { defaultModelOptions: _defaultModelOptions, ...clientConfig } =
+      config
+    super(model, 'openai', createOpenAIClient(clientConfig), config)
     // On by default only on OpenAI's own API: a proxy or a gateway (a
     // `baseURL`, a `fetch`, or the SDK's OPENAI_BASE_URL env var) may not
     // pass the changes. The option wins.
@@ -280,7 +290,7 @@ export function createOpenaiChat<
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<OpenAITextConfig, 'apiKey'>,
+  config?: Omit<OpenAITextConfig<ResolveProviderOptions<TModel>>, 'apiKey'>,
 ): OpenAITextAdapter<TModel> {
   return new OpenAITextAdapter({ apiKey, ...config }, model)
 }
@@ -311,7 +321,7 @@ export function createOpenaiChat<
  */
 export function openaiText<TModel extends (typeof OPENAI_CHAT_MODELS)[number]>(
   model: TModel,
-  config?: Omit<OpenAITextConfig, 'apiKey'>,
+  config?: Omit<OpenAITextConfig<ResolveProviderOptions<TModel>>, 'apiKey'>,
 ): OpenAITextAdapter<TModel> {
   const apiKey = getOpenAIApiKeyFromEnv()
   return createOpenaiChat(model, apiKey, config)

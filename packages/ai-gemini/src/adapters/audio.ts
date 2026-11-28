@@ -36,7 +36,14 @@ export interface GeminiAudioProviderOptions {
   seed?: number
 }
 
-export interface GeminiAudioConfig extends GeminiClientConfig {}
+export interface GeminiAudioConfig extends GeminiClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: GeminiAudioProviderOptions
+}
 
 /** Model type for Gemini Lyria audio generation */
 export type GeminiAudioModel = (typeof GEMINI_AUDIO_MODELS)[number]
@@ -68,9 +75,14 @@ export class GeminiAudioAdapter<
   readonly name = 'gemini' as const
 
   private readonly client: GeminiClient
+  readonly defaultModelOptions: GeminiAudioProviderOptions | undefined
 
-  constructor(config: GeminiAudioConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: GeminiAudioConfig,
+    model: TModel,
+  ) {
     super(model, config)
+    this.defaultModelOptions = defaultModelOptions
     this.client = createGeminiClient(config)
   }
 

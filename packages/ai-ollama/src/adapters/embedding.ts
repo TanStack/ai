@@ -17,7 +17,14 @@ import type { OllamaEmbeddingProviderOptions } from '../embedding/embedding-prov
  * Configuration for the Ollama Embedding adapter.
  * Ollama has no API key — only an optional host (and headers).
  */
-export interface OllamaEmbeddingConfig extends OllamaClientConfig {}
+export interface OllamaEmbeddingConfig extends OllamaClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: OllamaEmbeddingProviderOptions
+}
 
 /**
  * Extract `prompt_eval_count` through an optional-field view of the response.
@@ -49,7 +56,8 @@ export class OllamaEmbeddingAdapter<
 
   protected client: Ollama
   /** The config of the adapter's own client. An injected client has none. */
-  private readonly clientConfig: OllamaEmbeddingConfig | undefined
+  private readonly clientConfig: OllamaClientConfig | undefined
+  readonly defaultModelOptions: OllamaEmbeddingProviderOptions | undefined
 
   constructor(
     hostOrClientOrConfig: string | Ollama | OllamaEmbeddingConfig | undefined,
@@ -67,8 +75,10 @@ export class OllamaEmbeddingAdapter<
       this.client = hostOrClientOrConfig
     } else {
       // OllamaEmbeddingConfig object
-      this.clientConfig = hostOrClientOrConfig
-      this.client = createOllamaClient(hostOrClientOrConfig)
+      const { defaultModelOptions, ...clientConfig } = hostOrClientOrConfig
+      this.clientConfig = clientConfig
+      this.client = createOllamaClient(clientConfig)
+      this.defaultModelOptions = defaultModelOptions
     }
   }
 
@@ -194,7 +204,8 @@ export function createOllamaEmbedding<TModel extends OllamaEmbeddingModel>(
  */
 export function ollamaEmbedding<TModel extends OllamaEmbeddingModel>(
   model: TModel,
+  config?: Pick<OllamaEmbeddingConfig, 'defaultModelOptions'>,
 ): OllamaEmbeddingAdapter<TModel> {
   const host = getOllamaHostFromEnv()
-  return new OllamaEmbeddingAdapter(host, model)
+  return new OllamaEmbeddingAdapter({ host, ...config }, model)
 }

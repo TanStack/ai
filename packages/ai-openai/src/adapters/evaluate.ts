@@ -24,9 +24,25 @@ export type OpenAIEvaluateModel =
   | (string & {})
 
 /**
+ * Provider options for the OpenAI evaluate adapter: the Decisions API body
+ * fields that `decide()` does not set.
+ */
+export type OpenAIEvaluateProviderOptions = Omit<
+  DecisionCreateParams,
+  'model' | 'input' | 'questions'
+>
+
+/**
  * Configuration for OpenAI evaluate adapter
  */
-export interface OpenAIEvaluateConfig extends OpenAIClientConfig {}
+export interface OpenAIEvaluateConfig extends OpenAIClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: OpenAIEvaluateProviderOptions
+}
 
 type DecisionQuestion = DecisionCreateParams['questions'][number]
 type DecisionAnswer = Decision['answers'][number]
@@ -115,18 +131,22 @@ function toWireAnswer(answer: DecisionAnswer): WireAnswer | undefined {
  */
 export class OpenAIEvaluateAdapter<
   TModel extends OpenAIEvaluateModel,
-> extends BaseEvaluateAdapter<TModel> {
+> extends BaseEvaluateAdapter<TModel, OpenAIEvaluateProviderOptions> {
   readonly name = 'openai' as const
 
   protected client: OpenAIClientLike
+  readonly defaultModelOptions: OpenAIEvaluateProviderOptions | undefined
 
   constructor(config: OpenAIEvaluateConfig, model: TModel) {
     super({}, model)
-    this.client = createOpenAIClient(config)
+    const { defaultModelOptions, ...clientConfig } = config
+    this.client = createOpenAIClient(clientConfig)
+    this.defaultModelOptions = defaultModelOptions
   }
 
-  async evaluate(options: EvaluateOptions) {
-    const { model, state, questions, abortSignal, logger } = options
+  async evaluate(options: EvaluateOptions<OpenAIEvaluateProviderOptions>) {
+    const { model, state, questions, modelOptions, abortSignal, logger } =
+      options
     const questionKeys = Object.keys(questions)
 
     logger.request(
@@ -137,6 +157,7 @@ export class OpenAIEvaluateAdapter<
     try {
       const decision = await this.client.decisions.create(
         {
+          ...modelOptions,
           model,
           input: toText(state),
           questions: Object.entries(questions).map(([name, question]) =>

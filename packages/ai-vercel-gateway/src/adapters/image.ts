@@ -24,7 +24,14 @@ import type {
 import type { VercelGatewayImageProviderOptions } from '../image/image-provider-options'
 import type { VercelGatewayClientConfig } from '../utils/client'
 
-export interface VercelGatewayImageConfig extends VercelGatewayClientConfig {}
+export interface VercelGatewayImageConfig extends VercelGatewayClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: VercelGatewayImageProviderOptions
+}
 
 /**
  * Vercel AI Gateway image adapter.
@@ -45,9 +52,15 @@ export class VercelGatewayImageAdapter<
 
   protected client: OpenAIClientLike
 
-  constructor(config: VercelGatewayImageConfig, model: TModel) {
+  readonly defaultModelOptions: VercelGatewayImageProviderOptions | undefined
+
+  constructor(
+    { defaultModelOptions, ...config }: VercelGatewayImageConfig,
+    model: TModel,
+  ) {
     super(model, {})
     this.client = createOpenAIClient(withVercelGatewayDefaults(config))
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async generateImages(

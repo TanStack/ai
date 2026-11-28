@@ -10,6 +10,7 @@ import { undoNullWidening } from '@tanstack/ai-utils'
 import { streamToText } from '../../stream-to-response.js'
 import { normalizeReasoning } from '../../reasoning'
 import { resolveDebugOption } from '../../logger/resolve'
+import { withDefaultModelOptions } from '../default-model-options'
 import { EventType } from '../../types'
 import {
   INTERRUPT_BINDING_METADATA_KEY,
@@ -6600,7 +6601,9 @@ function toRuntimeTextActivityOptions<
   >,
   overrides: { outputSchema: TOutputSchema; stream: TOutputStream },
 ): RuntimeTextActivityOptions<TAdapter, TOutputSchema, TOutputStream> {
-  const { middleware, ...rest } = options
+  // Merge the adapter defaults once here, so the engine, middleware and
+  // adapter all read the same value.
+  const { middleware, ...rest } = withDefaultModelOptions(options)
   return {
     ...rest,
     ...overrides,

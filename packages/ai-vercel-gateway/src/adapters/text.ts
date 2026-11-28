@@ -18,6 +18,7 @@ import type {
   VercelGatewayModelReasoningByName,
 } from '../model-meta'
 import type { VercelGatewayMessageMetadataByModality } from '../message-types'
+import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type { VercelGatewayClientConfig } from '../utils/client'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
@@ -46,8 +47,17 @@ type ResolveToolCapabilities<TModel extends string> =
     ? NonNullable<VercelGatewayChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
-export interface VercelGatewayTextConfig
-  extends VercelGatewayClientConfig, OpenAIBaseTextAdapterOptions {}
+export interface VercelGatewayTextConfig<
+  TProviderOptions = ExternalTextProviderOptions,
+>
+  extends VercelGatewayClientConfig, OpenAIBaseTextAdapterOptions {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
 
 export type { ExternalTextProviderOptions as VercelGatewayTextProviderOptions } from '../text/text-provider-options'
 
@@ -75,12 +85,18 @@ export class VercelGatewayTextAdapter<
   override readonly kind = 'text' as const
   override readonly name = 'vercel-gateway' as const
 
-  constructor(config: VercelGatewayTextConfig, model: TModel) {
+  constructor(
+    {
+      defaultModelOptions,
+      ...config
+    }: VercelGatewayTextConfig<TProviderOptions>,
+    model: TModel,
+  ) {
     super(
       model,
       'vercel-gateway',
       createOpenAIClient(withVercelGatewayDefaults(config)),
-      config,
+      { ...config, defaultModelOptions },
     )
   }
 

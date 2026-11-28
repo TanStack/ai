@@ -11,6 +11,7 @@ import type {
   TranscriptionWord,
 } from '@tanstack/ai'
 import type {
+  CloudflareAdapterConfig,
   CloudflareConfig,
   CloudflareConfigInput,
   FetchLike,
@@ -87,11 +88,24 @@ export class CloudflareTranscriptionAdapter<
 > {
   readonly name = 'cloudflare' as const
 
+  private readonly cfConfig: CloudflareConfig
+  readonly defaultModelOptions:
+    | CloudflareTranscriptionProviderOptions
+    | undefined
+
   constructor(
-    private readonly cfConfig: CloudflareConfig,
+    {
+      defaultModelOptions,
+      ...cfConfig
+    }: CloudflareAdapterConfig<
+      CloudflareConfig,
+      CloudflareTranscriptionProviderOptions
+    >,
     model: TModel,
   ) {
     super(model, {})
+    this.cfConfig = cfConfig
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async transcribe(
@@ -229,7 +243,10 @@ export function createCloudflareTranscription<
   TModel extends CloudflareTranscriptionModel,
 >(
   model: TModel,
-  config: CloudflareConfig,
+  config: CloudflareAdapterConfig<
+    CloudflareConfig,
+    CloudflareTranscriptionProviderOptions
+  >,
 ): CloudflareTranscriptionAdapter<TModel> {
   return new CloudflareTranscriptionAdapter(config, model)
 }
@@ -238,7 +255,16 @@ export function cloudflareTranscription<
   TModel extends CloudflareTranscriptionModel,
 >(
   model: TModel,
-  config?: CloudflareConfigInput,
+  config?: CloudflareAdapterConfig<
+    CloudflareConfigInput,
+    CloudflareTranscriptionProviderOptions
+  >,
 ): CloudflareTranscriptionAdapter<TModel> {
-  return new CloudflareTranscriptionAdapter(resolveConfigFromEnv(config), model)
+  return new CloudflareTranscriptionAdapter(
+    {
+      ...resolveConfigFromEnv(config),
+      defaultModelOptions: config?.defaultModelOptions,
+    },
+    model,
+  )
 }

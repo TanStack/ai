@@ -131,6 +131,13 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   private readonly baseFetch: Fetch | undefined
 
   /**
+   * Default `modelOptions` for every call. `chat()` merges them under the
+   * call's `modelOptions`. A key the call sets replaces the default key in
+   * full.
+   */
+  readonly defaultModelOptions: TProviderOptions | undefined
+
+  /**
    * `options.fetch` must be the fetch that the client uses. A `wrapFetch`
    * call wraps it.
    */
@@ -138,13 +145,17 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     model: TModel,
     name: string,
     client: OpenAIClientLike,
-    options: OpenAIBaseTextAdapterOptions & { fetch?: Fetch | undefined } = {},
+    options: OpenAIBaseTextAdapterOptions & {
+      fetch?: Fetch | undefined
+      defaultModelOptions?: TProviderOptions | undefined
+    } = {},
   ) {
     super({}, model)
     this.name = name
     this.client = client
     this.strictFallbackWarning = options.strictFallbackWarning ?? true
     this.baseFetch = options.fetch
+    this.defaultModelOptions = options.defaultModelOptions
   }
 
   async *chatStream(

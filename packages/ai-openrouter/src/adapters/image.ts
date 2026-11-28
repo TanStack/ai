@@ -29,7 +29,14 @@ import type {
 import type { OPENROUTER_IMAGE_MODELS } from '../model-meta'
 import type { ChatResult } from '@openrouter/sdk/models'
 
-export interface OpenRouterImageConfig extends OpenRouterClientConfig {}
+export interface OpenRouterImageConfig extends OpenRouterClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: OpenRouterImageProviderOptions
+}
 
 export type OpenRouterImageModel = (typeof OPENROUTER_IMAGE_MODELS)[number]
 
@@ -93,14 +100,17 @@ export class OpenRouterImageAdapter<
   readonly name = 'openrouter' as const
 
   private readonly client: Pick<OpenRouterClient, 'chat'>
+  readonly defaultModelOptions: OpenRouterImageProviderOptions | undefined
 
   constructor(config: OpenRouterImageConfig, model: TModel) {
     super(model, {})
+    const { defaultModelOptions, ...clientConfig } = config
     this.client = createOpenRouterChatClient({
-      ...config,
-      apiKey: config.apiKey,
-      serverURL: config.baseURL,
+      ...clientConfig,
+      apiKey: clientConfig.apiKey,
+      serverURL: clientConfig.baseURL,
     })
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async generateImages(

@@ -23,9 +23,16 @@ import type {
  */
 export type OpenAICompatibleAdapterOptions<
   TReasoning extends ReasoningCapability = never,
+  TProviderOptions extends Record<string, any> = Record<string, any>,
 > = OpenAIBaseTextAdapterOptions &
-  Pick<ClientOptions, 'fetch'> &
-  ([TReasoning] extends [never]
+  Pick<ClientOptions, 'fetch'> & {
+    /**
+     * Default `modelOptions` for every call. The activity merges them under
+     * the call's `modelOptions`. A key the call sets replaces the default
+     * key in full.
+     */
+    defaultModelOptions?: TProviderOptions
+  } & ([TReasoning] extends [never]
     ? { reasoning?: never }
     : {
         /** The provider value to send for each level of `chat({ reasoning })`. */
@@ -36,14 +43,18 @@ export type OpenAICompatibleAdapterOptions<
       })
 
 /** The options argument: optional without `TReasoning`, required with it. */
-export type OptionsArg<TReasoning extends ReasoningCapability> = [
-  TReasoning,
-] extends [never]
-  ? [options?: OpenAICompatibleAdapterOptions]
-  : [options: OpenAICompatibleAdapterOptions<TReasoning>]
+export type OptionsArg<
+  TReasoning extends ReasoningCapability,
+  TProviderOptions extends Record<string, any> = Record<string, any>,
+> = [TReasoning] extends [never]
+  ? [options?: OpenAICompatibleAdapterOptions<never, TProviderOptions>]
+  : [options: OpenAICompatibleAdapterOptions<TReasoning, TProviderOptions>]
 
-type UntypedOptions = OpenAIBaseTextAdapterOptions &
-  Pick<ClientOptions, 'fetch'> & { reasoning?: ModelReasoning }
+type UntypedOptions<TProviderOptions> = OpenAIBaseTextAdapterOptions &
+  Pick<ClientOptions, 'fetch'> & {
+    reasoning?: ModelReasoning
+    defaultModelOptions?: TProviderOptions
+  }
 
 /**
  * Generic OpenAI-compatible adapter over the Chat Completions API
@@ -72,9 +83,10 @@ export class OpenAICompatibleChatAdapter<
     client: OpenAIClientLike,
     model: TModel,
     name: string,
-    ...[options]: OptionsArg<TReasoning>
+    ...[options]: OptionsArg<TReasoning, TProviderOptions>
   ) {
-    const { reasoning, ...rest }: UntypedOptions = options ?? {}
+    const { reasoning, ...rest }: UntypedOptions<TProviderOptions> =
+      options ?? {}
     super(model, name, client, rest)
     this.reasoning = reasoning
   }
@@ -139,9 +151,10 @@ export class OpenAICompatibleResponsesAdapter<
     client: OpenAIClientLike,
     model: TModel,
     name: string,
-    ...[options]: OptionsArg<TReasoning>
+    ...[options]: OptionsArg<TReasoning, TProviderOptions>
   ) {
-    const { reasoning, ...rest }: UntypedOptions = options ?? {}
+    const { reasoning, ...rest }: UntypedOptions<TProviderOptions> =
+      options ?? {}
     super(model, name, client, rest)
     this.reasoning = reasoning
   }

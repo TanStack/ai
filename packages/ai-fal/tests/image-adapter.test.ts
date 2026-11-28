@@ -111,6 +111,50 @@ describe('Fal Image Adapter', () => {
     expect(result.images[1]!.url).toBe('https://fal.media/files/image2.png')
   })
 
+  it('keeps a default num_images when the call omits numberOfImages', async () => {
+    mockSubscribe.mockResolvedValueOnce(
+      createMockImageResponse([{ url: 'https://fal.media/files/image1.png' }]),
+    )
+
+    const adapter = falImage('fal-ai/flux/dev', {
+      apiKey: 'test-key',
+      defaultModelOptions: { num_images: 3 },
+    })
+
+    await generateImage({
+      threadId: 'thread-1',
+      adapter,
+      prompt: 'A cute robot mascot',
+    })
+
+    const [, options] = mockSubscribe.mock.calls[0]!
+    expect(options.input.num_images).toBe(3)
+  })
+
+  it('lets an explicit numberOfImages replace a default num_images', async () => {
+    mockSubscribe.mockResolvedValueOnce(
+      createMockImageResponse([
+        { url: 'https://fal.media/files/image1.png' },
+        { url: 'https://fal.media/files/image2.png' },
+      ]),
+    )
+
+    const adapter = falImage('fal-ai/flux/dev', {
+      apiKey: 'test-key',
+      defaultModelOptions: { num_images: 3 },
+    })
+
+    await generateImage({
+      threadId: 'thread-1',
+      adapter,
+      prompt: 'A cute robot mascot',
+      numberOfImages: 2,
+    })
+
+    const [, options] = mockSubscribe.mock.calls[0]!
+    expect(options.input.num_images).toBe(2)
+  })
+
   it('handles base64 image responses', async () => {
     const base64Data =
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='

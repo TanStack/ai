@@ -9,7 +9,11 @@ import type {
   ImageGenerationOptions,
   ImageGenerationResult,
 } from '@tanstack/ai'
-import type { CloudflareConfig, CloudflareConfigInput } from '../utils/config'
+import type {
+  CloudflareAdapterConfig,
+  CloudflareConfig,
+  CloudflareConfigInput,
+} from '../utils/config'
 import type { CloudflareImageModel } from '../utils/models'
 
 /** Text-to-image inputs forwarded to the model (`steps`, `guidance`, ...). */
@@ -32,11 +36,22 @@ export class CloudflareImageAdapter<
 > extends BaseImageAdapter<TModel, CloudflareImageProviderOptions> {
   readonly name = 'cloudflare' as const
 
+  private readonly cfConfig: CloudflareConfig
+  readonly defaultModelOptions: CloudflareImageProviderOptions | undefined
+
   constructor(
-    private readonly cfConfig: CloudflareConfig,
+    {
+      defaultModelOptions,
+      ...cfConfig
+    }: CloudflareAdapterConfig<
+      CloudflareConfig,
+      CloudflareImageProviderOptions
+    >,
     model: TModel,
   ) {
     super(model, {})
+    this.cfConfig = cfConfig
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async generateImages(
@@ -84,14 +99,26 @@ export class CloudflareImageAdapter<
 
 export function createCloudflareImage<TModel extends CloudflareImageModel>(
   model: TModel,
-  config: CloudflareConfig,
+  config: CloudflareAdapterConfig<
+    CloudflareConfig,
+    CloudflareImageProviderOptions
+  >,
 ): CloudflareImageAdapter<TModel> {
   return new CloudflareImageAdapter(config, model)
 }
 
 export function cloudflareImage<TModel extends CloudflareImageModel>(
   model: TModel,
-  config?: CloudflareConfigInput,
+  config?: CloudflareAdapterConfig<
+    CloudflareConfigInput,
+    CloudflareImageProviderOptions
+  >,
 ): CloudflareImageAdapter<TModel> {
-  return new CloudflareImageAdapter(resolveConfigFromEnv(config), model)
+  return new CloudflareImageAdapter(
+    {
+      ...resolveConfigFromEnv(config),
+      defaultModelOptions: config?.defaultModelOptions,
+    },
+    model,
+  )
 }

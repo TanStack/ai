@@ -277,3 +277,34 @@ describe('OpenAI evaluate adapter', () => {
     await expect(run(adapter)).rejects.toThrow('401 Unauthorized')
   })
 })
+
+describe('OpenAI evaluate adapter modelOptions', () => {
+  it('sends modelOptions in the Decisions request', async () => {
+    const { adapter, spy } = setup()
+
+    await adapter.evaluate({
+      model: 'gpt-6-luna',
+      state: 'Charged twice',
+      questions,
+      modelOptions: { safety_identifier: 'user-1' },
+      logger: testLogger,
+    })
+
+    expect(spy.mock.calls[0]?.[0]).toMatchObject({
+      safety_identifier: 'user-1',
+      model: 'gpt-6-luna',
+      input: 'Charged twice',
+    })
+  })
+
+  it('stores defaultModelOptions', () => {
+    const adapter = new TestOpenAIEvaluateAdapter(
+      { apiKey: 'test', defaultModelOptions: { safety_identifier: 'user-1' } },
+      'gpt-6-luna',
+    )
+
+    expect(adapter.defaultModelOptions).toEqual({
+      safety_identifier: 'user-1',
+    })
+  })
+})

@@ -23,7 +23,14 @@ import type {
 import type { VercelGatewayEmbeddingProviderOptions } from '../embedding/embedding-provider-options'
 import type { VercelGatewayClientConfig } from '../utils/client'
 
-export interface VercelGatewayEmbeddingConfig extends VercelGatewayClientConfig {}
+export interface VercelGatewayEmbeddingConfig extends VercelGatewayClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: VercelGatewayEmbeddingProviderOptions
+}
 
 /**
  * Vercel AI Gateway embedding adapter.
@@ -42,9 +49,17 @@ export class VercelGatewayEmbeddingAdapter<
 
   protected client: OpenAIClientLike
 
-  constructor(config: VercelGatewayEmbeddingConfig, model: TModel) {
+  readonly defaultModelOptions:
+    | VercelGatewayEmbeddingProviderOptions
+    | undefined
+
+  constructor(
+    { defaultModelOptions, ...config }: VercelGatewayEmbeddingConfig,
+    model: TModel,
+  ) {
     super(model, {})
     this.client = createOpenAIClient(withVercelGatewayDefaults(config))
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async createEmbeddings(

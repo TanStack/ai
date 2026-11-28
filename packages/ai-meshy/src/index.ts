@@ -22,4 +22,4 @@ export type {
   MeshyModel3dProviderOptions,
 } from './model-meta'
 export { MeshyApiError } from './client'
-export type { MeshyClientConfig } from './client'
+export type { MeshyAdapterConfig, MeshyClientConfig } from './client'

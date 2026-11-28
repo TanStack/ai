@@ -15,6 +15,18 @@ import type {
   TokenUsage,
 } from '@tanstack/ai'
 
+/** Configuration for the Cohere rerank adapter. */
+export interface CohereRerankConfig<
+  TModel extends CohereRerankModel = CohereRerankModel,
+> extends CohereClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: InferCohereRerankProviderOptions<TModel>
+}
+
 /** Shape of the Cohere `/v2/rerank` response we depend on. */
 interface CohereRerankResponse {
   id?: string
@@ -54,14 +66,19 @@ export class CohereRerankAdapter<
   private readonly apiKey: string
   private readonly baseUrl: string
   private readonly headers: Record<string, string>
+  readonly defaultModelOptions:
+    | InferCohereRerankProviderOptions<TModel>
+    | undefined
 
-  constructor(config: CohereClientConfig, model: TModel) {
+  constructor(config: CohereRerankConfig<TModel>, model: TModel) {
     super({}, model)
-    this.apiKey = config.apiKey
-    this.timeout = config.timeout ?? 30_000
-    const transport = resolveCohereTransport(config)
+    const { defaultModelOptions, ...clientConfig } = config
+    this.apiKey = clientConfig.apiKey
+    this.timeout = clientConfig.timeout ?? 30_000
+    const transport = resolveCohereTransport(clientConfig)
     this.baseUrl = transport.baseUrl
     this.headers = transport.headers
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async rerank(
@@ -152,7 +169,7 @@ export class CohereRerankAdapter<
 export function createCohereRerank<TModel extends CohereRerankModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<CohereClientConfig, 'apiKey'>,
+  config?: Omit<CohereRerankConfig<TModel>, 'apiKey'>,
 ): CohereRerankAdapter<TModel> {
   return new CohereRerankAdapter({ apiKey, ...config }, model)
 }
@@ -177,7 +194,7 @@ export function createCohereRerank<TModel extends CohereRerankModel>(
  */
 export function cohereRerank<TModel extends CohereRerankModel>(
   model: TModel,
-  config?: Omit<CohereClientConfig, 'apiKey'>,
+  config?: Omit<CohereRerankConfig<TModel>, 'apiKey'>,
 ): CohereRerankAdapter<TModel> {
   return createCohereRerank(model, getCohereApiKeyFromEnv(), config)
 }

@@ -197,3 +197,21 @@ describe('OllayaEvaluateAdapter', () => {
     ).rejects.toThrow('unexpected shape')
   })
 })
+
+describe('OllayaEvaluateAdapter modelOptions', () => {
+  it('sends modelOptions in the request body, and cannot replace model, state, or questions', async () => {
+    fetchMock.mockResolvedValue(ollayaResponse(successBody))
+
+    await ollayaDecider('laya:latest').evaluate({
+      ...evaluateOptions(),
+      modelOptions: { temperature: 0, model: 'other', state: 'other' },
+    })
+
+    expect(lastRequestBody()).toEqual({
+      temperature: 0,
+      model: 'laya:latest',
+      state,
+      questions,
+    })
+  })
+})

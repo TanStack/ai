@@ -16,6 +16,16 @@ import type {
   ReactorVideoProviderOptions,
 } from '../model-meta'
 
+/** Configuration for the Reactor video adapter. */
+export interface ReactorVideoConfig extends ReactorClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: ReactorVideoProviderOptions
+}
+
 /**
  * Reactor live-video adapter. Mints a session-scoped JWT so a browser can
  * connect with `@reactor-team/js-sdk`, set the prompt, and start the stream.
@@ -37,11 +47,14 @@ export class ReactorVideoAdapter<
   readonly name = 'reactor' as const
   private readonly clientConfig: ReactorClientConfig
   private readonly apiKey: string
+  readonly defaultModelOptions: ReactorVideoProviderOptions | undefined
 
-  constructor(model: TModel, config: ReactorClientConfig = {}) {
+  constructor(model: TModel, config: ReactorVideoConfig = {}) {
     super(model, {})
-    this.apiKey = resolveReactorApiKey(config)
-    this.clientConfig = config
+    const { defaultModelOptions, ...clientConfig } = config
+    this.apiKey = resolveReactorApiKey(clientConfig)
+    this.clientConfig = clientConfig
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async createLiveVideo(
@@ -96,7 +109,7 @@ export class ReactorVideoAdapter<
  */
 export function reactorVideo<TModel extends ReactorVideoModel>(
   model: TModel,
-  config?: ReactorClientConfig,
+  config?: ReactorVideoConfig,
 ): ReactorVideoAdapter<TModel> {
   return new ReactorVideoAdapter(model, config ?? {})
 }
@@ -107,7 +120,7 @@ export function reactorVideo<TModel extends ReactorVideoModel>(
 export function createReactorVideo<TModel extends ReactorVideoModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<ReactorClientConfig, 'apiKey'>,
+  config?: Omit<ReactorVideoConfig, 'apiKey'>,
 ): ReactorVideoAdapter<TModel> {
   return new ReactorVideoAdapter(model, { ...config, apiKey })
 }

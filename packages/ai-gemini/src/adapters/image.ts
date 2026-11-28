@@ -44,7 +44,14 @@ import type { GeminiClient } from '../client/index'
 /**
  * Configuration for Gemini image adapter
  */
-export interface GeminiImageConfig extends GeminiClientConfig {}
+export interface GeminiImageConfig extends GeminiClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: GeminiNativeImageProviderOptions
+}
 
 /** Model type for Gemini Image */
 export type GeminiImageModel = GeminiImageModels
@@ -84,9 +91,14 @@ export class GeminiImageAdapter<
   }
 
   private readonly client: GeminiClient
+  readonly defaultModelOptions: GeminiNativeImageProviderOptions | undefined
 
-  constructor(config: GeminiImageConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: GeminiImageConfig,
+    model: TModel,
+  ) {
     super(model, config)
+    this.defaultModelOptions = defaultModelOptions
     this.client = createGeminiClient(config)
   }
 

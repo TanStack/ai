@@ -57,6 +57,12 @@ const DEFAULT_PORT = 4096
 const TEARDOWN_STEP_MS = 1000
 
 export interface OpencodeTextConfig {
+  /**
+   * Default `modelOptions` for every call. `chat()` merges them under the
+   * call's `modelOptions`. A key the call sets replaces the default key in
+   * full.
+   */
+  defaultModelOptions?: OpencodeTextProviderOptions
   /** Working directory inside the sandbox. Defaults to `/workspace`. */
   directory?: string
   /**
@@ -151,9 +157,13 @@ export class OpencodeTextAdapter<
   /** `toolChoice` warnings that this instance already logged. */
   private readonly toolChoiceWarnings = new Set<string>()
 
+  readonly defaultModelOptions: OpencodeTextProviderOptions | undefined
+
   constructor(config: OpencodeTextConfig, model: TModel) {
     super({}, model)
-    this.adapterConfig = config
+    const { defaultModelOptions, ...adapterConfig } = config
+    this.adapterConfig = adapterConfig
+    this.defaultModelOptions = defaultModelOptions
   }
 
   /**

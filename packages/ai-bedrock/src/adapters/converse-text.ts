@@ -53,6 +53,7 @@ import type {
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
 import type { BedrockClientConfig } from '../utils/client'
+import type { BedrockConverseProviderOptions } from '../converse/provider-options'
 import type {
   BedrockMessageMetadataByModality,
   BedrockSystemPromptMetadata,
@@ -66,7 +67,16 @@ import type {
 } from '../model-meta'
 
 /** Config for the Converse adapter — same client config as the chat adapter. */
-export interface BedrockConverseConfig extends BedrockClientConfig {}
+export interface BedrockConverseConfig<
+  TProviderOptions = BedrockConverseProviderOptions,
+> extends BedrockClientConfig {
+  /**
+   * Default `modelOptions` for every call. The activity merges them under
+   * the call's `modelOptions`. A key the call sets replaces the default key
+   * in full.
+   */
+  defaultModelOptions?: TProviderOptions
+}
 
 /**
  * Bedrock Converse text adapter. Wires the Converse translation modules (message
@@ -127,10 +137,15 @@ export class BedrockConverseTextAdapter<
     }
   }
   private clientPromise?: Promise<BedrockRuntimeClient>
-  private readonly clientConfig: BedrockConverseConfig
+  private readonly clientConfig: BedrockClientConfig
+  readonly defaultModelOptions: TProviderOptions | undefined
 
-  constructor(config: BedrockConverseConfig, model: TModel) {
+  constructor(
+    { defaultModelOptions, ...config }: BedrockConverseConfig<TProviderOptions>,
+    model: TModel,
+  ) {
     super({}, model)
+    this.defaultModelOptions = defaultModelOptions
     // Defer client construction and auth resolution: the AWS SDK is Node/
     // server-only, so we must not pull it into the static graph here. The
     // client (and its dynamic import) is built lazily on first SDK call.
@@ -892,7 +907,10 @@ function addRestoreDocuments<TInput extends object, TOutput extends object>(
 export function createBedrockConverse<TModel extends BedrockConverseModels>(
   model: TModel,
   apiKey: string,
-  config?: Omit<BedrockConverseConfig, 'apiKey'>,
+  config?: Omit<
+    BedrockConverseConfig<ResolveConverseProviderOptions<TModel>>,
+    'apiKey'
+  >,
 ): BedrockConverseTextAdapter<TModel> {
   return new BedrockConverseTextAdapter({ ...config, apiKey }, model)
 }
