@@ -575,6 +575,31 @@ describe('connection-adapters', () => {
       expect(body.forwardedProps).toMatchObject({ key: 'value' })
     })
 
+    it('should send the AG-UI protocolVersion in the request body', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        body: {
+          getReader: () => ({
+            read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+            releaseLock: vi.fn(),
+          }),
+        },
+      } as any)
+
+      const adapter = fetchServerSentEvents('/api/chat')
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        // Consume
+      }
+
+      const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)
+      expect(body.protocolVersion).toBe('1.0')
+    })
+
     it('should use custom fetchClient when provided', async () => {
       const customFetch = vi.fn()
       const mockReader = {
