@@ -4,10 +4,12 @@ import { railwaySandbox } from '../src/index'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
 // Auto-gate: only run with Railway credentials (these tests create real,
-// billed sandboxes). The SDK reads the token from the environment itself.
-const token = process.env.RAILWAY_API_TOKEN ?? process.env.RAILWAY_TOKEN
+// billed sandboxes). The SDK reads the token from the environment itself. A
+// project token carries its environment; an account token needs one.
 const environmentId = process.env.RAILWAY_ENVIRONMENT_ID
-const hasCreds = !!token && !!environmentId
+const hasCreds =
+  !!process.env.RAILWAY_TOKEN ||
+  (!!process.env.RAILWAY_API_TOKEN && !!environmentId)
 
 const config = {
   ...(environmentId !== undefined ? { environmentId } : {}),
@@ -15,7 +17,7 @@ const config = {
 }
 
 describe.skipIf(!hasCreds)(
-  'railway provider (gated on RAILWAY_API_TOKEN/RAILWAY_TOKEN + RAILWAY_ENVIRONMENT_ID)',
+  'railway provider (gated on RAILWAY_TOKEN, or RAILWAY_API_TOKEN + RAILWAY_ENVIRONMENT_ID)',
   () => {
     it('creates a sandbox, runs exec, fs round-trip + destroy', async () => {
       const provider = railwaySandbox(config)

@@ -12,9 +12,12 @@
 import { runJournalConformance } from '@tanstack/ai-sandbox/testkit'
 import { railwaySandbox } from '../src/index'
 
-// Auto-gate: these cases create real, billed Railway sandboxes.
-const token = process.env.RAILWAY_API_TOKEN ?? process.env.RAILWAY_TOKEN
+// Auto-gate: these cases create real, billed Railway sandboxes. A project
+// token carries its environment; an account token needs one.
 const environmentId = process.env.RAILWAY_ENVIRONMENT_ID
+const hasCreds =
+  !!process.env.RAILWAY_TOKEN ||
+  (!!process.env.RAILWAY_API_TOKEN && !!environmentId)
 
 runJournalConformance({
   name: 'railway',
@@ -26,12 +29,12 @@ runJournalConformance({
     const handle = await provider.create({})
     return { handle, dispose: () => handle.destroy() }
   },
-  ...(token && environmentId
+  ...(hasCreds
     ? {}
     : {
         unsupported: {
           reason:
-            'no RAILWAY_API_TOKEN/RAILWAY_TOKEN + RAILWAY_ENVIRONMENT_ID in the environment',
+            'no RAILWAY_TOKEN, or RAILWAY_API_TOKEN + RAILWAY_ENVIRONMENT_ID, in the environment',
         },
       }),
 })

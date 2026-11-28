@@ -45,8 +45,8 @@ export interface RailwaySandboxConfig {
   authType?: CreateOptions['authType']
   /**
    * Environment the sandboxes, checkpoints and forks live in. Defaults to
-   * `RAILWAY_ENVIRONMENT_ID`; one of the two is required, with either kind of
-   * token.
+   * `RAILWAY_ENVIRONMENT_ID`, then to the environment a project token is
+   * scoped to. Required with an account or workspace token.
    */
   environmentId?: string
   /** GraphQL endpoint override (defaults to Railway's public API). */
@@ -489,7 +489,8 @@ class RailwayProvider implements SandboxProvider {
  * Railway sandbox provider — runs harness adapters inside Railway sandboxes
  * through the uniform `SandboxHandle`. Reads `RAILWAY_TOKEN` /
  * `RAILWAY_API_TOKEN` and `RAILWAY_ENVIRONMENT_ID` through the SDK when the
- * matching config fields are omitted.
+ * matching config fields are omitted. With a project token the environment
+ * comes from the token, so `RAILWAY_TOKEN` alone is enough.
  */
 export function railwaySandbox(
   config: RailwaySandboxConfig = {},
