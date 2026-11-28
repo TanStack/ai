@@ -6,7 +6,7 @@ import {
   NO_OWNER_EPOCH,
 } from '@tanstack/ai-persistence'
 import { gapEvent } from './feed'
-import { LogOwnedElsewhereError } from './ownership'
+import { LogOwnedElsewhereError, OPEN_RETRY_MS } from './ownership'
 import { EventRing } from './ring'
 import {
   THREAD_RECORD_TYPES,
@@ -2652,11 +2652,12 @@ export class SharedLog<TState = unknown> {
     for (const view of [...this.views.values()]) view.hooks.onFailure(error)
     // The readers end: their log stopped.
     this.wake()
-    // The host drops this log, so it gives the ownership back.
+    // The host drops this log, so it gives the ownership back, with a wake:
+    // with no wake, no sweep lists the log again.
     const { epoch } = this
     this.epoch = undefined
     if (epoch !== undefined) {
-      this.ownership.release(this.logId, epoch).catch(() => {})
+      this.ownership.release(this.logId, epoch, OPEN_RETRY_MS).catch(() => {})
     }
     this.onIdle()
   }

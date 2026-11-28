@@ -413,6 +413,33 @@ describe('host.resumePending', () => {
     await host.close()
   })
 
+  it('gives the log of a thread whose write fails back with a wake', async () => {
+    let skew = 0
+    const log = memoryLogStore({
+      state: memoryLogState({ now: () => Date.now() + skew }),
+    })
+    await seedStoppedTurn(log)
+    await expired()
+    const host = hostOn(
+      wrapLogStore(log, {
+        append: () => Promise.reject(new Error('connection reset')),
+      }),
+    )
+    const { adapter } = mockAdapter([])
+
+    await expect(
+      host.resumePending({
+        harnesses: [defineHarness({ name: NAME, adapter })],
+      }),
+    ).rejects.toThrow()
+    await host.close()
+
+    skew = OPEN_RETRY_MS
+    expect(
+      await log.listLogsWithoutOwner({ limit: 10, harnesses: [NAME] }),
+    ).toMatchObject([{ logId: LOG }])
+  })
+
   it('opens at most limit threads per call, and the next call opens the rest', async () => {
     const log = memoryLogStore()
     // Three logs whose host stopped, the oldest first.
