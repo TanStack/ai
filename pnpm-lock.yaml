@@ -4058,8 +4058,8 @@ importers:
   packages/ai-sandbox-railway:
     dependencies:
       railway:
-        specifier: ^3.13.0
-        version: 3.13.0
+        specifier: ^3.17.0
+        version: 3.17.0
     devDependencies:
       '@tanstack/ai-sandbox':
         specifier: workspace:*
@@ -18185,8 +18185,8 @@ packages:
   radix3@1.1.2:
     resolution: {integrity: sha512-b484I/7b8rDEdSDKckSSBA8knMpcdsXudlE/LNL639wFoHKwLbEkQFZHWEYwDC0wa0FKUcCY+GAF73Z7wxNVFA==}
 
-  railway@3.13.0:
-    resolution: {integrity: sha512-JVaycuLhyfQvZL+fwdcRn8toO4eX7RI8BISvY+gZTaNwHPyfcmpyqp5USC3fZAsdANbBgBFdaDa+w2fDPDn2Tw==}
+  railway@3.17.0:
+    resolution: {integrity: sha512-bVyzBcLUJfKuSvYT+8MFg0p2AUzylSdjJoCWpx2uk05p6DoAnhrq0Xm4VIoJ+gZ7BGI8YddYlEpp4rgsZIr8Ww==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -19590,11 +19590,6 @@ packages:
         optional: true
       typescript:
         optional: true
-
-  tsx@4.23.12:
-    resolution: {integrity: sha512-FDf4L4sYzKtzWYhU/Xm0AQFdTjdIxNo9ElTf2mxXM6k8YMHXzYUe4yODVaXP4V9uMFbVg8c0qyBccK2OOxb45Q==}
-    engines: {node: '>=18.0.0'}
-    hasBin: true
 
   tsx@4.23.15:
     resolution: {integrity: sha512-Yiex1Ovn8z2xPpOWckIiysV1SSyRMY9BkLF++q0yKiDxCqRhosKfMg3janKkiLBwZ5c/YryloKwGZcrEmtwxKw==}
@@ -37530,11 +37525,10 @@ snapshots:
 
   radix3@1.1.2: {}
 
-  railway@3.13.0:
+  railway@3.17.0:
     dependencies:
       '@graphql-typed-document-node/core': 3.2.0(graphql@16.14.2)
       graphql: 16.14.2
-      tsx: 4.23.12
 
   randombytes@2.1.0:
     dependencies:
@@ -39395,12 +39389,6 @@ snapshots:
       - supports-color
       - tsx
       - yaml
-
-  tsx@4.23.12:
-    dependencies:
-      esbuild: 0.28.2
-    optionalDependencies:
-      fsevents: 2.3.3
 
   tsx@4.23.15:
     dependencies:
