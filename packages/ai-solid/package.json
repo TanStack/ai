@@ -64,7 +64,7 @@
   ],
   "dependencies": {
     "@tanstack/ai-client": "workspace:^",
-    "@tanstack/markdown": "^1.2.0"
+    "@tanstack/markdown": "^1.2.1"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
@@ -78,7 +78,7 @@
     "@vitest/coverage-v8": "4.1.12",
     "jsdom": "^27.4.0",
     "solid-js": "^1.9.19",
-    "tsdown": "^0.17.0-beta.6",
+    "tsdown": "^0.23.7",
     "typescript": "5.9.3",
     "vite": "^8.3.8",
     "vite-plugin-solid": "^2.11.16",

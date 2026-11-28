@@ -49,7 +49,7 @@
     "@tanstack/ai": "workspace:^"
   },
   "dependencies": {
-    "@cartesia/cartesia-js": "^5.1.0",
+    "@cartesia/cartesia-js": "^5.2.0",
     "@tanstack/ai-utils": "workspace:^"
   }
 }

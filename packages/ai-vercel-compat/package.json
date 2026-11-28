@@ -43,7 +43,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "fast-json-patch": "^3.1.1"
+    "fast-json-patch": "^3.1.2"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
@@ -51,11 +51,11 @@
     "ai": "^7.0.0"
   },
   "devDependencies": {
-    "@ag-ui/core": "1.0.0",
+    "@ag-ui/core": "1.0.5",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
     "@vitest/coverage-v8": "4.1.12",
-    "ai": "7.0.148",
-    "zod": "^4.2.0"
+    "ai": "7.0.183",
+    "zod": "^4.6.7"
   }
 }

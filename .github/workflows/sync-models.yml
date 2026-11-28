@@ -26,7 +26,7 @@ jobs:
           persist-credentials: true # sync job pushes generated model updates
 
       - name: Setup Tools
-        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
+        uses: TanStack/config/.github/setup@c1ef98305f122da0257951e5e2896e143bdf8173 # main
 
       # Each sync runs as its own step so one provider failing does not block
       # the others. Whatever succeeded is still committed, then the job fails.
