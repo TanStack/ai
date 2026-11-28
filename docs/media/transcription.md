@@ -51,48 +51,93 @@ export async function POST(request: Request) {
     return new Response('Send the audio as a data URL.', { status: 400 })
   }
 
+  const abortController = new AbortController()
   const stream = generateTranscription({
-    adapter: openaiTranscription('gpt-4o-transcribe'),
+    adapter: openaiTranscription('gpt-transcribe'),
     audio: input.audio,
     language: input.language,
+    abortSignal: abortController.signal,
     stream: true,
     threadId,
   })
-  return toServerSentEventsResponse(stream)
+  return toServerSentEventsResponse(stream, { abortController })
 }
 ```
+
+An adapter with `transcribeStream` sends text deltas as they arrive. An adapter without it sends the completed text in one delta. If you pass `middleware`, the route sends one delta after the middleware completes.
 
 4. Add a component that reads a file and sends it:
 
 ```tsx
 import type { ChangeEvent } from 'react'
+import { useState } from 'react'
 import { fetchServerSentEvents, useTranscription } from '@tanstack/ai-react'
 
 export function Transcriber() {
-  const { generate, result, isLoading, error } = useTranscription({
+  const [transcript, setTranscript] = useState('')
+  const [isReading, setIsReading] = useState(false)
+  const [fileError, setFileError] = useState('')
+  const { generate, result, isLoading, error, reset } = useTranscription({
     connection: fetchServerSentEvents('/api/transcribe'),
     threadId: 'transcription',
+    onChunk(chunk) {
+      if (chunk.type === 'TEXT_MESSAGE_START') {
+        setTranscript('')
+      } else if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+        setTranscript((current) => current + chunk.delta)
+      }
+    },
   })
+  const displayedTranscript =
+    isReading || isLoading || error || fileError
+      ? transcript
+      : (result?.text ?? transcript)
 
   function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file) return
 
+    reset()
+    setTranscript('')
+    setFileError('')
+    setIsReading(true)
     const reader = new FileReader()
     reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        void generate({ audio: reader.result, language: 'en' })
+      const audio = reader.result
+      if (typeof audio !== 'string') {
+        setFileError('Audio file read failed.')
+        setIsReading(false)
+        return
       }
+      void generate({ audio, language: 'en' })
+      setIsReading(false)
+    }
+    reader.onerror = () => {
+      setFileError(
+        reader.error?.message || 'Audio file read failed.',
+      )
+      setIsReading(false)
+    }
+    reader.onabort = () => {
+      setFileError('The browser stopped reading the audio file.')
+      setIsReading(false)
     }
     reader.readAsDataURL(file)
   }
 
   return (
     <div>
-      <input type="file" accept="audio/*" onChange={handleFile} />
+      <input
+        type="file"
+        accept="audio/*"
+        onChange={handleFile}
+        disabled={isReading || isLoading}
+      />
+      {isReading && <p>Reading audio file...</p>}
       {isLoading && <p>Transcribing...</p>}
+      {fileError && <p role="alert">{fileError}</p>}
       {error && <p role="alert">Error: {error.message}</p>}
-      {result && <p>{result.text}</p>}
+      {displayedTranscript && <p>{displayedTranscript}</p>}
     </div>
   )
 }
@@ -106,7 +151,10 @@ To record from the microphone instead of a file, see [Audio Recording](./audio-r
 
 - **The component** reads the file as a data URL. The hook sends its input as JSON, so the audio must be a string. A data URL also tells the provider the real audio type.
 - **The route** reads the input with `generationParamsFromRequest()`. Then `generateTranscription()` sends the audio to the model.
-- **The hook** gets the result back over Server-Sent Events. `result.text` holds the full text.
+- **The hook** gets the result back over Server-Sent Events. With `gpt-transcribe`, `gpt-4o-transcribe`, and `gpt-4o-mini-transcribe`, `onChunk` receives standard AG-UI text events as the transcription arrives. `result.text` holds the completed result.
+- When the format is `json`, or when you omit the format, `gpt-transcribe`, `gpt-4o-transcribe`, and `gpt-4o-mini-transcribe` send each text delta. When the format is not `json`, those models wait for the full result and send one text delta.
+- `gpt-4o-transcribe` and `gpt-4o-mini-transcribe` accept `json` and `text`. The format `verbose_json` returns an API error.
+- When the request finishes, Whisper and an adapter without `transcribeStream` send the completed text in one delta.
 
 The result can also hold:
 
@@ -154,7 +202,7 @@ Swap the adapter to change the provider. Each adapter reads its key from the env
 
 | Provider | Adapter | Models | Key |
 | --- | --- | --- | --- |
-| OpenAI | `openaiTranscription` | `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `gpt-4o-transcribe-diarize`, `whisper-1` | `OPENAI_API_KEY` |
+| OpenAI | `openaiTranscription` | `gpt-transcribe`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `gpt-4o-transcribe-diarize`, `whisper-1` | `OPENAI_API_KEY` |
 | ElevenLabs | `elevenlabsTranscription` | `scribe_v2`, `scribe_v2_medical` | `ELEVENLABS_API_KEY` |
 | Cartesia | `cartesiaTranscription` | `ink-whisper` | `CARTESIA_API_KEY` |
 | Groq | `groqTranscription` | `whisper-large-v3-turbo`, `whisper-large-v3` | `GROQ_API_KEY` |

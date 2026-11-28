@@ -14,6 +14,44 @@ function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
+function createAsyncQueue() {
+  const values: Array<string> = []
+  const waiters: Array<(result: IteratorResult<string>) => void> = []
+  let closed = false
+
+  return {
+    enqueue(value: string) {
+      if (closed) return
+      const waiter = waiters.shift()
+      if (waiter) {
+        waiter({ done: false, value })
+      } else {
+        values.push(value)
+      }
+    },
+    close() {
+      closed = true
+      for (const waiter of waiters.splice(0)) {
+        waiter({ done: true, value: undefined })
+      }
+    },
+    next(): Promise<IteratorResult<string>> {
+      const value = values[0]
+      if (value !== undefined) {
+        values.shift()
+        return Promise.resolve({
+          done: false,
+          value,
+        })
+      }
+      if (closed) {
+        return Promise.resolve({ done: true, value: undefined })
+      }
+      return new Promise((resolve) => waiters.push(resolve))
+    },
+  }
+}
+
 /**
  * Persisted artifact refs a middleware may have attached to the result. Read
  * defensively: the result shape is activity-specific and `artifacts` is only
@@ -37,16 +75,64 @@ function artifactsFromResult(result: unknown): Array<unknown> | undefined {
  * @param options - The caller's threadId, plus an optional runId
  * @returns An AsyncIterable of StreamChunks with RUN_STARTED, CUSTOM(generation:result), and RUN_FINISHED events on success, or RUN_STARTED and RUN_ERROR on failure
  */
-export async function* streamGenerationResult<TResult>(
-  generator: (resolved: {
-    runId: string
-    threadId: string
-  }) => Promise<TResult>,
+export function streamGenerationResult<TResult>(
+  generator: (
+    resolved: { runId: string; threadId: string },
+    emitTextDelta?: (delta: string) => void,
+    abortSignal?: AbortSignal,
+  ) => Promise<TResult>,
   options: { runId?: string; threadId: string },
+  streamOptions: { text?: boolean } = {},
 ): AsyncIterable<StreamChunk> {
   const runId = options.runId ?? createId('run')
   const threadId = options.threadId
+  const cancellation = new AbortController()
+  const textQueue = streamOptions.text ? createAsyncQueue() : undefined
+  let terminal = false
 
+  const sourceIterator = streamGenerationResultChunks(
+    generator,
+    { runId, threadId },
+    cancellation.signal,
+    textQueue,
+  )
+  const iterator: AsyncIterator<StreamChunk> = {
+    async next() {
+      const result = await sourceIterator.next()
+      if (
+        !result.done &&
+        (result.value.type === EventType.RUN_FINISHED ||
+          result.value.type === EventType.RUN_ERROR)
+      ) {
+        terminal = true
+      }
+      return result
+    },
+    async return() {
+      if (!terminal) {
+        cancellation.abort()
+        textQueue?.close()
+      }
+      const result = await sourceIterator.return?.(undefined as never)
+      terminal = true
+      return result ?? { done: true, value: undefined }
+    },
+  }
+
+  return { [Symbol.asyncIterator]: () => iterator }
+}
+
+async function* streamGenerationResultChunks<TResult>(
+  generator: (
+    resolved: { runId: string; threadId: string },
+    emitTextDelta?: (delta: string) => void,
+    abortSignal?: AbortSignal,
+  ) => Promise<TResult>,
+  resolved: { runId: string; threadId: string },
+  abortSignal: AbortSignal,
+  textQueue: ReturnType<typeof createAsyncQueue> | undefined,
+): AsyncGenerator<StreamChunk> {
+  const { runId, threadId } = resolved
   yield {
     type: EventType.RUN_STARTED,
     runId,
@@ -55,10 +141,56 @@ export async function* streamGenerationResult<TResult>(
   }
 
   try {
-    const result = await generator({ runId, threadId })
+    const generation = generator(
+      { runId, threadId },
+      textQueue ? (delta) => textQueue.enqueue(delta) : undefined,
+      abortSignal,
+    ).then(
+      (result) => {
+        textQueue?.close()
+        return { ok: true as const, result }
+      },
+      (error: unknown) => {
+        textQueue?.close()
+        return { ok: false as const, error }
+      },
+    )
 
-    // Emit persisted artifact refs (if a middleware attached any) before the
-    // result, so the client records them as the run streams.
+    const messageId = textQueue ? createId('message') : undefined
+    if (textQueue && messageId) {
+      yield {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId,
+        role: 'assistant',
+        timestamp: Date.now(),
+      }
+
+      while (true) {
+        const next = await textQueue.next()
+        if (next.done) break
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId,
+          delta: next.value,
+          timestamp: Date.now(),
+        }
+      }
+    }
+
+    const outcome = await generation
+    if (!outcome.ok) throw outcome.error
+    const result = outcome.result
+
+    if (textQueue && messageId) {
+      yield {
+        type: EventType.TEXT_MESSAGE_END,
+        messageId,
+        timestamp: Date.now(),
+      }
+    }
+
+    // Emit persisted artifact refs before the result so the client records
+    // them as the run streams.
     const artifacts = artifactsFromResult(result)
     if (artifacts) {
       yield {
@@ -90,8 +222,7 @@ export async function* streamGenerationResult<TResult>(
     })
   } catch (error: unknown) {
     const payload = toRunErrorPayload(error, 'Generation failed')
-    // `code` is omitted entirely when undefined so the event matches the
-    // AG-UI `code?: string` shape under `exactOptionalPropertyTypes`.
+    // Omit an undefined code to satisfy the AG-UI optional code field.
     const codeFields =
       payload.code !== undefined ? { code: payload.code } : undefined
     const usage = readErrorUsage(error)

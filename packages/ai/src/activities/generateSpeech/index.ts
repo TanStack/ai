@@ -320,7 +320,12 @@ async function runGenerateSpeech<
     createId,
   })
 
-  await runGenerationStart(middleware, mwCtx)
+  try {
+    await runGenerationStart(middleware, mwCtx)
+  } catch (error) {
+    abortControls.clear()
+    throw error
+  }
 
   aiEventClient.emit('speech:request:started', {
     requestId,
@@ -350,8 +355,10 @@ async function runGenerateSpeech<
       }),
       abortControls.signal,
     )
-    abortControls.clear()
-    const result = await applyGenerationResultTransforms(mwCtx, rawResult)
+    const result = await raceWithAbort(
+      applyGenerationResultTransforms(mwCtx, rawResult),
+      abortControls.signal,
+    )
     const duration = Date.now() - startTime
 
     aiEventClient.emit('speech:request:completed', {
@@ -388,6 +395,7 @@ async function runGenerateSpeech<
       usage: result.usage,
     })
 
+    abortControls.clear()
     return result
   } catch (error) {
     abortControls.clear()

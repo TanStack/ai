@@ -159,6 +159,13 @@ export function Transcriber() {
 
 ### Server function that streams
 
+`generateTranscription({ stream: true })` sends AG-UI text events and the final `generation:result` event.
+
+- For `json` or no format, `gpt-transcribe` sends text deltas as it transcribes. For another format, it sends one final delta.
+- `gpt-4o-transcribe` and `gpt-4o-mini-transcribe` accept `json` and `text`. If the format is not `json`, each model waits and sends one delta. The format `verbose_json` returns an API error.
+- An adapter without `transcribeStream`, including `whisper-1`, sends the completed text in one delta.
+- If you pass `middleware`, the activity sends one delta after the middleware completes.
+
 ```typescript ignore
 // lib/server-functions.ts
 import { createServerFn } from '@tanstack/react-start'
@@ -170,26 +177,32 @@ export const transcribeStreamFn = createServerFn({ method: 'POST' })
     (data: { audio: string; language?: string; threadId: string }) => data,
   )
   .handler(({ data }) => {
-    return toServerSentEventsResponse(
-      generateTranscription({
-        adapter: openaiTranscription('gpt-4o-transcribe'),
-        audio: data.audio,
-        language: data.language,
-        stream: true,
-        threadId: data.threadId,
-      }),
-    )
+    const abortController = new AbortController()
+    const stream = generateTranscription({
+      adapter: openaiTranscription('gpt-transcribe'),
+      audio: data.audio,
+      language: data.language,
+      abortSignal: abortController.signal,
+      stream: true,
+      threadId: data.threadId,
+    })
+    return toServerSentEventsResponse(stream, { abortController })
   })
 ```
 
 ```tsx
+import type { ChangeEvent } from 'react'
+import { useState } from 'react'
 import { useTranscription } from '@tanstack/ai-react'
 import { transcribeStreamFn } from '../lib/server-functions'
 
 const threadId = 'transcription'
 
 export function Transcriber() {
-  const { generate, result, isLoading } = useTranscription({
+  const [transcript, setTranscript] = useState('')
+  const [isReading, setIsReading] = useState(false)
+  const [fileError, setFileError] = useState('')
+  const { generate, result, isLoading, error, reset } = useTranscription({
     fetcher: (input, { threadId }) => {
       if (typeof input.audio !== 'string') {
         throw new Error('Expected base64 or data URL audio')
@@ -199,8 +212,66 @@ export function Transcriber() {
       })
     },
     threadId,
+    onChunk(chunk) {
+      if (chunk.type === 'TEXT_MESSAGE_START') {
+        setTranscript('')
+      } else if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+        setTranscript((current) => current + chunk.delta)
+      }
+    },
   })
-  // Render the same way as in the quick setup.
+  const displayedTranscript =
+    isReading || isLoading || error || fileError
+      ? transcript
+      : (result?.text ?? transcript)
+
+  function handleFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    reset()
+    setTranscript('')
+    setFileError('')
+    setIsReading(true)
+    const reader = new FileReader()
+    reader.onload = () => {
+      const audio = reader.result
+      if (typeof audio !== 'string') {
+        setFileError('Audio file read failed.')
+        setIsReading(false)
+        return
+      }
+      void generate({ audio, language: 'en' })
+      setIsReading(false)
+    }
+    reader.onerror = () => {
+      setFileError(
+        reader.error?.message || 'Audio file read failed.',
+      )
+      setIsReading(false)
+    }
+    reader.onabort = () => {
+      setFileError('The browser stopped reading the audio file.')
+      setIsReading(false)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  return (
+    <div>
+      <input
+        type="file"
+        accept="audio/*"
+        onChange={handleFile}
+        disabled={isReading || isLoading}
+      />
+      {isReading && <p>Reading audio file...</p>}
+      {isLoading && <p>Transcribing...</p>}
+      {fileError && <p role="alert">{fileError}</p>}
+      {error && <p role="alert">{error.message}</p>}
+      {displayedTranscript && <p>{displayedTranscript}</p>}
+    </div>
+  )
 }
 ```
 

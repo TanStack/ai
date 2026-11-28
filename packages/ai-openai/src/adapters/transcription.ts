@@ -20,9 +20,19 @@ import type { OpenAIClientConfig } from '../utils/client'
 
 const DIARIZE_MODELS = ['gpt-4o-transcribe-diarize'] as const
 const DIARIZE_RESPONSE_FORMATS = ['json', 'text', 'diarized_json'] as const
+const STREAMING_MODELS = [
+  'gpt-transcribe',
+  'gpt-4o-transcribe',
+  'gpt-4o-mini-transcribe',
+] as const
 
 type DiarizeModel = (typeof DIARIZE_MODELS)[number]
 type OpenAITranscriptionResponseMode = 'diarized' | 'verbose' | 'plain'
+type OpenAITranscriptionUsage =
+  | NonNullable<OpenAI_SDK.Audio.Transcription['usage']>
+  | NonNullable<OpenAI_SDK.Audio.TranscriptionDiarized['usage']>
+  | NonNullable<OpenAI_SDK.Audio.TranscriptionVerbose['usage']>
+  | NonNullable<OpenAI_SDK.Audio.TranscriptionTextDoneEvent['usage']>
 
 interface OpenAITranscriptionRequestPlan {
   request: OpenAI_SDK.Audio.TranscriptionCreateParamsNonStreaming
@@ -50,12 +60,11 @@ function mapDiarizedSegmentId(id: string, index: number): number {
 }
 
 /**
- * Build TokenUsage from transcription response.
- * Whisper-1 uses duration-based billing, GPT-4o models use token-based billing.
+ * Map the billing metric reported in the transcription response.
  */
 /**
  * Duration-billed usage: zeroed token fields with the billed seconds carried
- * on `billed`. Shared by the gpt-4o duration branch and the whisper-1 path.
+ * on `billed`. Used by duration-billed transcription models.
  */
 function durationUsage(seconds: number): TokenUsage {
   return {
@@ -67,28 +76,14 @@ function durationUsage(seconds: number): TokenUsage {
 }
 
 function buildTranscriptionUsage(
-  model: string,
-  duration?: number,
-  response?: OpenAI_SDK.Audio.TranscriptionCreateResponse,
+  usage?: OpenAITranscriptionUsage,
+  fallbackDurationSeconds?: number,
 ): TokenUsage | undefined {
-  const usage = response?.usage
-
-  // Any model can report duration usage (whisper-1 does on `json`, and
-  // gpt-4o-transcribe-diarize may). Surface the billing data the API returned.
   if (usage?.type === 'duration') {
     return durationUsage(usage.seconds)
   }
 
-  // GPT-4o transcription models are billed by token. Surface the token counts
-  // and the per-modality input breakdown when present. These models must never
-  // fall through to the duration path below — when usage is absent there is no
-  // billing data to report, so return undefined rather than fabricating a
-  // duration-based result for a token-billed model.
-  if (model.startsWith('gpt-4o')) {
-    if (!usage) {
-      return undefined
-    }
-
+  if (usage?.type === 'tokens') {
     const result: TokenUsage = {
       promptTokens: usage.input_tokens || 0,
       completionTokens: usage.output_tokens || 0,
@@ -118,9 +113,8 @@ function buildTranscriptionUsage(
     return result
   }
 
-  // Whisper-1 uses duration-based billing
-  if (duration !== undefined && duration > 0) {
-    return durationUsage(duration)
+  if (usage === undefined && fallbackDurationSeconds !== undefined) {
+    return durationUsage(fallbackDurationSeconds)
   }
 
   return undefined
@@ -153,10 +147,76 @@ export class OpenAITranscriptionAdapter<
   readonly name = 'openai' as const
 
   protected client: OpenAIClientLike
+  readonly transcribeStream?: (
+    options: TranscriptionOptions<OpenAITranscriptionProviderOptions>,
+  ) => AsyncGenerator<string, TranscriptionResult>
 
   constructor(config: OpenAITranscriptionConfig, model: TModel) {
     super(model, {})
     this.client = createOpenAIClient(config)
+    if (STREAMING_MODELS.some((streamingModel) => streamingModel === model)) {
+      this.transcribeStream = this.streamTranscription.bind(this)
+    }
+  }
+
+  private async *streamTranscription(
+    options: TranscriptionOptions<OpenAITranscriptionProviderOptions>,
+  ): AsyncGenerator<string, TranscriptionResult> {
+    const { model, language } = options
+    const requestedFormat =
+      options.responseFormat ?? options.modelOptions?.response_format
+
+    if (requestedFormat !== undefined && requestedFormat !== 'json') {
+      const result = await this.transcribe(options)
+      yield result.text
+      return result
+    }
+
+    try {
+      const { request } = this.buildTranscriptionRequest(options)
+      options.logger.request(
+        `activity=transcription provider=${this.name} model=${model} stream=true`,
+        { provider: this.name, model },
+      )
+      const response = await this.client.audio.transcriptions.create(
+        { ...request, stream: true },
+        { signal: options.abortSignal },
+      )
+
+      let text = ''
+      let finalEvent: OpenAI_SDK.Audio.TranscriptionTextDoneEvent | undefined
+      for await (const event of response) {
+        if (event.type === 'transcript.text.delta') {
+          text += event.delta
+          yield event.delta
+        } else if (event.type === 'transcript.text.done') {
+          text = event.text
+          finalEvent = event
+        }
+      }
+
+      if (!finalEvent) {
+        throw new Error(
+          `OpenAI transcription stream completed without a final text event (model=${model}).`,
+        )
+      }
+
+      const usage = buildTranscriptionUsage(finalEvent.usage)
+      const detectedLanguage = language ?? finalEvent.languages?.[0]?.code
+      return {
+        id: generateId(this.name),
+        model,
+        text,
+        ...(detectedLanguage !== undefined && { language: detectedLanguage }),
+        ...(usage !== undefined && { usage }),
+      }
+    } catch (error: unknown) {
+      options.logger.errors(`${this.name}.transcribeStream fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.transcribeStream failed`),
+        source: `${this.name}.transcribeStream`,
+      })
+      throw error
+    }
   }
 
   async transcribe(
@@ -196,11 +256,7 @@ export class OpenAITranscriptionAdapter<
           }),
         )
 
-        const usage = buildTranscriptionUsage(
-          model,
-          response.duration,
-          response,
-        )
+        const usage = buildTranscriptionUsage(response.usage)
         return {
           id: generateId(this.name),
           model,
@@ -240,11 +296,7 @@ export class OpenAITranscriptionAdapter<
           start: w.start,
           end: w.end,
         }))
-        const usage = buildTranscriptionUsage(
-          model,
-          response.duration,
-          response,
-        )
+        const usage = buildTranscriptionUsage(response.usage, response.duration)
         return {
           id: generateId(this.name),
           model,
@@ -264,7 +316,7 @@ export class OpenAITranscriptionAdapter<
       const usage =
         typeof response === 'string'
           ? undefined
-          : buildTranscriptionUsage(model, undefined, response)
+          : buildTranscriptionUsage(response.usage)
       return {
         id: generateId(this.name),
         model,

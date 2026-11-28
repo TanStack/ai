@@ -504,7 +504,7 @@ Options for special cases:
 | --- | --- | --- |
 | `byok` | `ByokClient` | A keyring. Keys go in `x-byok-*` headers, never in the body. |
 | `byokProvider` | `() => ProviderId \| undefined` | The provider slug. If it returns a slug, only that key is sent. Otherwise the hook uses `body.provider`. If no slug resolves, `generate` throws. |
-| `onChunk` | `(chunk: StreamChunk) => void` | Called for each stream event. Only with `connection`. |
+| `onChunk` | `(chunk: StreamChunk) => void` | Called for each stream event from a `connection` or a `fetcher` that returns an SSE `Response`. |
 | `hydrateGeneration` | handler | Restores the last run when the `connection` has no restore handler, for example next to a `fetcher` |
 | `joinRun` | handler | Re-attaches to a run that is still going after a reload. Without it, a restored running run shows as an error. |
 | `devtools` | `AIDevtoolsDisplayOptions` | How the run shows in TanStack AI Devtools |
