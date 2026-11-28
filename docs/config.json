@@ -728,7 +728,7 @@
           "label": "Serve Tools over HTTP",
           "to": "mcp/server",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-16"
         },
         {
           "label": "Serve Resources and Prompts",
@@ -759,6 +759,12 @@
           "to": "mcp/server-auth",
           "addedAt": "2026-09-22",
           "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Sandboxed Tools",
+          "to": "mcp/server-sandboxed-tools",
+          "addedAt": "2026-11-16",
+          "updatedAt": "2026-11-19"
         },
         {
           "label": "MCP Server Sessions",
