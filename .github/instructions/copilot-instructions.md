@@ -26,7 +26,7 @@ When defining new types, first check if the types exist somewhere and re-use the
 When modifying existing functionality, ensure backward compatibility unless there's a strong reason to introduce breaking changes. If breaking changes are necessary, document them clearly in the relevant documentation files.
  
 
-Under no circumstances should casting `as any` be used in the codebase. Always strive to find or create the appropriate type definitions. Avoid casting unless absolutely neccessary, and even then, prefer using `satisfies` for type assertions to maintain type safety.
+Under no circumstances should casting `as any` be used in the codebase. Always strive to find or create the appropriate type definitions. Avoid casting unless absolutely necessary, and even then, prefer using `satisfies` for type assertions to maintain type safety.
 
 Do not add ` Select-Object -Last X` at the end of PowerShell commands in the CI scripts. This can hide important error messages and make debugging more difficult and it also makes the
 process hang

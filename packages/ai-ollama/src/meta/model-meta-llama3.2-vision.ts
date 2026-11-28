@@ -58,7 +58,7 @@ export const LLAMA3_2_VISION_MODELS = [
 
 // export const LLAMA3_2_VISION_VIDEO_MODELS = [] as const
 
-// export export type Llama3_2VisionChatModels = (typeof LLAMA3_2Vision_MODELS)[number]
+// export type Llama3_2VisionChatModels = (typeof LLAMA3_2Vision_MODELS)[number]
 
 // Manual type map for per-model provider options
 export type Llama3_2VisionChatModelProviderOptionsByName = {
