@@ -40,6 +40,7 @@ import { Route as InterruptsTestRouteImport } from './routes/interrupts-test'
 import { Route as JoinRunClientToolRouteImport } from './routes/join-run-client-tool'
 import { Route as JsonTransportRouteImport } from './routes/json-transport'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
+import { Route as McpApprovalRouteImport } from './routes/mcp-approval'
 import { Route as MessageHistoryPagingRouteImport } from './routes/message-history-paging'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as MotionTestRouteImport } from './routes/motion-test'
@@ -403,6 +404,11 @@ const JsonTransportRoute = JsonTransportRouteImport.update({
 const MarkdownCjkRoute = MarkdownCjkRouteImport.update({
   id: '/markdown-cjk',
   path: '/markdown-cjk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpApprovalRoute = McpApprovalRouteImport.update({
+  id: '/mcp-approval',
+  path: '/mcp-approval',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessageHistoryPagingRoute = MessageHistoryPagingRouteImport.update({
@@ -1522,6 +1528,7 @@ export interface FileRoutesByFullPath {
   '/join-run-client-tool': typeof JoinRunClientToolRoute
   '/json-transport': typeof JsonTransportRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
+  '/mcp-approval': typeof McpApprovalRoute
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/motion-test': typeof MotionTestRoute
@@ -1761,6 +1768,7 @@ export interface FileRoutesByTo {
   '/join-run-client-tool': typeof JoinRunClientToolRoute
   '/json-transport': typeof JsonTransportRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
+  '/mcp-approval': typeof McpApprovalRoute
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/motion-test': typeof MotionTestRoute
@@ -2001,6 +2009,7 @@ export interface FileRoutesById {
   '/join-run-client-tool': typeof JoinRunClientToolRoute
   '/json-transport': typeof JsonTransportRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
+  '/mcp-approval': typeof McpApprovalRoute
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/motion-test': typeof MotionTestRoute
@@ -2242,6 +2251,7 @@ export interface FileRouteTypes {
     | '/join-run-client-tool'
     | '/json-transport'
     | '/markdown-cjk'
+    | '/mcp-approval'
     | '/message-history-paging'
     | '/middleware-test'
     | '/motion-test'
@@ -2481,6 +2491,7 @@ export interface FileRouteTypes {
     | '/join-run-client-tool'
     | '/json-transport'
     | '/markdown-cjk'
+    | '/mcp-approval'
     | '/message-history-paging'
     | '/middleware-test'
     | '/motion-test'
@@ -2720,6 +2731,7 @@ export interface FileRouteTypes {
     | '/join-run-client-tool'
     | '/json-transport'
     | '/markdown-cjk'
+    | '/mcp-approval'
     | '/message-history-paging'
     | '/middleware-test'
     | '/motion-test'
@@ -2960,6 +2972,7 @@ export interface RootRouteChildren {
   JoinRunClientToolRoute: typeof JoinRunClientToolRoute
   JsonTransportRoute: typeof JsonTransportRoute
   MarkdownCjkRoute: typeof MarkdownCjkRoute
+  McpApprovalRoute: typeof McpApprovalRoute
   MessageHistoryPagingRoute: typeof MessageHistoryPagingRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   MotionTestRoute: typeof MotionTestRoute
@@ -3380,6 +3393,13 @@ declare module '@tanstack/react-router' {
       path: '/markdown-cjk'
       fullPath: '/markdown-cjk'
       preLoaderRoute: typeof MarkdownCjkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp-approval': {
+      id: '/mcp-approval'
+      path: '/mcp-approval'
+      fullPath: '/mcp-approval'
+      preLoaderRoute: typeof McpApprovalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/message-history-paging': {
@@ -4917,6 +4937,7 @@ const rootRouteChildren: RootRouteChildren = {
   JoinRunClientToolRoute: JoinRunClientToolRoute,
   JsonTransportRoute: JsonTransportRoute,
   MarkdownCjkRoute: MarkdownCjkRoute,
+  McpApprovalRoute: McpApprovalRoute,
   MessageHistoryPagingRoute: MessageHistoryPagingRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   MotionTestRoute: MotionTestRoute,
