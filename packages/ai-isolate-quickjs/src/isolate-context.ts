@@ -1,4 +1,4 @@
-import { wrapCode } from '@tanstack/ai-code-mode'
+import { wrapCode } from '@tanstack/ai-isolate'
 import {
   TIMEOUT_ERROR,
   isFatalQuickJSLimitError,
@@ -9,7 +9,7 @@ import type {
   QuickJSHandle,
   VmCallResult,
 } from 'quickjs-emscripten'
-import type { ExecutionResult, IsolateContext } from '@tanstack/ai-code-mode'
+import type { ExecutionResult, IsolateContext } from '@tanstack/ai-isolate'
 
 /**
  * Execution state shared with the tool bindings created in the driver.

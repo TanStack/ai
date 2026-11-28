@@ -55,10 +55,8 @@
     "code-execution"
   ],
   "dependencies": {
+    "@tanstack/ai-isolate": "workspace:^",
     "quickjs-emscripten": "^0.31.0"
-  },
-  "peerDependencies": {
-    "@tanstack/ai-code-mode": "workspace:^"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.1.12"

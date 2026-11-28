@@ -4,7 +4,7 @@ import type {
   IsolateContext,
   IsolateDriver,
   ToolBinding,
-} from '@tanstack/ai-code-mode'
+} from '@tanstack/ai-isolate'
 import type {
   ExecuteRequest,
   ExecuteResponse,

@@ -16,7 +16,7 @@ import * as os from 'node:os'
 import process from 'node:process'
 import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
 import { createQuickJSBunIsolateDriver } from '../src/index'
-import type { IsolateDriver, ToolBinding } from '@tanstack/ai-code-mode'
+import type { IsolateDriver, ToolBinding } from '@tanstack/ai-isolate'
 
 const FRESH_CONTEXT_ITERATIONS = 30
 const WARM_CONTEXT_ITERATIONS = 100

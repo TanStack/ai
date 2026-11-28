@@ -6,7 +6,7 @@ import type {
   IsolateConfig,
   IsolateContext,
   IsolateDriver,
-} from '@tanstack/ai-code-mode'
+} from '@tanstack/ai-isolate'
 
 /**
  * Configuration for the Node.js isolate driver

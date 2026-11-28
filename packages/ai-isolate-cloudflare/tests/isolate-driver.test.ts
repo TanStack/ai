@@ -3,7 +3,7 @@ import {
   createCloudflareIsolateDriver,
   type CloudflareIsolateDriverConfig,
 } from '../src/isolate-driver'
-import type { ToolBinding } from '@tanstack/ai-code-mode'
+import type { ToolBinding } from '@tanstack/ai-isolate'
 import type { ExecuteRequest, ExecuteResponse } from '../src/types'
 
 const WORKER_URL = 'https://code-mode.example.com'

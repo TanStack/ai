@@ -12,7 +12,7 @@ import type {
   IsolateContext,
   IsolateDriver,
   ToolBinding,
-} from '@tanstack/ai-code-mode'
+} from '@tanstack/ai-isolate'
 
 /** Default memory limit in MB (matches Node isolate driver default). */
 const DEFAULT_MEMORY_LIMIT_MB = 128

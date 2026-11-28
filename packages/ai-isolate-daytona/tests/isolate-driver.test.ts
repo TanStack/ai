@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createDaytonaIsolateDriver } from '../src/isolate-driver'
 import { DAYTONA_RESULT_MARKER } from '../src/wrap-code'
-import type { ToolBinding } from '@tanstack/ai-code-mode'
+import type { ToolBinding } from '@tanstack/ai-isolate'
 import type {
   DaytonaCodeRunParams,
   DaytonaCodeRunResponse,

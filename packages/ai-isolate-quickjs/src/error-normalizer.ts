@@ -1,4 +1,4 @@
-import type { NormalizedError } from '@tanstack/ai-code-mode'
+import type { NormalizedError } from '@tanstack/ai-isolate'
 
 const MEMORY_LIMIT_ERROR = 'MemoryLimitError'
 const STACK_OVERFLOW_ERROR = 'StackOverflowError'

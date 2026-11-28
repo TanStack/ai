@@ -1,7 +1,7 @@
-import { wrapCode } from '@tanstack/ai-code-mode'
+import { wrapCode } from '@tanstack/ai-isolate'
 import { normalizeError } from './error-normalizer'
 import type ivm from 'isolated-vm'
-import type { ExecutionResult, IsolateContext } from '@tanstack/ai-code-mode'
+import type { ExecutionResult, IsolateContext } from '@tanstack/ai-isolate'
 
 /**
  * IsolateContext implementation using isolated-vm

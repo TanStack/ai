@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createQuickJSBunIsolateDriver } from '../src/isolate-driver'
-import type { ToolBinding } from '@tanstack/ai-code-mode'
+import type { ToolBinding } from '@tanstack/ai-isolate'
 
 function makeBinding(
   name: string,

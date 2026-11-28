@@ -33,4 +33,4 @@ export type {
   IsolateContext,
   IsolateDriver,
   NormalizedError,
-} from '@tanstack/ai-code-mode'
+} from '@tanstack/ai-isolate'
