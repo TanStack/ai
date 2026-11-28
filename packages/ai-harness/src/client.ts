@@ -98,7 +98,8 @@ export interface HarnessClientOptions {
   /**
    * The first wait before a reconnect of `events()`. Default 1000 ms. Each
    * failed try after it doubles the wait, up to 30 s, with a random part.
-   * A read from the server sets the wait back to this value.
+   * A read from the server sets the wait back to this value. An input that
+   * this client sends ends the wait and sets it back too.
    */
   reconnectDelayMs?: number
   /**
@@ -732,6 +733,11 @@ export function createHarnessClient<THarness extends AnyHarness>(
     throw failure(action, response, refusal)
   }
 
+  // A wake for each `events()` read. An input can make the thread (the first
+  // message of a new chat), so an `events()` read that waits to connect again
+  // after a 404 connects at once. It does not miss the turn that runs.
+  const sent = new Set<() => void>()
+
   const send = async (
     input: HarnessInput,
     traceparent?: string,
@@ -754,6 +760,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
       body: JSON.stringify({ threadId: options.threadId, input: withId }),
     })
     const body: unknown = await (await checked('request', response)).json()
+    for (const wake of sent) wake()
     // The handler answers /control with a Receipt.
     return body as Receipt
   }
@@ -867,10 +874,21 @@ export function createHarnessClient<THarness extends AnyHarness>(
     })
     // The tries since the last read from the server, for the next wait.
     let attempt = 0
+    // An input of this client ends the wait, and the waits start short again.
+    // An input sent while a request is out marks it, so a 404 that the
+    // request gets after the input connects again at once.
+    let sentDuringRequest = false
+    const onSent = () => {
+      attempt = 0
+      if (wake) wake()
+      else sentDuringRequest = true
+    }
+    sent.add(onSent)
     // The error of a /snapshot answer with the wrong shape. It is not retried.
     let badSnapshot: Error | undefined
     try {
       while (!signal?.aborted) {
+        sentDuringRequest = false
         try {
           const query = new URLSearchParams({ threadId: options.threadId })
           // No `from`: start at the head, so the stream does not send the
@@ -949,6 +967,9 @@ export function createHarnessClient<THarness extends AnyHarness>(
         }
         if (signal?.aborted) return
         eventOptions.onConnection?.('reconnecting')
+        // The input came after this request started, so the next one can
+        // find what it made.
+        if (sentDuringRequest) continue
         const wait = reconnectDelay(options.reconnectDelayMs ?? 1000, attempt)
         attempt += 1
         await new Promise<void>((resolve) => {
@@ -961,6 +982,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
         wake = undefined
       }
     } finally {
+      sent.delete(onSent)
       stopListening()
     }
   }

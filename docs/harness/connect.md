@@ -181,7 +181,7 @@ for await (const entry of client.events({ from: cursor })) {
 }
 ```
 
-`events()` reconnects after a network error and continues from the last cursor. It also reconnects when no bytes come for 60 s, so a dead connection (a laptop that slept) does not stay `open`. To change that time, pass `idleTimeoutMs` to `createHarnessClient`. Keep it larger than the [heartbeat](./protocol#stream-values) of the server, or the client reconnects again and again. A second tab, a phone, or a reload all see the same session.
+`events()` reconnects after a network error and continues from the last cursor. It also reconnects when no bytes come for 60 s, so a dead connection (a laptop that slept) does not stay `open`. To change that time, pass `idleTimeoutMs` to `createHarnessClient`. Keep it larger than the [heartbeat](./protocol#stream-values) of the server, or the client reconnects again and again. A thread with no entry yet (a new chat, before its first message) answers `404`, and `events()` tries again. When the client sends an input, `events()` connects again at once, so the first turn streams. A second tab, a phone, or a reload all see the same session.
 
 Without `from`, `events()` starts at the newest event, so it sends no old events. That is why the example reads the snapshot cursor before it sends.
 
