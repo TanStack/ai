@@ -44,6 +44,7 @@ import { Route as MessageHistoryPagingRouteImport } from './routes/message-histo
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as MotionTestRouteImport } from './routes/motion-test'
 import { Route as PersistenceDurabilityRouteImport } from './routes/persistence-durability'
+import { Route as RealtimeRelayRouteImport } from './routes/realtime-relay'
 import { Route as SolidReactiveChatRouteImport } from './routes/solid-reactive-chat'
 import { Route as SubagentsTestRouteImport } from './routes/subagents-test'
 import { Route as SubagentsUiTestRouteImport } from './routes/subagents-ui-test'
@@ -140,6 +141,7 @@ import { Route as ApiJsonSchemaToolInputRouteImport } from './routes/api.json-sc
 import { Route as ApiJsonTransportRouteImport } from './routes/api.json-transport'
 import { Route as ApiKeyedAdapterRouteImport } from './routes/api.keyed-adapter'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
+import { Route as ApiLiveSessionRouteImport } from './routes/api.live-session'
 import { Route as ApiLoneSurrogatesWireRouteImport } from './routes/api.lone-surrogates-wire'
 import { Route as ApiLoopStoppedRouteImport } from './routes/api.loop-stopped'
 import { Route as ApiMaxToolCallsWireRouteImport } from './routes/api.max-tool-calls-wire'
@@ -423,6 +425,11 @@ const MotionTestRoute = MotionTestRouteImport.update({
 const PersistenceDurabilityRoute = PersistenceDurabilityRouteImport.update({
   id: '/persistence-durability',
   path: '/persistence-durability',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RealtimeRelayRoute = RealtimeRelayRouteImport.update({
+  id: '/realtime-relay',
+  path: '/realtime-relay',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SolidReactiveChatRoute = SolidReactiveChatRouteImport.update({
@@ -929,6 +936,11 @@ const ApiKeyedAdapterRoute = ApiKeyedAdapterRouteImport.update({
 const ApiLazyToolsWireRoute = ApiLazyToolsWireRouteImport.update({
   id: '/api/lazy-tools-wire',
   path: '/api/lazy-tools-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLiveSessionRoute = ApiLiveSessionRouteImport.update({
+  id: '/api/live-session',
+  path: '/api/live-session',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiLoneSurrogatesWireRoute = ApiLoneSurrogatesWireRouteImport.update({
@@ -1526,6 +1538,7 @@ export interface FileRoutesByFullPath {
   '/middleware-test': typeof MiddlewareTestRoute
   '/motion-test': typeof MotionTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/realtime-relay': typeof RealtimeRelayRoute
   '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
   '/subagents-ui-test': typeof SubagentsUiTestRoute
@@ -1621,6 +1634,7 @@ export interface FileRoutesByFullPath {
   '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
+  '/api/live-session': typeof ApiLiveSessionRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/loop-stopped': typeof ApiLoopStoppedRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
@@ -1765,6 +1779,7 @@ export interface FileRoutesByTo {
   '/middleware-test': typeof MiddlewareTestRoute
   '/motion-test': typeof MotionTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/realtime-relay': typeof RealtimeRelayRoute
   '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
   '/subagents-ui-test': typeof SubagentsUiTestRoute
@@ -1860,6 +1875,7 @@ export interface FileRoutesByTo {
   '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
+  '/api/live-session': typeof ApiLiveSessionRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/loop-stopped': typeof ApiLoopStoppedRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
@@ -2005,6 +2021,7 @@ export interface FileRoutesById {
   '/middleware-test': typeof MiddlewareTestRoute
   '/motion-test': typeof MotionTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/realtime-relay': typeof RealtimeRelayRoute
   '/solid-reactive-chat': typeof SolidReactiveChatRoute
   '/subagents-test': typeof SubagentsTestRoute
   '/subagents-ui-test': typeof SubagentsUiTestRoute
@@ -2100,6 +2117,7 @@ export interface FileRoutesById {
   '/api/json-transport': typeof ApiJsonTransportRoute
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
+  '/api/live-session': typeof ApiLiveSessionRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
   '/api/loop-stopped': typeof ApiLoopStoppedRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
@@ -2246,6 +2264,7 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/motion-test'
     | '/persistence-durability'
+    | '/realtime-relay'
     | '/solid-reactive-chat'
     | '/subagents-test'
     | '/subagents-ui-test'
@@ -2341,6 +2360,7 @@ export interface FileRouteTypes {
     | '/api/json-transport'
     | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
+    | '/api/live-session'
     | '/api/lone-surrogates-wire'
     | '/api/loop-stopped'
     | '/api/max-tool-calls-wire'
@@ -2485,6 +2505,7 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/motion-test'
     | '/persistence-durability'
+    | '/realtime-relay'
     | '/solid-reactive-chat'
     | '/subagents-test'
     | '/subagents-ui-test'
@@ -2580,6 +2601,7 @@ export interface FileRouteTypes {
     | '/api/json-transport'
     | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
+    | '/api/live-session'
     | '/api/lone-surrogates-wire'
     | '/api/loop-stopped'
     | '/api/max-tool-calls-wire'
@@ -2724,6 +2746,7 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/motion-test'
     | '/persistence-durability'
+    | '/realtime-relay'
     | '/solid-reactive-chat'
     | '/subagents-test'
     | '/subagents-ui-test'
@@ -2819,6 +2842,7 @@ export interface FileRouteTypes {
     | '/api/json-transport'
     | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
+    | '/api/live-session'
     | '/api/lone-surrogates-wire'
     | '/api/loop-stopped'
     | '/api/max-tool-calls-wire'
@@ -2964,6 +2988,7 @@ export interface RootRouteChildren {
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   MotionTestRoute: typeof MotionTestRoute
   PersistenceDurabilityRoute: typeof PersistenceDurabilityRoute
+  RealtimeRelayRoute: typeof RealtimeRelayRoute
   SolidReactiveChatRoute: typeof SolidReactiveChatRoute
   SubagentsTestRoute: typeof SubagentsTestRoute
   SubagentsUiTestRoute: typeof SubagentsUiTestRoute
@@ -3059,6 +3084,7 @@ export interface RootRouteChildren {
   ApiJsonTransportRoute: typeof ApiJsonTransportRoute
   ApiKeyedAdapterRoute: typeof ApiKeyedAdapterRoute
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
+  ApiLiveSessionRoute: typeof ApiLiveSessionRoute
   ApiLoneSurrogatesWireRoute: typeof ApiLoneSurrogatesWireRoute
   ApiLoopStoppedRoute: typeof ApiLoopStoppedRoute
   ApiMaxToolCallsWireRoute: typeof ApiMaxToolCallsWireRoute
@@ -3408,6 +3434,13 @@ declare module '@tanstack/react-router' {
       path: '/persistence-durability'
       fullPath: '/persistence-durability'
       preLoaderRoute: typeof PersistenceDurabilityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/realtime-relay': {
+      id: '/realtime-relay'
+      path: '/realtime-relay'
+      fullPath: '/realtime-relay'
+      preLoaderRoute: typeof RealtimeRelayRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/solid-reactive-chat': {
@@ -4080,6 +4113,13 @@ declare module '@tanstack/react-router' {
       path: '/api/lazy-tools-wire'
       fullPath: '/api/lazy-tools-wire'
       preLoaderRoute: typeof ApiLazyToolsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/live-session': {
+      id: '/api/live-session'
+      path: '/api/live-session'
+      fullPath: '/api/live-session'
+      preLoaderRoute: typeof ApiLiveSessionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/lone-surrogates-wire': {
@@ -4921,6 +4961,7 @@ const rootRouteChildren: RootRouteChildren = {
   MiddlewareTestRoute: MiddlewareTestRoute,
   MotionTestRoute: MotionTestRoute,
   PersistenceDurabilityRoute: PersistenceDurabilityRoute,
+  RealtimeRelayRoute: RealtimeRelayRoute,
   SolidReactiveChatRoute: SolidReactiveChatRoute,
   SubagentsTestRoute: SubagentsTestRoute,
   SubagentsUiTestRoute: SubagentsUiTestRoute,
@@ -5021,6 +5062,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiJsonTransportRoute: ApiJsonTransportRoute,
   ApiKeyedAdapterRoute: ApiKeyedAdapterRoute,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
+  ApiLiveSessionRoute: ApiLiveSessionRoute,
   ApiLoneSurrogatesWireRoute: ApiLoneSurrogatesWireRoute,
   ApiLoopStoppedRoute: ApiLoopStoppedRoute,
   ApiMaxToolCallsWireRoute: ApiMaxToolCallsWireRoute,

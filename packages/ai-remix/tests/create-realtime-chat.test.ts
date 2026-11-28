@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   RealtimeAdapter,
   RealtimeConnection,
+  RealtimeRelayAdapter,
+  RealtimeSessionAnswer,
+  RealtimeSessionRequest,
   RealtimeToken,
 } from '@tanstack/ai'
 import type { Handle } from 'remix/ui'
@@ -86,9 +89,23 @@ function createHandle() {
 
 function createOptions(
   adapter: RealtimeAdapter,
-  getToken: CreateRealtimeChatOptions['getToken'],
+  getToken: () => Promise<RealtimeToken>,
 ): CreateRealtimeChatOptions {
   return { adapter, getToken, autoCapture: false }
+}
+
+/** A relay adapter that sends the offer `v=0 offer` through `createSession`. */
+function createRelayAdapter(connection: RealtimeConnection) {
+  const answers: Array<RealtimeSessionAnswer> = []
+  const adapter: RealtimeRelayAdapter = {
+    provider: 'relay-test',
+    kind: 'relay',
+    connect: async (createSession) => {
+      answers.push(await createSession({ sdp: 'v=0 offer' }))
+      return connection
+    },
+  }
+  return { adapter, answers }
 }
 
 let abortHandle: (() => void) | undefined
@@ -122,5 +139,57 @@ describe('createRealtimeChat', () => {
     expect(chat.status).toBe('idle')
     await chat.connect()
     expect(chat.status).toBe('connected')
+  })
+
+  it('passes the connect options, with autoCapture, to a token adapter', async () => {
+    const { handle, abort } = createHandle()
+    abortHandle = abort
+    const testAdapter = createAdapter('test', [createConnection()])
+    const getToken = vi.fn(async () => createToken('test', 'token'))
+    const chat = createRealtimeChat(
+      handle,
+      createOptions(testAdapter.adapter, getToken),
+    )
+
+    await chat.connect()
+
+    expect(testAdapter.connect).toHaveBeenCalledWith(
+      expect.objectContaining({ token: 'token' }),
+      undefined,
+      expect.objectContaining({ autoCapture: false }),
+    )
+  })
+
+  it('passes createSession to RealtimeClient for a relay adapter', async () => {
+    const { handle, abort } = createHandle()
+    abortHandle = abort
+    const relay = createRelayAdapter(createConnection())
+    const answer: RealtimeSessionAnswer = {
+      provider: 'relay-test',
+      sessionId: 'sess_1',
+      sdp: 'v=0 answer',
+      config: {},
+    }
+    const createSession = vi.fn(
+      async (_request: RealtimeSessionRequest) => answer,
+    )
+    const chat = createRealtimeChat(handle, {
+      adapter: relay.adapter,
+      createSession,
+      instructions: 'be brief',
+      autoCapture: false,
+    })
+
+    await chat.connect()
+
+    expect(chat.status).toBe('connected')
+    expect(createSession).toHaveBeenCalledWith(
+      {
+        sdp: 'v=0 offer',
+        config: { instructions: 'be brief', vadMode: 'server' },
+      },
+      expect.any(AbortSignal),
+    )
+    expect(relay.answers).toEqual([answer])
   })
 })

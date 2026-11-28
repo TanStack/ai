@@ -89,6 +89,72 @@ describe('openaiRealtime connect teardown', () => {
     expect(pc.close).toHaveBeenCalled()
   })
 
+  it('stays idle when stop comes during the microphone prompt (autoCapture false)', async () => {
+    const channel: {
+      readyState: string
+      close: () => void
+      send: () => void
+      onopen?: () => void
+    } = { readyState: 'connecting', close: vi.fn(), send: vi.fn() }
+    const sender = { replaceTrack: vi.fn(async () => {}) }
+    const pc = {
+      createDataChannel: () => channel,
+      addTransceiver: vi.fn(() => ({ sender })),
+      createOffer: async () => ({ type: 'offer', sdp: 'v=0' }),
+      setLocalDescription: async () => {},
+      setRemoteDescription: async () => {},
+      close: vi.fn(),
+    }
+    vi.stubGlobal(
+      'RTCPeerConnection',
+      vi.fn(function RTCPeerConnection() {
+        return pc
+      }),
+    )
+    vi.stubGlobal(
+      'AudioContext',
+      vi.fn(function AudioContext() {
+        return {
+          state: 'running',
+          createAnalyser: () => ({ connect: vi.fn() }),
+          createMediaStreamSource: () => ({ connect: vi.fn() }),
+          close: vi.fn(async () => {}),
+        }
+      }),
+    )
+    vi.stubGlobal('fetch', async () => new Response('v=0', { status: 200 }))
+    const track = { kind: 'audio', enabled: true, stop: vi.fn() }
+    const stream = { getAudioTracks: () => [track], getTracks: () => [track] }
+    let grantMicrophone = () => {}
+    const getUserMedia = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          grantMicrophone = () => resolve(stream)
+        }),
+    )
+    vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } })
+
+    const pending = openaiRealtime().connect(token, undefined, {
+      autoCapture: false,
+    })
+    await vi.waitFor(() => expect(channel.onopen).toBeTypeOf('function'))
+    channel.readyState = 'open'
+    channel.onopen?.()
+    const connection = await pending
+    const modes: Array<string> = []
+    connection.on('mode_change', ({ mode }) => modes.push(mode))
+
+    const starting = connection.startAudioCapture()
+    await vi.waitFor(() => expect(getUserMedia).toHaveBeenCalled())
+    connection.stopAudioCapture()
+    grantMicrophone()
+    await starting
+
+    expect(pc.addTransceiver).toHaveBeenCalled()
+    expect(modes).toEqual(['idle'])
+    expect(track.enabled).toBe(false)
+  })
+
   it('releases everything when disconnect() aborts the wait for the data channel', async () => {
     const { track, channel, pc } = stubBrowser()
     Object.assign(pc, { setRemoteDescription: async () => {} })

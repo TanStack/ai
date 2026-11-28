@@ -150,7 +150,12 @@ export type { OpenAIClientConfig } from './utils/client'
 // Realtime (Voice) Adapters
 // ============================================================================
 
-export { openaiRealtimeToken, openaiRealtime } from './realtime/index'
+export {
+  openaiRealtimeToken,
+  openaiRealtime,
+  openaiLiveSession,
+  openaiLive,
+} from './realtime/index'
 
 export type {
   OpenAIRealtimeVoice,
@@ -160,4 +165,9 @@ export type {
   OpenAITurnDetection,
   OpenAISemanticVADConfig,
   OpenAIServerVADConfig,
+  OpenAILiveModel,
+  OpenAILiveVoice,
+  OpenAILiveDelegation,
+  OpenAILiveSessionOptions,
+  OpenAILiveOptions,
 } from './realtime/index'

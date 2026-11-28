@@ -566,11 +566,22 @@ export { normalizeSystemPrompts } from './system-prompts'
 export { detectImageMimeType } from './utils'
 
 // Realtime
-export { realtimeToken, createRealtimeEventEmitter } from './realtime/index'
+export {
+  realtimeToken,
+  realtimeSession,
+  createRealtimeEventEmitter,
+} from './realtime/index'
 export type {
   RealtimeToken,
   RealtimeTokenAdapter,
   RealtimeTokenOptions,
+  RealtimeSessionRequest,
+  RealtimeSessionAnswer,
+  RealtimeSessionAdapter,
+  RealtimeSessionOptions,
+  RealtimeRelayCreateSession,
+  RealtimeRelayAdapter,
+  RealtimeConnectOptions,
   RealtimeSessionConfig,
   RealtimeToolConfig,
   VADConfig,

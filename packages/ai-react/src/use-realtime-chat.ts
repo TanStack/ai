@@ -77,8 +77,10 @@ export function useRealtimeChat(
     // `undefined` for absent values.
     const initial = optionsRef.current
     clientRef.current = new RealtimeClient({
-      getToken: initial.getToken,
-      adapter: initial.adapter,
+      // A relay adapter takes `createSession`. A token adapter takes `getToken`.
+      ...(initial.createSession
+        ? { adapter: initial.adapter, createSession: initial.createSession }
+        : { adapter: initial.adapter, getToken: initial.getToken }),
       ...(initial.tools !== undefined && { tools: initial.tools }),
       ...(initial.instructions !== undefined && {
         instructions: initial.instructions,

@@ -99,6 +99,77 @@ export interface RealtimeTokenOptions {
 }
 
 // ============================================================================
+// Relay Session Types
+// ============================================================================
+
+/**
+ * Request that the browser sends to the server to start a relay session.
+ * The server gives it to `realtimeSession()`.
+ */
+export interface RealtimeSessionRequest {
+  /** The WebRTC SDP offer from the browser */
+  sdp: string
+  /** Session configuration that the client asks for */
+  config: RealtimeSessionConfig
+}
+
+/**
+ * Answer that the server sends back to the browser for a relay session
+ */
+export interface RealtimeSessionAnswer {
+  /** Provider identifier */
+  provider: string
+  /** Provider session identifier */
+  sessionId: string
+  /** The WebRTC SDP answer from the provider */
+  sdp: string
+  /** Session configuration that the provider uses, after the server options are applied */
+  config: RealtimeSessionConfig
+}
+
+/**
+ * Adapter interface for creating provider sessions on the server.
+ * The server keeps the API key. The browser never sees it.
+ */
+export interface RealtimeSessionAdapter {
+  /** Provider identifier */
+  provider: string
+  /**
+   * Create a provider session from the browser offer. Adapters should forward
+   * `options.abortSignal` to the provider request when supported.
+   */
+  createSession: (
+    request: RealtimeSessionRequest,
+    options?: { abortSignal?: AbortSignal },
+  ) => Promise<RealtimeSessionAnswer>
+}
+
+/**
+ * Options for the realtimeSession function
+ */
+export interface RealtimeSessionOptions {
+  /** The session adapter to use */
+  adapter: RealtimeSessionAdapter
+  /**
+   * The request body from the browser. It is not trusted:
+   * `realtimeSession()` checks it before it calls the adapter.
+   */
+  request: unknown
+  /**
+   * Cancels the session request. The call rejects when the signal aborts.
+   */
+  abortSignal?: AbortSignal
+}
+
+/**
+ * Function that sends the browser offer to your server and returns the answer.
+ * A relay adapter calls it during `connect()`.
+ */
+export type RealtimeRelayCreateSession = (offer: {
+  sdp: string
+}) => Promise<RealtimeSessionAnswer>
+
+// ============================================================================
 // Message Types
 // ============================================================================
 
@@ -316,6 +387,20 @@ export interface RealtimeError extends Error {
 // ============================================================================
 
 /**
+ * Options for `connect()` of a realtime adapter.
+ */
+export interface RealtimeConnectOptions {
+  /** Cancels the connection setup requests, when the provider supports it */
+  abortSignal?: AbortSignal
+  /**
+   * When false, the adapter does not open the microphone on connect. It opens
+   * it on the first `startAudioCapture()`. An adapter that cannot wait ignores
+   * it. `RealtimeClient` passes its own `autoCapture` option here.
+   */
+  autoCapture?: boolean
+}
+
+/**
  * Adapter interface for connecting to realtime providers.
  * Each provider (OpenAI, ElevenLabs, etc.) implements this interface.
  *
@@ -333,14 +418,38 @@ export interface RealtimeAdapter {
    * Create a connection using the provided token
    * @param token - The ephemeral token from the server
    * @param clientTools - Optional client-side tools to register with the provider
-   * @param options - Optional `abortSignal` that cancels the connection setup
-   *   requests, when the provider supports it
+   * @param options - Optional `abortSignal` and `autoCapture`
    * @returns A connection instance
    */
   connect: (
     token: RealtimeToken,
     clientTools?: ReadonlyArray<AnyClientTool>,
-    options?: { abortSignal?: AbortSignal },
+    options?: RealtimeConnectOptions,
+  ) => Promise<RealtimeConnection>
+}
+
+/**
+ * Adapter interface for realtime providers that connect through your server.
+ * The browser does not get a token. The adapter makes an SDP offer and gives
+ * it to `createSession`, which sends it to your server.
+ */
+export interface RealtimeRelayAdapter {
+  /** Provider identifier */
+  provider: string
+  /** Tells a relay adapter apart from a token adapter */
+  kind: 'relay'
+
+  /**
+   * Create a connection through your server
+   * @param createSession - Sends the SDP offer to your server and returns the answer
+   * @param clientTools - Optional client-side tools to register with the provider
+   * @param options - Optional `abortSignal` and `autoCapture`
+   * @returns A connection instance
+   */
+  connect: (
+    createSession: RealtimeRelayCreateSession,
+    clientTools?: ReadonlyArray<AnyClientTool>,
+    options?: RealtimeConnectOptions,
   ) => Promise<RealtimeConnection>
 }
 

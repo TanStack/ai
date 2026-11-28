@@ -87,8 +87,10 @@ function createToken(
 
 function createOptions(
   adapter: RealtimeAdapter,
-  getToken: UseRealtimeChatOptions['getToken'],
-  overrides: Partial<UseRealtimeChatOptions> = {},
+  getToken: () => Promise<RealtimeToken>,
+  overrides: Partial<
+    Omit<UseRealtimeChatOptions, 'adapter' | 'getToken' | 'createSession'>
+  > = {},
 ): UseRealtimeChatOptions {
   return { adapter, getToken, autoCapture: false, ...overrides }
 }
@@ -135,7 +137,51 @@ describe('useRealtimeChat', () => {
     expect(firstGetToken).toHaveBeenCalledTimes(1)
     expect(firstAdapter.connect).toHaveBeenCalledTimes(1)
     expect(secondGetToken).toHaveBeenCalledTimes(1)
-    expect(secondAdapter.connect).toHaveBeenCalledWith(secondToken, undefined)
+    expect(secondAdapter.connect).toHaveBeenCalledWith(
+      secondToken,
+      undefined,
+      expect.objectContaining({ autoCapture: false }),
+    )
+
+    await act(async () => {
+      await result.current.disconnect()
+    })
+    unmount()
+  })
+
+  it('uses a new token adapter that has a non-relay kind on reconnect', async () => {
+    const firstConnection = createConnection()
+    const secondConnection = createConnection()
+    const firstAdapter = createAdapter('first', [firstConnection.connection])
+    const secondAdapter = createAdapter('second', [secondConnection.connection])
+    const secondWithKind = Object.assign(secondAdapter.adapter, {
+      kind: 'token',
+    })
+    const secondToken = createToken('second', 'second-token')
+    const getToken = vi.fn(async () => createToken('first', 'first-token'))
+
+    const { result, rerender, unmount } = renderHook(
+      (options: UseRealtimeChatOptions) => useRealtimeChat(options),
+      { initialProps: createOptions(firstAdapter.adapter, getToken) },
+    )
+
+    await act(async () => {
+      await result.current.connect()
+      await result.current.disconnect()
+    })
+
+    rerender(createOptions(secondWithKind, async () => secondToken))
+    await act(async () => {
+      await result.current.connect()
+    })
+
+    expect(firstAdapter.connect).toHaveBeenCalledTimes(1)
+    expect(secondAdapter.connect).toHaveBeenCalledWith(
+      secondToken,
+      undefined,
+      expect.objectContaining({ autoCapture: false }),
+    )
+    expect(result.current.status).toBe('connected')
 
     await act(async () => {
       await result.current.disconnect()
@@ -153,7 +199,7 @@ describe('useRealtimeChat', () => {
     const staleRefreshToken = createToken('test', 'stale-refresh')
     const currentRefreshToken = createToken('test', 'current-refresh')
     const firstGetToken = vi
-      .fn<UseRealtimeChatOptions['getToken']>()
+      .fn<() => Promise<RealtimeToken>>()
       .mockResolvedValueOnce(initialToken)
       .mockResolvedValue(staleRefreshToken)
     const secondGetToken = vi.fn(async () => currentRefreshToken)

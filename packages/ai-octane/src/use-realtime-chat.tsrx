@@ -3,6 +3,7 @@ import { RealtimeClient } from '@tanstack/ai-client'
 import type {
   RealtimeMessage,
   RealtimeMode,
+  RealtimeRelayAdapter,
   RealtimeSessionConfig,
   RealtimeStatus,
 } from '@tanstack/ai'
@@ -14,6 +15,14 @@ import type {
 // Empty frequency data for when client is not connected
 const emptyFrequencyData = new Uint8Array(128)
 const emptyTimeDomainData = new Uint8Array(128).fill(128)
+
+// Only `kind: 'relay'` marks a relay adapter. A token adapter can have other
+// properties, such as a `kind` that is not 'relay'.
+function isRelayAdapter(
+  adapter: UseRealtimeChatOptions['adapter'],
+): adapter is RealtimeRelayAdapter {
+  return 'kind' in adapter && adapter.kind === 'relay'
+}
 
 /**
  * Octane hook for realtime voice conversations.
@@ -90,15 +99,32 @@ export function useRealtimeChat(
       // OCTANE DIVERGENCE: upstream captures the first transport callbacks.
       // Ref-backed delegates keep the client stable while reconnects and token
       // refreshes observe the latest render's authentication and adapter.
-      getToken: () => optionsRef.current.getToken(),
-      adapter: {
-        get provider() {
-          return optionsRef.current.adapter.provider
-        },
-        connect(token, tools) {
-          return optionsRef.current.adapter.connect(token, tools)
-        },
-      },
+      // A relay adapter takes `createSession`. A token adapter takes `getToken`.
+      // The first render picks the adapter kind. If a later render gives the
+      // other kind, the client keeps the first render's values.
+      ...(initial.createSession
+        ? {
+            adapter: initial.adapter,
+            createSession: (request, abortSignal) =>
+              (optionsRef.current.createSession ?? initial.createSession)(
+                request,
+                abortSignal,
+              ),
+          }
+        : {
+            getToken: () =>
+              (optionsRef.current.getToken ?? initial.getToken)(),
+            adapter: {
+              get provider() {
+                return optionsRef.current.adapter.provider
+              },
+              connect(token, tools, connectOptions) {
+                const latest = optionsRef.current.adapter
+                const adapter = isRelayAdapter(latest) ? initial.adapter : latest
+                return adapter.connect(token, tools, connectOptions)
+              },
+            },
+          }),
       ...(initial.tools !== undefined && { tools: initial.tools }),
       ...(initial.instructions !== undefined && {
         instructions: initial.instructions,

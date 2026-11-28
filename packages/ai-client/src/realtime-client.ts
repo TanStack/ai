@@ -12,6 +12,7 @@ import type {
   RealtimeConnection,
   RealtimeMessage,
   RealtimeMode,
+  RealtimeRelayAdapter,
   RealtimeSessionConfig,
   RealtimeStatus,
   RealtimeToken,
@@ -24,6 +25,18 @@ import type {
 
 // Token refresh buffer - refresh 1 minute before expiry
 const TOKEN_REFRESH_BUFFER_MS = 60_000
+
+type RealtimeRelayClientOptions = Extract<
+  RealtimeClientOptions,
+  { adapter: RealtimeRelayAdapter }
+>
+
+/** True when the options use a relay adapter (with `createSession`, no token). */
+function isRelayOptions(
+  options: RealtimeClientOptions,
+): options is RealtimeRelayClientOptions {
+  return 'kind' in options.adapter && options.adapter.kind === 'relay'
+}
 
 /**
  * Client for managing realtime voice conversations.
@@ -51,7 +64,13 @@ export class RealtimeClient {
   private connection: RealtimeConnection | null = null
   /** Aborts the `adapter.connect()` setup when `disconnect()` runs. */
   private connectAbort: AbortController | null = null
+  /** Bumps on start or stop, so a late microphone grant cannot mark listening. */
+  private captureEpoch = 0
+  /** True during disconnect(), so the adapter idle event does not notify twice. */
+  private endingLocally = false
   private token: RealtimeToken | null = null
+  /** Changes from updateSession() after the relay offer left, before connect ends. */
+  private relaySetupChanges: Partial<RealtimeSessionConfig> | null = null
   private tokenRefreshTimeout: ReturnType<typeof setTimeout> | null = null
   private readonly clientTools: Map<string, AnyClientTool>
   private readonly stateChangeCallbacks: Set<RealtimeStateChangeCallback> =
@@ -95,11 +114,19 @@ export class RealtimeClient {
 
   /**
    * Connect to the realtime session.
-   * Fetches a token and establishes the connection.
+   * A token adapter fetches a token first. A relay adapter sends its offer
+   * and the session config to your server through `createSession`.
    */
   async connect(): Promise<void> {
     if (this.state.status === 'connected') {
       return
+    }
+    // A remote close can leave the peer up. Drop it before a new connect.
+    if (this.connection && this.state.status === 'idle') {
+      const stale = this.connection
+      this.connection = null
+      await stale.disconnect().catch(() => {})
+      this.options.onDisconnect?.()
     }
 
     this.updateState({
@@ -111,25 +138,42 @@ export class RealtimeClient {
     const connectAbort = (this.connectAbort = new AbortController())
 
     try {
-      // Fetch token from server
-      const token = await this.options.getToken()
-      connectAbort.signal.throwIfAborted()
-      this.token = token
-
-      // Schedule token refresh
-      this.scheduleTokenRefresh()
-
-      // Connect via adapter (pass tools for providers like ElevenLabs that need them at connect time)
+      // Pass tools for providers like ElevenLabs that need them at connect time
       const toolsList =
         this.clientTools.size > 0
           ? Array.from(this.clientTools.values())
           : undefined
+      const options = this.options
+      const isRelay = isRelayOptions(options)
+      const autoCapture = options.autoCapture === true
 
-      const connection = await this.options.adapter.connect(
-        this.token,
-        toolsList,
-        { abortSignal: connectAbort.signal },
-      )
+      let connection: RealtimeConnection
+      if (isRelay) {
+        // The session config goes to the server with the offer. There is no token.
+        connection = await options.adapter.connect(
+          (offer) => {
+            const config = this.buildSessionConfig() ?? {}
+            // From here, updateSession() changes go to the session after
+            // connect, because the server already has this config.
+            this.relaySetupChanges = {}
+            return options.createSession(
+              { sdp: offer.sdp, config },
+              connectAbort.signal,
+            )
+          },
+          toolsList,
+          { abortSignal: connectAbort.signal, autoCapture },
+        )
+      } else {
+        const token = await options.getToken()
+        connectAbort.signal.throwIfAborted()
+        this.token = token
+        this.scheduleTokenRefresh()
+        connection = await options.adapter.connect(token, toolsList, {
+          abortSignal: connectAbort.signal,
+          autoCapture,
+        })
+      }
       if (connectAbort.signal.aborted) {
         // A failed close of a connection that was never used is not an
         // error of the client.
@@ -137,6 +181,16 @@ export class RealtimeClient {
         connectAbort.signal.throwIfAborted()
       }
       this.connection = connection
+
+      // A relay session got its config at start. Send the changes made during
+      // setup now, before a subscriber can call updateSession() again.
+      if (isRelay) {
+        const changes = this.relaySetupChanges
+        this.relaySetupChanges = null
+        if (changes && Object.keys(changes).length > 0) {
+          connection.updateSession(changes)
+        }
+      }
 
       // A new session starts here. Clear the last transcript before events
       // flow, so a greeting that arrives while audio capture starts is kept.
@@ -151,10 +205,10 @@ export class RealtimeClient {
       this.subscribeToConnectionEvents()
 
       // Auto-configure session with client-provided settings
-      this.applySessionConfig()
+      if (!isRelay) this.applySessionConfig()
 
       // Start audio capture if configured
-      if (this.options.autoCapture) {
+      if (autoCapture) {
         await connection.startAudioCapture()
         if (connectAbort.signal.aborted) {
           // A later connect() replaced this connection: close it. After
@@ -174,6 +228,8 @@ export class RealtimeClient {
       })
       this.options.onConnect?.()
     } catch (error) {
+      // A newer connect() owns the setup changes now: keep them.
+      if (this.connectAbort === connectAbort) this.relaySetupChanges = null
       const err = error instanceof Error ? error : new Error(String(error))
       // `disconnect()` cancelled this connect: the state is already idle.
       if (connectAbort.signal.aborted) throw err
@@ -187,31 +243,36 @@ export class RealtimeClient {
    * Disconnect from the realtime session.
    */
   async disconnect(): Promise<void> {
-    this.connectAbort?.abort()
-    if (this.tokenRefreshTimeout) {
-      clearTimeout(this.tokenRefreshTimeout)
-      this.tokenRefreshTimeout = null
-    }
+    this.endingLocally = true
+    try {
+      this.connectAbort?.abort()
+      if (this.tokenRefreshTimeout) {
+        clearTimeout(this.tokenRefreshTimeout)
+        this.tokenRefreshTimeout = null
+      }
 
-    // Unsubscribe from all events
-    for (const unsub of this.unsubscribers) {
-      unsub()
-    }
-    this.unsubscribers = []
+      // Unsubscribe from all events
+      for (const unsub of this.unsubscribers) {
+        unsub()
+      }
+      this.unsubscribers = []
 
-    if (this.connection) {
-      await this.connection.disconnect()
-      this.connection = null
-    }
+      if (this.connection) {
+        await this.connection.disconnect()
+        this.connection = null
+      }
 
-    this.token = null
-    this.updateState({
-      status: 'idle',
-      mode: 'idle',
-      pendingUserTranscript: null,
-      pendingAssistantTranscript: null,
-    })
-    this.options.onDisconnect?.()
+      this.token = null
+      this.updateState({
+        status: 'idle',
+        mode: 'idle',
+        pendingUserTranscript: null,
+        pendingAssistantTranscript: null,
+      })
+      this.options.onDisconnect?.()
+    } finally {
+      this.endingLocally = false
+    }
   }
 
   // ============================================================================
@@ -223,11 +284,25 @@ export class RealtimeClient {
    * Only needed when vadMode is 'manual'.
    */
   startListening(): void {
-    if (!this.connection || this.state.status !== 'connected') {
+    const connection = this.connection
+    if (!connection || this.state.status !== 'connected') {
       return
     }
-    void this.connection.startAudioCapture()
-    this.updateState({ mode: 'listening' })
+    const epoch = ++this.captureEpoch
+    void connection.startAudioCapture().then(
+      () => {
+        if (this.connection !== connection || this.captureEpoch !== epoch)
+          return
+        this.updateState({ mode: 'listening' })
+      },
+      (error: unknown) => {
+        if (this.connection !== connection || this.captureEpoch !== epoch)
+          return
+        const err = error instanceof Error ? error : new Error(String(error))
+        this.updateState({ mode: 'idle', error: err })
+        this.options.onError?.(err)
+      },
+    )
   }
 
   /**
@@ -238,6 +313,7 @@ export class RealtimeClient {
     if (!this.connection) {
       return
     }
+    this.captureEpoch++
     this.connection.stopAudioCapture()
     this.updateState({ mode: 'idle' })
   }
@@ -367,7 +443,16 @@ export class RealtimeClient {
       o.providerOptions = config.providerOptions
     }
 
-    if (this.connection) {
+    if (!this.connection) {
+      // A relay offer is already on its way: send this change after connect.
+      if (this.relaySetupChanges) Object.assign(this.relaySetupChanges, config)
+      return
+    }
+    // A relay session fixes most of its config at start, so it gets only the
+    // fields that the caller changed.
+    if (isRelayOptions(this.options)) {
+      this.connection.updateSession(config)
+    } else {
       this.applySessionConfig()
     }
   }
@@ -475,9 +560,12 @@ export class RealtimeClient {
   }
 
   private async refreshToken(): Promise<void> {
+    const options = this.options
+    // Relay sessions have no token to refresh.
+    if (isRelayOptions(options)) return
     const connectSignal = this.connectAbort?.signal
     try {
-      const token = await this.options.getToken()
+      const token = await options.getToken()
       // disconnect() ran during the refresh: do not re-arm the timer.
       if (connectSignal?.aborted) return
       this.token = token
@@ -505,6 +593,14 @@ export class RealtimeClient {
     // Status changes
     this.unsubscribers.push(
       on('status_change', ({ status }) => {
+        if (status === 'idle' && !this.endingLocally) {
+          this.connection = null
+          for (const unsub of this.unsubscribers) unsub()
+          this.unsubscribers = []
+          this.updateState({ status })
+          this.options.onDisconnect?.()
+          return
+        }
         this.updateState({ status })
       }),
     )
@@ -553,28 +649,30 @@ export class RealtimeClient {
           )
           return
         }
+        // The result goes to the session that asked for it. After a
+        // reconnect or a disconnect that session is gone: send nothing.
+        const sendResult = (result: string) => {
+          if (this.connection === connection) {
+            connection.sendToolResult(toolCallId, result)
+          }
+        }
         const tool = this.clientTools.get(toolName)
         const execute = tool?.execute
         if (execute) {
           void (async () => {
             try {
               const output = await execute(input)
-              this.connection?.sendToolResult(
-                toolCallId,
+              sendResult(
                 typeof output === 'string' ? output : JSON.stringify(output),
               )
             } catch (error) {
               const errMsg =
                 error instanceof Error ? error.message : String(error)
-              this.connection?.sendToolResult(
-                toolCallId,
-                JSON.stringify({ error: errMsg }),
-              )
+              sendResult(JSON.stringify({ error: errMsg }))
             }
           })()
         } else {
-          this.connection?.sendToolResult(
-            toolCallId,
+          sendResult(
             JSON.stringify({
               error: `Unknown or non-executable tool: ${String(toolName)}`,
             }),
@@ -640,7 +738,12 @@ export class RealtimeClient {
 
   private applySessionConfig(): void {
     if (!this.connection) return
+    const config = this.buildSessionConfig()
+    if (config) this.connection.updateSession(config)
+  }
 
+  /** The session config from the client options, or null when there is none. */
+  private buildSessionConfig(): RealtimeSessionConfig | null {
     const {
       instructions,
       voice,
@@ -650,6 +753,7 @@ export class RealtimeClient {
       temperature,
       maxOutputTokens,
       semanticEagerness,
+      providerOptions,
     } = this.options
     const hasConfig =
       instructions ||
@@ -659,8 +763,9 @@ export class RealtimeClient {
       outputModalities ||
       temperature !== undefined ||
       maxOutputTokens !== undefined ||
-      semanticEagerness
-    if (!hasConfig) return
+      semanticEagerness ||
+      providerOptions
+    if (!hasConfig) return null
 
     // `RealtimeToolConfig.inputSchema`/`outputSchema` are `Record<string, any>`
     // (no `undefined` under `exactOptionalPropertyTypes`). Conditionally spread
@@ -685,7 +790,7 @@ export class RealtimeClient {
     // `RealtimeSessionConfig` declares each field as `field?: T` (no
     // `undefined`). Spread each one conditionally so we don't violate
     // `exactOptionalPropertyTypes` when the source is `T | undefined`.
-    this.connection.updateSession({
+    return {
       ...(instructions !== undefined ? { instructions } : {}),
       ...(voice !== undefined ? { voice } : {}),
       ...(vadMode !== undefined ? { vadMode } : {}),
@@ -694,7 +799,8 @@ export class RealtimeClient {
       ...(temperature !== undefined ? { temperature } : {}),
       ...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
       ...(semanticEagerness !== undefined ? { semanticEagerness } : {}),
-    })
+      ...(providerOptions !== undefined ? { providerOptions } : {}),
+    }
   }
 
   private generateId(): string {

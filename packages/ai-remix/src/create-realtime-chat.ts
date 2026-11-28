@@ -82,15 +82,36 @@ export function createRealtimeChat(
   // (`field?: T`) and `exactOptionalPropertyTypes` rejects passing
   // `undefined` for absent values.
   const client = new RealtimeClient({
-    getToken: () => options.getToken(),
-    adapter: {
-      get provider() {
-        return options.adapter.provider
-      },
-      connect(token, tools) {
-        return options.adapter.connect(token, tools)
-      },
-    },
+    // A relay adapter takes `createSession`. A token adapter takes `getToken`.
+    ...(options.createSession
+      ? {
+          createSession: (request, abortSignal) =>
+            options.createSession(request, abortSignal),
+          adapter: {
+            kind: 'relay',
+            get provider() {
+              return options.adapter.provider
+            },
+            connect(createSession, tools, connectOptions) {
+              return options.adapter.connect(
+                createSession,
+                tools,
+                connectOptions,
+              )
+            },
+          },
+        }
+      : {
+          getToken: () => options.getToken(),
+          adapter: {
+            get provider() {
+              return options.adapter.provider
+            },
+            connect(token, tools, connectOptions) {
+              return options.adapter.connect(token, tools, connectOptions)
+            },
+          },
+        }),
     ...(options.tools !== undefined && { tools: options.tools }),
     ...(options.instructions !== undefined && {
       instructions: options.instructions,

@@ -967,7 +967,13 @@
           "label": "Realtime Voice Chat",
           "to": "media/realtime-chat",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-23"
+        },
+        {
+          "label": "GPT-Live Voice",
+          "to": "media/live-voice",
+          "addedAt": "2026-11-23",
+          "updatedAt": "2026-11-27"
         },
         {
           "label": "Text-to-Speech",
@@ -1825,7 +1831,7 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-20"
+          "updatedAt": "2026-11-23"
         },
         {
           "label": "OpenAI: Advanced",

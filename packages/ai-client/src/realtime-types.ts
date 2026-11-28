@@ -3,6 +3,9 @@ import type {
   RealtimeAdapter,
   RealtimeMessage,
   RealtimeMode,
+  RealtimeRelayAdapter,
+  RealtimeSessionAnswer,
+  RealtimeSessionRequest,
   RealtimeStatus,
   RealtimeToken,
 } from '@tanstack/ai/client'
@@ -13,20 +16,9 @@ import type { UsageInfo } from '@tanstack/ai'
 // ============================================================================
 
 /**
- * Options for the RealtimeClient
+ * Options for the RealtimeClient that do not depend on the adapter kind
  */
-export interface RealtimeClientOptions {
-  /**
-   * Function to fetch a realtime token from the server.
-   * Called on connect and when token needs refresh.
-   */
-  getToken: () => Promise<RealtimeToken>
-
-  /**
-   * The realtime adapter to use (e.g., openaiRealtime())
-   */
-  adapter: RealtimeAdapter
-
+export interface RealtimeClientBaseOptions {
   /**
    * Client-side tools with execution logic
    */
@@ -93,6 +85,44 @@ export interface RealtimeClientOptions {
   onUsage?: (usage: UsageInfo) => void
   onGoAway?: (timeLeft?: string) => void
 }
+
+/**
+ * Options for the RealtimeClient.
+ * Give a token adapter with `getToken`, or a relay adapter with `createSession`.
+ */
+export type RealtimeClientOptions = RealtimeClientBaseOptions &
+  (
+    | {
+        /**
+         * The realtime adapter to use (e.g., openaiRealtime())
+         */
+        adapter: RealtimeAdapter
+        /**
+         * Function to fetch a realtime token from the server.
+         * Called on connect and when token needs refresh.
+         */
+        getToken: () => Promise<RealtimeToken>
+        createSession?: never
+      }
+    | {
+        /**
+         * The relay adapter to use (e.g., openaiLive())
+         */
+        adapter: RealtimeRelayAdapter
+        /**
+         * Sends the SDP offer and the client config to your server.
+         * Your server gives the request to `realtimeSession()` and returns
+         * the answer. Called once on each connect.
+         * Pass `abortSignal` to that request. A cancelled connect then stops
+         * before the provider opens a billed session.
+         */
+        createSession: (
+          request: RealtimeSessionRequest,
+          abortSignal?: AbortSignal,
+        ) => Promise<RealtimeSessionAnswer>
+        getToken?: never
+      }
+  )
 
 // ============================================================================
 // Client State
