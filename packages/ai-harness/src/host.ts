@@ -25,6 +25,7 @@ import {
   createInputId,
   createMessageId,
   offeredInputRecord,
+  settledMessages,
   storedUser,
 } from './session/helpers'
 import { observedSession } from './session/observed-session'
@@ -1503,24 +1504,6 @@ function keptRecordsOf(harness: AnyHarness) {
   return keep
 }
 
-/**
- * The messages of `messages` up to the last point where each tool call has
- * its result. A running turn can have a call with no result yet: it does
- * not move.
- */
-function settledMessages(messages: ReadonlyArray<ModelMessage>) {
-  const open = new Set<string>()
-  let end = 0
-  messages.forEach((message, index) => {
-    for (const call of message.toolCalls ?? []) open.add(call.id)
-    if (message.role === 'tool' && message.toolCallId) {
-      open.delete(message.toolCallId)
-    }
-    if (open.size === 0) end = index + 1
-  })
-  return messages.slice(0, end)
-}
-
 /** One link of the index `metadata` of a transfer. */
 interface TransferMetadataLink {
   transferId: string
@@ -2779,7 +2762,15 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
    */
   const forkInto = async <THarness extends AnyHarness>(
     harness: THarness,
-    { threadId, newThreadId, at, user }: ForkSessionOptions<U>,
+    {
+      threadId,
+      newThreadId,
+      at,
+      user,
+    }: Omit<ForkSessionOptions<U>, 'at'> & {
+      // `{ before: id }` is the point of `host.sessions.fork`.
+      at?: string | null | { before: string }
+    },
   ) => {
     if (newThreadId === threadId) {
       throw new Error('A fork needs a new thread: newThreadId is threadId.')
@@ -2797,15 +2788,21 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
       // become the owner of a source with no owner.
       const source = await openSession(harness, { threadId }, tenantId)
       const transcript = await source.transcript()
+      // Of messages that share the id, such as the parts of one seeded UI
+      // message, `before` cuts before the first one, and an id copies
+      // through the last one: see `revert`.
       const end =
         at === undefined
           ? transcript.length
           : at === null
             ? 0
-            : transcript.findIndex((message) => message.id === at) + 1
-      if (typeof at === 'string' && end === 0) {
+            : typeof at === 'string'
+              ? transcript.findLastIndex((message) => message.id === at) + 1
+              : transcript.findIndex((message) => message.id === at.before)
+      if (at && (typeof at === 'string' ? end === 0 : end === -1)) {
+        const id = typeof at === 'string' ? at : at.before
         throw new Error(
-          `Thread ${JSON.stringify(threadId)} has no message ${JSON.stringify(at)}.`,
+          `Thread ${JSON.stringify(threadId)} has no message ${JSON.stringify(id)}.`,
         )
       }
       // The new thread is a new root, so its log is its own.
@@ -3521,44 +3518,14 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
           user,
         })
         checkHarness(source, harness)
-        // `host.fork` takes the last message to copy, so `before` becomes
-        // the message just before it, or `null` before the first one.
-        let last: string | null = 'through' in at ? at.through : null
-        // The source stays open from the read of `before` to the fork.
-        const sourceKey = sessionKey(harness.name, tenantId, threadId)
-        hold(sourceKey)
-        let forked: SessionImpl
-        try {
-          if ('before' in at) {
-            // With no user, as `host.fork` opens the source.
-            const opened = await openSession(harness, { threadId }, tenantId)
-            const transcript = await opened.transcript()
-            const position = transcript.findIndex(({ id }) => id === at.before)
-            if (position === -1) {
-              throw new Error(
-                `The transcript has no message with id ${at.before}.`,
-              )
-            }
-            if (position > 0) {
-              const previous = transcript[position - 1]?.id
-              if (!previous) {
-                throw new Error(`The message before ${at.before} has no id.`)
-              }
-              last = previous
-            }
-          }
-          const { fork, key } = await forkInto(harness, {
-            threadId,
-            newThreadId: `thread-${crypto.randomUUID()}`,
-            at: last,
-            ...(user ? { user } : {}),
-          })
-          forked = fork
-          // No handle takes the fork: it closes on idle.
-          await release(key)
-        } finally {
-          await release(sourceKey)
-        }
+        const { fork: forked, key } = await forkInto(harness, {
+          threadId,
+          newThreadId: `thread-${crypto.randomUUID()}`,
+          at: 'before' in at ? { before: at.before } : at.through,
+          ...(user ? { user } : {}),
+        })
+        // No handle takes the fork: it closes on idle.
+        await release(key)
         const mode =
           members ??
           (access ? (access.rules.members?.fork ?? 'self') : undefined)
