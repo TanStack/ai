@@ -25,7 +25,7 @@ A provider is that place. Every provider has the same contract, so your [workspa
 | [Blaxel](https://blaxel.ai) | `@tanstack/ai-sandbox-blaxel` | Cloud sandbox | `BL_API_KEY` and `BL_WORKSPACE`, or a Blaxel CLI login. |
 | [E2B](https://e2b.dev) | `@tanstack/ai-sandbox-e2b` | microVM | `E2B_API_KEY` |
 | [boxd](https://boxd.sh) | `@tanstack/ai-sandbox-boxd` | microVM | `BOXD_API_KEY` and `BOXD_ORG`. |
-| [Railway](https://railway.com) | `@tanstack/ai-sandbox-railway` | microVM | `RAILWAY_API_TOKEN` or `RAILWAY_TOKEN`, and an environment. |
+| [Railway](https://railway.com) | `@tanstack/ai-sandbox-railway` | microVM | A project token in `RAILWAY_TOKEN`, or `RAILWAY_API_TOKEN` and `RAILWAY_ENVIRONMENT_ID`. |
 | [Cloudflare](./cloudflare) | `@tanstack/ai-sandbox-cloudflare` | Container | A `Sandbox` Durable Object binding in a Worker. |
 
 2. Install its package. This example installs the Docker provider. Use the package from your row.

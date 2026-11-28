@@ -129,6 +129,13 @@ describe('registries', () => {
     delete process.env.RAILWAY_API_TOKEN
     delete process.env.RAILWAY_ENVIRONMENT_ID
   })
+
+  it('keeps the Railway token out of the sandbox', () => {
+    // A provider's `requiredEnv` is copied into the sandbox as secrets.
+    // Railway's token can manage the account, so `envCheck` validates it
+    // host-side instead.
+    expect(PROVIDERS.railway.requiredEnv).toEqual([])
+  })
 })
 
 describe('buildTriagePrompt', () => {

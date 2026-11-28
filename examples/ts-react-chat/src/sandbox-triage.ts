@@ -335,7 +335,9 @@ export const PROVIDERS: Record<ProviderName, ProviderSpec> = {
       ),
     // A project token (RAILWAY_TOKEN) carries its environment. An
     // account/workspace token (RAILWAY_API_TOKEN) also needs the environment.
-    requiredEnv: ['RAILWAY_API_TOKEN', 'RAILWAY_ENVIRONMENT_ID'],
+    // `envCheck` validates them. They stay host-side: listing them here would
+    // copy a token that can manage the Railway account into the sandbox.
+    requiredEnv: [],
     envCheck: () => [
       ...(!process.env.RAILWAY_TOKEN && !process.env.RAILWAY_API_TOKEN
         ? ['RAILWAY_TOKEN (or RAILWAY_API_TOKEN)']

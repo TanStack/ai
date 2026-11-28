@@ -189,5 +189,6 @@ for (const checkpoint of await Sandbox.checkpoints()) {
   watching falls back to polling.
 - **No egress allowlist.** Both network modes keep public internet egress.
 - **Live tests need credentials.** `tests/railway.test.ts` and the journal
-  conformance suite run only with `RAILWAY_API_TOKEN` or `RAILWAY_TOKEN` plus
-  `RAILWAY_ENVIRONMENT_ID`; without them they report a named skip.
+  conformance suite run only with a project token in `RAILWAY_TOKEN`, or with
+  `RAILWAY_API_TOKEN` plus `RAILWAY_ENVIRONMENT_ID`; without them they report a
+  named skip.
