@@ -72,7 +72,7 @@
     }
   },
   "dependencies": {
-    "@mistralai/mistralai": "2.2.0",
+    "@mistralai/mistralai": "2.7.0",
     "@tanstack/ai-utils": "workspace:^"
   }
 }

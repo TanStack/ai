@@ -68,7 +68,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.135.0",
+    "@anthropic-ai/sdk": "^0.137.0",
     "@tanstack/ai-utils": "workspace:^"
   },
   "peerDependencies": {
@@ -81,7 +81,7 @@
     }
   },
   "devDependencies": {
-    "@anthropic-ai/vertex-sdk": "^0.19.0",
+    "@anthropic-ai/vertex-sdk": "^0.22.0",
     "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.1.12",
     "zod": "^4.2.0"
