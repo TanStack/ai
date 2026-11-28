@@ -3591,6 +3591,118 @@ describe('ChatClient', () => {
       ])
       client.unsubscribe()
     })
+
+    it('clears failed continuation anchor when setMessagesManually() replaces the transcript', async () => {
+      const sent: Array<Array<string>> = []
+      let call = 0
+      const connection: ConnectConnectionAdapter = {
+        async *connect(messages, _data, _signal, ctx) {
+          call++
+          sent.push(uiMessagesToWire(messages).map((m) => `${m.role}:${m.id}`))
+          if (call === 1) {
+            yield {
+              type: EventType.RUN_STARTED,
+              runId: ctx!.runId,
+              threadId: ctx!.threadId,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_START,
+              toolCallId: 'tc1',
+              toolCallName: 'approve',
+              parentMessageId: 'a1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: 'tc1',
+              delta: '{}',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TOOL_CALL_END,
+              toolCallId: 'tc1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.RUN_FINISHED,
+              runId: ctx!.runId,
+              threadId: ctx!.threadId,
+              finishReason: 'tool_calls',
+              timestamp: Date.now(),
+            }
+            return
+          }
+          if (call === 2) {
+            throw new Error('continuation boom')
+          }
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: ctx!.runId,
+            threadId: ctx!.threadId,
+            timestamp: Date.now(),
+          }
+          yield* createTextChunks('Regenerated answer', 'a3')
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId: ctx!.runId,
+            threadId: ctx!.threadId,
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          }
+        },
+      }
+
+      const client = new ChatClient({
+        threadId: 'thread-set-messages-clears-anchor',
+        connection,
+        tools: [
+          {
+            name: 'approve',
+            description: 'approve action',
+            __toolSide: 'client',
+          },
+        ],
+      })
+
+      await client.sendMessage('do it')
+      await client.addToolResult({
+        toolCallId: 'tc1',
+        tool: 'approve',
+        output: { approved: true },
+        state: 'output-available',
+      })
+      expect(client.getError()?.message).toBe('continuation boom')
+
+      const snapshot = client.getMessages()
+      client.setMessagesManually([
+        ...snapshot.slice(0, 2),
+        {
+          id: 'a2',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'Completed later answer' }],
+        },
+        {
+          id: 'u2',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Next prompt' }],
+        },
+        {
+          id: 'a2-reply',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'Stale reply' }],
+        },
+      ])
+
+      await client.reload()
+      expect(sent[2]).toEqual([
+        expect.stringMatching(/^user:/),
+        'assistant:a1',
+        'tool:tool-tc1',
+        'assistant:a2',
+        'user:u2',
+      ])
+    })
   })
 
   describe('stop', () => {

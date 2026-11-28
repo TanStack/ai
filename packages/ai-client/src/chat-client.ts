@@ -4458,6 +4458,7 @@ export class ChatClient<
    * Manually set messages
    */
   setMessagesManually(messages: ReadonlyArray<UIMessage<TTools>>): void {
+    this.failedToolContinuationAnchorId = null
     const hadResume =
       this.lastResume !== null ||
       this.rejoinRunId !== null ||
