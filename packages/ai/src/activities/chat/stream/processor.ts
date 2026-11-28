@@ -1725,7 +1725,7 @@ export class StreamProcessor {
       pendingRun !== undefined &&
       targetRun !== undefined &&
       pendingRun !== targetRun
-    if (pendingId && !separateRuns) {
+    if (uiRole === 'assistant' && pendingId && !separateRuns) {
       this.pendingManualMessageId = null
 
       if (pendingId !== messageId) {

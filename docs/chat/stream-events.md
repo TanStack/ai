@@ -80,6 +80,8 @@ Start with these:
 | `TOOL_CALL_START` / `ARGS` / `END` | `toolCallId`, `toolCallName`, args `delta` |
 | `RUN_FINISHED` / `RUN_ERROR` | usage and finish reason |
 
+Give each message its own `messageId` and set its `role` on `TEXT_MESSAGE_START`. User and system messages stay separate from the assistant message during streamed reasoning.
+
 A rate-limited `RUN_ERROR` also says how long to wait. See [Rate limits](#rate-limits). For the provider response id, see [Read the provider response identity](#read-the-provider-response-identity).
 
 Later, as you need them:
