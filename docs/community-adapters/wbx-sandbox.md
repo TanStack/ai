@@ -19,16 +19,18 @@ It is a `SandboxProvider`, the same contract as the bundled [providers](../sandb
 
 ## 1. Install
 
+The example below uses the Grok Build harness. Install the harness package that you use.
+
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @wbx-sandbox/tanstack-ai @tanstack/ai @tanstack/ai-sandbox
-vue: @wbx-sandbox/tanstack-ai @tanstack/ai @tanstack/ai-sandbox
-solid: @wbx-sandbox/tanstack-ai @tanstack/ai @tanstack/ai-sandbox
-svelte: @wbx-sandbox/tanstack-ai @tanstack/ai @tanstack/ai-sandbox
-preact: @wbx-sandbox/tanstack-ai @tanstack/ai @tanstack/ai-sandbox
-angular: @wbx-sandbox/tanstack-ai @tanstack/ai @tanstack/ai-sandbox
-vanilla: @wbx-sandbox/tanstack-ai @tanstack/ai @tanstack/ai-sandbox
-octane: @wbx-sandbox/tanstack-ai @tanstack/ai @tanstack/ai-sandbox
+react: @wbx-sandbox/tanstack-ai @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox
+vue: @wbx-sandbox/tanstack-ai @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox
+solid: @wbx-sandbox/tanstack-ai @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox
+svelte: @wbx-sandbox/tanstack-ai @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox
+preact: @wbx-sandbox/tanstack-ai @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox
+angular: @wbx-sandbox/tanstack-ai @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox
+vanilla: @wbx-sandbox/tanstack-ai @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox
+octane: @wbx-sandbox/tanstack-ai @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox
 
 <!-- ::end:tabs -->
 
@@ -80,9 +82,15 @@ const stream = chat({
   ],
   middleware: [withSandbox(repoSandbox)],
 })
+
+for await (const chunk of stream) {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+    process.stdout.write(chunk.delta)
+  }
+}
 ```
 
-The agent now clones the repo, installs the dependencies, and works in its own microVM. If the sandbox of this thread is gone later, the framework restores the snapshot from after setup and skips the install.
+The agent starts when you read the stream. It clones the repo, installs the dependencies, and works in its own microVM. If the sandbox of this thread is gone later, the framework restores the snapshot from after setup and skips the install.
 
 ## What the provider supports
 
