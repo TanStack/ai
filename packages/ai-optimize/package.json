@@ -46,11 +46,11 @@
     "@tanstack/ai": "workspace:^"
   },
   "devDependencies": {
-    "@modelcontextprotocol/client": "^2.0.0",
-    "@modelcontextprotocol/server": "^2.0.0",
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@modelcontextprotocol/server": "^2.4.0",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-mcp": "workspace:*",
     "@vitest/coverage-v8": "4.1.12",
-    "zod": "^4.2.0"
+    "zod": "^4.6.7"
   }
 }
