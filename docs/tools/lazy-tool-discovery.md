@@ -193,6 +193,44 @@ async function handleRequest(request: Request) {
 - The default `'none'` keeps the catalog as short as possible.
 - Code Mode `createCodeMode()` takes the same option. See [Code Mode Lazy Tools](../code-mode/lazy-tools).
 
+### Find tools by search
+
+Set `lazyToolsConfig.catalog` to `'search'`. The discovery tool then lists no tool names, and the model finds tools with a query:
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { getProducts, compareProducts, calculateFinancing } from "./tools";
+
+async function handleRequest(request: Request) {
+  const { messages, threadId } = await request.json();
+  const stream = chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    messages,
+    threadId,
+    tools: [getProducts, compareProducts, calculateFinancing],
+    lazyToolsConfig: { catalog: "search" },
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+The model calls the discovery tool with a query:
+
+```
+__lazy__tool__discovery__({ query: "monthly payment plan" })
+```
+
+- The result has the 10 best matching lazy tools, with their full descriptions and argument schemas. A tool scores one point for each query word in its name or description.
+- On the next step, those tools are normal tools, the same as after a discovery by name.
+- The model can still pass `toolNames` when it knows a name.
+- `includeDescription` has no effect, because the catalog lists no tools.
+
+Each listed name costs tokens on every request. Use `'search'` when you have hundreds of lazy tools.
+
+To rank tools the same way in your own code, call `searchLazyTools(tools, query)` from `@tanstack/ai`.
+
 ### Several turns
 
 A tool that the model found in one turn stays available in the next turns of the same conversation. The model does not need to find it again. On each `chat()` call, TanStack AI reads the earlier discovery results in the message history.

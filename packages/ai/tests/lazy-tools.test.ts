@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { firstSentence, renderLazyCatalogEntry } from '../src/index'
+import {
+  firstSentence,
+  renderLazyCatalogEntry,
+  searchLazyTools,
+} from '../src/index'
 
 describe('firstSentence', () => {
   it('returns the first sentence ending in a period', () => {
@@ -56,5 +60,41 @@ describe('renderLazyCatalogEntry', () => {
     expect(renderLazyCatalogEntry('fetchWeather', '', 'full')).toBe(
       'fetchWeather',
     )
+  })
+})
+
+describe('searchLazyTools', () => {
+  const tools = [
+    { name: 'search_inventory', description: 'Search the guitar inventory.' },
+    { name: 'checkStock', description: 'Check stock level for a guitar.' },
+    { name: 'send_email', description: 'Send an email.' },
+  ]
+
+  it('ranks tools by how many query words they match', () => {
+    expect(
+      searchLazyTools(tools, 'check guitar stock').map((t) => t.name),
+    ).toEqual(['checkStock', 'search_inventory'])
+  })
+  it('splits names at underscores and camelCase', () => {
+    expect(searchLazyTools(tools, 'email').map((t) => t.name)).toEqual([
+      'send_email',
+    ])
+    expect(searchLazyTools(tools, 'STOCK').map((t) => t.name)).toEqual([
+      'checkStock',
+    ])
+  })
+  it('returns nothing when no word matches', () => {
+    expect(searchLazyTools(tools, 'weather')).toEqual([])
+  })
+  it('returns at most `limit` tools', () => {
+    expect(searchLazyTools(tools, 'guitar', 1)).toHaveLength(1)
+  })
+  it('matches Unicode letters in a query and description', () => {
+    expect(
+      searchLazyTools(
+        [{ name: 'weather', description: 'Прогноз погоды' }],
+        'погоды',
+      ).map((t) => t.name),
+    ).toEqual(['weather'])
   })
 })

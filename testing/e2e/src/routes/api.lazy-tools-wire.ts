@@ -23,6 +23,9 @@ const DUMMY_KEY = 'sk-e2e-test-dummy-key'
  * inspect aimock's journal (`GET /v1/_requests`) and assert the discovery
  * tool's catalog description actually crossed the wire with the configured
  * detail level. The model response is irrelevant to the assertion.
+ *
+ * With `catalog=search` the catalog lists no names, and the scripted model
+ * finds `check_stock` with a query, then calls it.
  */
 const searchInventory = toolDefinition({
   name: 'search_inventory',
@@ -57,6 +60,9 @@ export const Route = createFileRoute('/api/lazy-tools-wire')({
             ? (rawInclude as NonNullable<LazyToolsConfig['includeDescription']>)
             : 'none'
 
+        // `catalog=search` lists no names: the model finds a tool by query.
+        const search = url.searchParams.get('catalog') === 'search'
+
         const adapter = createOpenaiChat('gpt-5.5', DUMMY_KEY, {
           baseURL: `${LLMOCK_DEFAULT_BASE}/v1`,
           defaultHeaders: testId ? { 'X-Test-Id': testId } : undefined,
@@ -69,11 +75,15 @@ export const Route = createFileRoute('/api/lazy-tools-wire')({
             messages: [
               {
                 role: 'user',
-                content: '[lazy-wire] discover and describe inventory tools',
+                content: search
+                  ? '[lazy-wire-search] find the tool that checks stock'
+                  : '[lazy-wire] discover and describe inventory tools',
               },
             ],
             tools: [searchInventory, checkStock],
-            lazyToolsConfig: { includeDescription },
+            lazyToolsConfig: search
+              ? { catalog: 'search' }
+              : { includeDescription },
           })) {
             // Drain the stream.
           }

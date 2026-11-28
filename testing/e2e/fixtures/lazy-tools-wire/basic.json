@@ -7,6 +7,43 @@
       "response": {
         "content": "Here are the inventory tools."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[lazy-wire-search] find the tool that checks stock",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "__lazy__tool__discovery__",
+            "arguments": "{\"query\":\"check stock level\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[lazy-wire-search] find the tool that checks stock",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "check_stock",
+            "arguments": "{\"guitarId\":1}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[lazy-wire-search] find the tool that checks stock",
+        "sequenceIndex": 2
+      },
+      "response": {
+        "content": "Guitar 1 is in stock."
+      }
     }
   ]
 }

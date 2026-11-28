@@ -41,8 +41,14 @@ export function createCodeModeSystemPrompt(config: CodeModeToolConfig): string {
     .join('\n')
 
   const discoverableSection =
-    lazyTools.length > 0
+    lazyTools.length > 0 && config.lazyToolsConfig?.catalog === 'search'
       ? `
+
+### Discoverable APIs
+
+More functions are available but not listed. To find them, call the \`discover_tools\` tool with a \`query\` that says what you need to do. It returns the best matching \`external_<name>\` functions with their full TypeScript signatures. \`discover_tools\` is a separate tool call. It is not available inside \`execute_typescript\`.`
+      : lazyTools.length > 0
+        ? `
 
 ### Discoverable APIs
 
@@ -54,7 +60,7 @@ ${lazyTools
       `- ${renderLazyCatalogEntry(`external_${t.name}`, t.description, include)}`,
   )
   .join('\n')}`
-      : ''
+        : ''
 
   return `## Code Execution Tool
 

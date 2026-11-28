@@ -85,7 +85,7 @@ Agent loop and tools:
 | `toolExecution` | `"parallel"` (default) or `"sequential"`: how the server tools of one model turn run. |
 | `repairToolInput` | How a tool input that fails the final check is repaired. `false` turns repair off. A function replaces it. |
 | `retry` | Retries a rate-limited model call after the wait the provider asks for, for example `{ maxRetries: 3 }`. |
-| `lazyToolsConfig` | How much of each lazy tool description goes into the discovery catalog. See [Lazy Tool Discovery](../tools/lazy-tool-discovery). |
+| `lazyToolsConfig` | How much of each lazy tool description goes into the discovery catalog, or `catalog: 'search'` to list no tools and find them by query. See [Lazy Tool Discovery](../tools/lazy-tool-discovery). |
 | `mcp` | MCP clients or pools. Their tools join the run. See [MCP](../tools/mcp). |
 | `interrupts` | Definitions from `defineInterrupt()`. See [Generic Interrupts](../interrupts/generic). |
 | `subagents` | Named child agents from `defineAgent()`. See [Subagents](../chat/subagents). |

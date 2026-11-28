@@ -541,6 +541,7 @@ export type { Scope } from './scope'
 export {
   firstSentence,
   renderLazyCatalogEntry,
+  searchLazyTools,
 } from './activities/chat/tools/lazy-tools'
 
 // Usage utilities
