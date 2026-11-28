@@ -2,7 +2,7 @@
 title: Providers
 id: providers
 order: 3
-description: "Pick where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, Vercel, Sprites, Upstash Box, Blaxel, E2B, boxd, Railway, or Cloudflare), install it, and configure it."
+description: "Pick where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, Vercel, Modal, Sprites, Upstash Box, Blaxel, E2B, boxd, Railway, or Cloudflare), install it, and configure it."
 ---
 
 A provider is where the sandbox runs: a local process for a fast loop, or an isolated VM in production.
@@ -20,6 +20,7 @@ A provider is that place. Every provider has the same contract, so your [workspa
 | Docker Sandboxes (`sbx`) | `@tanstack/ai-sandbox-docker` | microVM | The `sbx` CLI, `sbx login`, and a hypervisor. |
 | [Daytona](https://www.daytona.io/) | `@tanstack/ai-sandbox-daytona` | Cloud sandbox | `DAYTONA_API_KEY` |
 | [Vercel](https://vercel.com/docs/sandbox) | `@tanstack/ai-sandbox-vercel` | microVM | `VERCEL_TOKEN`, a team, and a project. |
+| [Modal](https://modal.com/docs/guide/sandbox) | `@tanstack/ai-sandbox-modal` | Cloud sandbox | `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`. |
 | [Sprites](https://sprites.dev) | `@tanstack/ai-sandbox-sprites` | Stateful sandbox | `SPRITES_API_KEY` |
 | [Upstash Box](https://github.com/upstash/box) | `@tanstack/ai-sandbox-upstash-box` | Cloud sandbox | `UPSTASH_BOX_API_KEY` |
 | [Blaxel](https://blaxel.ai) | `@tanstack/ai-sandbox-blaxel` | Cloud sandbox | `BL_API_KEY` and `BL_WORKSPACE`, or a Blaxel CLI login. |
@@ -76,6 +77,7 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import { dockerSandbox, sbxSandbox } from '@tanstack/ai-sandbox-docker'
 import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
 import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
+import { modalSandbox } from '@tanstack/ai-sandbox-modal'
 import { spritesSandbox } from '@tanstack/ai-sandbox-sprites'
 import { upstashBoxSandbox } from '@tanstack/ai-sandbox-upstash-box'
 import { blaxelSandbox } from '@tanstack/ai-sandbox-blaxel'
@@ -88,6 +90,7 @@ const isolated = dockerSandbox({ image: 'node:22' }) // container
 const microvm = sbxSandbox() // Docker Sandboxes microVM
 const daytona = daytonaSandbox({ apiKey: process.env.DAYTONA_API_KEY })
 const vercel = vercelSandbox({ runtime: 'node24' })
+const modal = modalSandbox({ appName: 'tanstack-ai-agent' })
 const sprites = spritesSandbox({ apiKey: process.env.SPRITES_API_KEY })
 const box = upstashBoxSandbox({ apiKey: process.env.UPSTASH_BOX_API_KEY })
 const blaxel = blaxelSandbox() // uses the API key or the CLI login
