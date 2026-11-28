@@ -1,5 +1,6 @@
 import type { AuthInfo } from '@tanstack/ai-mcp/server'
 import type { IsolateDriver, ToolBinding } from '@tanstack/ai-code-mode'
+import type { RuntimeContextField } from '@tanstack/ai'
 
 export type { AuthInfo, IsolateDriver, ToolBinding }
 
@@ -45,26 +46,31 @@ export interface Manifest {
   unreviewed?: boolean
 }
 
-/** Context a facade receives on every call. */
-export interface FacadeContext {
-  authInfo: AuthInfo
-  clientId: string
-  signal?: AbortSignal
-}
+/**
+ * Context a facade receives on every call. `context` is the host's request
+ * context, e.g. `chat({ context })` for a `sandboxedChatTool`. It is required
+ * when `TContext` is known, and it never enters the isolate.
+ */
+export type FacadeContext<TContext = unknown> =
+  RuntimeContextField<TContext> & {
+    authInfo: AuthInfo
+    clientId: string
+    signal?: AbortSignal
+  }
 
 /**
  * A host-side capability. Narrow and typed: the snippet calls it as
  * `host.<namespace>.<fn>(input)`. Secrets and backend URLs live in the
  * closure here, never in the isolate.
  */
-export interface Facade {
+export interface Facade<TContext = unknown> {
   description?: string
   inputSchema?: Record<string, unknown>
-  execute: (args: unknown, ctx: FacadeContext) => Promise<unknown>
+  execute: (args: unknown, ctx: FacadeContext<TContext>) => Promise<unknown>
 }
 
 /** Facades keyed by the dotted name used in `Manifest.inject`. */
-export type Facades = Record<string, Facade>
+export type Facades<TContext = unknown> = Record<string, Facade<TContext>>
 
 /**
  * Per-client capability filter. Return the subset of declared facade names

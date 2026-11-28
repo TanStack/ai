@@ -5,6 +5,15 @@ export {
   ScopeDeniedError,
 } from './sandboxed-tool'
 
+// Unscoped core: run a snippet in an isolate with injected facades + limits,
+// without the MCP scope/manifest layer. For chat tools and server functions.
+export { runSandboxed } from './run'
+export type { JsonValue, RunSandboxedOptions, SandboxRunResult } from './run'
+
+// Convenience: a sandboxed snippet → a plain ServerTool for `chat({ tools })`.
+export { sandboxedChatTool } from './chat-tool'
+export type { SandboxedChatToolConfig } from './chat-tool'
+
 // Manifest: hashing, canonical-JSON signing (optional), keygen.
 export {
   hashSnippet,

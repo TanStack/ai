@@ -1,0 +1,6 @@
+---
+'@tanstack/ai-mcp-sandbox': minor
+'@tanstack/ai': patch
+---
+
+Add `runSandboxed()` and `sandboxedChatTool()`: run an untrusted snippet in an isolate with injected facades and hard limits, for `chat()` tools and server functions. These are the unscoped siblings of the MCP-only `sandboxedTool()` (no OAuth scope gate or manifest). Facades get the `chat({ context })` value as `ctx.context`, which is required when the context type is known. A run's `value` is typed `JsonValue | undefined`, and an abort through `signal` throws its reason. `@tanstack/ai` now exports `RuntimeContextField`.

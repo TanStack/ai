@@ -16,6 +16,7 @@ Choose an example based on your use case:
 - **Want typed ticket routing?** → [Evaluate](#evaluate)
 - **Want a blog desk with three agents?** → [Subagents](#subagents)
 - **Want your own MCP server?** → [MCP server](#mcp-server)
+- **Want to sandbox untrusted tool or endpoint code?** → [Secure Sandbox Tools](#secure-sandbox-tools)
 - **Want an agent in the terminal?** → [Harness CLI](#harness-cli)
 - **Want a signed MCP webhook?** → [MCP Events](#mcp-events)
 - **Want the model to use a web page?** → [Computer Use](#computer-use)
@@ -205,6 +206,24 @@ pnpm --filter mcp-server dev
 Open http://localhost:3100. Click Call the server.
 
 📖 [Full Documentation](react/mcp-server/README.md)
+
+---
+
+### Secure Sandbox Tools
+
+A slim TanStack Start app. One provider (OpenAI). A chat tool and a server function each run their body in a QuickJS isolate that can only call the facades you inject.
+
+**Path:** `examples/react/secure-sandbox-tools`
+
+**Getting Started:**
+
+```bash
+pnpm --filter secure-sandbox-tools dev
+```
+
+Open http://localhost:3100. Click the four sandbox buttons. Set `OPENAI_API_KEY` and ask "Is SKU-123 in stock?".
+
+📖 [Full Documentation](react/secure-sandbox-tools/README.md)
 
 ---
 
