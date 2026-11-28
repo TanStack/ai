@@ -132,6 +132,27 @@ const CONTENT_FILTER_REASONS = new Set<FinishReason>([
   FinishReason.IMAGE_RECITATION,
 ])
 
+// Finish reasons where Gemini ended the turn without a usable answer (a
+// function call it could not form, or an unsupported language). Ending these
+// as a normal `stop` would make an agent loop stop silently with no output or
+// tool call, so they end the run with a RUN_ERROR. OTHER stays a normal stop.
+const ABNORMAL_FINISH_REASONS = new Map<FinishReason, [string, string]>([
+  [
+    FinishReason.MALFORMED_FUNCTION_CALL,
+    [
+      'malformed_function_call',
+      'The model produced a malformed function call (finishReason MALFORMED_FUNCTION_CALL).',
+    ],
+  ],
+  [
+    FinishReason.LANGUAGE,
+    [
+      'language',
+      'The model stopped because the response used an unsupported language (finishReason LANGUAGE).',
+    ],
+  ],
+])
+
 const DEFAULT_MEDIA_MIME_TYPES = {
   image: 'image/jpeg',
   audio: 'audio/mp3',
@@ -1282,7 +1303,15 @@ export class GeminiTextAdapter<
         // Close reasoning, and text if we had text content
         yield* closeOpenMessages()
 
-        if (finishReason === FinishReason.MAX_TOKENS) {
+        const abnormal =
+          finishReason === FinishReason.MAX_TOKENS
+            ? ([
+                'max_tokens',
+                'The response was cut off because the maximum token limit was reached.',
+              ] as [string, string])
+            : finishReason && ABNORMAL_FINISH_REASONS.get(finishReason)
+        if (abnormal) {
+          const [errorCode, errorMessage] = abnormal
           // RUN_ERROR ends the run (as in the Anthropic adapter), so it
           // carries the usage and no RUN_FINISHED follows.
           const usage = buildGeminiUsage(seen.usageMetadata)
@@ -1292,14 +1321,9 @@ export class GeminiTextAdapter<
             runId,
             model,
             timestamp: Date.now(),
-            message:
-              'The response was cut off because the maximum token limit was reached.',
-            code: 'max_tokens',
-            error: {
-              message:
-                'The response was cut off because the maximum token limit was reached.',
-              code: 'max_tokens',
-            },
+            message: errorMessage,
+            code: errorCode,
+            error: { message: errorMessage, code: errorCode },
             ...(usage && { usage }),
           }
           continue

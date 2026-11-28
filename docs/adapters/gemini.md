@@ -418,7 +418,7 @@ The Gemini finish reasons that set `"content_filter"`:
 - Text: `SAFETY`, `RECITATION`, `BLOCKLIST`, `PROHIBITED_CONTENT`, and `SPII`.
 - Image: `IMAGE_SAFETY`, `IMAGE_PROHIBITED_CONTENT`, and `IMAGE_RECITATION`.
 
-A filtered structured output ends with `RUN_ERROR` and code `content_filter` instead. A reply cut at `maxOutputTokens` ends with `RUN_ERROR` and code `max_tokens`.
+A filtered structured output ends with `RUN_ERROR` and code `content_filter` instead. A reply cut at `maxOutputTokens` ends with `RUN_ERROR` and code `max_tokens`. A reply the model could not complete ends with `RUN_ERROR` too: `MALFORMED_FUNCTION_CALL` gives code `malformed_function_call` and `LANGUAGE` gives code `language`.
 
 ### Models
 
