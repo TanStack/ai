@@ -18,6 +18,12 @@ Each screen then renders the chat with one hook call. You supply every visible c
 > [!NOTE]
 > Upgrading from `@tanstack/ai-solid-ui`? Read [Upgrade to 1.0](../migration/v1#chat-ui-components).
 
+## Solid 2
+
+For a Solid 2 app, use `@tanstack/ai-solid2` and `@tanstack/ai-solid2/ui`.
+Read the [Solid 2 guide](../framework/solid2) for runtime versions, JSX configuration, and the migration steps.
+This page uses the Solid 1 package.
+
 ## Quick setup
 
 1. Install the packages:
