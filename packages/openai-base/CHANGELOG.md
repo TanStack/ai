@@ -1,5 +1,14 @@
 # @tanstack/openai-base
 
+## 1.1.1
+
+### Patch Changes
+
+- [#2193](https://github.com/TanStack/ai/pull/2193) [`c4cd64e`](https://github.com/TanStack/ai/commit/c4cd64ec3eda5cdc0d3a6f678c0f78fae4db1cc7) - Chat Completions streams keep the `runId` you pass to `chat()`. `RUN_STARTED` and `RUN_FINISHED` use that id, including a later tool-loop finish. When you omit `runId`, the adapter still creates one.
+
+- Updated dependencies [[`92e8799`](https://github.com/TanStack/ai/commit/92e8799d48bb80106234df5d700674f318c56bef), [`e5bb4d5`](https://github.com/TanStack/ai/commit/e5bb4d5e666663664321ea2d3c6cf06176c3d942), [`f25954a`](https://github.com/TanStack/ai/commit/f25954a2867ceacaad11c0a5995ba742e2201934), [`a686f36`](https://github.com/TanStack/ai/commit/a686f360090bec30263ec194742b11333b4d9621), [`c695ada`](https://github.com/TanStack/ai/commit/c695ada5091e7022bf13b235220645ceb65d43b0)]:
+  - @tanstack/ai@1.9.0
+
 ## 1.1.0
 
 ### Minor Changes

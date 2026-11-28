@@ -1,5 +1,15 @@
 # @tanstack/ai-openai
 
+## 1.2.1
+
+### Patch Changes
+
+- [#2208](https://github.com/TanStack/ai/pull/2208) [`b8a0ce6`](https://github.com/TanStack/ai/commit/b8a0ce655266fa5e0c05527904bb79746167d35f) - `openaiImage()` accepts `gpt-image-2.6-flare` and `gpt-image-2.6-sunburst`. Both take sizes `1024x1024`, `1536x1024`, `1024x1536` and `auto`, and `quality` takes `low`, `medium`, `high`, `xhigh`, `max` and `auto`. Before, both ids threw `Unknown image model` before any request was sent.
+
+- Updated dependencies [[`92e8799`](https://github.com/TanStack/ai/commit/92e8799d48bb80106234df5d700674f318c56bef), [`e5bb4d5`](https://github.com/TanStack/ai/commit/e5bb4d5e666663664321ea2d3c6cf06176c3d942), [`c4cd64e`](https://github.com/TanStack/ai/commit/c4cd64ec3eda5cdc0d3a6f678c0f78fae4db1cc7), [`f25954a`](https://github.com/TanStack/ai/commit/f25954a2867ceacaad11c0a5995ba742e2201934), [`a686f36`](https://github.com/TanStack/ai/commit/a686f360090bec30263ec194742b11333b4d9621), [`c695ada`](https://github.com/TanStack/ai/commit/c695ada5091e7022bf13b235220645ceb65d43b0)]:
+  - @tanstack/ai@1.9.0
+  - @tanstack/openai-base@1.1.1
+
 ## 1.2.0
 
 ### Minor Changes

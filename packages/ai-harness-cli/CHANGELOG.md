@@ -1,5 +1,15 @@
 # @tanstack/ai-harness-cli
 
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [[`92e8799`](https://github.com/TanStack/ai/commit/92e8799d48bb80106234df5d700674f318c56bef), [`8856bf6`](https://github.com/TanStack/ai/commit/8856bf63f2305d428f613063c97c68f1219c23f5), [`3e9a35d`](https://github.com/TanStack/ai/commit/3e9a35df8eb725a1a783777ce87335a98eab544e), [`e5bb4d5`](https://github.com/TanStack/ai/commit/e5bb4d5e666663664321ea2d3c6cf06176c3d942), [`a7037a6`](https://github.com/TanStack/ai/commit/a7037a615693b2801e58225c562bcdd158fdbf17), [`1a23e34`](https://github.com/TanStack/ai/commit/1a23e34b49d750ec34450bbc5d276c94291f8100), [`267c2ac`](https://github.com/TanStack/ai/commit/267c2ac6d18d2e56caadcc64323f99437fc73ca7), [`f25954a`](https://github.com/TanStack/ai/commit/f25954a2867ceacaad11c0a5995ba742e2201934), [`a686f36`](https://github.com/TanStack/ai/commit/a686f360090bec30263ec194742b11333b4d9621), [`ca20519`](https://github.com/TanStack/ai/commit/ca205198b06d2a392152b0a91ecc495a0982620c), [`c695ada`](https://github.com/TanStack/ai/commit/c695ada5091e7022bf13b235220645ceb65d43b0)]:
+  - @tanstack/ai@1.9.0
+  - @tanstack/ai-harness@0.5.0
+  - @tanstack/ai-mcp@1.3.2
+  - @tanstack/ai-acp@1.0.4
+
 ## 0.1.3
 
 ### Patch Changes

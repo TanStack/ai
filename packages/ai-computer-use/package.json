@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-computer-use",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "Provider-agnostic computer use for TanStack AI.",
   "author": "",
   "license": "MIT",

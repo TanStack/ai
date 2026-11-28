@@ -1,5 +1,30 @@
 # @tanstack/ai-sandbox
 
+## 1.6.0
+
+### Minor Changes
+
+- [#1982](https://github.com/TanStack/ai/pull/1982) [`d595931`](https://github.com/TanStack/ai/commit/d5959314c65622ba82937837666d98976c250a48) - `sandboxComputer()` takes a `persist.snapshots` option. The driver saves the files of one folder, like a browser profile, when a thread closes or goes idle. It restores them into the next new sandbox of the thread, so a sign-in survives a sandbox that is gone. A kept sandbox that comes back with an empty disk gets them back too. Saves and restores of one thread run one at a time. This works with every provider. Call `saveComputerSnapshot({ sandbox, threadId, snapshots })` to save right away, for example after a sign-in.
+
+  `@tanstack/ai-sandbox` exports `captureSandboxFiles` and `restoreSandboxFiles`, the file capture and restore of portable snapshots.
+
+### Patch Changes
+
+- [#2251](https://github.com/TanStack/ai/pull/2251) [`92e8799`](https://github.com/TanStack/ai/commit/92e8799d48bb80106234df5d700674f318c56bef) - Fix durable interrupt lifecycle bugs across server persistence, harness recovery, client hydration, transport reconnect, and framework adapters:
+  - Commit answered tool approvals before follow-up model calls, guard concurrent duplicate resumes, preserve declined tool outcomes across failures, reset same-`runId` continuations to `'running'`, isolate chat-owned pending interrupts from foreign unbound records, and assign fresh step ids to multi-step `MCPInputRequiredError` prompts.
+  - Prevent mid-continuation interrupt resurrection, clear stale hydrated interrupts, auto-resume hydrated `client-tool-execution` pauses, restore `ToolCallPart` approval state, keep SSE reconnect alive past intermediate `RUN_FINISHED(tool_calls)` chunks, preserve Run 1 tool calls during `joinRun`, and roll back failed approval submissions.
+  - Consume `ai-harness` `permissions()` waits after tool execution, recover pending `resolve` inputs on host restart, persist `permissions()` and `question()` answers across multi-pause restarts, terminate replayed `/run` resume streams, recover live durable-stream 404 responses, and keep sandbox `RunRecord.status` as `'interrupted'` without `finishedAt`.
+  - Preserve pending interrupts across component unmount and thread switch in React, Solid, Vue, Preact, and Angular adapters, and update Solid inline tool interrupt props reactively without remounting tool components.
+  - `ai-persistence` sends an `interrupts:committed` CUSTOM event when it commits the answers of a resume before the follow-up model call. When that model call fails, `ChatClient` keeps the answers used and does not show the approvals again. With `persistence: true`, a failed resume with no such event loads the thread state from the server.
+  - Add `ChatClient.getInterruptDescriptors()`, which returns the raw interrupts of the run, client-tool executions included. React `useChat` uses it, so a pending client tool runs again after a hidden `<Activity>` replaces the client.
+  - `permissions()` and `question()` keep a stored answer only for the call it answers. An answer of a call that never ran is dropped at the next boundary, and a later call that reuses the same tool call id asks again. Each run (the lead turn or one agent run) has its own `permissions()` answers, so the answer of a parallel run never approves a call with the same id.
+
+- Updated dependencies [[`92e8799`](https://github.com/TanStack/ai/commit/92e8799d48bb80106234df5d700674f318c56bef), [`8856bf6`](https://github.com/TanStack/ai/commit/8856bf63f2305d428f613063c97c68f1219c23f5), [`3e9a35d`](https://github.com/TanStack/ai/commit/3e9a35df8eb725a1a783777ce87335a98eab544e), [`e5bb4d5`](https://github.com/TanStack/ai/commit/e5bb4d5e666663664321ea2d3c6cf06176c3d942), [`267c2ac`](https://github.com/TanStack/ai/commit/267c2ac6d18d2e56caadcc64323f99437fc73ca7), [`f25954a`](https://github.com/TanStack/ai/commit/f25954a2867ceacaad11c0a5995ba742e2201934), [`a686f36`](https://github.com/TanStack/ai/commit/a686f360090bec30263ec194742b11333b4d9621), [`ca20519`](https://github.com/TanStack/ai/commit/ca205198b06d2a392152b0a91ecc495a0982620c), [`55f46fe`](https://github.com/TanStack/ai/commit/55f46fe4cc5b4d23c25729a1c3cf22e2755b1c64), [`c695ada`](https://github.com/TanStack/ai/commit/c695ada5091e7022bf13b235220645ceb65d43b0)]:
+  - @tanstack/ai@1.9.0
+  - @tanstack/ai-persistence@1.1.1
+  - @tanstack/ai-harness@0.5.0
+  - @tanstack/ai-skills@1.0.4
+
 ## 1.5.0
 
 ### Minor Changes

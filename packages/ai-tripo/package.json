@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-tripo",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Tripo adapter for TanStack AI 3D model generation.",
   "author": "Tanner Linsley",
   "license": "MIT",

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-uthana",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Uthana adapter for TanStack AI motion generation: text-to-motion skeletal animation (FBX, GLB) retargeted onto your own characters.",
   "author": "Tanner Linsley",
   "license": "MIT",

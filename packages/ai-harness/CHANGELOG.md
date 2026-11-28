@@ -1,5 +1,41 @@
 # @tanstack/ai-harness
 
+## 0.5.0
+
+### Minor Changes
+
+- [#2253](https://github.com/TanStack/ai/pull/2253) [`8856bf6`](https://github.com/TanStack/ai/commit/8856bf63f2305d428f613063c97c68f1219c23f5) - `routing.handoffTool` gets `state` on its context. It is the same function as `ctx.harness.state`, so a custom handoff tool can read and update the shared state of the session.
+
+- [#2145](https://github.com/TanStack/ai/pull/2145) [`ca20519`](https://github.com/TanStack/ai/commit/ca205198b06d2a392152b0a91ecc495a0982620c) - Routed agents now remember their own tool calls, you can pass your own handoff tool, and a `harnessAgent` can be a root agent.
+  - `routing.history` sets what each model call gets of the routed runs of earlier turns. With `'own'` (the default), a routed agent gets its own earlier runs in full, with tool calls and results. It gets the other agents and the main model as labeled text in a user message, for example `main:\n...`. The main model gets the routed answers the same way, so no model reads the words of another speaker as its own. `'all'` gives every speaker every routed run in full. `'text'` gives routed runs as text only, as before.
+  - `routing.handoffTool` makes the handoff tool of each speaker. It gets `from`, `targets`, `allowHuman`, and `handoff`. The tool can have any name and its own fields.
+  - A `harnessAgent` in `agents` with `routing` keeps one child session across turns. Each turn sends it what happened in the thread since its last turn. Its model gets the `handoff` tool, so it can hand back.
+
+  The default `history: 'own'` changes the messages that routed agents and handoff targets get. A target gets the turns of the main model as labeled text. To keep the earlier messages, and the prompt cache of the provider for a handoff target, set `routing: { router, history: 'text' }`.
+
+  An app tool with the name of the handoff tool now replaces the harness tool. Before, the turn failed with a duplicate tool error.
+
+  A handoff from the `handoff` tool of a root agent now adds the note messages to the thread, as a router or code handoff does. Before, the next speaker did not see that the agent handed off. On models that reject a context that ends on an assistant message (new Claude models), the main model failed after a hand-back.
+
+### Patch Changes
+
+- [#2251](https://github.com/TanStack/ai/pull/2251) [`92e8799`](https://github.com/TanStack/ai/commit/92e8799d48bb80106234df5d700674f318c56bef) - Fix durable interrupt lifecycle bugs across server persistence, harness recovery, client hydration, transport reconnect, and framework adapters:
+  - Commit answered tool approvals before follow-up model calls, guard concurrent duplicate resumes, preserve declined tool outcomes across failures, reset same-`runId` continuations to `'running'`, isolate chat-owned pending interrupts from foreign unbound records, and assign fresh step ids to multi-step `MCPInputRequiredError` prompts.
+  - Prevent mid-continuation interrupt resurrection, clear stale hydrated interrupts, auto-resume hydrated `client-tool-execution` pauses, restore `ToolCallPart` approval state, keep SSE reconnect alive past intermediate `RUN_FINISHED(tool_calls)` chunks, preserve Run 1 tool calls during `joinRun`, and roll back failed approval submissions.
+  - Consume `ai-harness` `permissions()` waits after tool execution, recover pending `resolve` inputs on host restart, persist `permissions()` and `question()` answers across multi-pause restarts, terminate replayed `/run` resume streams, recover live durable-stream 404 responses, and keep sandbox `RunRecord.status` as `'interrupted'` without `finishedAt`.
+  - Preserve pending interrupts across component unmount and thread switch in React, Solid, Vue, Preact, and Angular adapters, and update Solid inline tool interrupt props reactively without remounting tool components.
+  - `ai-persistence` sends an `interrupts:committed` CUSTOM event when it commits the answers of a resume before the follow-up model call. When that model call fails, `ChatClient` keeps the answers used and does not show the approvals again. With `persistence: true`, a failed resume with no such event loads the thread state from the server.
+  - Add `ChatClient.getInterruptDescriptors()`, which returns the raw interrupts of the run, client-tool executions included. React `useChat` uses it, so a pending client tool runs again after a hidden `<Activity>` replaces the client.
+  - `permissions()` and `question()` keep a stored answer only for the call it answers. An answer of a call that never ran is dropped at the next boundary, and a later call that reuses the same tool call id asks again. Each run (the lead turn or one agent run) has its own `permissions()` answers, so the answer of a parallel run never approves a call with the same id.
+
+- [#2175](https://github.com/TanStack/ai/pull/2175) [`3e9a35d`](https://github.com/TanStack/ai/commit/3e9a35df8eb725a1a783777ce87335a98eab544e) - A log that gives its ownership back when its sessions have no work now also clears its pending snapshot timer, so the timer no longer stays armed for a snapshot this host cannot write.
+
+- [#2245](https://github.com/TanStack/ai/pull/2245) [`267c2ac`](https://github.com/TanStack/ai/commit/267c2ac6d18d2e56caadcc64323f99437fc73ca7) - A snapshot on a host that does not run the turn now matches the snapshot of the host that runs it. The status is `running` while the log has a running turn. While a `resolve` runs, the interrupts that it answered are not in `pendingWaits`. Before, `host.observe(...).snapshot()` and a session open on another host returned `idle` while a turn ran, and `requires_action` with the answered approval while a resumed turn ran. Behind a load balancer, a client that read its snapshot from another host showed the approval again after the user answered it.
+
+- Updated dependencies [[`92e8799`](https://github.com/TanStack/ai/commit/92e8799d48bb80106234df5d700674f318c56bef), [`e5bb4d5`](https://github.com/TanStack/ai/commit/e5bb4d5e666663664321ea2d3c6cf06176c3d942), [`f25954a`](https://github.com/TanStack/ai/commit/f25954a2867ceacaad11c0a5995ba742e2201934), [`a686f36`](https://github.com/TanStack/ai/commit/a686f360090bec30263ec194742b11333b4d9621), [`c695ada`](https://github.com/TanStack/ai/commit/c695ada5091e7022bf13b235220645ceb65d43b0)]:
+  - @tanstack/ai@1.9.0
+  - @tanstack/ai-persistence@1.1.1
+
 ## 0.4.0
 
 ### Minor Changes
