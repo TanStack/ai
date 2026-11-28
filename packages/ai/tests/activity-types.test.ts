@@ -1,4 +1,9 @@
-import { describe, expectTypeOf, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
+import { z } from 'zod'
+import {
+  defineActivityType,
+  sandboxStatusActivity,
+} from '../src/activity-types'
 import type {
   ActivityDeltaEvent as AGUIActivityDeltaEvent,
   ActivitySnapshotEvent as AGUIActivitySnapshotEvent,
@@ -10,6 +15,20 @@ import type {
   StreamChunk,
   UIMessage,
 } from '../src/types'
+
+const deployProgress = defineActivityType({
+  activityType: 'deploy.progress',
+  contentSchema: z.object({
+    step: z.number().int().positive(),
+    total: z.number().default(3),
+  }),
+})
+
+/** `run` must throw a TypeError whose message names `activityType`. */
+function expectTypeErrorNaming(run: () => unknown, activityType: string) {
+  expect(run).toThrow(TypeError)
+  expect(run).toThrow(`'${activityType}'`)
+}
 
 describe('AG-UI activity type surface', () => {
   it('StreamChunk includes ACTIVITY_SNAPSHOT payload fields', () => {
@@ -49,5 +68,78 @@ describe('AG-UI activity type surface', () => {
       activityType: string
       content: Record<string, any>
     }>()
+  })
+})
+
+describe('defineActivityType', () => {
+  it('snapshot() returns an ACTIVITY_SNAPSHOT with the parsed content', () => {
+    // `total` comes from the schema default, so the chunk has the parsed
+    // content, not the input.
+    expect(deployProgress.snapshot('deploy-1', { step: 1 })).toEqual({
+      type: 'ACTIVITY_SNAPSHOT',
+      messageId: 'deploy-1',
+      activityType: 'deploy.progress',
+      content: { step: 1, total: 3 },
+      replace: true,
+      timestamp: expect.any(Number),
+    })
+  })
+
+  it('snapshot() throws a TypeError with the type name for bad content', () => {
+    expectTypeErrorNaming(
+      () => deployProgress.snapshot('deploy-1', { step: 0 }),
+      'deploy.progress',
+    )
+  })
+
+  it('snapshot() throws a TypeError with the type name for an async-only schema', () => {
+    const asyncOnly = defineActivityType({
+      activityType: 'deploy.async',
+      contentSchema: z.object({ step: z.number() }).refine(async () => true),
+    })
+    expectTypeErrorNaming(
+      () => asyncOnly.snapshot('deploy-1', { step: 1 }),
+      'deploy.async',
+    )
+  })
+
+  it('a built-in snapshot keeps the content as given', () => {
+    const chunk = sandboxStatusActivity.snapshot('sandbox-run_1', {
+      status: 'starting',
+      provider: 'e2b',
+    })
+    expect(chunk.activityType).toBe('sandbox.status')
+    expect(chunk.content).toEqual({ status: 'starting', provider: 'e2b' })
+  })
+
+  it.each([
+    {
+      name: 'an activity part of its type',
+      value: { type: 'activity', activityType: 'deploy.progress', content: {} },
+      expected: true,
+    },
+    {
+      name: 'a stored record of its type, which has no `type`',
+      value: { id: 'deploy-1', activityType: 'deploy.progress', content: {} },
+      expected: true,
+    },
+    {
+      name: 'an activity part of another type',
+      value: { type: 'activity', activityType: 'sandbox.status', content: {} },
+      expected: false,
+    },
+    {
+      name: 'an ACTIVITY_SNAPSHOT chunk of its type',
+      value: {
+        type: 'ACTIVITY_SNAPSHOT',
+        messageId: 'deploy-1',
+        activityType: 'deploy.progress',
+        content: {},
+      },
+      expected: false,
+    },
+    { name: 'null', value: null, expected: false },
+  ])('is() returns $expected for $name', ({ value, expected }) => {
+    expect(deployProgress.is(value)).toBe(expected)
   })
 })

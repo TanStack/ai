@@ -210,6 +210,7 @@ import { Route as ApiProviderToolDispatchWireRouteImport } from './routes/api.pr
 import { Route as ApiReasoningWireRouteImport } from './routes/api.reasoning-wire'
 import { Route as ApiResponsesAnswerItemsWireRouteImport } from './routes/api.responses-answer-items-wire'
 import { Route as ApiRetryAfterRouteImport } from './routes/api.retry-after'
+import { Route as ApiSandboxBridgeActivityRouteImport } from './routes/api.sandbox-bridge-activity'
 import { Route as ApiSandboxDurabilityRouteImport } from './routes/api.sandbox-durability'
 import { Route as ApiSandboxFilePersistenceRouteImport } from './routes/api.sandbox-file-persistence'
 import { Route as ApiSandboxLocalProcessExecRouteImport } from './routes/api.sandbox-local-process-exec'
@@ -1302,6 +1303,12 @@ const ApiRetryAfterRoute = ApiRetryAfterRouteImport.update({
   path: '/api/retry-after',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSandboxBridgeActivityRoute =
+  ApiSandboxBridgeActivityRouteImport.update({
+    id: '/api/sandbox-bridge-activity',
+    path: '/api/sandbox-bridge-activity',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiSandboxDurabilityRoute = ApiSandboxDurabilityRouteImport.update({
   id: '/api/sandbox-durability',
   path: '/api/sandbox-durability',
@@ -1691,6 +1698,7 @@ export interface FileRoutesByFullPath {
   '/api/reasoning-wire': typeof ApiReasoningWireRoute
   '/api/responses-answer-items-wire': typeof ApiResponsesAnswerItemsWireRoute
   '/api/retry-after': typeof ApiRetryAfterRoute
+  '/api/sandbox-bridge-activity': typeof ApiSandboxBridgeActivityRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-local-process-exec': typeof ApiSandboxLocalProcessExecRoute
@@ -1930,6 +1938,7 @@ export interface FileRoutesByTo {
   '/api/reasoning-wire': typeof ApiReasoningWireRoute
   '/api/responses-answer-items-wire': typeof ApiResponsesAnswerItemsWireRoute
   '/api/retry-after': typeof ApiRetryAfterRoute
+  '/api/sandbox-bridge-activity': typeof ApiSandboxBridgeActivityRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-local-process-exec': typeof ApiSandboxLocalProcessExecRoute
@@ -2170,6 +2179,7 @@ export interface FileRoutesById {
   '/api/reasoning-wire': typeof ApiReasoningWireRoute
   '/api/responses-answer-items-wire': typeof ApiResponsesAnswerItemsWireRoute
   '/api/retry-after': typeof ApiRetryAfterRoute
+  '/api/sandbox-bridge-activity': typeof ApiSandboxBridgeActivityRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-local-process-exec': typeof ApiSandboxLocalProcessExecRoute
@@ -2411,6 +2421,7 @@ export interface FileRouteTypes {
     | '/api/reasoning-wire'
     | '/api/responses-answer-items-wire'
     | '/api/retry-after'
+    | '/api/sandbox-bridge-activity'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-local-process-exec'
@@ -2650,6 +2661,7 @@ export interface FileRouteTypes {
     | '/api/reasoning-wire'
     | '/api/responses-answer-items-wire'
     | '/api/retry-after'
+    | '/api/sandbox-bridge-activity'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-local-process-exec'
@@ -2889,6 +2901,7 @@ export interface FileRouteTypes {
     | '/api/reasoning-wire'
     | '/api/responses-answer-items-wire'
     | '/api/retry-after'
+    | '/api/sandbox-bridge-activity'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-local-process-exec'
@@ -3129,6 +3142,7 @@ export interface RootRouteChildren {
   ApiReasoningWireRoute: typeof ApiReasoningWireRoute
   ApiResponsesAnswerItemsWireRoute: typeof ApiResponsesAnswerItemsWireRoute
   ApiRetryAfterRoute: typeof ApiRetryAfterRoute
+  ApiSandboxBridgeActivityRoute: typeof ApiSandboxBridgeActivityRoute
   ApiSandboxDurabilityRoute: typeof ApiSandboxDurabilityRoute
   ApiSandboxFilePersistenceRoute: typeof ApiSandboxFilePersistenceRoute
   ApiSandboxLocalProcessExecRoute: typeof ApiSandboxLocalProcessExecRoute
@@ -4572,6 +4586,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRetryAfterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/sandbox-bridge-activity': {
+      id: '/api/sandbox-bridge-activity'
+      path: '/api/sandbox-bridge-activity'
+      fullPath: '/api/sandbox-bridge-activity'
+      preLoaderRoute: typeof ApiSandboxBridgeActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/sandbox-durability': {
       id: '/api/sandbox-durability'
       path: '/api/sandbox-durability'
@@ -5092,6 +5113,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiReasoningWireRoute: ApiReasoningWireRoute,
   ApiResponsesAnswerItemsWireRoute: ApiResponsesAnswerItemsWireRoute,
   ApiRetryAfterRoute: ApiRetryAfterRoute,
+  ApiSandboxBridgeActivityRoute: ApiSandboxBridgeActivityRoute,
   ApiSandboxDurabilityRoute: ApiSandboxDurabilityRoute,
   ApiSandboxFilePersistenceRoute: ApiSandboxFilePersistenceRoute,
   ApiSandboxLocalProcessExecRoute: ApiSandboxLocalProcessExecRoute,

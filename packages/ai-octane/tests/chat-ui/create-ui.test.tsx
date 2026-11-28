@@ -1,5 +1,9 @@
 import { render } from '@octanejs/testing-library'
-import { describe, expect, it, vi } from 'vitest'
+import { defineActivityType } from '@tanstack/ai/client'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { z } from 'zod'
+import { createChatHook as createPlainChatHook } from '../../src/create-chat-hook'
+import { useChat } from '../../src/use-chat.tsrx'
 import { createChatUI } from '../../src/chat-ui/create-ui.tsrx'
 import { createChatHook } from '../../src/chat-ui/create-chat-hook.tsrx'
 import { createChatHookContexts } from '../../src/chat-ui/create-ui-contexts.tsrx'
@@ -20,17 +24,67 @@ import {
   unboundInterrupt,
   unknownToolMessage,
 } from '../../../ai-client/tests/ui-fixtures'
-import type { ToolCallState } from '@tanstack/ai-client'
+import type { ActivityProps } from '../../src/ui'
+import type { ToolCallState, UIMessage } from '@tanstack/ai-client'
 import type {
   ChatUIInterrupt,
   ChatUISelectedPart,
 } from '@tanstack/ai-client/ui'
+
+const deployProgress = defineActivityType({
+  activityType: 'deploy.progress',
+  contentSchema: z.object({ step: z.number(), total: z.number() }),
+})
+
+const activityOptions = { activities: [deployProgress] }
+
+const connection = { connect: async function* () {} }
+
+const sandboxStatusMessage: UIMessage = {
+  id: 'sandbox-run-1',
+  role: 'activity',
+  parts: [
+    {
+      type: 'activity',
+      activityType: 'sandbox.status',
+      content: { status: 'ready', provider: 'e2b' },
+    },
+  ],
+}
+
+const deployProgressMessage: UIMessage = {
+  id: 'deploy-1',
+  role: 'activity',
+  parts: [
+    {
+      type: 'activity',
+      activityType: 'deploy.progress',
+      content: { step: 1, total: 3 },
+    },
+  ],
+}
+
+function SandboxCard({
+  part,
+}: ActivityProps<typeof chatOptions, 'sandbox.status'>) {
+  return <b>{part.content.status}</b>
+}
+
+// The content type of the 'deploy.progress' parts in a list of messages.
+type DeployContentIn<TMessages extends ReadonlyArray<UIMessage<any, any>>> =
+  TMessages[number]['parts'][number] extends infer TPart
+    ? TPart extends { activityType: 'deploy.progress'; content: infer TContent }
+      ? TContent
+      : never
+    : never
 
 function renderToStaticMarkup(ui: Parameters<typeof render>[0]) {
   const { container } = render(ui)
   return container.innerHTML.replaceAll('<!---->', '')
 }
 
+// The fake host has only the fields that the UI reads, and it takes plain
+// messages, so it needs a cast.
 function host(
   init?: Parameters<typeof createChatResult>[0],
 ): ChatUIHost<typeof chatOptions> {
@@ -79,6 +133,7 @@ function makeUI(patch?: {
   input?: Config['components']['input']
   queue?: Config['components']['queue']
   partsComponents?: Config['partsComponents']
+  activitiesComponents?: Config['activitiesComponents']
   toolsComponents?: Config['toolsComponents']
   interruptsComponents?: {
     tools?: InterruptsConfig['tools']
@@ -98,6 +153,7 @@ function makeUI(patch?: {
       ...baseConfig.partsComponents,
       ...patch?.partsComponents,
     },
+    activitiesComponents: patch?.activitiesComponents,
     toolsComponents: {
       ...baseConfig.toolsComponents,
       ...patch?.toolsComponents,
@@ -533,5 +589,83 @@ describe('createChatUI', () => {
       />,
     )
     expect(markup).toBe('<main></main>')
+  })
+
+  it('renders an activity with its activitiesComponents entry, else with partsComponents.activity', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const UI = makeUI({
+      partsComponents: {
+        activity: ({ part }) => <i>{part.activityType}</i>,
+      },
+      activitiesComponents: { 'sandbox.status': SandboxCard },
+    })
+    const markup = renderToStaticMarkup(
+      <UI.Chat
+        chat={host({ messages: [sandboxStatusMessage, deployProgressMessage] })}
+      />,
+    )
+    expect(markup).toContain('<b>ready</b>')
+    expect(markup).toContain('<i>deploy.progress</i>')
+    // A type with no entry is not an error.
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+})
+
+describe('activity types', () => {
+  it('keys activitiesComponents by activity type and types each part', () => {
+    createChatUI(activityOptions, {
+      components: { layout: () => null, message: () => null },
+      partsComponents: {},
+      activitiesComponents: {
+        'sandbox.status': ({ part }) => {
+          expectTypeOf(part.content.status).toEqualTypeOf<
+            'starting' | 'ready' | 'failed'
+          >()
+          return null
+        },
+        'deploy.progress': ({ part }) => {
+          expectTypeOf(part.content).toEqualTypeOf<{
+            step: number
+            total: number
+          }>()
+          return null
+        },
+        // @ts-expect-error 'build.log' is not built in and not in `activities`
+        'build.log': () => null,
+      },
+    })
+    expectTypeOf<
+      ActivityProps<
+        typeof activityOptions,
+        'deploy.progress'
+      >['part']['content']
+    >().toEqualTypeOf<{ step: number; total: number }>()
+  })
+
+  it('types the activity parts of the messages from activities', () => {
+    // Never called. They give the types that the hooks return.
+    const useTypedChat = () =>
+      useChat({
+        connection,
+        threadId: 'thread-1',
+        activities: [deployProgress],
+      })
+    const { useChat: useBoundChat } = createPlainChatHook({
+      connection,
+      activities: [deployProgress],
+    })
+    const useTypedBoundChat = () => useBoundChat({ threadId: 'thread-1' })
+
+    type DeployContent = { step: number; total: number }
+    expectTypeOf<
+      DeployContentIn<ReturnType<typeof useTypedChat>['messages']>
+    >().toEqualTypeOf<DeployContent>()
+    expectTypeOf<
+      DeployContentIn<ReturnType<typeof useTypedBoundChat>['messages']>
+    >().toEqualTypeOf<DeployContent>()
+    expectTypeOf<
+      DeployContentIn<ChatUIHost<typeof activityOptions>['messages']>
+    >().toEqualTypeOf<DeployContent>()
   })
 })

@@ -13,6 +13,8 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
+import { CapabilityRegistry, EventType } from '@tanstack/ai'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import {
   SandboxCapability,
@@ -30,8 +32,11 @@ import {
   projectAcpWorkspace,
   workspaceMcpServers,
 } from '../src/adapters/projection'
-import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { AdapterYieldChunk, CapabilityContext } from '@tanstack/ai'
+import type {
+  AdapterYieldChunk,
+  CapabilityContext,
+  ModelMessage,
+} from '@tanstack/ai'
 import type {
   SandboxHandle,
   SecretRef,
@@ -98,9 +103,10 @@ new AgentSideConnection((conn) => ({
         { optionId: 'reject', name: 'Reject', kind: 'reject_once' },
       ],
     })
+    const prompt = params.prompt.map((block) => block.text ?? '').join('')
     await conn.sessionUpdate({
       sessionId: params.sessionId,
-      update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'OUTCOME=' + JSON.stringify(res.outcome) } },
+      update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'OUTCOME=' + JSON.stringify(res.outcome) + ' PROMPT=' + prompt } },
     })
     return { stopReason: 'end_turn' }
   },
@@ -123,23 +129,14 @@ afterAll(async () => {
   })
 })
 
-const noopLogger = {
-  request: () => {},
-  provider: () => {},
-  errors: () => {},
-  agentLoop: () => {},
-  warnings: () => {},
-  debug: () => {},
-} as unknown as InternalLogger
+const noopLogger = resolveDebugOption(false)
 
 function ctxWith(
   handle: SandboxHandle,
   projection?: WorkspaceProjection,
 ): CapabilityContext {
   const [, provideSandbox] = SandboxCapability
-  const ctx = {
-    capabilities: { markProvided: () => {}, has: () => true },
-  } as unknown as CapabilityContext
+  const ctx: CapabilityContext = { capabilities: new CapabilityRegistry() }
   provideSandbox(ctx, handle)
   if (projection) provideWorkspaceProjection(ctx, projection)
   return ctx
@@ -155,8 +152,8 @@ async function collect(
 
 function textOf(chunks: Array<AdapterYieldChunk>): string {
   return chunks
-    .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
-    .map((c) => (c as { delta?: string }).delta ?? '')
+    .filter((c) => c.type === EventType.TEXT_MESSAGE_CONTENT)
+    .map((c) => c.delta)
     .join('')
 }
 
@@ -213,6 +210,8 @@ describe('permission modes (the acpCompatible guardrail surface)', () => {
   async function runPermission(opts: {
     permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'
     permissions?: 'headless' | 'interactive'
+    approvals?: ReadonlyMap<string, boolean>
+    messages?: Array<ModelMessage>
   }): Promise<Array<AdapterYieldChunk>> {
     const sbx = await provider.create({})
     await sbx.fs.write('/workspace/perm-agent.mjs', PERMISSION_AGENT)
@@ -225,10 +224,12 @@ describe('permission modes (the acpCompatible guardrail surface)', () => {
     const chunks = await collect(
       adapter.chatStream({
         threadId: 'thread-1',
+        runId: 'run-1',
         model: 'probe',
-        messages: [{ role: 'user', content: 'go' }],
+        messages: opts.messages ?? [{ role: 'user', content: 'go' }],
         logger: noopLogger,
         capabilities: ctxWith(sbx),
+        ...(opts.approvals !== undefined && { approvals: opts.approvals }),
       }),
     )
     await sbx.destroy()
@@ -247,20 +248,111 @@ describe('permission modes (the acpCompatible guardrail surface)', () => {
     expect(report).toContain('"optionId":"reject"')
   })
 
-  it('interactive emits an approval-requested event for ask prompts', async () => {
+  it('interactive emits an approval-requested event and a pending row for ask prompts', async () => {
     const chunks = await runPermission({
       permissions: 'interactive',
       permissionMode: 'default',
     })
-    const approval = chunks.find(
-      (c) =>
-        c.type === 'CUSTOM' &&
-        (c as { value?: { approvalId?: string; title?: string } }).value
-          ?.approvalId !== undefined,
+    expect(chunks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: EventType.CUSTOM,
+          name: 'approval-requested',
+          value: expect.objectContaining({
+            approvalId: 'probe:tool:["execute","rm -rf /",[]]',
+            title: 'rm -rf /',
+          }),
+        }),
+      ]),
     )
-    expect(approval).toBeDefined()
-    expect((approval as { value: { title: string } }).value.title).toContain(
-      'rm -rf',
+    expect(chunks).toEqual(
+      expect.arrayContaining([
+        {
+          type: 'ACTIVITY_SNAPSHOT',
+          messageId: 'sandbox.approval:probe:tool:["execute","rm -rf /",[]]',
+          activityType: 'sandbox.approval',
+          content: {
+            approvalId: 'probe:tool:["execute","rm -rf /",[]]',
+            title: 'rm -rf /',
+            status: 'pending',
+            detail: { provider: 'probe' },
+          },
+          replace: true,
+          timestamp: expect.any(Number),
+          metadata: {
+            tanstack: { model: 'probe', threadId: 'thread-1', runId: 'run-1' },
+          },
+        },
+      ]),
+    )
+  })
+
+  it('interactive sets the row to granted right after RUN_STARTED on the next run', async () => {
+    const chunks = await runPermission({
+      permissions: 'interactive',
+      permissionMode: 'default',
+      approvals: new Map([['probe:tool:["execute","rm -rf /",[]]', true]]),
+    })
+    expect(chunks.slice(0, 2)).toEqual([
+      expect.objectContaining({ type: 'RUN_STARTED' }),
+      {
+        type: 'ACTIVITY_DELTA',
+        messageId: 'sandbox.approval:probe:tool:["execute","rm -rf /",[]]',
+        activityType: 'sandbox.approval',
+        patch: [{ op: 'replace', path: '/status', value: 'granted' }],
+        timestamp: expect.any(Number),
+        metadata: {
+          tanstack: { threadId: 'thread-1', runId: 'run-1' },
+        },
+      },
+    ])
+  })
+
+  it('yields the pending row when the permission callback runs', async () => {
+    const chunks = await runPermission({
+      permissions: 'interactive',
+      permissionMode: 'default',
+    })
+    const snapshot = chunks.findIndex(
+      (chunk) =>
+        chunk.type === EventType.ACTIVITY_SNAPSHOT &&
+        chunk.activityType === 'sandbox.approval',
+    )
+    const finished = chunks.findIndex(
+      (chunk) => chunk.type === EventType.RUN_FINISHED,
+    )
+    expect(snapshot).toBeGreaterThan(-1)
+    expect(finished).toBeGreaterThan(-1)
+    expect(snapshot).toBeLessThan(finished)
+  })
+
+  // `respondToSandboxApproval` starts a run with no new user message.
+  it('interactive continues a run that only answers an approval', async () => {
+    const chunks = await runPermission({
+      permissions: 'interactive',
+      permissionMode: 'default',
+      approvals: new Map([['probe:tool:["execute","rm -rf /",[]]', true]]),
+      messages: [
+        { role: 'user', content: 'go' },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 't1',
+              type: 'function',
+              function: { name: 'execute', arguments: '{}' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 't1', content: 'rejected' },
+      ],
+    })
+    expect(
+      chunks.find((chunk) => chunk.type === EventType.RUN_ERROR),
+    ).toBeUndefined()
+    expect(textOf(chunks)).toContain(
+      'The user answered your approval requests. Continue the task.',
     )
   })
 })
@@ -275,7 +367,7 @@ describe('workspace skill projection', () => {
         mcpSkill('weather', {
           url: 'https://mcp.example/weather',
           headers: {
-            Authorization: bearer({ __secretName: 'W' } as SecretRef),
+            Authorization: bearer({ __secretName: 'W' }),
           },
         }),
       ],
@@ -295,14 +387,12 @@ describe('workspace skill projection', () => {
       }),
     )
 
-    const session = JSON.parse(
-      await sbx.fs.read('/workspace/acp-session.json'),
-    ) as {
+    const session: {
       mcpServers?: Array<{
         name: string
         headers?: Array<{ name: string; value: string }>
       }>
-    }
+    } = JSON.parse(await sbx.fs.read('/workspace/acp-session.json'))
     const weather = session.mcpServers?.find((s) => s.name === 'weather')
     expect(weather).toBeDefined()
     expect(weather?.headers).toContainEqual({
@@ -391,8 +481,8 @@ describe('workspaceMcpServers', () => {
           url: 'https://x',
           headers: {
             A: 'plain',
-            B: bearer({ __secretName: 'TOK' } as SecretRef),
-            C: { __secretName: 'KEY' } as SecretRef,
+            B: bearer({ __secretName: 'TOK' }),
+            C: { __secretName: 'KEY' },
           },
         }),
       ],

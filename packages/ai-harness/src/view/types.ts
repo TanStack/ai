@@ -1,6 +1,8 @@
+import type { TypedActivityPart } from '@tanstack/ai'
 import type { ConfigOption } from '../config'
 import type { SessionUsage } from '../usage'
 import type { Wait } from '../waits'
+import type { SessionActivity } from '../session/types'
 import type {
   MediaKind,
   Receipt,
@@ -203,6 +205,33 @@ export interface ViewAgent {
   cancel: () => Promise<Receipt>
 }
 
+/** An activity of each activity part type: one member for each type. */
+type ActivityOf<TPart> = TPart extends {
+  activityType: infer TType
+  content: infer TContent
+}
+  ? Omit<SessionActivity, 'activityType' | 'content'> & {
+      activityType: TType
+      content: TContent
+    }
+  : never
+
+/**
+ * An activity of the session, for example the status of a sandbox. It
+ * changes in place by `id`. `operationId` is the operation that first sent
+ * it. A built-in type narrows `content` with `===`, and another type reads
+ * its content with the `is()` of its definition:
+ *
+ * @example
+ * ```ts
+ * for (const activity of view.store.get().activities) {
+ *   if (activity.activityType === 'sandbox.status') activity.content.status
+ *   if (deployProgress.is(activity)) activity.content.step
+ * }
+ * ```
+ */
+export type ViewActivity = ActivityOf<TypedActivityPart>
+
 /**
  * Everything a UI can show about a session.
  *
@@ -229,6 +258,11 @@ export interface SessionViewState {
   waits: Array<Wait>
   /** Background agents that run now. */
   agents: Array<ViewAgent>
+  /**
+   * The activities of the session, in the order they were first sent. They
+   * stay after a reload: the session log keeps them.
+   */
+  activities: Array<ViewActivity>
   queuedTurns: number
   /** The inputs that wait, in the order they run. */
   waitingInputs: Array<WaitingInput>

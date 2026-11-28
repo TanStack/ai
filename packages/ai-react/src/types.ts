@@ -1,4 +1,5 @@
 import type {
+  AnyActivityTypeDefinition,
   AnyClientTool,
   InterruptDefinition,
   InferSchemaType,
@@ -89,8 +90,9 @@ export type UseChatOptions<
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
   TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined = undefined,
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> = readonly [],
 > = DistributedOmit<
-  ChatClientOptions<TTools, TContext, TInterrupts>,
+  ChatClientOptions<TTools, TContext, TInterrupts, TActivities>,
   | 'onMessagesChange'
   | 'onLoadingChange'
   | 'onErrorChange'
@@ -140,11 +142,13 @@ export type UseChatReturn<
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
   TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined = undefined,
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> = readonly [],
 > = BaseUseChatReturn<
   TTools,
   TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
   TInterrupts,
-  TSubagents
+  TSubagents,
+  TActivities
 > &
   (TSchema extends SchemaInput
     ? {
@@ -170,6 +174,7 @@ interface BaseUseChatReturn<
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
   TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined = undefined,
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> = readonly [],
 > {
   /**
    * Current messages in the conversation. When `outputSchema` is supplied,
@@ -177,8 +182,10 @@ interface BaseUseChatReturn<
    * with the schema's inferred shape — `data: T`, `partial: DeepPartial<T>`.
    * When `subagents` is supplied, a `type: 'subagent'` part narrows on
    * `subagent.name`, and that child's `messages` use the agent's tools.
+   * On an activity part, `part.activityType === 'sandbox.status'` narrows
+   * `content` for a built-in type, and for each type in `activities`.
    */
-  messages: ReadonlyArray<UIMessage<TTools, TData, TSubagents>>
+  messages: ReadonlyArray<UIMessage<TTools, TData, TSubagents, TActivities>>
 
   /**
    * Live child-agent invocations, nested cards included. Each entry is the
@@ -226,6 +233,14 @@ interface BaseUseChatReturn<
     state?: 'output-available' | 'output-error'
     errorText?: string
   }) => Promise<void>
+
+  /**
+   * Answer a pending `sandbox.approval` row, then continue the run.
+   */
+  respondToSandboxApproval: (
+    approvalId: string,
+    granted: boolean,
+  ) => Promise<void>
 
   /**
    * The id of the run this client has in flight — one it started or rejoined —

@@ -391,6 +391,7 @@ export class CodexTextAdapter<
           threadId,
           context: options.context,
           emitCustomEvent: channel.emitCustomEvent,
+          emitActivity: channel.emitActivity,
           ...(options.abortController?.signal
             ? { signal: options.abortController.signal }
             : options.request?.signal

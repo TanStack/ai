@@ -78,6 +78,17 @@ Rules:
 - `saveActivities` gets the complete activity list for the thread. It replaces the stored list.
 - Activity rows are never model messages. Do not store them in `messages`.
 
+`withPersistence` calls `saveActivities` many times in one run:
+
+- On each `ACTIVITY_SNAPSHOT` and `ACTIVITY_DELTA` of the run. This includes the rows that a middleware sends in `setup`, for example the `sandbox.status` row while the sandbox boots.
+- When the run starts.
+- At an interrupt, and when the run ends.
+- With `snapshotStreaming: true`, also with each streaming snapshot.
+
+So a run with many activity updates writes the full list many times. A failed save logs a warning, and the run continues.
+
+Before the run starts, each save first calls `loadActivities`, and then merges the new rows into the stored rows by id. So each activity change before the run starts costs one more read. If that read fails, `withPersistence` logs a warning and skips the save, so the stored rows stay.
+
 The store is optional. Without it, activity rows are not durable on the server. Type an implementation with `defineActivityStore`. See [AG-UI activity rows on reload](./chat-persistence-advanced#ag-ui-activity-rows-on-reload).
 
 ## RunStore

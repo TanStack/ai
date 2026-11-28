@@ -192,4 +192,38 @@ describe('tool bridge signal', () => {
       await sbx.destroy()
     }
   })
+
+  it('gives the tool bridge emitActivity on the streaming-json path', async () => {
+    const sbx = await provider.create({})
+    try {
+      const capabilities = {
+        capabilities: { markProvided: () => {}, has: () => true },
+      } as unknown as CapabilityContext
+      provideSandbox(capabilities, sbx)
+      let emitActivity: unknown
+      provideToolBridgeProvisioner(capabilities, {
+        provision: (_tools, options) => {
+          emitActivity = options.emitActivity
+          return Promise.reject(new Error('stop after the bridge'))
+        },
+      })
+      const adapter = grokBuildText(MODEL, {
+        grokExecutable: 'node fake-grok.mjs',
+        protocol: 'streaming-json',
+      })
+      await collect(
+        adapter.chatStream({
+          threadId: 'thread-1',
+          model: MODEL,
+          messages: [{ role: 'user', content: 'hi' }],
+          logger: loggerWith(() => {}),
+          capabilities,
+          tools,
+        }),
+      ).catch(() => undefined)
+      expect(typeof emitActivity).toBe('function')
+    } finally {
+      await sbx.destroy()
+    }
+  })
 })

@@ -10,6 +10,7 @@
  * every existing app (which wires neither) keeps today's behavior untouched.
  */
 import { createCapability } from '@tanstack/ai'
+import { isActivityChunk } from '@tanstack/ai/adapter-internals'
 import { DEFAULT_JOURNAL_DIR } from './journal'
 import { alignToStoredLog, isBridgeCustomChunk } from './align'
 import type { JournalOptions } from './runner'
@@ -289,11 +290,22 @@ export function journalOptionsFor(
  * re-entering an existing run keeps the transform's premise ("this stream is a
  * replay of what is already stored") actually true.
  *
- * `isBridgeCustomChunk` is passed because the stored log holds the previous
- * host's MERGED output, including live bridged-tool CUSTOM events that a replay
- * cannot reproduce; without it a bridged-tool run could not be taken over at
- * all. Wrap the merge RESULT, never the pre-merge translator, or the comparison
- * is against a stream the log never contained.
+ * The stored log holds two kinds of chunks that a replay cannot reproduce.
+ * Alignment skips them as out-of-band instead of throwing:
+ *
+ * - CUSTOM chunks (`isBridgeCustomChunk`). The log holds the previous host's
+ *   MERGED output, with the live bridged-tool events. Without this, a
+ *   bridged-tool run could not be taken over at all. Wrap the merge RESULT,
+ *   never the pre-merge translator, or the comparison is against a stream the
+ *   log never contained.
+ * - Activity chunks (`ACTIVITY_SNAPSHOT` and `ACTIVITY_DELTA`). The first host
+ *   sent them live, and a replay does not send them again. `withSandbox` sends
+ *   the `sandbox.status` rows during setup, but none on an attach. An adapter
+ *   sends approval rows for live permission requests and for the decisions in
+ *   the run's `approvals`.
+ *
+ * A skip happens only on a mismatch. If a replay does send the same chunk at
+ * the same place, the chunk still matches.
  *
  * A matching stored chunk is yielded marked ({@link isStoredReplayChunk}), not
  * dropped. `chat()` records that prefix into the transcript. `withSandbox`
@@ -308,7 +320,8 @@ export function alignedIfAttaching(
   if (durability === undefined || !durability.attach) return chunks
   return alignToStoredLog(chunks, {
     durability: durability.adapter,
-    isOutOfBand: isBridgeCustomChunk,
+    isOutOfBand: (chunk) =>
+      isBridgeCustomChunk(chunk) || isActivityChunk(chunk),
     yieldStored: true,
     ...(logger === undefined ? {} : { logger }),
   })

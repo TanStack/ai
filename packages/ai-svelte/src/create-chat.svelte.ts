@@ -9,6 +9,7 @@ import type {
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 import type {
+  AnyActivityTypeDefinition,
   AnyClientTool,
   InterruptDefinition,
   InferSchemaType,
@@ -55,6 +56,10 @@ import type {
  *   <button onclick={() => chat.sendMessage('Hello!')}>Send</button>
  * </div>
  * ```
+ *
+ * Pass `activities` (from `defineActivityType`) to type the `content` of those
+ * activity parts in `messages`. The built-in types, such as `sandbox.status`,
+ * are typed without it.
  */
 export function createChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
@@ -63,9 +68,17 @@ export function createChat<
   const TInterrupts extends ReadonlyArray<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
+  const TActivities extends ReadonlyArray<AnyActivityTypeDefinition> =
+    readonly [],
 >(
-  options: CreateChatOptions<TTools, TSchema, TContext, TInterrupts>,
-): CreateChatReturn<TTools, TSchema, TContext, TInterrupts> {
+  options: CreateChatOptions<
+    TTools,
+    TSchema,
+    TContext,
+    TInterrupts,
+    TActivities
+  >,
+) {
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
   // message (the one after the most recent user message). Per-turn parts
@@ -88,7 +101,7 @@ export function createChat<
     : { fetcher: options.fetcher }
 
   // The hook's identity is its `threadId`.
-  const client = new ChatClient<TTools, TContext, TInterrupts>({
+  const client = new ChatClient<TTools, TContext, TInterrupts, TActivities>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
     ...(options.initialMessages !== undefined && {
@@ -248,6 +261,9 @@ export function createChat<
     await client.addToolResult(result)
   }
 
+  const respondToSandboxApproval = (approvalId: string, granted: boolean) =>
+    client.respondToSandboxApproval(approvalId, granted)
+
   const resolveInterrupts = (
     resolution:
       | boolean
@@ -384,11 +400,18 @@ export function createChat<
     setMessages,
     clear,
     addToolResult,
+    respondToSandboxApproval,
     resolveInterrupts,
     cancelInterrupts,
     retryInterrupts,
     resumeInterruptsUnsafe,
     updateForwardedProps,
     updateContext,
-  } as unknown as CreateChatReturn<TTools, TSchema, TContext, TInterrupts>
+  } as unknown as CreateChatReturn<
+    TTools,
+    TSchema,
+    TContext,
+    TInterrupts,
+    TActivities
+  >
 }

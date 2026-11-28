@@ -1,4 +1,5 @@
 import type {
+  AnyActivityTypeDefinition,
   AnyClientTool,
   InterruptDefinition,
   InferSchemaType,
@@ -82,8 +83,9 @@ export type UseChatOptions<
   TContext = InferredClientContext<TTools>,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> = readonly [],
 > = DistributedOmit<
-  ChatClientOptions<TTools, TContext, TInterrupts>,
+  ChatClientOptions<TTools, TContext, TInterrupts, TActivities>,
   | 'onMessagesChange'
   | 'onLoadingChange'
   | 'onErrorChange'
@@ -118,10 +120,12 @@ export type UseChatReturn<
   TSchema extends SchemaInput | undefined = undefined,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> = readonly [],
 > = BaseUseChatReturn<
   TTools,
   TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
-  TInterrupts
+  TInterrupts,
+  TActivities
 > &
   (TSchema extends SchemaInput
     ? {
@@ -143,13 +147,19 @@ interface BaseUseChatReturn<
   TData = unknown,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> = readonly [],
 > {
   /**
    * Current messages in the conversation. When `outputSchema` is supplied,
    * `messages()[i].parts.find(p => p.type === 'structured-output')` is typed
    * by the schema — `data: T`, `partial: DeepPartial<T>`.
+   *
+   * Activity parts are typed too: `part.activityType === 'sandbox.status'`
+   * narrows `content` for a built-in type or a type in `activities`.
    */
-  messages: Accessor<ReadonlyArray<UIMessage<TTools, TData>>>
+  messages: Accessor<
+    ReadonlyArray<UIMessage<TTools, TData, undefined, TActivities>>
+  >
 
   /**
    * Pending messages queued while the client is busy (streaming, claiming a
@@ -190,6 +200,14 @@ interface BaseUseChatReturn<
     state?: 'output-available' | 'output-error'
     errorText?: string
   }) => Promise<void>
+
+  /**
+   * Answer a pending `sandbox.approval` row, then continue the run.
+   */
+  respondToSandboxApproval: (
+    approvalId: string,
+    granted: boolean,
+  ) => Promise<void>
 
   /**
    * The id of the run this client has in flight — one it started or rejoined —

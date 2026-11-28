@@ -4,9 +4,14 @@
  */
 
 import { describe, expectTypeOf, it } from 'vitest'
-import { defineInterrupt, toolDefinition } from '@tanstack/ai'
+import {
+  defineActivityType,
+  defineInterrupt,
+  toolDefinition,
+} from '@tanstack/ai'
 import { clientTools } from '@tanstack/ai-client'
 import { createChat } from '../src/create-chat.svelte'
+import { createChatHook } from '../src/create-chat-hook'
 import type { AnyClientTool } from '@tanstack/ai'
 import type { StructuredOutputPart } from '@tanstack/ai-client'
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
@@ -37,6 +42,8 @@ type TransformSchema = {
     readonly jsonSchema: { readonly input: () => Record<string, unknown> }
   }
 }
+type ActivityPartIn<TMessage extends { parts: ReadonlyArray<unknown> }> =
+  Extract<TMessage['parts'][number], { type: 'activity' }>
 
 describe('createChat() return type (svelte)', () => {
   describe('with outputSchema', () => {
@@ -71,6 +78,9 @@ describe('createChat() return type (svelte)', () => {
       type _Partial = R['partial']
       // @ts-expect-error - final only exists when outputSchema is supplied
       type _Final = R['final']
+      // Use the aliases, so an unused-alias error cannot meet the expectations.
+      expectTypeOf<_Partial>()
+      expectTypeOf<_Final>()
     })
 
     it('messages.parts structured-output variant defaults to unknown', () => {
@@ -79,6 +89,13 @@ describe('createChat() return type (svelte)', () => {
       type StructuredPart = Extract<Part, { type: 'structured-output' }>
       expectTypeOf<StructuredPart['data']>().toEqualTypeOf<
         unknown | undefined
+      >()
+    })
+
+    it('exposes respondToSandboxApproval', () => {
+      type R = CreateChatReturn<NoTools>
+      expectTypeOf<R['respondToSandboxApproval']>().toEqualTypeOf<
+        (approvalId: string, granted: boolean) => Promise<void>
       >()
     })
   })
@@ -157,6 +174,72 @@ describe('createChat() return type (svelte)', () => {
       }
       void checkCreateChatCall
     })
+  })
+})
+
+describe('createChat() activity types', () => {
+  it('types the activity parts of messages', () => {
+    const progressSchema: TestSchema<{ step: number; total: number }> = {
+      '~standard': {
+        version: 1,
+        vendor: 'test',
+        types: {
+          input: { step: 0, total: 0 },
+          output: { step: 0, total: 0 },
+        },
+        validate: () => ({ value: { step: 0, total: 0 } }),
+        jsonSchema: { input: () => ({ type: 'object' }) },
+      },
+    }
+    const deployProgress = defineActivityType({
+      activityType: 'deploy.progress',
+      contentSchema: progressSchema,
+    })
+    const connection = { connect: async function* () {} }
+
+    // `createChat` needs a component, so only the types are checked.
+    const check = () => {
+      // With no `activities`, the built-in types narrow by `===`.
+      const chat = createChat({ threadId: 'thread-1', connection })
+      const readBuiltIn = (
+        part: ActivityPartIn<(typeof chat.messages)[number]>,
+      ) => {
+        if (part.activityType === 'sandbox.status') {
+          expectTypeOf(part.content.status).toEqualTypeOf<
+            'starting' | 'ready' | 'failed'
+          >()
+        }
+        // @ts-expect-error no activity type is named 'sandbox.statuz'
+        if (part.activityType === 'sandbox.statuz') return
+      }
+      void readBuiltIn
+
+      // A declared type narrows by `===`.
+      const typed = createChat({
+        threadId: 'thread-1',
+        connection,
+        activities: [deployProgress],
+      })
+      const readDeclared = (
+        part: ActivityPartIn<(typeof typed.messages)[number]>,
+      ) => {
+        if (part.activityType === 'deploy.progress') {
+          expectTypeOf(part.content).toEqualTypeOf<{
+            step: number
+            total: number
+          }>()
+        }
+      }
+      void readDeclared
+
+      // The bound `createChat` of `createChatHook` keeps the same types.
+      const bound = createChatHook({
+        connection,
+        activities: [deployProgress],
+      }).createChat({ threadId: 'thread-1' })
+      expectTypeOf(bound.messages).toEqualTypeOf(typed.messages)
+    }
+    void check
   })
 })
 

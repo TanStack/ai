@@ -105,8 +105,22 @@ export interface PluginSessionApi<TMetadata = Record<string, unknown>> {
    * ```
    */
   keptRecords: (type: string) => Promise<Array<LogRecord>>
-  /** Replace the saved transcript (for example after a summary). */
-  replaceTranscript: (messages: Array<ModelMessage>) => Promise<void>
+  /**
+   * Replace the saved transcript (for example after a summary). With
+   * `compaction: true`, the write counts as a compaction: the session keeps
+   * only the newest `sandbox.status` activity. `/compact` passes it.
+   *
+   * @example
+   * ```ts
+   * await ctx.session.replaceTranscript([summary, ...recent], {
+   *   compaction: true,
+   * })
+   * ```
+   */
+  replaceTranscript: (
+    messages: Array<ModelMessage>,
+    options?: { compaction?: boolean },
+  ) => Promise<void>
   /**
    * The session index entry of this thread. `undefined` when the host has
    * no `stores.sessions`, or the thread has no entry.

@@ -69,7 +69,14 @@ describe('Tool Type Narrowing', () => {
 
     const messages = client.getMessages()
     expectTypeOf(messages).toEqualTypeOf<
-      Array<UIMessage<readonly [typeof guitarToolClient]>>
+      Array<
+        UIMessage<
+          readonly [typeof guitarToolClient],
+          unknown,
+          undefined,
+          readonly []
+        >
+      >
     >()
 
     client.setMessagesManually(messages)

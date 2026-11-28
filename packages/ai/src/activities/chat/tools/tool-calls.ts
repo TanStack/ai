@@ -1446,6 +1446,10 @@ export async function* executeToolCalls<TContext = unknown>(
           )
         }
       },
+      // The engine records the snapshot before middleware `onChunk` runs.
+      emitActivity: (definition, id, content) => {
+        pendingEvents.push(definition.snapshot(id, content))
+      },
       setResultMetadata: resultMetadata.set,
     } as ToolExecutionContext<TContext>
 

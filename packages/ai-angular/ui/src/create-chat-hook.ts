@@ -5,6 +5,7 @@ import type { InjectChatOptions } from '@tanstack/ai-angular'
 import { createChatUI } from './create-ui'
 import type { ChatUIFactoryConfig, ChatUIHost, InputProps } from './create-ui'
 import type {
+  ChatUIActivitiesOf,
   ChatUIInterruptsOf,
   ChatUISchemaOf,
   ChatUIToolsOf,
@@ -15,7 +16,8 @@ type HeadlessOptions<TOptions> = InjectChatOptions<
   ChatUIToolsOf<TOptions>,
   ChatUISchemaOf<TOptions>,
   InferredClientContext<ChatUIToolsOf<TOptions>>,
-  ChatUIInterruptsOf<TOptions>
+  ChatUIInterruptsOf<TOptions>,
+  ChatUIActivitiesOf<TOptions>
 >
 
 type ChatInstanceOverrides<TOptions> = {

@@ -1,5 +1,6 @@
 // Declaration companion generated from use-chat.tsrx.
 import type {
+  AnyActivityTypeDefinition,
   AnyClientTool,
   InterruptDefinition,
   SchemaInput,
@@ -14,6 +15,8 @@ export declare function useChat<
   const TInterrupts extends ReadonlyArray<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
+  const TActivities extends ReadonlyArray<AnyActivityTypeDefinition> =
+    readonly [],
 >(
-  options: UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
-): UseChatReturn<TTools, TSchema, TInterrupts>
+  options: UseChatOptions<TTools, TSchema, TContext, TInterrupts, TActivities>,
+): UseChatReturn<TTools, TSchema, TInterrupts, TActivities>

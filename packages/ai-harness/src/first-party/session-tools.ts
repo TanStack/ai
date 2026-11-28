@@ -33,7 +33,8 @@ export function transcriptText(messages: ReadonlyArray<ModelMessage>) {
 /**
  * `/compact`: replace a long transcript with a summary, so later turns send
  * fewer tokens. The summary is written by `adapter`. A `keyedAdapter(...)`
- * is built with the user's key when `/compact` runs.
+ * is built with the user's key when `/compact` runs. The session then keeps
+ * only the newest `sandbox.status` activity.
  */
 export function compact(options: {
   adapter: AnyTextAdapter | KeyedAdapter<AnyTextAdapter>
@@ -77,17 +78,20 @@ export function compact(options: {
                 'The summary model returned no text. The conversation did not change.',
               )
             }
-            await ctx.session.replaceTranscript([
-              {
-                role: 'user',
-                content: `Summary of our conversation so far:\n${summary}`,
-              },
-              {
-                role: 'assistant',
-                content: 'Understood. I will continue from this summary.',
-              },
-              ...messages.slice(cut),
-            ])
+            await ctx.session.replaceTranscript(
+              [
+                {
+                  role: 'user',
+                  content: `Summary of our conversation so far:\n${summary}`,
+                },
+                {
+                  role: 'assistant',
+                  content: 'Understood. I will continue from this summary.',
+                },
+                ...messages.slice(cut),
+              ],
+              { compaction: true },
+            )
             return `Compacted ${older.length} messages into a summary.`
           },
         }),

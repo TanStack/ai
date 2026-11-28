@@ -1,31 +1,46 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { deployProgress } from '@/lib/activity-types'
 
 /**
  * Harness page for AG-UI activity. `/api/activity-test` yields live
  * ACTIVITY_SNAPSHOT / ACTIVITY_DELTA (default) or a MESSAGES_SNAPSHOT that
  * already contains an ActivityMessage (`?mode=snapshot`).
+ *
+ * `?mode=persist&threadId=` saves each run on the server. The chat uses
+ * `persistence: true`, so a reload loads the thread and its activity rows
+ * from the server.
  */
 export const Route = createFileRoute('/activity-test')({
   component: ActivityTestPage,
   validateSearch: (search: Record<string, unknown>) => ({
     mode:
-      search.mode === 'snapshot' ? ('snapshot' as const) : ('live' as const),
+      search.mode === 'snapshot'
+        ? ('snapshot' as const)
+        : search.mode === 'persist'
+          ? ('persist' as const)
+          : ('live' as const),
+    threadId: typeof search.threadId === 'string' ? search.threadId : undefined,
   }),
 })
 
+const connectionUrls = {
+  live: '/api/activity-test',
+  snapshot: '/api/activity-test?mode=snapshot',
+  persist: '/api/activity-test?mode=persist-live',
+}
+
 function ActivityTestPage() {
-  const { mode } = Route.useSearch()
+  const { mode, threadId } = Route.useSearch()
   const [input, setInput] = useState('')
-  const { messages, sendMessage, isLoading } = useChat({
-    threadId: mode === 'snapshot' ? 'activity-snapshot' : 'activity-live',
-    connection: fetchServerSentEvents(
-      mode === 'snapshot'
-        ? '/api/activity-test?mode=snapshot'
-        : '/api/activity-test',
-    ),
-  })
+  const { messages, sendMessage, isLoading, respondToSandboxApproval } =
+    useChat({
+      threadId: threadId ?? `activity-${mode}`,
+      connection: fetchServerSentEvents(connectionUrls[mode]),
+      persistence: mode === 'persist',
+      activities: [deployProgress],
+    })
 
   const handleSubmit = () => {
     const text = input.trim()
@@ -40,20 +55,42 @@ function ActivityTestPage() {
         {messages.map((message) => {
           if (message.role === 'activity') {
             const part = message.parts[0]
-            const content =
-              part && part.type === 'activity'
-                ? JSON.stringify(part.content)
-                : ''
-            const activityType =
-              part && part.type === 'activity' ? part.activityType : ''
+            const activity = part && part.type === 'activity' ? part : undefined
             return (
               <div
                 key={message.id}
                 data-testid="activity-message"
                 data-activity-id={message.id}
-                data-activity-type={activityType}
+                data-activity-type={activity?.activityType ?? ''}
               >
-                <span data-testid="activity-content">{content}</span>
+                <span data-testid="activity-content">
+                  {activity ? JSON.stringify(activity.content) : ''}
+                </span>
+                {activity?.activityType === 'deploy.progress' && (
+                  <span data-testid="deploy-progress">
+                    step {activity.content.step} of {activity.content.total}
+                  </span>
+                )}
+                {activity?.activityType === 'sandbox.approval' && (
+                  <>
+                    <span data-testid="approval-status">
+                      {activity.content.status}
+                    </span>
+                    <button
+                      data-testid="approve-sandbox"
+                      type="button"
+                      disabled={activity.content.status !== 'pending'}
+                      onClick={() =>
+                        void respondToSandboxApproval(
+                          activity.content.approvalId,
+                          true,
+                        )
+                      }
+                    >
+                      Approve
+                    </button>
+                  </>
+                )}
               </div>
             )
           }

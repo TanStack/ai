@@ -10,6 +10,7 @@ export type {
   AgentRunInfo,
   JobInfo,
   ScheduleOptions,
+  SessionActivity,
   SessionSnapshot,
   SessionInspection,
   SessionDescription,

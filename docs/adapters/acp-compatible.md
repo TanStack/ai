@@ -218,12 +218,14 @@ import { acpCompatible } from "@tanstack/ai-acp";
 export const pi = acpCompatible({
   name: "pi",
   command: ({ model }) => `pi --acp -m ${model}`,
-  permissions: "interactive", // send approval-requested events for `ask` prompts
+  permissions: "interactive", // send a pending sandbox.approval row for each `ask` prompt
   permissionMode: "acceptEdits", // still allow file edits with no prompt
 });
 ```
 
-- With `'interactive'`, an `ask` prompt sends an approval-requested event. The client approves, then runs the turn again.
+- With `'interactive'`, an `ask` prompt sends a `sandbox.approval` activity row with `status: 'pending'`.
+- The client answers the row with `respondToSandboxApproval(approvalId, granted)`. In the next run, the adapter sets the row to `granted` or `denied`, and allows or denies the action. See [Show an approval prompt](../sandbox/events#show-an-approval-prompt).
+- The adapter also sends the `approval-requested` `CUSTOM` event. That event is deprecated.
 - Your `chat()` tools that the adapter bridges into the agent are always allowed, in every mode.
 - To write your own rules, pass `onPermissionRequest`. It overrides `permissions` and `permissionMode`.
 
@@ -376,7 +378,7 @@ Pass these to `acpCompatible` or as the second argument of `acpCompatibleText`:
 | `authMode` | `'api-key'` (default) uses `authMethodId`. `'host'` skips ACP `authenticate`. See [Harness Auth](../sandbox/auth). |
 | `authMethodId` | The ACP auth method to select before the session starts. Ignored when `authMode` is `'host'`. |
 | `permissionMode` | `'default'`, `'acceptEdits'`, or `'bypassPermissions'` (default). |
-| `permissions` | `'headless'` (default) answers each request. `'interactive'` sends approval-requested events for `ask` prompts. |
+| `permissions` | `'headless'` (default) answers each request. `'interactive'` sends a pending `sandbox.approval` row for each `ask` prompt. |
 | `onPermissionRequest` | Your own permission handler. It overrides `permissions` and `permissionMode`. |
 
 More options, for special cases:

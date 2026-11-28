@@ -94,6 +94,13 @@ describe('useChat() return type', () => {
       >()
     })
 
+    it('exposes respondToSandboxApproval', () => {
+      type R = UseChatReturn<any>
+      expectTypeOf<R['respondToSandboxApproval']>().toEqualTypeOf<
+        (approvalId: string, granted: boolean) => Promise<void>
+      >()
+    })
+
     it('uses threadId as hook identity, not id', () => {
       type O = UseChatOptions<any>
       expectTypeOf<O['threadId']>().toEqualTypeOf<string>()

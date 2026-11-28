@@ -1,4 +1,5 @@
 import type {
+  AnyActivityTypeDefinition,
   AnyClientTool,
   InterruptDefinition,
   InferSchemaType,
@@ -63,6 +64,10 @@ export type DeepPartial<T> =
  * - State-change callbacks are managed internally and exposed as signals.
  * - `tools`, `forwardedProps`, and `live` accept a {@link ReactiveOption} so
  *   they can be a static value, a `Signal`, or a getter and stay reactive.
+ *
+ * `activities` takes `defineActivityType` definitions. It only types the
+ * activity parts of `messages`. The built-in activity types are typed without
+ * it.
  */
 export type InjectChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
@@ -70,8 +75,9 @@ export type InjectChatOptions<
   TContext = InferredClientContext<TTools>,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> = readonly [],
 > = DistributedOmit<
-  ChatClientOptions<TTools, TContext, TInterrupts>,
+  ChatClientOptions<TTools, TContext, TInterrupts, TActivities>,
   | 'onMessagesChange'
   | 'onLoadingChange'
   | 'onErrorChange'
@@ -113,10 +119,12 @@ export type InjectChatResult<
   TSchema extends SchemaInput | undefined = undefined,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> = readonly [],
 > = BaseInjectChatResult<
   TTools,
   TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
-  TInterrupts
+  TInterrupts,
+  TActivities
 > &
   (TSchema extends SchemaInput
     ? {
@@ -132,9 +140,16 @@ interface BaseInjectChatResult<
   TData = unknown,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> = readonly [],
 > {
-  /** Current messages in the conversation. */
-  messages: Signal<ReadonlyArray<UIMessage<TTools, TData>>>
+  /**
+   * Current messages in the conversation. `part.activityType ===
+   * 'sandbox.status'` narrows the `content` of an activity part, for a
+   * built-in type or a type in `activities`.
+   */
+  messages: Signal<
+    ReadonlyArray<UIMessage<TTools, TData, undefined, TActivities>>
+  >
   /**
    * Send a message (string or multimodal content).
    * Pass `{ whenBusy }` to override the queue policy for a single send, or
@@ -158,6 +173,11 @@ interface BaseInjectChatResult<
     state?: 'output-available' | 'output-error'
     errorText?: string
   }) => Promise<void>
+  /** Answer a pending `sandbox.approval` row, then continue the run. */
+  respondToSandboxApproval: (
+    approvalId: string,
+    granted: boolean,
+  ) => Promise<void>
   /**
    * The id of the run this client has in flight — one it started or rejoined —
    * or `null` when there is none (including while a run sits paused on an

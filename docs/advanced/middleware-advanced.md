@@ -824,9 +824,11 @@ Exactly **one** terminal hook runs per `chat()` call:
 
 When a consumer stops iterating, the chunk it stopped at decides the hook:
 
-- A `RUN_FINISHED` chunk with `outcome.type === 'interrupt'`: `onFinish`.
+- The last `RUN_FINISHED` chunk of the call, for a completed run or a pause (`outcome.type === 'interrupt'`): `onFinish`.
 - A `RUN_ERROR` chunk: `onError`.
-- Any other chunk, including the final `RUN_FINISHED` of a completed run: `onAbort`.
+- Any other chunk, including the `RUN_FINISHED` of a turn that ends in a tool call: `onAbort`.
+
+`onFinish` runs before the last `RUN_FINISHED` goes out. As a result, a chunk that `onFinish` sends with `ctx.emitActivity` or `ctx.emitCustomEvent` comes before it.
 
 `onAbort` gets `info.cancelRequested`. It is `true` only when an explicit cancel aborted the run. It is `false` when the client disconnected or the consumer stopped iterating. A consumer stop has no `info.reason`.
 
@@ -907,6 +909,7 @@ Each hook gets a `ChatMiddlewareContext` as its first argument. The fields you u
 | `abort(reason?)` | `function` | Abort the run from middleware |
 | `retry()` | `function` | Call the model again. Works only in [`onModelError`](#onmodelerror). |
 | `emitCustomEvent(name, value, options?)` | `function` | Push a `CUSTOM` chunk onto the stream now. See [Live custom events](#live-custom-events). |
+| `emitActivity(definition, id, content)` | `function` | Push an `ACTIVITY_SNAPSHOT` chunk onto the stream now. It replaces the content of the activity row `id`. See [Activities](../chat/activities). |
 | `context` | `TContext` | The runtime context that you pass to `chat()` |
 | `defer(promise)` | `function` | Register a side effect that does not block the stream |
 
@@ -1273,6 +1276,8 @@ const progress: ChatMiddleware = {
 - Durability flushes the event immediately, so the client can show a live indicator. Pass `{ batch: true }` to keep it in the durability batch.
 
 Read these events on the client the same way as `emitCustomEvent` calls from tools. See [Custom Events](../protocol/custom-events).
+
+Chat persistence does not save custom events. For a pending state that must still show after a reload, call `ctx.emitActivity(definition, id, content)`. It sends a typed activity row in the same way, and `withPersistence` saves the row. See [Activities](../chat/activities).
 
 ### Rate limiting
 

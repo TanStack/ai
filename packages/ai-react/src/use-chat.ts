@@ -2,6 +2,7 @@ import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
+  AnyActivityTypeDefinition,
   AnyClientTool,
   InferSchemaType,
   InterruptDefinition,
@@ -36,19 +37,31 @@ export function useChat<
   > = readonly [],
   const TSubagents extends ReadonlyArray<{ name: string }> | undefined =
     undefined,
+  const TActivities extends ReadonlyArray<AnyActivityTypeDefinition> =
+    readonly [],
 >(
-  options: UseChatOptions<TTools, TSchema, TContext, TInterrupts, TSubagents>,
-): UseChatReturn<TTools, TSchema, TInterrupts, TSubagents> {
+  options: UseChatOptions<
+    TTools,
+    TSchema,
+    TContext,
+    TInterrupts,
+    TSubagents,
+    TActivities
+  >,
+): UseChatReturn<TTools, TSchema, TInterrupts, TSubagents, TActivities> {
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
 
-  const subscribedClientRef = useRef<ChatClient | null>(null)
-  const activeClientRef = useRef<ChatClient | null>(null)
+  // Typed activity messages do not fit a plain `ChatClient`.
+  const subscribedClientRef = useRef<ChatClient<any, any, any, any> | null>(
+    null,
+  )
+  const activeClientRef = useRef<ChatClient<any, any, any, any> | null>(null)
   const cleanupInvalidationRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   )
   const cleanupDisposalRef = useRef<{
-    client: ChatClient
+    client: ChatClient<any, any, any, any>
     timeout: ReturnType<typeof setTimeout>
   } | null>(null)
   // A client the deferred teardown disposed while the hook stayed mounted: a
@@ -57,16 +70,23 @@ export function useChat<
   // which starts from the messages it had on screen for the same thread, so
   // the hook never renders a disposed client.
   const disposedClientRef = useRef<{
-    client: ChatClient
+    client: ChatClient<any, any, any, any>
     threadId: string | undefined
   } | null>(null)
   const [clientRevision, setClientRevision] = useState(0)
 
   // Track current options in a ref to avoid recreating client when options change
   const optionsRef =
-    useRef<UseChatOptions<TTools, TSchema, TContext, TInterrupts, TSubagents>>(
-      options,
-    )
+    useRef<
+      UseChatOptions<
+        TTools,
+        TSchema,
+        TContext,
+        TInterrupts,
+        TSubagents,
+        TActivities
+      >
+    >(options)
   optionsRef.current = options
 
   // Create ChatClient once per threadId. Reload with the same threadId
@@ -105,7 +125,9 @@ export function useChat<
         : { fetcher: initialOptions.fetcher }
 
       const instanceHolder: {
-        current: ChatClient<TTools, TContext, TInterrupts> | undefined
+        current:
+          | ChatClient<TTools, TContext, TInterrupts, TActivities>
+          | undefined
       } = { current: undefined }
       const getActiveInstance = () => {
         const currentInstance = instanceHolder.current
@@ -132,7 +154,12 @@ export function useChat<
           return
         callback()
       }
-      const instance = new ChatClient<TTools, TContext, TInterrupts>({
+      const instance = new ChatClient<
+        TTools,
+        TContext,
+        TInterrupts,
+        TActivities
+      >({
         devtoolsBridgeFactory: createChatDevtoolsBridge,
         ...transport,
         initialMessages: messagesToUse,
@@ -435,6 +462,12 @@ export function useChat<
     [client],
   )
 
+  const respondToSandboxApproval = useCallback(
+    (approvalId: string, granted: boolean) =>
+      client.respondToSandboxApproval(approvalId, granted),
+    [client],
+  )
+
   const resolveInterrupts = useCallback(
     (
       resolution:
@@ -536,6 +569,7 @@ export function useChat<
     setMessages: setMessagesManually,
     clear,
     addToolResult,
+    respondToSandboxApproval,
     queue: snapshot.queue,
     cancelQueued,
     runId: snapshot.runId,
@@ -548,7 +582,13 @@ export function useChat<
     resumeInterruptsUnsafe,
     partial,
     final,
-  } as unknown as UseChatReturn<TTools, TSchema, TInterrupts, TSubagents>
+  } as unknown as UseChatReturn<
+    TTools,
+    TSchema,
+    TInterrupts,
+    TSubagents,
+    TActivities
+  >
 }
 
 /**

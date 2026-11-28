@@ -1,5 +1,7 @@
 import type {
+  AnyActivityTypeDefinition,
   AnyClientTool,
+  BuiltInActivityPart,
   InferSchemaType,
   InferToolInput,
   InferToolOutput,
@@ -52,7 +54,12 @@ export type ChatUIPartOf<
   TKey extends ChatUIPartKey = ChatUIPartKey,
 > = TKey extends ChatUIPartKey
   ? Extract<
-      MessagePart<ChatUIToolsOf<TOptions>, ChatUIData<TOptions>>,
+      MessagePart<
+        ChatUIToolsOf<TOptions>,
+        ChatUIData<TOptions>,
+        undefined,
+        ChatUIActivitiesOf<TOptions>
+      >,
       { type: ChatUIPartTypeByKey[TKey] }
     >
   : never
@@ -64,6 +71,37 @@ export type ChatUIToolsOf<TOptions> = TOptions extends {
     ? TTools
     : any
   : any
+
+/**
+ * The `activities` of the options. Options with no `activities` give an empty
+ * list, so the UI types the built-in activity types in all cases.
+ */
+export type ChatUIActivitiesOf<TOptions> = TOptions extends {
+  activities?: infer TActivities
+}
+  ? [Exclude<TActivities, undefined>] extends [never]
+    ? readonly []
+    : Exclude<
+          TActivities,
+          undefined
+        > extends ReadonlyArray<AnyActivityTypeDefinition>
+      ? Exclude<TActivities, undefined>
+      : readonly []
+  : readonly []
+
+/**
+ * The activity type names of the options: the built-in names plus the names
+ * in `activities`. Use it as the key of a map of activity components.
+ */
+export type ChatUIActivityType<TOptions> =
+  | BuiltInActivityPart['activityType']
+  | ChatUIActivitiesOf<TOptions>[number]['activityType']
+
+/** The activity part of one activity type name, with its typed `content`. */
+export type ChatUIActivityPartOf<
+  TOptions,
+  K extends ChatUIActivityType<TOptions>,
+> = Extract<ChatUIPartOf<TOptions, 'activity'>, { activityType: K }>
 
 type RootInterruptsOf<TOptions> = TOptions extends {
   interrupts: infer TInterrupts
@@ -328,24 +366,42 @@ export type ChatUISelectedPartOf<
         part: ChatUIPartOf<TOptions, TKey>
       }
 
-export type ChatUISelectedMessage = {
-  message: UIMessage
+export type ChatUISelectedMessage<
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> | undefined =
+    undefined,
+> = {
+  message: UIMessage<any, unknown, undefined, TActivities>
   parts: Array<ChatUISelectedPart>
 }
 
-export type ChatUISelection = {
-  messages: Array<ChatUISelectedMessage>
+export type ChatUISelection<
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> | undefined =
+    undefined,
+> = {
+  messages: Array<ChatUISelectedMessage<TActivities>>
   interrupts: Array<ChatUIInterrupt>
 }
 
-export type ChatUISelectInput = {
-  messages: ReadonlyArray<UIMessage>
+/**
+ * The input of `selectChatUI`. `TActivities` keeps the activity types of the
+ * messages, so a message with typed activity parts fits without a cast.
+ */
+export type ChatUISelectInput<
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> | undefined =
+    undefined,
+> = {
+  messages: ReadonlyArray<UIMessage<any, unknown, undefined, TActivities>>
   interrupts?: ReadonlyArray<ChatUIInterrupt>
   inlineToolNames?: ReadonlyArray<string>
 }
 
 export type ChatUIMessages<TOptions> = Array<
-  UIMessage<ChatUIToolsOf<TOptions>, ChatUIData<TOptions>>
+  UIMessage<
+    ChatUIToolsOf<TOptions>,
+    ChatUIData<TOptions>,
+    undefined,
+    ChatUIActivitiesOf<TOptions>
+  >
 >
 
 export type ChatUIStructuredPart<TOptions> = StructuredOutputPart<

@@ -1,4 +1,5 @@
 import type {
+  AnyActivityTypeDefinition,
   AnyClientTool,
   InterruptDefinition,
   InferSchemaType,
@@ -72,6 +73,10 @@ export type DeepPartial<T> =
  * validation still runs against the schema passed to `chat({ outputSchema })`
  * on the server route.
  *
+ * `activities` takes `defineActivityType` definitions. It only types the
+ * activity parts of `messages`. The built-in activity types are typed without
+ * it.
+ *
  * Note: Connection changes will recreate the ChatClient instance.
  * To update these options, remount the component or use a key prop.
  */
@@ -81,8 +86,9 @@ export type CreateChatOptions<
   TContext = InferredClientContext<TTools>,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> = readonly [],
 > = DistributedOmit<
-  ChatClientOptions<TTools, TContext, TInterrupts>,
+  ChatClientOptions<TTools, TContext, TInterrupts, TActivities>,
   | 'onMessagesChange'
   | 'onLoadingChange'
   | 'onErrorChange'
@@ -119,11 +125,13 @@ export type CreateChatReturn<
   TContext = unknown,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> = readonly [],
 > = BaseCreateChatReturn<
   TTools,
   TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
   TContext,
-  TInterrupts
+  TInterrupts,
+  TActivities
 > &
   (TSchema extends SchemaInput
     ? {
@@ -147,14 +155,19 @@ interface BaseCreateChatReturn<
   TContext = unknown,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> = readonly [],
 > {
   /**
    * Current messages in the conversation (reactive getter). When
    * `outputSchema` is supplied, `messages[i].parts.find(p => p.type ===
    * 'structured-output')` is typed by the schema — `data: T`,
-   * `partial: DeepPartial<T>`.
+   * `partial: DeepPartial<T>`. `part.activityType === 'sandbox.status'`
+   * narrows the `content` of an activity part, for a built-in type or a type
+   * in `activities`.
    */
-  readonly messages: ReadonlyArray<UIMessage<TTools, TData>>
+  readonly messages: ReadonlyArray<
+    UIMessage<TTools, TData, undefined, TActivities>
+  >
 
   /**
    * Send a message and get a response.
@@ -192,6 +205,14 @@ interface BaseCreateChatReturn<
     state?: 'output-available' | 'output-error'
     errorText?: string
   }) => Promise<void>
+
+  /**
+   * Answer a pending `sandbox.approval` row, then continue the run.
+   */
+  respondToSandboxApproval: (
+    approvalId: string,
+    granted: boolean,
+  ) => Promise<void>
 
   /**
    * The id of the run this client has in flight — one it started or rejoined —

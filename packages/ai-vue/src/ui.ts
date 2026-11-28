@@ -12,6 +12,7 @@ export {
   UIInterrupts,
   UIInterrupt,
   UIQueue,
+  type ActivityProps,
   type ChatUIComponents,
   type ChatUIFactoryConfig,
   type ChatUIHost,

@@ -17,17 +17,17 @@ export const INTERRUPT_PAYLOAD_METADATA_KEY =
   'tanstack:interruptPayload' as const
 export const INTERRUPT_BINDING_KIND = 'generic' as const
 
-type PortableSchema =
+export type PortableSchema =
   | StandardJSONSchemaV1<any, any>
   | StandardSchemaV1<any, any>
 
-type InferSchemaOutput<TSchema> =
+export type InferSchemaOutput<TSchema> =
   TSchema extends StandardSchemaV1<any, infer TOutput>
     ? TOutput
     : TSchema extends StandardJSONSchemaV1<any, infer TOutput>
       ? TOutput
       : never
-type InferSchemaInput<TSchema> =
+export type InferSchemaInput<TSchema> =
   TSchema extends StandardSchemaV1<infer TInput, any>
     ? TInput
     : TSchema extends StandardJSONSchemaV1<infer TInput, any>

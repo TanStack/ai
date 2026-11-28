@@ -1,12 +1,40 @@
 import { expectTypeOf, it } from 'vitest'
+import { defineActivityType } from '@tanstack/ai'
+import type { StandardSchemaV1 } from '@standard-schema/spec'
 import { createChatHook } from '../../src/chat-ui/create-chat-hook'
 import { createChatUI } from '../../src/chat-ui/create-ui'
+import { useChat } from '../../src/use-chat'
 import type {
   ChatUIHost,
   InterruptProps,
   ToolProps,
 } from '../../src/chat-ui/create-ui'
+import type { ActivityProps } from '../../src/ui'
 import { chatOptions } from '../../../ai-client/tests/ui-fixtures'
+
+type DeployProgress = { step: number; total: number }
+const deployProgressSchema: StandardSchemaV1<DeployProgress> = {
+  '~standard': {
+    version: 1,
+    vendor: 'test',
+    validate: () => ({ value: { step: 0, total: 0 } }),
+  },
+}
+const deployProgress = defineActivityType({
+  activityType: 'deploy.progress',
+  contentSchema: deployProgressSchema,
+})
+const activityOptions = { ...chatOptions, activities: [deployProgress] }
+
+// A component in its own scope, typed with `ActivityProps`.
+function SandboxCard(
+  props: ActivityProps<typeof activityOptions, 'sandbox.status'>,
+) {
+  expectTypeOf(props.part.content.status).toEqualTypeOf<
+    'starting' | 'ready' | 'failed'
+  >()
+  return null
+}
 
 it('requires every tool name and interrupt id', () => {
   type PurchaseInterrupt = InterruptProps<typeof chatOptions, 'purchaseItem'>
@@ -149,4 +177,37 @@ it('requires every tool name and interrupt id', () => {
     expectTypeOf(chat.AppChat).not.toBeAny()
   }
   void checkBoundHook
+})
+
+it('types activitiesComponents by activity type', () => {
+  const UI = createChatUI(activityOptions, {
+    components: {
+      layout: () => null,
+      message: () => null,
+    },
+    partsComponents: { fallback: () => null },
+    toolsComponents: {
+      getWeather: () => null,
+      purchaseItem: () => null,
+    },
+    interruptsComponents: {
+      generic: { choosePlan: () => null },
+    },
+    activitiesComponents: {
+      'sandbox.status': SandboxCard,
+      'deploy.progress': (props) => {
+        expectTypeOf(props.part.content).toEqualTypeOf<DeployProgress>()
+        return null
+      },
+      // @ts-expect-error No activity type has this name.
+      'build.log': () => null,
+    },
+  })
+
+  // A chat made from the same options fits the kit.
+  const checkHost = () => {
+    const chat = useChat({ ...activityOptions, threadId: 'thread-1' })
+    return <UI.Chat chat={chat} />
+  }
+  void checkHost
 })

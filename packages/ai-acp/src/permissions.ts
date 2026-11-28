@@ -63,7 +63,16 @@ export function resolveInteractivePermission(
     return { outcome: allow() }
   }
 
-  const id = approvalId({ provider, kind: 'tool', target: title })
+  // One decision covers one action: the same kind, title, and files. The raw
+  // input is not in the key, because an agent can change its free text when
+  // it tries the action again.
+  const files = (request.toolCall.locations ?? []).map(({ path }) => path)
+  const id = approvalId({
+    provider,
+    kind: 'tool',
+    // JSON tuple so a colon in the title or a path cannot collide with another action.
+    target: JSON.stringify([request.toolCall.kind ?? null, title, files]),
+  })
   const granted = approvals?.get(id)
   if (granted === true) return { outcome: allow() }
   if (granted === false) return { outcome: reject() }

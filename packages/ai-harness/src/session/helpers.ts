@@ -148,6 +148,8 @@ export function snapshotFrom({
       ...liveChildWaits,
       ...childWaits.filter((wait) => !seen.has(wait.waitId)),
     ],
+    // A copy: the snapshot must not share objects with the fold.
+    activities: structuredClone([...(thread?.activities.values() ?? [])]),
     plugins,
     usage,
     cursor,

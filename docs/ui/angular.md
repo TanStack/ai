@@ -226,6 +226,60 @@ class DeleteFileTool {
 
 `resolveInterrupt(true)` approves. `resolveInterrupt(false)` denies. Full example: [Ask before a tool runs](./recipes/tool-approval).
 
+### Render an activity
+
+An activity is a row that the server adds to the chat, such as a sandbox start or deploy progress. Register one component for each activity type in `activitiesComponents`. Each component gets the activity as the `part` input:
+
+```ts ignore
+import { defineActivityType } from '@tanstack/ai'
+import type { ActivityProps } from '@tanstack/ai-angular/ui'
+import { z } from 'zod'
+
+const deployProgress = defineActivityType({
+  activityType: 'deploy.progress',
+  contentSchema: z.object({ step: z.number(), total: z.number() }),
+})
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+  activities: [deployProgress],
+}
+
+@Component({
+  selector: 'app-sandbox-card',
+  template: `<p>Sandbox: {{ part().content.status }}</p>`,
+})
+class SandboxCard {
+  part =
+    input.required<ActivityProps<typeof chatOptions, 'sandbox.status'>['part']>()
+}
+
+@Component({
+  selector: 'app-deploy-card',
+  template: `
+    <p>Step {{ part().content.step }} of {{ part().content.total }}</p>
+  `,
+})
+class DeployCard {
+  part =
+    input.required<ActivityProps<typeof chatOptions, 'deploy.progress'>['part']>()
+}
+
+// In createChatHook:
+activitiesComponents: {
+  'sandbox.status': SandboxCard,
+  'deploy.progress': DeployCard,
+},
+```
+
+- `'sandbox.status'` is a built-in type, so it is always a key. `SandboxCard` types its `part` input with `ActivityProps`, so you can move it to its own file.
+- `'deploy.progress'` is a key because `deployProgress` is in `activities`. Its `part().content` is `{ step: number; total: number }`.
+- A key that is not built in and not in `activities` is a type error.
+- The factory does not check the inputs of a card. Type `part` with `ActivityProps` and the same key.
+- A type with no entry renders with `partsComponents.activity`.
+
+To emit an activity from a tool or a middleware, read [Activities](../chat/activities).
+
 ### Ask the user your own question
 
 Define the question with `defineInterrupt`. Add it to `interrupts` in `chatOptions`. Register a component under its id in `interruptsComponents.generic`, and render `Interrupts` in the layout:
@@ -307,7 +361,7 @@ Chat state is signals. Read it by calling it, such as `chat.messages()`.
 
 ### Type a widget in its own file
 
-Type each signal input from the prop types: `ToolProps`, `PartProps`, `InterruptProps`, and `MessageProps`. Pass `typeof chatOptions` and a name, then index the prop that you need:
+Type each signal input from the prop types: `ToolProps`, `PartProps`, `InterruptProps`, `ActivityProps`, and `MessageProps`. Pass `typeof chatOptions` and a name, then index the prop that you need:
 
 ```ts ignore
 part = input.required<ToolProps<typeof chatOptions, 'getWeather'>['part']>()
@@ -333,6 +387,7 @@ It passes these inputs to each widget:
 - A part: `part`.
 - A tool: `part`, `result`, and `interrupt`.
 - An interrupt: `interrupt`.
+- An activity: `part`.
 - A queue item: `item`.
 
 `injectAppChat()` takes per-instance options: `threadId` (required), `initialMessages`, `live`, and `forwardedProps`. The factory also returns `ChatProvider` and `injectChatContext`.

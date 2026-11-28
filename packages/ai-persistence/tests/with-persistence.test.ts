@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
-import { EventType, chat } from '@tanstack/ai'
+import { EventType, chat, sandboxStatusActivity } from '@tanstack/ai'
 import { getPendingTurn } from '@tanstack/ai/adapter-internals'
 import type {
+  ActivityRecord,
   AdapterYieldChunk,
   AnyTextAdapter,
   ChatMiddleware,
   ModelMessage,
+  SandboxStatusContent,
   StreamChunk,
   Tool,
   TokenUsage,
@@ -13,7 +15,7 @@ import type {
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
 import { reconstructChat } from '../src/reconstruct'
-import { defineAIPersistence } from '../src/types'
+import { defineAIPersistence, defineActivityStore } from '../src/types'
 import { threadMessages } from './persistence-fixtures'
 
 // --- minimal mock text adapter ---------------------------------------------
@@ -146,6 +148,18 @@ async function runPersistedChat(
     }) as AsyncIterable<StreamChunk>,
   )
   return loadedThread(persistence)
+}
+
+/** The content of the `sandbox.status` row that the activity tests emit. */
+const sandboxStarting = { status: 'starting', provider: 'test' } as const
+
+/** The stored `sandbox.status` row of run `r1`, with `content`. */
+function sandboxRow(content: SandboxStatusContent) {
+  return expect.objectContaining({
+    id: 'sandbox-r1',
+    activityType: 'sandbox.status',
+    content,
+  })
 }
 
 describe('withPersistence (state-only)', () => {
@@ -1719,6 +1733,54 @@ describe('withPersistence (state-only)', () => {
       ])
     })
 
+    it('keeps an inbound row in the middle of the transcript', async () => {
+      const persistence = memoryPersistence()
+      const { adapter } = mockAdapter([
+        [ev.runStarted(), ev.text('hello'), ev.runFinished()],
+      ])
+      await collect(
+        chat({
+          adapter,
+          messages: [
+            { id: 'u1', role: 'user', content: 'hi' },
+            {
+              id: 'act-mid',
+              role: 'activity',
+              parts: [{ type: 'activity', activityType: 'PLAN', content: {} }],
+            },
+            { id: 'a1', role: 'assistant', content: 'old' },
+            { id: 'u2', role: 'user', content: 'again' },
+          ],
+          runId: 'r1',
+          threadId: 't1',
+          middleware: [withPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      expect(await persistence.stores.activities.loadActivities('t1')).toEqual([
+        expect.objectContaining({
+          id: 'act-mid',
+          activityType: 'PLAN',
+          index: 1,
+        }),
+      ])
+      const reconstructed = (await (
+        await reconstructChat(
+          persistence,
+          new Request('http://example.test/api/chat?threadId=t1'),
+        )
+      ).json()) as { messages: Array<{ id: string; role: string }> }
+      expect(reconstructed.messages.map((message) => message.role)).toEqual([
+        'user',
+        'activity',
+        'assistant',
+        'user',
+        'assistant',
+      ])
+      expect(reconstructed.messages[1]).toEqual(
+        expect.objectContaining({ id: 'act-mid' }),
+      )
+    })
+
     it('merges an inbound row instead of replacing the stored rows', async () => {
       const persistence = await seeded()
       const { adapter } = mockAdapter([
@@ -1746,12 +1808,389 @@ describe('withPersistence (state-only)', () => {
       expect(records.map((record) => record.id)).toEqual(['act-1', 'act-2'])
     })
 
+    /**
+     * A run whose request carries only the new turn and no activity rows, with
+     * a middleware that runs `setup`. Like a sandbox that boots in `setup`,
+     * before `onConfig` loads the stored rows.
+     */
+    function chatWithSetup(
+      persistence: ReturnType<typeof memoryPersistence>,
+      setup: NonNullable<ChatMiddleware['setup']>,
+    ) {
+      const { adapter } = mockAdapter([
+        [ev.runStarted(), ev.text('hello'), ev.runFinished()],
+      ])
+      return chat({
+        adapter,
+        messages: [next],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence), { name: 'sandbox', setup }],
+      }) as AsyncIterable<StreamChunk>
+    }
+
+    it('keeps it when a middleware emits an activity in setup', async () => {
+      const persistence = await seeded()
+      await collect(
+        chatWithSetup(persistence, (ctx) => {
+          ctx.emitActivity(sandboxStatusActivity, 'sandbox-r1', sandboxStarting)
+        }),
+      )
+      const records = await persistence.stores.activities.loadActivities('t1')
+      expect(records.map((record) => record.id)).toEqual([
+        'act-1',
+        'sandbox-r1',
+      ])
+      // The request has only `next`. The row goes after the stored user,
+      // act-1, assistant, and `next`.
+      expect(records.find((record) => record.id === 'sandbox-r1')).toEqual(
+        expect.objectContaining({
+          id: 'sandbox-r1',
+          content: sandboxStarting,
+          index: 4,
+        }),
+      )
+    })
+
+    it.each(['persistence first', 'sandbox first'] as const)(
+      'puts the setup row of each run after its user message after a reload (%s)',
+      async (order) => {
+        const persistence = memoryPersistence()
+        for (const run of [1, 2, 3]) {
+          const { adapter } = mockAdapter([
+            [
+              ev.runStarted(`r${run}`),
+              ev.text('hello'),
+              ev.runFinished(`r${run}`),
+            ],
+          ])
+          await collect(
+            chat({
+              adapter,
+              // Like `ChatClient`: the whole thread, but no activity rows.
+              messages: [
+                ...(await loadedThread(persistence)),
+                { id: `u${run}`, role: 'user', content: `question ${run}` },
+              ],
+              runId: `r${run}`,
+              threadId: 't1',
+              middleware: (() => {
+                const sandbox: ChatMiddleware = {
+                  name: 'sandbox',
+                  // Like a sandbox boot: the row drains while setup still
+                  // waits, so with this order first it reaches persistence
+                  // before the persistence setup runs.
+                  async setup(ctx) {
+                    ctx.emitActivity(
+                      sandboxStatusActivity,
+                      `sandbox-r${run}`,
+                      sandboxStarting,
+                    )
+                    await new Promise((resolve) => setTimeout(resolve, 0))
+                  },
+                }
+                const persisted = withPersistence(persistence)
+                return order === 'sandbox first'
+                  ? [sandbox, persisted]
+                  : [persisted, sandbox]
+              })(),
+            }) as AsyncIterable<StreamChunk>,
+          )
+        }
+        const reloaded = (await (
+          await reconstructChat(
+            persistence,
+            new Request('http://example.test/api/chat?threadId=t1'),
+          )
+        ).json()) as { messages: Array<{ id: string; role: string }> }
+        // chat() gives each answer its id, so the check shows it as `answer`.
+        expect(
+          reloaded.messages.map((message) =>
+            message.role === 'assistant' ? 'answer' : message.id,
+          ),
+        ).toEqual([
+          'u1',
+          'sandbox-r1',
+          'answer',
+          'u2',
+          'sandbox-r2',
+          'answer',
+          'u3',
+          'sandbox-r3',
+          'answer',
+        ])
+      },
+    )
+
+    // A harness adapter sends a tool call with no text. The store keeps that
+    // assistant message with no id, and the client gives it its own id. The
+    // next request has the same turn, so it is not a reload of that turn.
+    it('keeps the rows of a tool call turn that the client sends with its own ids', async () => {
+      const persistence = memoryPersistence()
+      // What run 1 stored: the tool call turn has no ids.
+      await persistence.stores.messages!.saveThread('t1', [
+        { id: 'u1', role: 'user', content: 'run it' },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'bash', arguments: '{}' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call-1', content: 'done' },
+      ])
+      await persistence.stores.activities.saveActivities('t1', [
+        {
+          id: 'sandbox-r1',
+          activityType: 'sandbox.status',
+          content: sandboxStarting,
+          index: 1,
+        },
+      ])
+
+      const { adapter } = mockAdapter([
+        [ev.runStarted('r2'), ev.text('hello'), ev.runFinished('r2')],
+      ])
+      await collect(
+        chat({
+          adapter,
+          // Like `ChatClient`: its own copy of the tool call turn.
+          messages: [
+            { id: 'u1', role: 'user', content: 'run it' },
+            {
+              id: 'client-a1',
+              role: 'assistant',
+              content: null,
+              toolCalls: [
+                {
+                  id: 'call-1',
+                  type: 'function',
+                  function: { name: 'bash', arguments: '{}' },
+                },
+              ],
+            },
+            { role: 'tool', toolCallId: 'call-1', content: 'done' },
+            { id: 'u2', role: 'user', content: 'next' },
+          ],
+          runId: 'r2',
+          threadId: 't1',
+          middleware: [
+            withPersistence(persistence),
+            {
+              name: 'sandbox',
+              setup: (ctx) => {
+                ctx.emitActivity(
+                  sandboxStatusActivity,
+                  'sandbox-r2',
+                  sandboxStarting,
+                )
+              },
+            },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const reloaded = (await (
+        await reconstructChat(
+          persistence,
+          new Request('http://example.test/api/chat?threadId=t1'),
+        )
+      ).json()) as { messages: Array<{ id: string; role: string }> }
+      expect(
+        reloaded.messages.map((message) =>
+          message.role === 'assistant' ? 'answer' : message.id,
+        ),
+      ).toEqual(['u1', 'sandbox-r1', 'answer', 'u2', 'sandbox-r2', 'answer'])
+    })
+
+    it('keeps it when the run fails in setup', async () => {
+      const persistence = await seeded()
+      await expect(
+        collect(
+          chatWithSetup(persistence, () => {
+            throw new Error('sandbox did not boot')
+          }),
+        ),
+      ).rejects.toThrow('sandbox did not boot')
+      expect(await persistence.stores.activities.loadActivities('t1')).toEqual([
+        stored,
+      ])
+    })
+
+    it('keeps it when the user stops the run in setup', async () => {
+      const persistence = await seeded()
+      const stream = chatWithSetup(persistence, (ctx) => {
+        ctx.emitCustomEvent('sandbox.starting', { provider: 'test' })
+      })
+      for await (const chunk of stream) {
+        // The user stops the run while the sandbox boots.
+        if (chunk.type === EventType.CUSTOM) break
+      }
+      expect(await persistence.stores.activities.loadActivities('t1')).toEqual([
+        stored,
+      ])
+    })
+
+    it('saves a row from setup while setup still waits', async () => {
+      const persistence = await seeded()
+      let finishBoot: () => void = () => undefined
+      const boot = new Promise<void>((resolve) => {
+        finishBoot = resolve
+      })
+      const stream = chatWithSetup(persistence, async (ctx) => {
+        ctx.emitActivity(sandboxStatusActivity, 'sandbox-r1', sandboxStarting)
+        await boot
+      })
+      const reads: Array<Array<ActivityRecord>> = []
+      for await (const chunk of stream) {
+        if (chunk.type !== EventType.ACTIVITY_SNAPSHOT) continue
+        // `setup` still waits for the boot here.
+        reads.push(await persistence.stores.activities.loadActivities('t1'))
+        finishBoot()
+      }
+      expect(reads).toEqual([[stored, sandboxRow(sandboxStarting)]])
+    })
+
+    it('saves the failed row of a run that fails in setup', async () => {
+      const persistence = await seeded()
+      const failed = {
+        status: 'failed',
+        provider: 'test',
+        error: 'sandbox did not boot',
+      } as const
+      await expect(
+        collect(
+          chatWithSetup(persistence, (ctx) => {
+            ctx.emitActivity(
+              sandboxStatusActivity,
+              'sandbox-r1',
+              sandboxStarting,
+            )
+            ctx.emitActivity(sandboxStatusActivity, 'sandbox-r1', failed)
+            throw new Error(failed.error)
+          }),
+        ),
+      ).rejects.toThrow(failed.error)
+      expect(await persistence.stores.activities.loadActivities('t1')).toEqual([
+        stored,
+        sandboxRow(failed),
+      ])
+    })
+
+    it('saves the row of a run that the user stops in setup', async () => {
+      const persistence = await seeded()
+      const stream = chatWithSetup(persistence, (ctx) => {
+        ctx.emitActivity(sandboxStatusActivity, 'sandbox-r1', sandboxStarting)
+      })
+      for await (const chunk of stream) {
+        // The user stops the run while the sandbox boots.
+        if (chunk.type === EventType.ACTIVITY_SNAPSHOT) break
+      }
+      expect(await persistence.stores.activities.loadActivities('t1')).toEqual([
+        stored,
+        sandboxRow(sandboxStarting),
+      ])
+    })
+
+    it('keeps them when they do not load before the run starts', async () => {
+      const memory = await seeded()
+      // Only the load fails. A save without the stored rows would delete them.
+      const persistence = defineAIPersistence({
+        stores: {
+          ...memory.stores,
+          activities: defineActivityStore({
+            loadActivities: () =>
+              Promise.reject(new Error('activity store down')),
+            saveActivities: (threadId, list) =>
+              memory.stores.activities.saveActivities(threadId, list),
+          }),
+        },
+      })
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        await expect(
+          collect(
+            chatWithSetup(persistence, (ctx) => {
+              ctx.emitActivity(
+                sandboxStatusActivity,
+                'sandbox-r1',
+                sandboxStarting,
+              )
+            }),
+          ),
+        ).rejects.toThrow('activity store down')
+      } finally {
+        warn.mockRestore()
+      }
+      expect(await memory.stores.activities.loadActivities('t1')).toEqual([
+        stored,
+      ])
+    })
+
     it('drops the rows of a turn that a reload replaces', async () => {
       const persistence = await seeded()
       await runPersistedChat(persistence, [user])
       expect(await persistence.stores.activities.loadActivities('t1')).toEqual(
         [],
       )
+    })
+
+    /**
+     * Two stored turns, each with a row: user, act-1, assistant, next, act-2,
+     * and an old answer. `chatWithSetup` sends only `next`, so its run
+     * regenerates the old answer and must drop act-2.
+     */
+    async function seededTwoTurns() {
+      const persistence = await seeded()
+      await persistence.stores.messages.saveThread('t1', [
+        user,
+        assistant,
+        next,
+        { id: 'a2', role: 'assistant', content: 'old answer' },
+      ])
+      await persistence.stores.activities.saveActivities('t1', [
+        stored,
+        { ...stored, id: 'act-2', index: 4 },
+      ])
+      return persistence
+    }
+
+    it('drops the rows of a regenerated turn when setup saves a row early', async () => {
+      const persistence = await seededTwoTurns()
+      await collect(
+        chatWithSetup(persistence, (ctx) => {
+          ctx.emitActivity(sandboxStatusActivity, 'sandbox-r1', sandboxStarting)
+        }),
+      )
+      expect(await persistence.stores.activities.loadActivities('t1')).toEqual([
+        stored,
+        sandboxRow(sandboxStarting),
+      ])
+    })
+
+    it('drops them when the pending-turn snapshot runs after an early save', async () => {
+      const persistence = await seededTwoTurns()
+      let markSaved: () => void = () => undefined
+      const saved = new Promise<void>((resolve) => {
+        markSaved = resolve
+      })
+      const stream = chatWithSetup(persistence, async (ctx) => {
+        ctx.emitActivity(sandboxStatusActivity, 'sandbox-r1', sandboxStarting)
+        // Store the user's turn only after the row is saved.
+        await saved
+        await getPendingTurn(ctx, { optional: true })?.snapshot()
+      })
+      for await (const chunk of stream) {
+        if (chunk.type === EventType.ACTIVITY_SNAPSHOT) markSaved()
+      }
+      expect(await persistence.stores.activities.loadActivities('t1')).toEqual([
+        stored,
+        sandboxRow(sandboxStarting),
+      ])
     })
   })
 
@@ -1809,6 +2248,108 @@ describe('withPersistence (state-only)', () => {
     },
   )
 
+  describe('saves each activity change during the run', () => {
+    const startingRow = sandboxRow(sandboxStarting)
+
+    /**
+     * Run a turn that calls `search`, then a final turn. Give back the stored
+     * rows each time the consumer gets an ACTIVITY_SNAPSHOT. The run is still
+     * open then, so only a save in `onChunk` can have stored the row.
+     */
+    async function storedAtEachActivity({
+      search = serverSearchTool(),
+      middleware = [],
+    }: {
+      search?: Tool
+      middleware?: Array<ChatMiddleware>
+    }) {
+      const persistence = memoryPersistence()
+      const { adapter } = mockAdapter([
+        [
+          ev.runStarted(),
+          {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: 'agent-tool',
+            role: 'assistant',
+            timestamp: 1,
+          },
+          {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: 'call_1',
+            toolCallName: 'search',
+            parentMessageId: 'agent-tool',
+            timestamp: 1,
+          },
+          {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: 'call_1',
+            delta: '{}',
+            timestamp: 1,
+          },
+          {
+            type: EventType.RUN_FINISHED,
+            runId: 'r1',
+            threadId: 't1',
+            finishReason: 'tool_calls',
+            timestamp: 1,
+          },
+        ],
+        [ev.runStarted(), ev.text('done'), ev.runFinished()],
+      ])
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'search' }],
+        tools: [search],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence), ...middleware],
+      }) as AsyncIterable<StreamChunk>
+      const reads: Array<Array<ActivityRecord>> = []
+      for await (const chunk of stream) {
+        if (chunk.type !== EventType.ACTIVITY_SNAPSHOT) continue
+        reads.push(await persistence.stores.activities.loadActivities('t1'))
+      }
+      return reads
+    }
+
+    it('stores an activity that a tool emits before the run ends', async () => {
+      const reads = await storedAtEachActivity({
+        search: {
+          ...serverSearchTool(),
+          execute: (_args, context) => {
+            context?.emitActivity?.(
+              sandboxStatusActivity,
+              'sandbox-r1',
+              sandboxStarting,
+            )
+            return { hits: [] }
+          },
+        },
+      })
+
+      expect(reads).toEqual([[startingRow]])
+    })
+
+    it('stores an activity that a middleware emits before the run ends', async () => {
+      const reads = await storedAtEachActivity({
+        middleware: [
+          {
+            name: 'sandbox-status',
+            onStart(ctx) {
+              ctx.emitActivity(
+                sandboxStatusActivity,
+                'sandbox-r1',
+                sandboxStarting,
+              )
+            },
+          },
+        ],
+      })
+
+      expect(reads).toEqual([[startingRow]])
+    })
+  })
+
   describe('when the activity store fails', () => {
     function failingActivityPersistence() {
       const memory = memoryPersistence()
@@ -1827,30 +2368,43 @@ describe('withPersistence (state-only)', () => {
       }
     }
 
-    it('still completes the run', async () => {
+    it('logs a warning and still completes the run', async () => {
       const { memory, persistence } = failingActivityPersistence()
       const { adapter } = mockAdapter([
-        [ev.runStarted(), ev.text('hello'), ev.runFinished()],
+        [
+          ev.runStarted(),
+          sandboxStatusActivity.snapshot('sandbox-r1', sandboxStarting),
+          ev.text('hello'),
+          ev.runFinished(),
+        ],
       ])
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        const chunks = await collect(
+          chat({
+            adapter,
+            messages: [{ role: 'user', content: 'hi' }],
+            runId: 'r1',
+            threadId: 't1',
+            middleware: [withPersistence(persistence)],
+          }) as AsyncIterable<StreamChunk>,
+        )
 
-      const chunks = await collect(
-        chat({
-          adapter,
-          messages: [{ role: 'user', content: 'hi' }],
-          runId: 'r1',
-          threadId: 't1',
-          middleware: [withPersistence(persistence)],
-        }) as AsyncIterable<StreamChunk>,
-      )
-
-      expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
-        false,
-      )
-      expect((await memory.stores.runs.get('r1'))?.status).toBe('completed')
-      expect(await memory.stores.messages.loadThread('t1')).toEqual([
-        { role: 'user', content: 'hi' },
-        expect.objectContaining({ role: 'assistant', content: 'hello' }),
-      ])
+        expect(warn).toHaveBeenCalledWith(
+          "[ai-persistence] saveActivities failed for thread 't1'",
+          expect.any(Error),
+        )
+        expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+          false,
+        )
+        expect((await memory.stores.runs.get('r1'))?.status).toBe('completed')
+        expect(await memory.stores.messages.loadThread('t1')).toEqual([
+          { role: 'user', content: 'hi' },
+          expect.objectContaining({ role: 'assistant', content: 'hello' }),
+        ])
+      } finally {
+        warn.mockRestore()
+      }
     })
 
     it('still marks an interrupted run interrupted', async () => {

@@ -2,6 +2,7 @@ import { createSignal } from 'solid-js'
 import { render } from 'solid-js/web'
 import type { JSX } from 'solid-js'
 import { describe, expect, it, vi } from 'vitest'
+import type { UIMessage } from '@tanstack/ai-client'
 import { createChatUI } from '../../src/chat-ui/create-ui'
 import { createChatHook } from '../../src/chat-ui/create-chat-hook'
 import type {
@@ -46,6 +47,28 @@ const baseConfig: ChatUIFactoryConfig<typeof chatOptions> = {
   interruptsComponents: {
     generic: { choosePlan: () => null, fallback: () => null },
   },
+}
+
+const activityConfig: ChatUIFactoryConfig<typeof chatOptions> = {
+  ...baseConfig,
+  partsComponents: {
+    ...baseConfig.partsComponents,
+    activity: (props) => <i>{props.part.activityType}</i>,
+  },
+  activitiesComponents: {
+    'sandbox.status': (props) => <b>{props.part.content.status}</b>,
+  },
+}
+
+function activityMessage(
+  activityType: string,
+  content: Record<string, unknown>,
+): UIMessage {
+  return {
+    id: `activity-${activityType}`,
+    role: 'activity',
+    parts: [{ type: 'activity', activityType, content }],
+  }
 }
 
 describe('Solid createChatHook', () => {
@@ -219,5 +242,26 @@ describe('Solid createChatUI', () => {
     } finally {
       dispose()
     }
+  })
+
+  it('renders an activity part with the activitiesComponents entry of its type', () => {
+    const UI = createChatUI(chatOptions, activityConfig)
+    const chat = host([
+      activityMessage('sandbox.status', {
+        status: 'starting',
+        provider: 'e2b',
+      }),
+    ])
+    expect(renderHtml(() => <UI.Chat chat={chat} />)).toBe(
+      '<article><b>starting</b></article>',
+    )
+  })
+
+  it('renders partsComponents.activity for a type with no entry', () => {
+    const UI = createChatUI(chatOptions, activityConfig)
+    const chat = host([activityMessage('deploy.progress', { step: 1 })])
+    expect(renderHtml(() => <UI.Chat chat={chat} />)).toBe(
+      '<article><i>deploy.progress</i></article>',
+    )
   })
 })

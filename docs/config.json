@@ -286,6 +286,11 @@
           "to": "chat/queueing",
           "addedAt": "2026-08-26",
           "updatedAt": "2026-11-02"
+        },
+        {
+          "label": "Activities",
+          "to": "chat/activities",
+          "addedAt": "2026-11-20"
         }
       ],
       "tab": "guides"
@@ -411,7 +416,7 @@
           "label": "Server Tools: Advanced",
           "to": "tools/server-tools-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-11-09"
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "Sandboxed Chat Tools",
@@ -487,7 +492,7 @@
           "label": "Middleware: Advanced",
           "to": "advanced/middleware-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-11-18"
+          "updatedAt": "2026-11-24"
         },
         {
           "label": "Built-in Middleware",
@@ -536,49 +541,49 @@
           "label": "React",
           "to": "ui/react",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "Solid",
           "to": "ui/solid",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "Vue",
           "to": "ui/vue",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "Svelte",
           "to": "ui/svelte",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "Preact",
           "to": "ui/preact",
           "addedAt": "2026-09-01",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "Octane",
           "to": "ui/octane",
           "addedAt": "2026-09-01",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "Remix",
           "to": "ui/remix",
           "addedAt": "2026-09-01",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "Angular",
           "to": "ui/angular",
           "addedAt": "2026-09-01",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "Custom Adapters",
@@ -870,7 +875,7 @@
           "label": "Chat Persistence: Advanced",
           "to": "persistence/chat-persistence-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "Client Persistence",
@@ -944,7 +949,7 @@
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-11-18"
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "How Persistence Works",
@@ -1290,7 +1295,7 @@
           "label": "Compact a long session",
           "to": "harness/compaction",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-23"
         },
         {
           "label": "Fork and reset a thread",
@@ -1391,7 +1396,7 @@
           "label": "Build your own UI",
           "to": "harness/custom-ui",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "Code mode in a harness",
@@ -1498,7 +1503,7 @@
           "label": "Policy",
           "to": "sandbox/policy",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "Lifecycle & Snapshots",
@@ -1580,7 +1585,7 @@
           "label": "Events",
           "to": "sandbox/events",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-11-04"
+          "updatedAt": "2026-11-23"
         }
       ]
     },
@@ -1617,7 +1622,7 @@
           "label": "Takeover Internals",
           "to": "sandbox/takeover-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-11-19"
+          "updatedAt": "2026-11-23"
         },
         {
           "label": "Reaping & Retention",
@@ -2023,7 +2028,7 @@
           "label": "Claude Code",
           "to": "adapters/claude-code",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "Codex",
@@ -2047,7 +2052,7 @@
           "label": "ACP-Compatible",
           "to": "adapters/acp-compatible",
           "addedAt": "2026-06-30",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "Amazon Bedrock",
@@ -2199,7 +2204,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-05"
+          "updatedAt": "2026-11-20"
         },
         {
           "label": "@tanstack/ai-client",
@@ -2211,49 +2216,49 @@
           "label": "@tanstack/ai-react",
           "to": "api/ai-react",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-24"
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "@tanstack/ai-solid",
           "to": "api/ai-solid",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-21"
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "@tanstack/ai-preact",
           "to": "api/ai-preact",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-21"
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "@tanstack/ai-vue",
           "to": "api/ai-vue",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-21"
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-21"
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "@tanstack/ai-angular",
           "to": "api/ai-angular",
           "addedAt": "2026-06-15",
-          "updatedAt": "2026-10-21"
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "@tanstack/ai-octane",
           "to": "api/ai-octane",
           "addedAt": "2026-08-21",
-          "updatedAt": "2026-10-21"
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "@tanstack/ai-remix",
           "to": "api/ai-remix",
           "addedAt": "2026-09-01",
-          "updatedAt": "2026-10-21"
+          "updatedAt": "2026-11-21"
         },
         {
           "label": "@tanstack/ai-effect",
@@ -2275,7 +2280,7 @@
           "label": "Custom Events Reference",
           "to": "protocol/custom-events",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-11-04"
+          "updatedAt": "2026-11-20"
         }
       ],
       "tab": "api"

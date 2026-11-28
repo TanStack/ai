@@ -93,12 +93,13 @@ describe('a consumer that stops iterating chat() runs one terminal hook', () => 
     expect(hooks).toEqual(['onError'])
   })
 
-  it('break after the final RUN_FINISHED runs onAbort', async () => {
+  it('break after the final RUN_FINISHED runs onFinish', async () => {
     const { hooks, middleware } = terminalRecorder()
     for await (const chunk of run(middleware)) {
       if (chunk.type === EventType.RUN_FINISHED) break
     }
-    expect(hooks).toEqual(['onAbort'])
+    // onFinish runs before the final RUN_FINISHED goes out.
+    expect(hooks).toEqual(['onFinish'])
   })
 
   it('break after a tool turn RUN_FINISHED runs onAbort and no next turn', async () => {

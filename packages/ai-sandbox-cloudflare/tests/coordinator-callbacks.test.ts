@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
+import { defineActivityType } from '@tanstack/ai'
 import { defineWorkspace } from '@tanstack/ai-sandbox'
 import { ChatSandboxCoordinator } from '../src/chat-coordinator'
 import { ContainerSandboxCoordinator } from '../src/container-coordinator'
@@ -7,15 +9,32 @@ import {
   runWithCallbackActivity,
 } from '../src/coordinator-callbacks'
 import { deferred, fakeCoordinatorState, seedRunningRecord } from './fixtures'
-import type { AnyTextAdapter } from '@tanstack/ai'
+import type {
+  AnyTextAdapter,
+  AnyTool,
+  ToolExecutionContext,
+} from '@tanstack/ai'
 import type {
   SandboxDefinition,
+  ToolBridgeCore,
+  ToolBridgeProvisionOptions,
   ToolBridgeProvisioner,
 } from '@tanstack/ai-sandbox'
 
 const mocks = vi.hoisted(() => ({
   operation: vi.fn(),
   provisioned: undefined as Promise<{ token: string }> | undefined,
+  // The tools and callbacks that the mocked `chat()` gives to `provision`, as
+  // a harness adapter does. Unset: no tools and no callbacks.
+  bridged: undefined as
+    | {
+        tools: Array<AnyTool>
+        options: Pick<
+          ToolBridgeProvisionOptions,
+          'emitCustomEvent' | 'emitActivity'
+        >
+      }
+    | undefined,
 }))
 vi.mock('@cloudflare/sandbox', () => ({ getSandbox: vi.fn() }))
 type MockChatOptions = { middleware: [{ setup(context: never): void }] }
@@ -30,9 +49,10 @@ vi.mock('@tanstack/ai', async (importOriginal) => {
           (provisioner = value),
       } as never)
       if (!provisioner) throw new Error('bridge provisioner was not provided')
-      mocks.provisioned = provisioner.provision([], {
+      mocks.provisioned = provisioner.provision(mocks.bridged?.tools ?? [], {
         provider: 'test',
         threadId: 'thread-1',
+        ...mocks.bridged?.options,
       })
       return (async function* () {})()
     }),
@@ -42,7 +62,6 @@ vi.mock('@tanstack/ai-sandbox', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@tanstack/ai-sandbox')>()
   return {
     ...actual,
-    createToolBridgeCore: () => ({}),
     handleBridgeJsonRpc: (...args: Array<unknown>) => mocks.operation(...args),
     executeHostTool: (...args: Array<unknown>) => mocks.operation(...args),
     withSandbox: () => ({ name: 'test-sandbox' }),
@@ -108,6 +127,7 @@ function callbackRequest(mode: Mode, token: string, runId = input.runId) {
 afterEach(() => {
   mocks.operation.mockReset()
   mocks.provisioned = undefined
+  mocks.bridged = undefined
   vi.restoreAllMocks()
 })
 describe('runWithCallbackActivity', () => {
@@ -239,5 +259,45 @@ describe.each([
       mode === 'do-drives' ? operationResult : { result: operationResult },
     )
     expect((await coordinator.status(input.runId))?.updatedAt).toBe(300)
+  })
+})
+const deployProgress = defineActivityType({
+  activityType: 'deploy.progress',
+  contentSchema: z.object({ step: z.number() }),
+})
+describe('do-drives bridge provisioner', () => {
+  it('gives bridged tools the emitCustomEvent and emitActivity of provision', async () => {
+    const emitted: Array<unknown> = []
+    mocks.bridged = {
+      tools: [
+        {
+          name: 'deploy',
+          description: 'deploy tool',
+          inputSchema: { type: 'object', properties: {} },
+          execute: (_args: unknown, context?: ToolExecutionContext) => {
+            context?.emitCustomEvent('deploy:log', { line: 'started' })
+            context?.emitActivity?.(deployProgress, 'deploy-1', { step: 1 })
+            return 'deployed'
+          },
+        },
+      ],
+      options: {
+        emitCustomEvent: (name, value) => emitted.push([name, value]),
+        emitActivity: (definition, id, content) =>
+          emitted.push([definition.activityType, id, content]),
+      },
+    }
+    // The agent's MCP call reaches the bridge core that `provision` made.
+    mocks.operation.mockImplementation((core: ToolBridgeCore) =>
+      core.callTool('deploy', {}),
+    )
+    const { coordinator, token } = await setup('do-drives')
+
+    await coordinator.fetch(callbackRequest('do-drives', token))
+
+    expect(emitted).toEqual([
+      ['deploy:log', { line: 'started' }],
+      ['deploy.progress', 'deploy-1', { step: 1 }],
+    ])
   })
 })

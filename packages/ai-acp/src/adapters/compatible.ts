@@ -10,7 +10,9 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   DurableAttachNotSupportedError,
   SandboxCapability,
-  buildApprovalRequestedEvent,
+  approvalDecisionActivities,
+  emitPendingApproval,
+  withApprovalContinuation,
   createBridgeEventChannel,
   getSandbox,
   getSandboxDurability,
@@ -28,7 +30,11 @@ import { resolveInteractivePermission, resolvePermission } from '../permissions'
 import { buildAcpPrompt } from '../messages/prompt'
 import { projectAcpWorkspace, workspaceMcpServers } from './projection'
 import type { AcpMcpServer } from './projection'
-import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
+import type {
+  BridgeEventChannel,
+  HostToolBridge,
+  SandboxHandle,
+} from '@tanstack/ai-sandbox'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -159,7 +165,8 @@ export interface AcpCompatibleConfig<
    * - `'headless'` (default) — auto-resolve via {@link permissionMode}; the
    *   sandbox is the boundary, so the agent runs without prompting.
    * - `'interactive'` — same policy, but `ask`-style prompts emit an
-   *   approval-requested event so a client can approve and re-run.
+   *   approval-requested event and a pending `sandbox.approval` activity row,
+   *   so a client can approve and re-run.
    */
   permissions?: 'headless' | 'interactive'
   /** Custom permission handler; overrides {@link permissions}/{@link permissionMode}. */
@@ -332,7 +339,7 @@ export class AcpCompatibleTextAdapter<
     mode: AcpPermissionMode
     bridgedToolNames: ReadonlySet<string>
     approvals: ReadonlyMap<string, boolean> | undefined
-    approvalRequests: Array<AdapterYieldChunk>
+    channel: BridgeEventChannel
     threadId: string
     runId: string
   }): PermissionHandler {
@@ -349,18 +356,17 @@ export class AcpCompatibleTextAdapter<
           this.name,
         )
         if (result.approvalId !== undefined) {
-          input.approvalRequests.push(
-            buildApprovalRequestedEvent({
-              approvalId: result.approvalId,
-              title:
-                result.title ??
-                request.toolCall.title ??
-                request.toolCall.toolCallId,
-              threadId: input.threadId,
-              runId: input.runId,
-              detail: { provider: this.name },
-            }),
-          )
+          const approval = {
+            approvalId: result.approvalId,
+            title:
+              result.title ??
+              request.toolCall.title ??
+              request.toolCall.toolCallId,
+            threadId: input.threadId,
+            runId: input.runId,
+            detail: { provider: this.name },
+          }
+          emitPendingApproval(input.channel, approval)
         }
         return result.outcome
       }
@@ -444,10 +450,11 @@ export class AcpCompatibleTextAdapter<
       })
 
       const sessionId = modelOptions?.sessionId
-      const { prompt: resumePrompt } = this.buildPrompt(
+      const messages = withApprovalContinuation(
         options.messages,
-        sessionId,
+        options.approvals,
       )
+      const { prompt: resumePrompt } = this.buildPrompt(messages, sessionId)
 
       // Bridge chat()-provided tools into the agent over MCP (ACP http server).
       const bridgedToolNames = new Set(tools.map((tool) => tool.name))
@@ -461,6 +468,7 @@ export class AcpCompatibleTextAdapter<
           threadId,
           context: options.context,
           emitCustomEvent: channel.emitCustomEvent,
+          emitActivity: channel.emitActivity,
           ...(externalSignal ? { signal: externalSignal } : {}),
         })
       }
@@ -505,12 +513,11 @@ export class AcpCompatibleTextAdapter<
           ? undefined
           : (modelOptions?.authMethodId ?? this.harness.authMethodId)
 
-      const approvalRequests: Array<AdapterYieldChunk> = []
       const permissionHandler = this.makePermissionHandler({
         mode,
         bridgedToolNames,
         approvals: options.approvals,
-        approvalRequests,
+        channel,
         threadId,
         runId,
       })
@@ -570,7 +577,7 @@ export class AcpCompatibleTextAdapter<
         systemPrompts,
         session.resumed || sessionId === undefined
           ? resumePrompt
-          : this.buildPrompt(options.messages, undefined).prompt,
+          : this.buildPrompt(messages, undefined).prompt,
       )
       if (options.outputSchema) {
         promptText = appendOutputSchemaInstruction(
@@ -642,6 +649,15 @@ export class AcpCompatibleTextAdapter<
           }
         }
         yield chunk
+        // Each client decision of an earlier run sets its `sandbox.approval`
+        // row to `granted` or `denied`.
+        if (chunk.type === EventType.RUN_STARTED) {
+          yield* approvalDecisionActivities(options.approvals, {
+            provider: this.name,
+            threadId,
+            runId,
+          })
+        }
       }
 
       if (options.outputSchema) {
@@ -659,10 +675,6 @@ export class AcpCompatibleTextAdapter<
         if (parseFailed) heldFinished = undefined
       }
       if (heldFinished) yield heldFinished
-
-      // Surface any pending approval requests (interactive ask-policy actions
-      // awaiting a client decision); the client approves and re-runs to continue.
-      for (const event of approvalRequests) yield event
 
       if (this.harness.emitDiff) {
         yield* this.emitDiffChunks(sandbox, cwd, threadId, runId)

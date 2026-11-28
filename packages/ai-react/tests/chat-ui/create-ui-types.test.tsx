@@ -1,7 +1,10 @@
 import type { ComponentProps, ComponentType } from 'react'
 import { expectTypeOf, it } from 'vitest'
+import { defineActivityType } from '@tanstack/ai'
+import type { StandardSchemaV1 } from '@standard-schema/spec'
 import { createChatHook } from '../../src/chat-ui/create-chat-hook'
 import { createChatUI } from '../../src/chat-ui/create-ui'
+import { useChat } from '../../src/use-chat'
 import type {
   ChatUIHost,
   LayoutProps,
@@ -13,6 +16,7 @@ import type {
   SubagentProps,
   ToolProps,
 } from '../../src/chat-ui/create-ui'
+import type { ActivityProps } from '../../src/ui'
 import {
   chatOptions,
   subagentChatOptions,
@@ -441,5 +445,106 @@ it('requires a component for every named subagent', () => {
       // @ts-expect-error This subagent is not in chatOptions.
       spy: () => null,
     },
+  })
+})
+
+const progressSchema: StandardSchemaV1<{ step: number; total: number }> = {
+  '~standard': {
+    version: 1,
+    vendor: 'test',
+    validate: () => ({ value: { step: 0, total: 0 } }),
+  },
+}
+const activityChatOptions = {
+  ...chatOptions,
+  activities: [
+    defineActivityType({
+      activityType: 'deploy.progress',
+      contentSchema: progressSchema,
+    }),
+  ],
+}
+
+const activityWidgets = {
+  components: { layout: () => null, message: () => null },
+  partsComponents: { fallback: () => null },
+  toolsComponents: { getWeather: () => null, purchaseItem: () => null },
+  interruptsComponents: { generic: { choosePlan: () => null } },
+}
+
+it('types activity components and messages from `activities`', () => {
+  const UI = createChatUI(activityChatOptions, {
+    ...activityWidgets,
+    activitiesComponents: {
+      'sandbox.status': ({ part }) => {
+        expectTypeOf(part.content.status).toEqualTypeOf<
+          'starting' | 'ready' | 'failed'
+        >()
+        return null
+      },
+      'deploy.progress': ({ part }) => {
+        expectTypeOf(part.content).toEqualTypeOf<{
+          step: number
+          total: number
+        }>()
+        return null
+      },
+      // @ts-expect-error This activity type is not in the options.
+      'build.log': () => null,
+    },
+  })
+
+  const { useAppChat } = createChatHook({
+    options: activityChatOptions,
+    ...activityWidgets,
+  })
+  const checkHooks = () => {
+    const bound = useAppChat({ threadId: 'thread-1' })
+    const part = bound.messages[0]?.parts[0]
+    if (part?.type === 'activity' && part.activityType === 'deploy.progress') {
+      expectTypeOf(part.content.step).toEqualTypeOf<number>()
+    }
+    // A chat from `useChat` with the same options fits the kit.
+    const chat = useChat({ ...activityChatOptions, threadId: 'thread-1' })
+    return <UI.Chat chat={chat} />
+  }
+  void checkHooks
+})
+
+it('types the activity parts of a message component', () => {
+  createChatUI(chatOptions, {
+    ...activityWidgets,
+    components: {
+      layout: () => null,
+      message: ({ message }) => {
+        const part = message.parts[0]
+        if (
+          part?.type === 'activity' &&
+          part.activityType === 'sandbox.status'
+        ) {
+          expectTypeOf(part.content.status).toEqualTypeOf<
+            'starting' | 'ready' | 'failed'
+          >()
+        }
+        return null
+      },
+    },
+  })
+})
+
+// A component in its own scope, as in its own file.
+function SandboxCard({
+  part,
+}: ActivityProps<typeof activityChatOptions, 'sandbox.status'>) {
+  expectTypeOf(part.content.status).toEqualTypeOf<
+    'starting' | 'ready' | 'failed'
+  >()
+  return null
+}
+
+it('takes an activity component typed with ActivityProps', () => {
+  createChatUI(activityChatOptions, {
+    ...activityWidgets,
+    activitiesComponents: { 'sandbox.status': SandboxCard },
   })
 })

@@ -1,5 +1,6 @@
 export {
   createChatUI,
+  type ActivityProps,
   type ChatUIComponents,
   type ChatUIFactoryConfig,
   type ChatUIHost,

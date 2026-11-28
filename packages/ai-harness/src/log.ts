@@ -1,4 +1,5 @@
 import { ConsoleLogger, EventType, stableJson } from '@tanstack/ai'
+import { isActivityChunk } from '@tanstack/ai/adapter-internals'
 import {
   LogConflictError,
   LogTruncatedError,
@@ -12,7 +13,9 @@ import {
   THREAD_RECORD_TYPES,
   applyRunNode,
   emptyThreadState,
+  foldActivity,
   foldThreadRecord,
+  pruneSandboxStatus,
   pruneThreadState,
   isHumanTarget,
   isEnded,
@@ -54,6 +57,7 @@ import type {
   WaitState,
   WorkspaceBinding,
 } from './log-records'
+import type { SessionActivity } from './session/types'
 import type {
   Cursor,
   HarnessEventValues,
@@ -73,7 +77,16 @@ export type HarnessRecord =
       operationId: string
       event: StreamChunk
     }
-  | { type: 'harness.transcript'; keep: number; add: Array<ModelMessage> }
+  | {
+      type: 'harness.transcript'
+      keep: number
+      add: Array<ModelMessage>
+      /**
+       * The write is a compaction (`/compact`). The fold keeps only the
+       * newest `sandbox.status` activity of the thread.
+       */
+      compaction?: true
+    }
   | {
       type: 'harness.input'
       inputId: string
@@ -613,7 +626,8 @@ function updateInput(
  * Put the model context `next` that a host record made into `state`. When
  * it only adds messages at the end (a signal), readers see them too. Else
  * (a compaction) only the model context changes, and the messages at its
- * end that the transcript has stay shared.
+ * end that the transcript has stay shared. A compaction also keeps only the
+ * newest `sandbox.status` activity of the thread.
  */
 function projectInto(state: LogState, next: Array<ModelMessage>) {
   const current = state.messages
@@ -636,6 +650,7 @@ function projectInto(state: LogState, next: Array<ModelMessage>) {
   }
   state.messages = next
   state.modelStart = next.length - shared
+  pruneSandboxStatus(state.thread)
 }
 
 /**
@@ -805,6 +820,16 @@ export function foldEntry(
   if (!isHarnessRecord(record)) return
   switch (record.type) {
     case 'harness.event':
+      // An activity event changes an activity of the thread. The other
+      // events are only in the feed.
+      if (isActivityChunk(record.event)) {
+        state.thread = foldActivity(
+          state.thread,
+          record.operationId,
+          record.event,
+        )
+      }
+      return
     case 'harness.offer.rejected':
       return
     case 'harness.transcript': {
@@ -816,6 +841,7 @@ export function foldEntry(
           : state.messages.length,
         record.add.map(revive),
       )
+      if (record.compaction) pruneSandboxStatus(state.thread)
       state.transcriptSeq = entry.seq
       for (const message of record.add) {
         if (message.id) state.notes.delete(message.id)
@@ -1176,13 +1202,14 @@ interface SnapshotVersions {
  * The version of the snapshot state shape. A snapshot of another version is
  * not used: the fold starts at the first record.
  */
-export const SNAPSHOT_VERSION = '6'
+export const SNAPSHOT_VERSION = '7'
 
 /**
- * Snapshot versions that still load. A version 5 snapshot has no
+ * Snapshot versions that still load. A version 6 or 5 snapshot has no
+ * `activities`: the thread starts with none. A version 5 snapshot has no
  * `transcript`: its transcript is its model context.
  */
-const LOADED_SNAPSHOT_VERSIONS = new Set([SNAPSHOT_VERSION, '5'])
+const LOADED_SNAPSHOT_VERSIONS = new Set([SNAPSHOT_VERSION, '6', '5'])
 
 /** The thread state of a session as JSON: each map as its entries. */
 function serializeThread(thread: ThreadStateFold) {
@@ -1202,6 +1229,7 @@ function serializeThread(thread: ThreadStateFold) {
     transfers: [...thread.transfers],
     activeAgent: thread.activeAgent,
     workspace: thread.workspace,
+    activities: [...thread.activities],
   }
 }
 
@@ -1250,6 +1278,12 @@ function parseThread(value: unknown) {
     workspace: isRecord(value.workspace)
       ? (value.workspace as WorkspaceBinding)
       : null,
+    // A version 6 or 5 snapshot has no activities.
+    activities: new Map(
+      Array.isArray(value.activities)
+        ? (value.activities as Array<[string, SessionActivity]>)
+        : [],
+    ),
   }
   return thread
 }
@@ -1645,12 +1679,16 @@ export interface LogWriter extends EventFeed {
    * `thread`, the transcript is the one of that child thread of the
    * session, and its records carry that thread. With `asTranscript`,
    * `messages` is the transcript that readers see, not the model context.
+   * With `asTranscript` and `compaction`, the transcript records mark the
+   * write as a compaction: the fold keeps only the newest `sandbox.status`
+   * activity.
    */
   commit: (options: {
     messages: ReadonlyArray<ModelMessage>
     records?: ReadonlyArray<LogRecord>
     thread?: string
     asTranscript?: boolean
+    compaction?: boolean
   }) => Promise<void>
   /** Append the pending events now. */
   flush: () => Promise<void>
@@ -2327,6 +2365,7 @@ export class SharedLog<TState = unknown> {
       messages: ReadonlyArray<ModelMessage>
       records?: ReadonlyArray<LogRecord>
       asTranscript?: boolean
+      compaction?: boolean
     },
   ) {
     const { batch: events, consumes } = this.takePending()
@@ -2339,7 +2378,12 @@ export class SharedLog<TState = unknown> {
         [
           ...events,
           ...(options.asTranscript
-            ? transcriptSave(sessionOf(this.state, thread), options.messages)
+            ? transcriptSave(
+                sessionOf(this.state, thread),
+                options.messages,
+              ).map((record) =>
+                options.compaction ? { ...record, compaction: true } : record,
+              )
             : transcriptRecord(
                 sessionOf(this.state, thread).messages,
                 options.messages,

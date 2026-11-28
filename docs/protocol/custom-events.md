@@ -144,9 +144,9 @@ Each interface extends the base `CustomEvent` (`type: 'CUSTOM'` and an optional 
 | --- | --- | --- | --- |
 | `SandboxFileCustomEvent` | `sandbox.file` | `{ type: 'create' \| 'change' \| 'delete'; path: string; timestamp: number }` | For each file create, change, or delete in an active [sandbox](../sandbox/events) |
 | `SandboxFileDiffEvent` | `sandbox.file.diff` | `{ path: string; diff: string }` | For each file change. Turn it on with `fileEvents: { diff: true }` |
-| `SandboxStartingEvent` | `sandbox.starting` | `{ provider: string }` | `withSandbox`, once before it creates or resumes the [sandbox](../sandbox/events#show-a-pending-state-while-the-sandbox-starts) |
-| `SandboxCreatedEvent` | `sandbox.created` | `{ sandboxId: string; provider: string }` | `withSandbox`, once when a new sandbox is ready |
-| `SandboxResumedEvent` | `sandbox.resumed` | `{ sandboxId: string; provider: string }` | `withSandbox`, once when an existing sandbox is ready again |
+| `SandboxStartingEvent` | `sandbox.starting` | `{ provider: string }` | Deprecated. `withSandbox`, once before it creates or resumes the [sandbox](../sandbox/events#show-a-pending-state-while-the-sandbox-starts) |
+| `SandboxCreatedEvent` | `sandbox.created` | `{ sandboxId: string; provider: string }` | Deprecated. `withSandbox`, once when a new sandbox is ready |
+| `SandboxResumedEvent` | `sandbox.resumed` | `{ sandboxId: string; provider: string }` | Deprecated. `withSandbox`, once when an existing sandbox is ready again |
 | `FileChangedEvent` | `file.changed` | `{ path: string; diff: string }` | A harness adapter (Grok Build, Claude Code, and more), once after the run completes |
 | `SessionIdEvent` | `` `${string}.session-id` `` | `{ sessionId: string }` | A harness adapter, once when it creates or resumes its session in the sandbox |
 | `CodeModeExecutionStartedEvent` | `code_mode:execution_started` | `{ timestamp: number; codeLength: number }` | [Code Mode](../code-mode/code-mode), when sandbox execution starts |
@@ -169,6 +169,13 @@ Where each group of events is shown in use:
 - Sandbox and harness events: [Sandbox Events](../sandbox/events) and [Observability](../sandbox/observability).
 - Code Mode events: [Showing Code Mode in the UI](../code-mode/client-integration).
 - Structured output events: [Streaming structured output](../structured-outputs/streaming).
+
+### Deprecated sandbox events
+
+These events are deprecated. TanStack AI still sends them, so code that reads them keeps working. A later breaking release removes them.
+
+- `sandbox.starting`, `sandbox.created`, and `sandbox.resumed`: read the `sandbox.status` activity row. See [Show a pending state while the sandbox starts](../sandbox/events#show-a-pending-state-while-the-sandbox-starts).
+- `approval-requested`, from the Claude Code, OpenCode, and ACP adapters: read the `sandbox.approval` activity row. See [Show an approval prompt](../sandbox/events#show-an-approval-prompt).
 
 ## Advanced
 

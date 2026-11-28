@@ -31,6 +31,7 @@
  * Divergence is a bug, not a condition to recover from, so it throws.
  */
 import { EventType } from '@tanstack/ai'
+import { isActivityChunk } from '@tanstack/ai/adapter-internals'
 import {
   chunkFingerprint,
   chunkFingerprintIgnoringThreadId,
@@ -49,18 +50,20 @@ import type { StreamChunk, StreamDurability } from '@tanstack/ai'
  * the exact failure {@link JournalReplayDivergedError} exists to prevent. 64 is
  * well above any realistic burst of bridged console events between two
  * translated chunks and well below a log length where a false match becomes
- * plausible.
+ * plausible. Activity chunks do not count toward this bound: a bridged tool can
+ * emit more than 64 snapshots while the agent waits.
  */
 export const DEFAULT_MAX_OUT_OF_BAND_SKIP = 64
 
 /**
  * The out-of-band predicate for the harness adapters.
  *
- * `ai-codex` and `ai-claude-code` splice `createBridgeEventChannel`'s stream
- * into their translated output with `mergeChunkStreams`. That channel is the
- * only producer on the path and it emits exclusively `EventType.CUSTOM` chunks
- * (`bridge-events.ts:53-63`), fired by LIVE bridged-tool execution. A replay
- * runs no tools, so those chunks exist in the log and not in the replay.
+ * The harness adapters splice `createBridgeEventChannel`'s stream into their
+ * translated output with `mergeChunkStreams`. That channel sends `CUSTOM`
+ * chunks and activity chunks, fired by LIVE bridged-tool execution. A replay
+ * runs no tools, so those chunks exist in the log and not in the replay. This
+ * predicate covers the `CUSTOM` chunks. `alignedIfAttaching` in
+ * `durability.ts` also skips activity chunks.
  *
  * Structural rather than a list of event names on purpose: a new bridged tool
  * inventing a new `name` must not silently reintroduce the divergence.
@@ -193,6 +196,7 @@ export interface AlignToStoredLogOptions<TOffset extends string = string> {
    * Maximum CONSECUTIVE stored chunks that may be skipped as out-of-band before
    * alignment gives up. Reset by every match. Defaults to
    * {@link DEFAULT_MAX_OUT_OF_BAND_SKIP}. Ignored when `isOutOfBand` is absent.
+   * Activity chunks do not increment this consecutive counter.
    */
   maxOutOfBandSkip?: number
   /**
@@ -294,15 +298,17 @@ export async function* alignToStoredLog<TOffset extends string = string>(
         break
       }
       // Mismatch. Only a stored chunk the replay provably cannot reproduce may
-      // be skipped, and only `maxSkip` of them in a row.
+      // be skipped, and only `maxSkip` of them in a row. Activity chunks do not
+      // count toward that consecutive cap.
       if (isOutOfBand === undefined || !isOutOfBand(entry.chunk)) {
         throw divergenceError(cursor, entry.chunk, chunk, expected, actual)
       }
-      if (consecutiveSkips >= maxSkip) {
+      const countsTowardCap = !isActivityChunk(entry.chunk)
+      if (countsTowardCap && consecutiveSkips >= maxSkip) {
         throw divergenceError(cursor, entry.chunk, chunk, expected, actual)
       }
       cursor += 1
-      consecutiveSkips += 1
+      if (countsTowardCap) consecutiveSkips += 1
       skipped += 1
     }
   }

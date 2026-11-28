@@ -65,6 +65,7 @@ function makeCtx(): ChatMiddlewareContext {
     capabilities: { markProvided: () => undefined },
     getOptional: () => undefined,
     emitCustomEvent: () => undefined,
+    emitActivity: () => undefined,
   } as unknown as ChatMiddlewareContext
 }
 

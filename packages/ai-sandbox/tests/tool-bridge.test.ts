@@ -9,13 +9,20 @@ import {
   Client,
   StreamableHTTPClientTransport,
 } from '@modelcontextprotocol/client'
+import { EventType, defineActivityType } from '@tanstack/ai'
+import { createBridgeEventChannel } from '../src/bridge-events'
 import {
   createToolBridgeCore,
   hostForSandbox,
   startHostToolBridge,
 } from '../src/tool-bridge'
 import type { HostToolBridge } from '../src/tool-bridge'
-import type { AnyTool } from '@tanstack/ai'
+import type {
+  AnyTool,
+  StandardSchemaV1,
+  StreamChunk,
+  ToolExecutionContext,
+} from '@tanstack/ai'
 
 let bridge: HostToolBridge | undefined
 
@@ -26,7 +33,7 @@ afterEach(async () => {
 
 function tool(
   name: string,
-  execute: (args: unknown, ctx?: { abortSignal?: AbortSignal }) => unknown,
+  execute: (args: unknown, ctx?: ToolExecutionContext) => unknown,
 ): AnyTool {
   return {
     name,
@@ -139,21 +146,16 @@ describe('hostForSandbox', () => {
 })
 
 /** Rejects at once without a signal. With one, waits until it aborts. */
-function waitForAbortTool(): AnyTool {
-  return {
-    name: 'slow',
-    description: 'slow tool',
-    inputSchema: { type: 'object', properties: {} },
-    execute: (_args: unknown, ctx?: { abortSignal?: AbortSignal }) => {
-      const signal = ctx?.abortSignal
-      if (!signal) return Promise.reject(new Error('no signal'))
-      return new Promise((resolve) => {
-        signal.addEventListener('abort', () => resolve('stopped'), {
-          once: true,
-        })
+function waitForAbortTool() {
+  return tool('slow', (_args, ctx) => {
+    const signal = ctx?.abortSignal
+    if (!signal) return Promise.reject(new Error('no signal'))
+    return new Promise((resolve) => {
+      signal.addEventListener('abort', () => resolve('stopped'), {
+        once: true,
       })
-    },
-  } as unknown as AnyTool
+    })
+  })
 }
 
 describe('createToolBridgeCore call signal', () => {
@@ -231,5 +233,103 @@ describe('createToolBridgeCore call signal', () => {
     await running
     req.destroy()
     await aborted
+  })
+})
+
+type DeployProgress = { step: number; total: number }
+
+function isDeployProgress(value: unknown): value is DeployProgress {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'step' in value &&
+    typeof value.step === 'number' &&
+    'total' in value &&
+    typeof value.total === 'number'
+  )
+}
+
+/** Like `z.object({ step: z.number().min(1), total: z.number() })`. */
+const deployProgressSchema: StandardSchemaV1<DeployProgress> = {
+  '~standard': {
+    version: 1,
+    vendor: 'tool-bridge-test',
+    validate: (value) =>
+      isDeployProgress(value) && value.step >= 1
+        ? { value }
+        : { issues: [{ message: 'step must be 1 or more' }] },
+  },
+}
+
+const deployProgress = defineActivityType({
+  activityType: 'deploy.progress',
+  contentSchema: deployProgressSchema,
+})
+
+/**
+ * Call a bridged `deploy` tool that emits `content` as the activity
+ * `deploy-1`. Give back the call result and the chunks of the event channel.
+ */
+async function callDeployTool(content: DeployProgress) {
+  const channel = createBridgeEventChannel({
+    model: 'test-model',
+    threadId: 'thread-1',
+    runId: 'run-1',
+  })
+  const core = createToolBridgeCore(
+    [
+      tool('deploy', (_args, ctx) => {
+        ctx?.emitActivity?.(deployProgress, 'deploy-1', content)
+        return 'deployed'
+      }),
+    ],
+    { threadId: 'thread-1', emitActivity: channel.emitActivity },
+  )
+  const result = await core.callTool('deploy', {})
+  channel.close()
+  const chunks: Array<StreamChunk> = []
+  for await (const chunk of channel.stream) chunks.push(chunk)
+  return { result, chunks }
+}
+
+describe('createToolBridgeCore emitActivity', () => {
+  it('puts the activity of a bridged tool on the event channel stream', async () => {
+    const { result, chunks } = await callDeployTool({ step: 1, total: 3 })
+
+    expect(result).toEqual({ content: [{ type: 'text', text: 'deployed' }] })
+    expect(chunks).toEqual([
+      {
+        type: EventType.ACTIVITY_SNAPSHOT,
+        messageId: 'deploy-1',
+        activityType: 'deploy.progress',
+        content: { step: 1, total: 3 },
+        replace: true,
+        timestamp: expect.any(Number),
+        metadata: {
+          tanstack: {
+            model: 'test-model',
+            threadId: 'thread-1',
+            runId: 'run-1',
+          },
+        },
+      },
+    ])
+  })
+
+  it('throws in the tool when the content fails the schema check', async () => {
+    const { result, chunks } = await callDeployTool({ step: 0, total: 3 })
+
+    expect(result).toEqual({
+      isError: true,
+      content: [
+        {
+          type: 'text',
+          text: expect.stringContaining(
+            "Content check failed for activity type 'deploy.progress'",
+          ),
+        },
+      ],
+    })
+    expect(chunks).toEqual([])
   })
 })

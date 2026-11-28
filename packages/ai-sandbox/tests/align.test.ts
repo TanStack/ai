@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { EventType, memoryStream } from '@tanstack/ai'
+import {
+  EventType,
+  InMemoryRunStore,
+  memoryStream,
+  sandboxApprovalActivity,
+  sandboxStatusActivity,
+} from '@tanstack/ai'
 import {
   DEFAULT_MAX_OUT_OF_BAND_SKIP,
   JournalReplayDivergedError,
@@ -12,6 +18,7 @@ import {
   chunkFingerprintIgnoringThreadId,
   chunkThreadId,
 } from '../src/chunk-identity'
+import { alignedIfAttaching, resolveSandboxDurability } from '../src/durability'
 import type { StreamChunk, StreamDurability } from '@tanstack/ai'
 
 /**
@@ -574,5 +581,81 @@ describe('chunkThreadId', () => {
   it('reads a chunk threadId and answers undefined when there is none', () => {
     expect(chunkThreadId(runStarted('r1', 't-1'))).toBe('t-1')
     expect(chunkThreadId(textChunk('m1', 'a'))).toBeUndefined()
+  })
+})
+
+describe('alignedIfAttaching', () => {
+  it('skips stored activity chunks that a replay does not send', async () => {
+    // The first host's log: a `sandbox.status` row from `withSandbox` setup,
+    // then an approval row and its decision delta from the adapter.
+    const adapter = storedLog([
+      sandboxStatusActivity.snapshot('sandbox-run-1', {
+        status: 'starting',
+        provider: 'fake',
+      }),
+      textChunk('m1', 'a'),
+      sandboxApprovalActivity.snapshot('sandbox.approval:claude-code:a1', {
+        approvalId: 'claude-code:a1',
+        title: 'Run a shell command',
+        status: 'pending',
+      }),
+      {
+        type: EventType.ACTIVITY_DELTA,
+        messageId: 'sandbox.approval:claude-code:a1',
+        activityType: 'sandbox.approval',
+        patch: [{ op: 'replace', path: '/status', value: 'granted' }],
+        timestamp: 1,
+      },
+      textChunk('m1', 'b'),
+    ])
+    const durability = resolveSandboxDurability({
+      runs: new InMemoryRunStore(),
+      durability: { adapter, attach: true },
+    })
+    const replay = fromChunks([
+      textChunk('m1', 'a'),
+      textChunk('m1', 'b'),
+      textChunk('m1', 'c'),
+    ])
+
+    expect(await collectChunks(alignedIfAttaching(replay, durability))).toEqual(
+      [
+        { ...textChunk('m1', 'a'), tanstackStoredReplay: true },
+        { ...textChunk('m1', 'b'), tanstackStoredReplay: true },
+        textChunk('m1', 'c'),
+      ],
+    )
+  })
+
+  it('does not count activity snapshots toward the consecutive skip cap', async () => {
+    // A bridged tool can emit more than 64 ACTIVITY_SNAPSHOT chunks while the
+    // agent waits. Those must not trip DEFAULT_MAX_OUT_OF_BAND_SKIP.
+    const adapter = storedLog([
+      textChunk('m1', 'a'),
+      ...Array.from({ length: 65 }, (_, i) =>
+        sandboxStatusActivity.snapshot(`progress-${i}`, {
+          status: 'starting',
+          provider: 'fake',
+        }),
+      ),
+      textChunk('m1', 'b'),
+    ])
+    const durability = resolveSandboxDurability({
+      runs: new InMemoryRunStore(),
+      durability: { adapter, attach: true },
+    })
+    const replay = fromChunks([
+      textChunk('m1', 'a'),
+      textChunk('m1', 'b'),
+      textChunk('m1', 'c'),
+    ])
+
+    expect(await collectChunks(alignedIfAttaching(replay, durability))).toEqual(
+      [
+        { ...textChunk('m1', 'a'), tanstackStoredReplay: true },
+        { ...textChunk('m1', 'b'), tanstackStoredReplay: true },
+        textChunk('m1', 'c'),
+      ],
+    )
   })
 })

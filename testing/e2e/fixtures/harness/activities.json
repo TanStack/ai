@@ -1,0 +1,58 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[harness-activities] deploy with progress",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "deployWithProgress",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-activities] deploy with progress",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Deployed in two steps."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "Summarize the conversation so far"
+      },
+      "response": {
+        "content": "The user started two sandboxes."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-activities] start two sandboxes",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "startSandboxes",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-activities] start two sandboxes",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Started two sandboxes."
+      }
+    }
+  ]
+}

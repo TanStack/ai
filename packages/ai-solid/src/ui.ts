@@ -1,6 +1,7 @@
 // Barrel entry for the `@tanstack/ai-solid/ui` subpath.
 export {
   createChatUI,
+  type ActivityProps,
   type ChatUIComponents,
   type ChatUIFactoryConfig,
   type ChatUIHost,

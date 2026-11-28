@@ -178,6 +178,78 @@ toolsComponents: {
 
 `resolveInterrupt(true)` approves. `resolveInterrupt(false)` denies. Full example: [Ask before a tool runs](./recipes/tool-approval).
 
+### Render an activity
+
+An activity is a row that the server adds to the chat, such as a sandbox start or deploy progress. Register one component for each activity type in `activitiesComponents`. Each component gets the activity as the `part` prop, and `part.content` is typed:
+
+```ts
+import { defineComponent, h } from 'vue'
+import { fetchServerSentEvents } from '@tanstack/ai-vue'
+import { createChatHook, type ActivityProps } from '@tanstack/ai-vue/ui'
+import { defineActivityType } from '@tanstack/ai'
+import { z } from 'zod'
+
+const deployProgress = defineActivityType({
+  activityType: 'deploy.progress',
+  contentSchema: z.object({ step: z.number(), total: z.number() }),
+})
+
+export const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+  activities: [deployProgress],
+}
+
+export const SandboxCard = defineComponent(
+  (props: ActivityProps<typeof chatOptions, 'sandbox.status'>) => {
+    return () => h('p', `Sandbox: ${props.part.content.status}`)
+  },
+  { props: ['part'] },
+)
+
+export const { useAppChat, ui } = createChatHook({
+  options: chatOptions,
+  components: {
+    layout: defineComponent((_, { slots }) => () =>
+      h('main', slots.messages?.()),
+    ),
+    message: defineComponent((_, { slots }) => () =>
+      h('article', slots.parts?.()),
+    ),
+  },
+  partsComponents: { fallback: defineComponent(() => () => null) },
+  activitiesComponents: {
+    'sandbox.status': SandboxCard,
+    'deploy.progress': (props) =>
+      h('p', `Step ${props.part.content.step} of ${props.part.content.total}`),
+  },
+})
+```
+
+- `'sandbox.status'` is a built-in type, so it is always a key. `SandboxCard` types its props with `ActivityProps`, so you can move it to its own file.
+- `{ props: ['part'] }` makes Vue pass `part` to `SandboxCard` as a prop.
+- `'deploy.progress'` is a key because `deployProgress` is in `activities`. Its `part.content` is `{ step: number; total: number }`.
+- A key that is not built in and not in `activities` is a type error.
+- A type with no entry renders with `partsComponents.activity`.
+
+In a `.vue` file, type the prop with `defineProps`:
+
+```vue
+<script setup lang="ts">
+import type { ActivityProps } from '@tanstack/ai-vue/ui'
+import type { chatOptions } from './chat-ui'
+
+defineProps<{
+  part: ActivityProps<typeof chatOptions, 'sandbox.status'>['part']
+}>()
+</script>
+
+<template>
+  <p>Sandbox: {{ part.content.status }}</p>
+</template>
+```
+
+To emit an activity from a tool or a middleware, read [Activities](../chat/activities).
+
 ### Ask the user your own question
 
 Define the question with `defineInterrupt`. Add it to `interrupts` in `chatOptions`. Register a component under its id in `interruptsComponents.generic`, and render the `interrupts` slot in the layout:
@@ -299,7 +371,7 @@ partsComponents: {
 
 ### Type a widget in its own file
 
-Move a widget to its own file and type its props with `ToolProps`, `PartProps`, or `InterruptProps`. Pass `typeof chatOptions` and a name:
+Move a widget to its own file and type its props with `ToolProps`, `PartProps`, `InterruptProps`, or `ActivityProps`. Pass `typeof chatOptions` and a name:
 
 ```ts
 import { defineComponent, h } from 'vue'
@@ -324,6 +396,7 @@ export const WeatherTool = defineComponent(
   (props: ToolProps<typeof chatOptions, 'getWeather'>) => {
     return () => h('strong', props.part.input?.city)
   },
+  { props: ['part'] },
 )
 
 export const { useAppChat, ui } = createChatHook({

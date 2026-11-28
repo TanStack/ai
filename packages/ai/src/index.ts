@@ -389,6 +389,27 @@ export type {
   InterruptBindingDescriptor,
 } from './interrupt-definition'
 
+// Typed activities
+export {
+  defineActivityType,
+  sandboxApprovalActivity,
+  sandboxStatusActivity,
+} from './activity-types'
+export type {
+  ActivityContentInput,
+  ActivityContentOf,
+  ActivityContentSchema,
+  ActivityPartOf,
+  ActivityTypeDefinition,
+  AnyActivityTypeDefinition,
+  BuiltInActivityPart,
+  OtherActivityPart,
+  OtherActivityType,
+  SandboxApprovalContent,
+  SandboxStatusContent,
+  TypedActivityPart,
+} from './activity-types'
+
 export {
   INTERRUPT_BINDING_VERSION,
   canonicalizeInterruptResolutions,

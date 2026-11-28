@@ -107,10 +107,12 @@ export function resolveInteractivePermission(
     return { response: 'once' }
   }
 
+  // One decision covers one action: the same type and title. The title of a
+  // `bash` request is its command, so a grant does not cover other commands.
   const id = approvalId({
     provider: 'opencode',
     kind: 'tool',
-    target: request.type || request.title,
+    target: request.title ? `${request.type}:${request.title}` : request.type,
   })
   const granted = approvals?.get(id)
   if (granted === true) return { response: 'once' }

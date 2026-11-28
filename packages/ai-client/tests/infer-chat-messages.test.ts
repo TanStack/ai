@@ -66,7 +66,14 @@ describe('InferChatMessages — round-trip identity', () => {
     type Messages = InferChatMessages<typeof options>
 
     expectTypeOf<Messages>().toEqualTypeOf<
-      Array<UIMessage<readonly [typeof guitarTool, typeof cartTool]>>
+      Array<
+        UIMessage<
+          readonly [typeof guitarTool, typeof cartTool],
+          unknown,
+          undefined,
+          readonly []
+        >
+      >
     >()
   })
 
@@ -79,7 +86,9 @@ describe('InferChatMessages — round-trip identity', () => {
 
     type Messages = InferChatMessages<typeof options>
 
-    expectTypeOf<Messages>().toEqualTypeOf<Array<UIMessage<readonly []>>>()
+    expectTypeOf<Messages>().toEqualTypeOf<
+      Array<UIMessage<readonly [], unknown, undefined, readonly []>>
+    >()
   })
 
   it('produces `never` when given a non-options input', () => {
@@ -94,7 +103,9 @@ describe('InferChatMessages — round-trip identity', () => {
     type ManualOptions = ChatClientOptions<readonly [typeof guitarTool]>
 
     expectTypeOf<InferChatMessages<ManualOptions>>().toEqualTypeOf<
-      Array<UIMessage<readonly [typeof guitarTool]>>
+      Array<
+        UIMessage<readonly [typeof guitarTool], unknown, undefined, readonly []>
+      >
     >()
   })
 })

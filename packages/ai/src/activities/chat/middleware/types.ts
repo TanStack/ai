@@ -25,6 +25,10 @@ import type { SystemPrompt } from '../../../system-prompts'
 import type { ToolApprovalResolution } from '../../../interrupts'
 import type { ReasoningRequest } from '../../../reasoning'
 import type {
+  ActivityContentInput,
+  AnyActivityTypeDefinition,
+} from '../../../activity-types'
+import type {
   GenericInterruptRequest,
   InterruptDefinition,
 } from '../../../interrupt-definition'
@@ -253,6 +257,24 @@ export interface ChatMiddlewareContext<TContext = unknown> {
     name: string,
     value: Record<string, any>,
     options?: EmitCustomEventOptions,
+  ) => void
+  /**
+   * Push an `ACTIVITY_SNAPSHOT` chunk onto the chat stream, the same way as
+   * `emitCustomEvent`. The snapshot replaces the activity message `id`. The
+   * schema of `definition` checks `content` first. When a later `onChunk`
+   * gets the snapshot, `activities` already has the new row.
+   *
+   * @throws TypeError when the content fails the check
+   *
+   * @example
+   * ```ts
+   * ctx.emitActivity(deployProgress, `deploy-${ctx.runId}`, { step: 1, total: 3 })
+   * ```
+   */
+  emitActivity: <TDef extends AnyActivityTypeDefinition>(
+    definition: TDef,
+    id: string,
+    content: ActivityContentInput<TDef>,
   ) => void
   /** Runtime context provided by chat() options */
   context: TContext

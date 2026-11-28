@@ -1,10 +1,12 @@
 /**
- * `withSandbox` setup sends `sandbox.starting`, then `sandbox.created` or
- * `sandbox.resumed`, through `ctx.emitCustomEvent`. Each test drives the real
- * `setup` and records the events it sends.
+ * `withSandbox` setup sends the `sandbox.status` activity (`starting`, then
+ * `ready` or `failed`) through `ctx.emitActivity`. It also sends the deprecated
+ * `sandbox.starting`, then `sandbox.created` or `sandbox.resumed`, through
+ * `ctx.emitCustomEvent`. Each test drives the real `setup` and records what it
+ * sends.
  */
 import { describe, expect, it } from 'vitest'
-import { InMemoryRunStore, memoryStream } from '@tanstack/ai'
+import { EventType, InMemoryRunStore, memoryStream } from '@tanstack/ai'
 import { InMemoryLockStore } from '@tanstack/ai/locks'
 import { provideSandboxRuntime } from '@tanstack/ai/adapter-internals'
 import { defineSandbox } from '../src/sandbox'
@@ -17,6 +19,7 @@ import {
   makeFakeProvider,
   makeMiddlewareCtx,
 } from './fakes'
+import type { ActivitySnapshotEvent, SandboxStatusContent } from '@tanstack/ai'
 import type { LockStore } from '@tanstack/ai/locks'
 import type { SandboxProvider } from '../src/contracts'
 import type { SandboxDefinition } from '../src/sandbox'
@@ -31,12 +34,20 @@ interface SetupInput {
   durability?: SandboxDurabilityOptions
 }
 
-/** Run the real `withSandbox` setup and record every custom event it sends. */
+/**
+ * Run the real `withSandbox` setup. Record every custom event it sends, and the
+ * `ACTIVITY_SNAPSHOT` chunk of each activity it sends.
+ */
 function runSetup(input: SetupInput) {
   const events: Array<[string, unknown]> = []
+  const snapshots: Array<ActivitySnapshotEvent> = []
   const ctx = makeMiddlewareCtx({ threadId: 't1', runId: input.runId })
   ctx.emitCustomEvent = (name, value) => {
     events.push([name, value])
+  }
+  // Core puts this same chunk on the stream for each `emitActivity`.
+  ctx.emitActivity = (definition, id, content) => {
+    snapshots.push(definition.snapshot(id, content))
   }
   const { logger } = captureLogger()
   provideSandboxRuntime(ctx, {
@@ -52,7 +63,7 @@ function runSetup(input: SetupInput) {
       durability: input.durability,
     }),
   }).setup!(ctx)
-  return { events, ctx, setup }
+  return { events, snapshots, ctx, setup }
 }
 
 function defineFakeSandbox(provider: SandboxProvider) {
@@ -65,10 +76,20 @@ function defineFakeSandbox(provider: SandboxProvider) {
   })
 }
 
+/** A `sandbox.status` snapshot for the activity message `messageId`. */
+function statusSnapshot(messageId: string, content: SandboxStatusContent) {
+  return expect.objectContaining({
+    type: EventType.ACTIVITY_SNAPSHOT,
+    messageId,
+    activityType: 'sandbox.status',
+    content,
+  })
+}
+
 describe('sandbox lifecycle events', () => {
   it('sends starting then created on the first run', async () => {
     const provider = makeFakeProvider()
-    const { events, setup } = runSetup({
+    const { events, snapshots, setup } = runSetup({
       definition: defineFakeSandbox(provider),
       runId: 'r1',
     })
@@ -79,6 +100,15 @@ describe('sandbox lifecycle events', () => {
     expect(events).toEqual([
       ['sandbox.starting', { provider: 'fake' }],
       ['sandbox.created', { sandboxId, provider: 'fake' }],
+    ])
+    expect(snapshots).toEqual([
+      statusSnapshot('sandbox-r1', { status: 'starting', provider: 'fake' }),
+      statusSnapshot('sandbox-r1', {
+        status: 'ready',
+        provider: 'fake',
+        sandboxId,
+        resumed: false,
+      }),
     ])
   })
 
@@ -99,6 +129,15 @@ describe('sandbox lifecycle events', () => {
       ['sandbox.starting', { provider: 'fake' }],
       ['sandbox.resumed', { sandboxId, provider: 'fake' }],
     ])
+    expect(second.snapshots).toEqual([
+      statusSnapshot('sandbox-r2', { status: 'starting', provider: 'fake' }),
+      statusSnapshot('sandbox-r2', {
+        status: 'ready',
+        provider: 'fake',
+        sandboxId,
+        resumed: true,
+      }),
+    ])
   })
 
   it('sends nothing for a definition not made by defineSandbox', async () => {
@@ -113,28 +152,40 @@ describe('sandbox lifecycle events', () => {
       ensureExisting: () => Promise.resolve(handle),
       destroy: () => Promise.resolve(),
     }
-    const { events, ctx, setup } = runSetup({ definition, runId: 'r1' })
+    const { events, snapshots, ctx, setup } = runSetup({
+      definition,
+      runId: 'r1',
+    })
     await setup
 
     expect(events).toEqual([])
+    expect(snapshots).toEqual([])
     expect(ctx.get(SandboxCapability).id).toBe('hand-built')
   })
 
-  it('sends no end event when ensure throws', async () => {
+  it('sends failed with the error, and no end event, when ensure throws', async () => {
     const provider: SandboxProvider = {
       ...makeFakeProvider(),
       create: () => Promise.reject(new Error('quota exceeded')),
     }
-    const { events, setup } = runSetup({
+    const { events, snapshots, setup } = runSetup({
       definition: defineFakeSandbox(provider),
       runId: 'r1',
     })
 
     await expect(setup).rejects.toThrow('quota exceeded')
     expect(events).toEqual([['sandbox.starting', { provider: 'fake' }]])
+    expect(snapshots).toEqual([
+      statusSnapshot('sandbox-r1', { status: 'starting', provider: 'fake' }),
+      statusSnapshot('sandbox-r1', {
+        status: 'failed',
+        provider: 'fake',
+        error: 'quota exceeded',
+      }),
+    ])
   })
 
-  it('sends no ready event when onReady throws', async () => {
+  it('sends failed with the error, and no ready event, when onReady throws', async () => {
     const definition = defineSandbox({
       id: 's',
       provider: makeFakeProvider(),
@@ -146,14 +197,49 @@ describe('sandbox lifecycle events', () => {
         },
       },
     })
-    const { events, setup } = runSetup({ definition, runId: 'r1' })
+    const { events, snapshots, setup } = runSetup({ definition, runId: 'r1' })
 
     await expect(setup).rejects.toThrow('setup script failed')
     expect(events).toEqual([['sandbox.starting', { provider: 'fake' }]])
+    expect(snapshots).toEqual([
+      statusSnapshot('sandbox-r1', { status: 'starting', provider: 'fake' }),
+      statusSnapshot('sandbox-r1', {
+        status: 'failed',
+        provider: 'fake',
+        error: 'setup script failed',
+      }),
+    ])
+  })
+
+  it('sends failed when the run is stopped while the sandbox starts', async () => {
+    const fake = makeFakeProvider()
+    // The user stops the run while the sandbox is created. This provider
+    // ignores the signal, so `ensure` still returns a sandbox.
+    const provider: SandboxProvider = {
+      ...fake,
+      create: (createInput) => {
+        run.ctx.abort('stopped by the user')
+        return fake.create(createInput)
+      },
+    }
+    const run = runSetup({
+      definition: defineFakeSandbox(provider),
+      runId: 'r1',
+    })
+    await run.setup
+
+    expect(run.snapshots).toEqual([
+      statusSnapshot('sandbox-r1', { status: 'starting', provider: 'fake' }),
+      statusSnapshot('sandbox-r1', {
+        status: 'failed',
+        provider: 'fake',
+        error: 'stopped by the user',
+      }),
+    ])
   })
 
   it('sends nothing on an attach, which continues a run that already sent them', async () => {
-    const { events, setup } = runSetup({
+    const { events, snapshots, setup } = runSetup({
       definition: defineFakeSandbox(makeFakeProvider()),
       runId: 'r1',
       durability: { adapter: memoryStream({ runId: 'r1' }), attach: true },
@@ -161,5 +247,6 @@ describe('sandbox lifecycle events', () => {
     await setup
 
     expect(events).toEqual([])
+    expect(snapshots).toEqual([])
   })
 })

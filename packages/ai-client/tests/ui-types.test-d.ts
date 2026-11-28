@@ -7,7 +7,7 @@ import type {
   ChatUIToolPart,
   RegisteredUIInterrupt,
 } from '../src/ui'
-import type { ToolResultOutcome } from '@tanstack/ai/client'
+import type { OtherActivityType, ToolResultOutcome } from '@tanstack/ai/client'
 import type { UIMessage } from '../src/types'
 import { chatOptions } from './ui-fixtures'
 
@@ -43,9 +43,12 @@ type TextSelected = ChatUISelectedPartOf<typeof chatOptions, 'text'>
 expectTypeOf<TextSelected['part']['type']>().toEqualTypeOf<'text'>()
 expectTypeOf<TextSelected['part']['content']>().toEqualTypeOf<string>()
 
+// Options with no `activities` still type the built-in activity types.
 type ActivitySelected = ChatUISelectedPartOf<typeof chatOptions, 'activity'>
 expectTypeOf<ActivitySelected['part']['type']>().toEqualTypeOf<'activity'>()
-expectTypeOf<ActivitySelected['part']['activityType']>().toEqualTypeOf<string>()
+expectTypeOf<ActivitySelected['part']['activityType']>().toEqualTypeOf<
+  'sandbox.status' | 'sandbox.approval' | OtherActivityType
+>()
 
 // A useChat message part exposes the tool result outcome (#1386).
 type ToolResult = Extract<UIMessage['parts'][number], { type: 'tool-result' }>

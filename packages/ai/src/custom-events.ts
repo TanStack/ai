@@ -22,8 +22,20 @@ export const CUSTOM_EVENT = {
   APPROVAL_REQUESTED: 'approval.requested',
   APPROVAL_RESOLVED: 'approval.resolved',
   ARTIFACT_CREATED: 'artifact.created',
+  /**
+   * @deprecated Use the `sandbox.status` activity (`sandboxStatusActivity`)
+   * with the status `'starting'`. This event is still sent.
+   */
   SANDBOX_STARTING: 'sandbox.starting',
+  /**
+   * @deprecated Use the `sandbox.status` activity (`sandboxStatusActivity`)
+   * with the status `'ready'` and `resumed: false`. This event is still sent.
+   */
   SANDBOX_CREATED: 'sandbox.created',
+  /**
+   * @deprecated Use the `sandbox.status` activity (`sandboxStatusActivity`)
+   * with the status `'ready'` and `resumed: true`. This event is still sent.
+   */
   SANDBOX_RESUMED: 'sandbox.resumed',
 } as const
 

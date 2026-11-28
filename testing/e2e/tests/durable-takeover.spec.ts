@@ -493,10 +493,19 @@ const TWO_LINE_SEQUENCE = [
 
 /**
  * The head of a FRESH run: the run-accepted marker, `RUN_STARTED`, then
- * `withSandbox`'s `sandbox.starting` and `sandbox.created`. An attach does not
- * send the sandbox events again, so a seeded log has none of them.
+ * `withSandbox`'s `sandbox.starting` event and `sandbox.status` row
+ * (`starting`), and its `sandbox.created` event and `sandbox.status` row
+ * (`ready`). An attach does not send the sandbox events again, so a seeded log
+ * has none of them.
  */
-const FRESH_HEAD = ['CUSTOM', 'RUN_STARTED', 'CUSTOM', 'CUSTOM']
+const FRESH_HEAD = [
+  'CUSTOM',
+  'RUN_STARTED',
+  'CUSTOM',
+  'ACTIVITY_SNAPSHOT',
+  'CUSTOM',
+  'ACTIVITY_SNAPSHOT',
+]
 
 /** A fresh six-line run, as the log stores it. */
 const FRESH_FULL_SEQUENCE = [...FRESH_HEAD, ...FULL_SEQUENCE.slice(1)]
@@ -689,7 +698,7 @@ test.describe('durable runs — takeover', () => {
     const run = await SseStream.open(routeUrl({ runId, total: '6' }))
     await tick(runId, 2)
     // FRESH_HEAD, then TEXT_MESSAGE_START, '1', '2'.
-    const before = await run.take(7)
+    const before = await run.take(9)
     expect(contentDeltas(before)).toEqual(['1', '2'])
     await drop(runId, run)
 
@@ -733,7 +742,7 @@ test.describe('durable runs — takeover', () => {
     const runId = uniqueRunId('quiet-reconnect')
     const run = await SseStream.open(routeUrl({ runId, total: '6' }))
     await tick(runId, 2)
-    expect(contentDeltas(await run.take(7))).toEqual(['1', '2'])
+    expect(contentDeltas(await run.take(9))).toEqual(['1', '2'])
     // Close the client only. `drop()` aborts the producer, which hides the
     // bug: the producer must keep the claim while the journal is quiet.
     run.close()
@@ -745,7 +754,7 @@ test.describe('durable runs — takeover', () => {
     // The replay proves the GET handler is up. The driver starts beside it.
     // One quiet window is 50ms, so 300ms is long enough for a second driver
     // to claim the run when the first host does not hold the lock.
-    expect(contentDeltas(await attach.take(7))).toEqual(['1', '2'])
+    expect(contentDeltas(await attach.take(9))).toEqual(['1', '2'])
     await new Promise((resolve) => setTimeout(resolve, 300))
     const mid = await state(runId)
     expect(mid.record?.status).toBe('running')
@@ -779,7 +788,7 @@ test.describe('durable runs — disconnect', () => {
     const runId = uniqueRunId('detach')
     const run = await SseStream.open(routeUrl({ runId, total: '6' }))
     await tick(runId, 2)
-    expect(contentDeltas(await run.take(7))).toEqual(['1', '2'])
+    expect(contentDeltas(await run.take(9))).toEqual(['1', '2'])
 
     await drop(runId, run)
 
@@ -817,7 +826,7 @@ test.describe('durable runs — cancel', () => {
       const runId = uniqueRunId(`cancel-${band}`)
       const run = await SseStream.open(routeUrl({ runId, total: '6' }))
       await tick(runId, 2)
-      expect(contentDeltas(await run.take(7))).toEqual(['1', '2'])
+      expect(contentDeltas(await run.take(9))).toEqual(['1', '2'])
 
       await cancel(runId, band)
       if (band === 'durable') {
@@ -864,8 +873,8 @@ test.describe('durable runs — cancel', () => {
     await tick(dropped, 2)
     await tick(cancelled, 2)
     // FRESH_HEAD, TEXT_MESSAGE_START, '1'.
-    await droppedRun.take(6)
-    await cancelledRun.take(6)
+    await droppedRun.take(8)
+    await cancelledRun.take(8)
 
     // Out of band, and only for one of them.
     await cancel(cancelled, 'durable')

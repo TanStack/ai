@@ -2,6 +2,7 @@
 export { createChatUI, getUIContext } from './chat-ui/create-ui'
 export { createChatHook } from './chat-ui/create-chat-hook'
 export type {
+  ActivityProps,
   ChatUIComponents,
   ChatUIFactoryConfig,
   ChatUIHost,

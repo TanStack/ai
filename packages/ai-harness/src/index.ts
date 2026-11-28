@@ -169,6 +169,7 @@ export type {
   DynamicAgentHandle,
   JobInfo,
   ScheduleOptions,
+  SessionActivity,
   SessionDescription,
   SessionInspection,
   SessionSnapshot,

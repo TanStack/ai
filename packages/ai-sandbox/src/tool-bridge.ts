@@ -27,7 +27,11 @@ import {
 } from '@modelcontextprotocol/server'
 import { readRawBody, sendWebResponse, toWebRequest } from './node-web'
 import type { AddressInfo } from 'node:net'
-import type { AnyTool, EmitCustomEventOptions } from '@tanstack/ai'
+import type {
+  AnyTool,
+  EmitCustomEventOptions,
+  ToolExecutionContext,
+} from '@tanstack/ai'
 
 /**
  * Name of the bridged MCP server. The agent sees tools as
@@ -78,6 +82,15 @@ export interface ToolBridgeCoreOptions {
     value: Record<string, unknown>,
     options?: EmitCustomEventOptions,
   ) => void
+  /**
+   * Forwarded to each tool's `execute()` as `context.emitActivity`, so a
+   * bridged tool can send an activity (for example a progress card) to the
+   * client while it runs. The harness adapter supplies one that puts the
+   * `ACTIVITY_SNAPSHOT` chunk on its live output stream. Without it,
+   * `context.emitActivity` is `undefined`, so
+   * `context?.emitActivity?.(definition, id, content)` does nothing.
+   */
+  emitActivity?: ToolExecutionContext['emitActivity']
   /**
    * Optional permission-prompt tool (e.g. for Claude Code's
    * `--permission-prompt-tool`). When set, the bridge exposes an extra MCP tool
@@ -195,6 +208,9 @@ export function createToolBridgeCore(
           // No-op default so tools that always call it (e.g. code mode) don't
           // crash when the transport didn't wire a sink.
           emitCustomEvent: options.emitCustomEvent ?? (() => {}),
+          // No default: it is optional on the tool context, so tools call it
+          // as `context?.emitActivity?.()`.
+          emitActivity: options.emitActivity,
         })
         const text =
           typeof result === 'string' ? result : JSON.stringify(result)

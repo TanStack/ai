@@ -39,3 +39,19 @@ export const slowBuild = toolDefinition({
   description: 'Build the project. It takes a while.',
   inputSchema: z.object({}),
 })
+
+export { deployProgress } from './activity-types'
+
+/** Deploys in two steps, and shows each step as a `deployProgress` activity. */
+export const deployWithProgress = toolDefinition({
+  name: 'deployWithProgress',
+  description: 'Deploy in two steps, and show the progress.',
+  inputSchema: z.object({}),
+})
+
+/** Starts two sandboxes, and shows each one as a `sandbox.status` activity. */
+export const startSandboxes = toolDefinition({
+  name: 'startSandboxes',
+  description: 'Start two sandboxes, and show the status of each.',
+  inputSchema: z.object({}),
+})

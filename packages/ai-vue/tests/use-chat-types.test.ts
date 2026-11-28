@@ -4,8 +4,13 @@
  */
 
 import { describe, expectTypeOf, it } from 'vitest'
-import { defineInterrupt, toolDefinition } from '@tanstack/ai'
+import {
+  defineActivityType,
+  defineInterrupt,
+  toolDefinition,
+} from '@tanstack/ai'
 import { clientTools } from '@tanstack/ai-client'
+import { createChatHook } from '../src/create-chat-hook'
 import { useChat } from '../src/use-chat'
 import type { AnyClientTool } from '@tanstack/ai'
 import type { StructuredOutputPart } from '@tanstack/ai-client'
@@ -39,6 +44,18 @@ type TestSchema<T> = {
 type Person = { name: string; age: number; email: string }
 type PersonSchema = StandardJSONSchemaV1<Person, Person>
 type NoTools = ReadonlyArray<AnyClientTool>
+
+const connection = { connect: async function* () {} }
+
+/** The activity part type in the messages of a chat. */
+type ActivityPartIn<
+  TChat extends {
+    messages: { value: ReadonlyArray<{ parts: ReadonlyArray<unknown> }> }
+  },
+> = Extract<
+  TChat['messages']['value'][number]['parts'][number],
+  { type: 'activity' }
+>
 
 describe('useChat() return type (vue)', () => {
   describe('with outputSchema', () => {
@@ -94,6 +111,13 @@ describe('useChat() return type (vue)', () => {
         unknown | undefined
       >()
     })
+
+    it('exposes respondToSandboxApproval', () => {
+      type R = UseChatReturn<NoTools>
+      expectTypeOf<R['respondToSandboxApproval']>().toEqualTypeOf<
+        (approvalId: string, granted: boolean) => Promise<void>
+      >()
+    })
   })
 
   describe('with typed client tool context', () => {
@@ -107,9 +131,7 @@ describe('useChat() return type (vue)', () => {
 
       const options: UseChatOptions<typeof tools> = {
         threadId: 'thread-1',
-        connection: {
-          connect: async function* () {},
-        },
+        connection,
         tools,
         context: { localUserId: 'local-1', a: 'literal' },
       }
@@ -117,9 +139,7 @@ describe('useChat() return type (vue)', () => {
       expectTypeOf(options.context).toEqualTypeOf<ClientContext>()
 
       const missingLiteral: UseChatOptions<typeof tools> = {
-        connection: {
-          connect: async function* () {},
-        },
+        connection,
         tools,
         // @ts-expect-error - the literal context property is required
         context: { localUserId: 'local-1' },
@@ -128,9 +148,7 @@ describe('useChat() return type (vue)', () => {
 
       // @ts-expect-error - context is required when a client tool declares it
       const missingContext: UseChatOptions<typeof tools> = {
-        connection: {
-          connect: async function* () {},
-        },
+        connection,
         tools,
       }
       void missingContext
@@ -138,17 +156,13 @@ describe('useChat() return type (vue)', () => {
       const checkUseChatCall = () => {
         useChat({
           threadId: 'thread-1',
-          connection: {
-            connect: async function* () {},
-          },
+          connection,
           tools,
           context: { localUserId: 'local-1', a: 'literal' },
         })
 
         useChat({
-          connection: {
-            connect: async function* () {},
-          },
+          connection,
           tools,
           // @ts-expect-error - the literal context property is required
           context: { localUserId: 'local-1' },
@@ -317,7 +331,7 @@ describe('useChat() registered generic interrupt types', () => {
     const check = () => {
       const chat = useChat({
         threadId: 'thread-1',
-        connection: { connect: async function* () {} },
+        connection,
         interrupts: [reviewPlan, acknowledge],
       })
       type Interrupt = (typeof chat.interrupts.value)[number]
@@ -367,7 +381,7 @@ describe('useChat() registered generic interrupt types', () => {
       }).client()
       const withoutRegistry = useChat({
         threadId: 'thread-1',
-        connection: { connect: async function* () {} },
+        connection,
         tools: clientTools(existingTool),
       })
       type WithoutRegistry = (typeof withoutRegistry.interrupts.value)[number]
@@ -382,6 +396,72 @@ describe('useChat() registered generic interrupt types', () => {
       expectTypeOf<
         Parameters<UnregisteredGeneric['resolveInterrupt']>[0]
       >().toEqualTypeOf<unknown>()
+    }
+    void check
+  })
+})
+
+describe('useChat() activity types', () => {
+  type DeployProgress = { step: number; total: number }
+  const deployProgressSchema: TestSchema<DeployProgress> = {
+    '~standard': {
+      version: 1,
+      vendor: 'test',
+      types: { input: { step: 0, total: 0 }, output: { step: 0, total: 0 } },
+      validate: () => ({ value: { step: 0, total: 0 } }),
+      jsonSchema: { input: () => ({ type: 'object' }) },
+    },
+  }
+  const deployProgress = defineActivityType({
+    activityType: 'deploy.progress',
+    contentSchema: deployProgressSchema,
+  })
+
+  it('narrows a built-in type when no `activities` are given', () => {
+    const check = () => {
+      const chat = useChat({ threadId: 'thread-1', connection })
+      const read = (part: ActivityPartIn<typeof chat>) => {
+        if (part.activityType === 'sandbox.status') {
+          expectTypeOf(part.content.status).toEqualTypeOf<
+            'starting' | 'ready' | 'failed'
+          >()
+        }
+      }
+      void read
+    }
+    void check
+  })
+
+  it('narrows a type from `activities`', () => {
+    const check = () => {
+      const chat = useChat({
+        threadId: 'thread-1',
+        connection,
+        activities: [deployProgress],
+      })
+      const read = (part: ActivityPartIn<typeof chat>) => {
+        if (part.activityType === 'deploy.progress') {
+          expectTypeOf(part.content).toEqualTypeOf<DeployProgress>()
+        }
+      }
+      void read
+    }
+    void check
+  })
+
+  it('carries `activities` from the createChatHook options', () => {
+    const check = () => {
+      const { useChat: useBoundChat } = createChatHook({
+        connection,
+        activities: [deployProgress],
+      })
+      const chat = useBoundChat({ threadId: 'thread-1' })
+      const read = (part: ActivityPartIn<typeof chat>) => {
+        if (part.activityType === 'deploy.progress') {
+          expectTypeOf(part.content).toEqualTypeOf<DeployProgress>()
+        }
+      }
+      void read
     }
     void check
   })

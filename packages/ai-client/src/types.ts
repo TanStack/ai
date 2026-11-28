@@ -1,5 +1,6 @@
 import type {
   ActivityPart,
+  AnyActivityTypeDefinition,
   AnyClientTool,
   ApprovalCapabilityOf,
   ApprovalSchemaOf,
@@ -27,6 +28,7 @@ import type {
   SubagentHandleData,
   SubagentStatus,
   ToolResultOutcome,
+  TypedActivityPart,
   UIResourcePart,
   VideoPart,
 } from '@tanstack/ai/client'
@@ -374,8 +376,12 @@ export interface ChatClientSnapshot<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> | undefined =
+    readonly [],
 > {
-  readonly messages: ReadonlyArray<UIMessage<TTools>>
+  readonly messages: ReadonlyArray<
+    UIMessage<TTools, unknown, undefined, TActivities>
+  >
   readonly status: ChatClientState
   readonly isLoading: boolean
   readonly error: Error | undefined
@@ -768,10 +774,23 @@ export type SubagentPartOf<
         subagent: SubagentHandles<TAgents>
       }
 
+/**
+ * One part of a {@link UIMessage}.
+ *
+ * `TActivities` sets the type of an activity part:
+ * - `undefined` (the default): the loose `ActivityPart`, so a message from
+ *   `@tanstack/ai` or from storage fits.
+ * - An array of `defineActivityType` definitions, `readonly []` included: the
+ *   typed union. `part.activityType === 'sandbox.status'` narrows `content`
+ *   for a built-in type or a declared type. Read other types with the `is()`
+ *   of their definition.
+ */
 export type MessagePart<
   TTools extends ReadonlyArray<{ name: string }> = any,
   TData = unknown,
   TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined = undefined,
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> | undefined =
+    undefined,
 > =
   | TextPart
   | ImagePart
@@ -781,7 +800,9 @@ export type MessagePart<
   | ToolCallPart<TTools>
   | ToolResultPart
   | ThinkingPart
-  | ActivityPart
+  | ([TActivities] extends [undefined]
+      ? ActivityPart
+      : TypedActivityPart<TActivities>)
   | StructuredOutputPart<TData>
   | UIResourcePart
   | SubagentPartOf<TSubagents>
@@ -797,16 +818,21 @@ export type MessagePart<
  * everywhere; the hook layer (`useChat({ outputSchema })`) substitutes it on
  * the public return so `m.parts.find(p => p.type === 'structured-output').data`
  * is typed without manual casts.
+ *
+ * `TActivities` types the activity parts. See {@link MessagePart}. A message
+ * with typed activity parts is still assignable to a plain `UIMessage`.
  */
 export interface UIMessage<
   TTools extends ReadonlyArray<{ name: string }> = any,
   TData = unknown,
   TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined = undefined,
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> | undefined =
+    undefined,
 > {
   id: string
   role: 'system' | 'user' | 'assistant' | 'activity'
   name?: string
-  parts: Array<MessagePart<TTools, TData, TSubagents>>
+  parts: Array<MessagePart<TTools, TData, TSubagents, TActivities>>
   createdAt?: Date
   /**
    * Optional AG-UI metadata bag. TanStack writes the `tanstack` key.
@@ -1005,6 +1031,8 @@ export interface ChatClientBaseOptions<
   TContext = unknown,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> | undefined =
+    readonly [],
 > {
   /**
    * Initial messages to populate the chat
@@ -1196,6 +1224,14 @@ export interface ChatClientBaseOptions<
   interrupts?: TInterrupts
 
   /**
+   * Activity types from `defineActivityType`, for types only. They type the
+   * activity parts of the messages that the client gives back. The built-in
+   * types are typed without this option. The client does not check the
+   * content that it receives.
+   */
+  activities?: TActivities
+
+  /**
    * Devtools hook metadata for this client instance.
    */
   devtools?: Partial<AIDevtoolsClientMetadata>
@@ -1232,8 +1268,10 @@ export type ChatClientOptions<
   TContext = InferredClientContext<TTools>,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> | undefined =
+    readonly [],
 > = DistributedOmit<
-  ChatClientBaseOptions<TTools, TContext, TInterrupts>,
+  ChatClientBaseOptions<TTools, TContext, TInterrupts, TActivities>,
   'context'
 > &
   ClientContextOptionFromTools<TTools, TContext> &
@@ -1289,9 +1327,12 @@ export function createChatClientOptions<
   const TInterrupts extends ReadonlyArray<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
+  const TActivities extends
+    | ReadonlyArray<AnyActivityTypeDefinition>
+    | undefined = readonly [],
 >(
-  options: ChatClientOptions<TTools, TContext, TInterrupts>,
-): ChatClientOptions<TTools, TContext, TInterrupts> {
+  options: ChatClientOptions<TTools, TContext, TInterrupts, TActivities>,
+): ChatClientOptions<TTools, TContext, TInterrupts, TActivities> {
   return options
 }
 
@@ -1309,8 +1350,10 @@ export function createChatClientOptions<
  * type MyMessages = InferChatMessages<typeof chatOptions>
  * // MyMessages is now Array<UIMessage<[typeof myTool1, typeof myTool2]>>
  * ```
+ *
+ * The `activities` of the options type the activity parts.
  */
 export type InferChatMessages<T> =
-  T extends ChatClientOptions<infer TTools, any>
-    ? Array<UIMessage<TTools>>
+  T extends ChatClientOptions<infer TTools, any, any, infer TActivities>
+    ? Array<UIMessage<TTools, unknown, undefined, TActivities>>
     : never

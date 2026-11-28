@@ -19,7 +19,18 @@ import {
   unboundInterrupt,
   unknownToolMessage,
 } from '../../../ai-client/tests/ui-fixtures'
-import type { ToolCallState } from '@tanstack/ai-client'
+import type { ToolCallState, UIMessage } from '@tanstack/ai-client'
+
+function activityMessage(
+  activityType: string,
+  content: Record<string, unknown>,
+): UIMessage {
+  return {
+    id: `activity-${activityType}`,
+    role: 'activity',
+    parts: [{ type: 'activity', activityType, content }],
+  }
+}
 
 function host(
   init?: Parameters<typeof createChatResult>[0],
@@ -69,6 +80,7 @@ function makeUI(patch?: {
   queue?: Config['components']['queue']
   partsComponents?: Config['partsComponents']
   subagentsComponents?: Config['subagentsComponents']
+  activitiesComponents?: Config['activitiesComponents']
   toolsComponents?: Config['toolsComponents']
   interruptsComponents?: {
     tools?: Config['interruptsComponents']['tools']
@@ -104,6 +116,9 @@ function makeUI(patch?: {
     },
     ...(patch?.subagentsComponents
       ? { subagentsComponents: patch.subagentsComponents }
+      : {}),
+    ...(patch?.activitiesComponents
+      ? { activitiesComponents: patch.activitiesComponents }
       : {}),
   })
 }
@@ -342,6 +357,48 @@ describe('createChatUI', () => {
         />,
       ),
     ).toThrow('Missing subagentsComponents.researcher')
+  })
+
+  it('renders the activitiesComponents entry for the activity type', () => {
+    const UI = makeUI({
+      partsComponents: { activity: () => <i>generic</i> },
+      activitiesComponents: {
+        'sandbox.status': ({ part }) => <b>{part.content.status}</b>,
+      },
+    })
+    const markup = renderToStaticMarkup(
+      <UI.Chat
+        chat={host({
+          messages: [
+            activityMessage('sandbox.status', {
+              status: 'starting',
+              provider: 'e2b',
+            }),
+          ],
+        })}
+      />,
+    )
+    expect(markup).toContain('<b>starting</b>')
+  })
+
+  it('renders an activity type with no entry with partsComponents.activity', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const UI = makeUI({
+      partsComponents: {
+        activity: ({ part }) => <i>{part.activityType}</i>,
+      },
+      activitiesComponents: { 'sandbox.status': () => <b>status</b> },
+    })
+    const markup = renderToStaticMarkup(
+      <UI.Chat
+        chat={host({
+          messages: [activityMessage('deploy.progress', { step: 1 })],
+        })}
+      />,
+    )
+    expect(markup).toContain('<i>deploy.progress</i>')
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
   })
 
   it('keeps unmatched tool results and suppresses matched ones', () => {

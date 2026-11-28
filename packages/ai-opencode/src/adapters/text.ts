@@ -12,7 +12,9 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   DurableAttachNotSupportedError,
   SandboxCapability,
-  buildApprovalRequestedEvent,
+  approvalDecisionActivities,
+  emitPendingApproval,
+  withApprovalContinuation,
   createBridgeEventChannel,
   getSandbox,
   getSandboxDurability,
@@ -302,7 +304,11 @@ export class OpencodeTextAdapter<
 
       const modelOptions = options.modelOptions
       const sessionId = modelOptions?.sessionId
-      const { prompt: resumePrompt } = buildPrompt(options.messages, sessionId)
+      const messages = withApprovalContinuation(
+        options.messages,
+        options.approvals,
+      )
+      const { prompt: resumePrompt } = buildPrompt(messages, sessionId)
       const { providerID, modelID } = splitModel(this.model)
 
       // Bridge chat()-provided tools into the in-sandbox server over MCP
@@ -318,13 +324,13 @@ export class OpencodeTextAdapter<
           threadId,
           context: options.context,
           emitCustomEvent: channel.emitCustomEvent,
+          emitActivity: channel.emitActivity,
           ...(externalSignal ? { signal: externalSignal } : {}),
         })
       }
 
-      // Approval-requested events for `ask`-policy actions with no client
-      // decision yet, emitted after the stream so the client can approve + re-run.
-      const approvalRequests: Array<AdapterYieldChunk> = []
+      // Pending `sandbox.approval` rows for `ask`-policy actions go out on
+      // the live bridge channel when the permission callback records them.
 
       const queue = new AsyncQueue<OpencodeStreamEvent>()
       const mode =
@@ -341,15 +347,14 @@ export class OpencodeTextAdapter<
             options.approvals,
           )
           if (result.approvalId !== undefined) {
-            approvalRequests.push(
-              buildApprovalRequestedEvent({
-                approvalId: result.approvalId,
-                title: result.title ?? request.title,
-                threadId,
-                runId,
-                detail: { provider: 'opencode' },
-              }),
-            )
+            const approval = {
+              approvalId: result.approvalId,
+              title: result.title ?? request.title,
+              threadId,
+              runId,
+              detail: { provider: 'opencode' },
+            }
+            emitPendingApproval(channel, approval)
           }
           return result.response
         })
@@ -433,7 +438,7 @@ export class OpencodeTextAdapter<
         options,
         session.resumed || sessionId === undefined
           ? resumePrompt
-          : buildPrompt(options.messages, undefined).prompt,
+          : buildPrompt(messages, undefined).prompt,
       )
       if (options.outputSchema) {
         promptText = appendOutputSchemaInstruction(
@@ -483,6 +488,15 @@ export class OpencodeTextAdapter<
           lastTextMessageId = chunk.messageId
         }
         yield chunk
+        // Each client decision of an earlier run sets its `sandbox.approval`
+        // row to `granted` or `denied`.
+        if (chunk.type === EventType.RUN_STARTED) {
+          yield* approvalDecisionActivities(options.approvals, {
+            provider: 'opencode',
+            threadId,
+            runId,
+          })
+        }
       }
 
       if (options.outputSchema) {
@@ -526,10 +540,6 @@ export class OpencodeTextAdapter<
         }
       }
       if (heldFinished) yield heldFinished
-
-      // Surface pending approval requests (ask-policy actions awaiting a client
-      // decision); the client approves and re-runs to continue.
-      for (const event of approvalRequests) yield event
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)

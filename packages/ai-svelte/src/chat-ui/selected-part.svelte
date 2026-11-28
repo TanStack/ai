@@ -33,7 +33,7 @@
     )}
   {/if}
 {:else}
-  {@const Part = partComponent(comps.components, selected.key) as any}
+  {@const Part = partComponent(comps.components, selected) as any}
   {#if Part}
     <Part part={selected.part} />
   {:else}

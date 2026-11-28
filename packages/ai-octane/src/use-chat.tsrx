@@ -2,6 +2,7 @@ import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'octane'
 import type {
+  AnyActivityTypeDefinition,
   AnyClientTool,
   InferSchemaType,
   InterruptDefinition,
@@ -33,18 +34,29 @@ export function useChat<
   const TInterrupts extends ReadonlyArray<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
+  const TActivities extends ReadonlyArray<AnyActivityTypeDefinition> =
+    readonly [],
 >(
-  options: UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
-): UseChatReturn<TTools, TSchema, TInterrupts> {
+  options: UseChatOptions<
+    TTools,
+    TSchema,
+    TContext,
+    TInterrupts,
+    TActivities
+  >,
+): UseChatReturn<TTools, TSchema, TInterrupts, TActivities> {
   // The hook's identity is its `threadId`. Reload with the same `threadId`
   // restores the same conversation.
   const clientId = options.threadId
 
   const subscribedRef = useRef(false)
-  const activeClientRef = useRef<ChatClient | null>(null)
-  const seenClientRef = useRef<ChatClient | null>(null)
+  // A client typed by `activities` does not fit a plain `ChatClient`.
+  const activeClientRef = useRef<ChatClient<any, any, any, any> | null>(null)
+  const seenClientRef = useRef<ChatClient<any, any, any, any> | null>(null)
   const optionsRef =
-    useRef<UseChatOptions<TTools, TSchema, TContext, TInterrupts>>(options)
+    useRef<
+      UseChatOptions<TTools, TSchema, TContext, TInterrupts, TActivities>
+    >(options)
   optionsRef.current = options
 
   // Create ChatClient instance with callbacks to sync state
@@ -61,7 +73,9 @@ export function useChat<
       : { fetcher: initialOptions.fetcher }
 
     const instanceHolder: {
-      current: ChatClient<TTools, TContext, TInterrupts> | undefined
+      current:
+        | ChatClient<TTools, TContext, TInterrupts, TActivities>
+        | undefined
     } = { current: undefined }
     const getActiveInstance = () => {
       const currentInstance = instanceHolder.current
@@ -87,7 +101,13 @@ export function useChat<
         return
       callback()
     }
-    const instance = new ChatClient<TTools, TContext, TInterrupts>({
+    // `activities` only types `messages`, so the client does not get it.
+    const instance = new ChatClient<
+      TTools,
+      TContext,
+      TInterrupts,
+      TActivities
+    >({
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       initialMessages: messagesToUse,
@@ -354,6 +374,12 @@ export function useChat<
     [client],
   )
 
+  const respondToSandboxApproval = useCallback(
+    (approvalId: string, granted: boolean) =>
+      client.respondToSandboxApproval(approvalId, granted),
+    [client],
+  )
+
   const resolveInterrupts = useCallback(
     (
       resolution:
@@ -452,6 +478,7 @@ export function useChat<
     setMessages: setMessagesManually,
     clear,
     addToolResult,
+    respondToSandboxApproval,
     queue: snapshot.queue,
     cancelQueued,
     runId: snapshot.runId,
@@ -464,5 +491,5 @@ export function useChat<
     resumeInterruptsUnsafe,
     partial,
     final,
-  } as unknown as UseChatReturn<TTools, TSchema, TInterrupts>
+  } as unknown as UseChatReturn<TTools, TSchema, TInterrupts, TActivities>
 }

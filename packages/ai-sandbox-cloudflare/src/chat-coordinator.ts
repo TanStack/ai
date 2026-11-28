@@ -193,6 +193,14 @@ export abstract class ChatSandboxCoordinator<
           ...(options.permission !== undefined
             ? { permission: options.permission }
             : {}),
+          // The core runs in this DO, the same place as `chat()`, so the
+          // adapter's callbacks can put bridged-tool events on the run stream.
+          ...(options.emitCustomEvent !== undefined
+            ? { emitCustomEvent: options.emitCustomEvent }
+            : {}),
+          ...(options.emitActivity !== undefined
+            ? { emitActivity: options.emitActivity }
+            : {}),
         })
         bridges.set(runId, { token, core })
         return Promise.resolve({

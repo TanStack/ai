@@ -612,6 +612,7 @@ The package exports more building blocks. Each group has a guide.
 | --- | --- | --- |
 | Middleware | `defineChatMiddleware`, `createChatMiddleware`, capabilities | [Middleware](../advanced/middleware-advanced) |
 | Interrupts | `defineInterrupt` | [Generic Interrupts](../interrupts/generic) |
+| Activities | `defineActivityType({ activityType, contentSchema })`, and the built-in `sandboxStatusActivity` and `sandboxApprovalActivity` | [Activities](../chat/activities) |
 | Subagents | `defineAgent`, `subagentRoute`, `runAgentStream` | [Subagents](../chat/subagents), [Subagents: Advanced](../chat/subagents-advanced) |
 | Durable streams | `memoryStream`, `replayRunStream` | [Resumable Streams](../resumable-streams/overview) |
 | Run cancel | `requestRunCancel`, `wasCancelRequested` | [Takeover](../sandbox/takeover) |
@@ -639,7 +640,7 @@ Each type links to its full definition in the generated reference.
 | [`ModelMessage`](../reference/interfaces/ModelMessage) | A message in model format: `role` (`"user"`, `"assistant"`, or `"tool"`), `content`, `toolCalls`, `toolCallId`, `thinking`, and more. |
 | [`StreamChunk`](../reference/type-aliases/StreamChunk) | One AG-UI event: `RUN_STARTED`, `TEXT_MESSAGE_CONTENT`, `TOOL_CALL_START`, `RUN_FINISHED`, `RUN_ERROR`, and the others. See [Stream Events](../chat/stream-events). |
 | [`Tool`](../reference/interfaces/Tool) | A tool: `name`, `description`, `inputSchema`, `outputSchema`, `execute`, `needsApproval`, `lazy`, `metadata`. |
-| [`ToolExecutionContext`](../reference/type-aliases/ToolExecutionContext) | The second argument of `execute`: `context`, `toolCallId`, `threadId`, `abortSignal`, `emitCustomEvent`, and more. `threadId` is the thread id of the chat run, so a tool can keep its own state for each conversation. It is missing when the tool runs outside a chat, for example from an MCP server, WebMCP, or a direct `execute()` call. |
+| [`ToolExecutionContext`](../reference/type-aliases/ToolExecutionContext) | The second argument of `execute`: `context`, `toolCallId`, `threadId`, `abortSignal`, `emitCustomEvent`, `emitActivity`, and more. `threadId` is the thread id of the chat run, so a tool can keep its own state for each conversation. It is missing when the tool runs outside a chat, for example from an MCP server, WebMCP, or a direct `execute()` call. `emitActivity(definition, id, content)` sends a typed [activity](../chat/activities) row. `chat()` sets it. It is missing outside a chat stream, so call it as `context?.emitActivity?.(...)`. |
 | [`ChatMiddleware`](../reference/interfaces/ChatMiddleware) | Middleware hooks: `onConfig`, `onStart`, `onChunk`, `onBeforeToolCall`, `onAfterToolCall`, `onShouldContinue`, `onFinish`, `onAbort`, `onError`, and more. See [Middleware](../advanced/middleware). |
 
 In a tool, `context` is the value from `chat({ context })`. In a client tool, it comes from the `ChatClient` or hook options. It is required when the tool declares a context type.

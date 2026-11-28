@@ -13,6 +13,7 @@ import {
   normalizeToUIMessage,
   readInterruptBinding,
   restoreInboundChunk,
+  sandboxApprovalActivity,
   subagentInputOf,
   tanstackMetadata,
   validateWithStandardSchema,
@@ -39,6 +40,7 @@ import { ClearedStreamTracker } from './cleared-stream-tracker'
 import { normalizeMessagesDates } from './message-date-normalizer'
 import { InterruptManager } from './interrupt-manager'
 import type {
+  AnyActivityTypeDefinition,
   AnyClientTool,
   ContentPart,
   Interrupt,
@@ -763,6 +765,8 @@ export class ChatClient<
   TContext = unknown,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     any,
+  TActivities extends ReadonlyArray<AnyActivityTypeDefinition> | undefined =
+    readonly [],
 > {
   private readonly processor: StreamProcessor
   private readonly subagentHandles = new Map<string, SubagentHandle>()
@@ -777,25 +781,26 @@ export class ChatClient<
   // without a storage adapter.
   private readonly persistor?: ChatPersistor
   private readonly clearedStreamTracker = new ClearedStreamTracker()
-  private readonly snapshotAtom: Atom<ChatClientSnapshot<TTools, TInterrupts>> =
-    createAtom<ChatClientSnapshot<TTools, TInterrupts>>({
-      messages: [],
-      status: 'ready',
-      isLoading: false,
-      error: undefined,
-      isSubscribed: false,
-      connectionStatus: 'disconnected',
-      sessionGenerating: false,
-      queue: [],
-      runId: null,
-      hasOlderMessages: false,
-      isHydrating: false,
-      interruptState: {
-        interrupts: Object.freeze([]),
-        interruptErrors: Object.freeze([]),
-        resuming: false,
-      } as ChatInterruptState<TTools, TInterrupts>,
-    })
+  private readonly snapshotAtom: Atom<
+    ChatClientSnapshot<TTools, TInterrupts, TActivities>
+  > = createAtom<ChatClientSnapshot<TTools, TInterrupts, TActivities>>({
+    messages: [],
+    status: 'ready',
+    isLoading: false,
+    error: undefined,
+    isSubscribed: false,
+    connectionStatus: 'disconnected',
+    sessionGenerating: false,
+    queue: [],
+    runId: null,
+    hasOlderMessages: false,
+    isHydrating: false,
+    interruptState: {
+      interrupts: Object.freeze([]),
+      interruptErrors: Object.freeze([]),
+      resuming: false,
+    } as ChatInterruptState<TTools, TInterrupts>,
+  })
   // The snapshot atom is the only copy of this state. Setters patch it.
   private get status() {
     return this.snapshotAtom.get().status
@@ -923,6 +928,8 @@ export class ChatClient<
   private connectionDrainsOnSend = false
   private errorReportedGeneration: number | null = null
   private streamGeneration = 0
+  // Stream generations whose request reached `connection.send`.
+  private readonly streamReachedSend = new Set<number>()
   private continuationGeneration = 0
   // Generation of the run that opened the current stream. Public
   // `addToolResult` must use this, not the live counter: `stop()` increments
@@ -991,7 +998,9 @@ export class ChatClient<
     }
   }
 
-  constructor(options: ChatClientOptions<TTools, TContext, TInterrupts>) {
+  constructor(
+    options: ChatClientOptions<TTools, TContext, TInterrupts, TActivities>,
+  ) {
     assertUniqueInterruptDefinitions(options.interrupts)
     // `threadId` is the wire, DevTools, and persistence identity. Checked at
     // runtime too, because JS callers are not held to the type.
@@ -1124,7 +1133,9 @@ export class ChatClient<
           patchAtom(this.snapshotAtom, {
             messages: freezeSnapshotMessages(
               this.frozenMessages,
-              messages as Array<UIMessage<TTools>>,
+              messages as Array<
+                UIMessage<TTools, unknown, undefined, TActivities>
+              >,
             ),
           })
           this.callbacksRef.current.onMessagesChange(messages)
@@ -2286,12 +2297,14 @@ export class ChatClient<
   /** The atom with messages, queue, and interrupt state read fresh. */
   private readSnapshot(
     isHydrating: boolean,
-  ): ChatClientSnapshot<TTools, TInterrupts> {
+  ): ChatClientSnapshot<TTools, TInterrupts, TActivities> {
     return Object.freeze({
       ...this.snapshotAtom.get(),
       messages: freezeSnapshotMessages(
         this.frozenMessages,
-        this.processor.getMessages() as Array<UIMessage<TTools>>,
+        this.processor.getMessages() as Array<
+          UIMessage<TTools, unknown, undefined, TActivities>
+        >,
       ),
       queue: this.freezeSnapshotQueue(this.getQueue()),
       isHydrating,
@@ -2312,7 +2325,7 @@ export class ChatClient<
    * Current UI snapshot. The snapshot, `messages`, `queue`, and their entries
    * are frozen copies. `interruptState` is the interrupt manager's own state.
    */
-  getSnapshot = (): ChatClientSnapshot<TTools, TInterrupts> =>
+  getSnapshot = (): ChatClientSnapshot<TTools, TInterrupts, TActivities> =>
     this.snapshotAtom.get()
 
   private setIsLoading(isLoading: boolean): void {
@@ -2731,8 +2744,10 @@ export class ChatClient<
           this.setCurrentRunId(null)
           this.setIsLoading(false)
           if (this.status === 'streaming') this.setStatus('ready')
-          await this.drainPostStreamActions()
         }
+        // stop() nulls abortController, so the identity check above can skip.
+        // Still settle queued approval rollbacks without starting another run.
+        await this.drainPostStreamActions()
       }
     })()
   }
@@ -3371,6 +3386,7 @@ export class ChatClient<
       this.devtoolsBridge.emitSnapshot()
 
       // Send through normalized connection (pushes chunks to subscription queue)
+      this.streamReachedSend.add(generation)
       await this.connection.send(messages, mergedBody, signal, runContext)
 
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- mutated asynchronously during await
@@ -3654,6 +3670,8 @@ export class ChatClient<
     if (hadLocalStream) {
       this.resetSessionGenerating()
     }
+    // Settle queued approval rollbacks even when a rejoin never drains.
+    void this.drainPostStreamActions()
     this.events.stopped()
   }
 
@@ -3661,6 +3679,8 @@ export class ChatClient<
    * Clear all messages
    */
   clear(): void {
+    // Invalidate deferred continuations queued before this clear.
+    this.continuationGeneration++
     const hadLocalStream = this.abortController !== null
     this.clearedStreamTracker.snapshotClear({
       messages: this.processor.getMessages(),
@@ -3708,6 +3728,96 @@ export class ChatClient<
       ? this.continuationGeneration
       : this.streamContinuationGeneration
     await this.addToolResultForClientTool(result, clientTool, generation)
+  }
+
+  /**
+   * Answer a sandbox approval. A harness adapter (Claude Code, OpenCode, ACP)
+   * stops an action that needs a decision. It sends a `sandbox.approval`
+   * activity row with the status `pending`.
+   *
+   * This sets the status of the row to `granted` or `denied` and starts a new
+   * run. The request of the new run carries the row, so the adapter does or
+   * skips the action. If a run is in progress, the new run starts after it
+   * ends. If an interrupt waits for an answer, no new run starts. The
+   * decision stays on the row.
+   *
+   * It does nothing if no row has this `approvalId`, or if the row already
+   * has a decision.
+   *
+   * @param approvalId - The `content.approvalId` of the row.
+   * @param granted - `true` allows the action. `false` denies it.
+   *
+   * @example
+   * ```ts
+   * // The user clicks "Allow" on a pending `sandbox.approval` row.
+   * if (part.type === 'activity' && part.activityType === 'sandbox.approval') {
+   *   await client.respondToSandboxApproval(part.content.approvalId, true)
+   * }
+   * ```
+   */
+  async respondToSandboxApproval(approvalId: string, granted: boolean) {
+    const messages = this.processor.getMessages()
+    const row = messages.find((message) =>
+      message.parts.some(
+        (part) =>
+          sandboxApprovalActivity.is(part) &&
+          part.content.approvalId === approvalId &&
+          part.content.status === 'pending',
+      ),
+    )
+    if (!row) return
+    const status = granted ? 'granted' : 'denied'
+    const decided = {
+      ...row,
+      parts: row.parts.map((part) =>
+        sandboxApprovalActivity.is(part)
+          ? { ...part, content: { ...part.content, status } }
+          : part,
+      ),
+    }
+    this.processor.setMessages(
+      messages.map((message) => (message === row ? decided : message)),
+    )
+
+    const restorePending = () => {
+      this.processor.setMessages(
+        this.processor
+          .getMessages()
+          .map((message) => (message.id === row.id ? row : message)),
+      )
+    }
+
+    // The same rules as for a client tool result: a run in progress ends
+    // first, and a pending interrupt owns the next send.
+    // Restore pending when this request never reached connection.send, so
+    // the same call can retry. streamResponse reports most errors and returns
+    // false, so check both paths. After the send, the server may already have
+    // the decision, so the row stays decided.
+    const continueRun = async () => {
+      if (this.hasPendingInterrupts()) return
+      const expectedGeneration = this.streamGeneration + 1
+      const restoreUnsent = () => {
+        if (!this.streamReachedSend.has(expectedGeneration)) restorePending()
+      }
+      try {
+        if (!(await this.streamResponse())) restoreUnsent()
+      } catch (error) {
+        restoreUnsent()
+        throw error
+      }
+    }
+    if (this.isLoading) {
+      this.queuePostStreamAction(async () => {
+        try {
+          await continueRun()
+        } catch {
+          // streamResponse already reported it. A rethrow here would reject
+          // the previous run and stop the other queued actions.
+        }
+      }, restorePending)
+      return
+    }
+    await continueRun()
   }
 
   /** Run a client tool, then add its result and continue the loop. */
@@ -3981,9 +4091,12 @@ export class ChatClient<
   /**
    * Get current messages
    */
-  getMessages(): Array<UIMessage<TTools>> {
-    // StreamProcessor is untyped over client tools / output schema.
-    return this.processor.getMessages() as Array<UIMessage<TTools>>
+  getMessages(): Array<UIMessage<TTools, unknown, undefined, TActivities>> {
+    // StreamProcessor is untyped over client tools, output schema, and
+    // activity types.
+    return this.processor.getMessages() as Array<
+      UIMessage<TTools, unknown, undefined, TActivities>
+    >
   }
 
   getSubagents() {
@@ -4140,14 +4253,24 @@ export class ChatClient<
   }
 
   private messagesForSend(messages: Array<UIMessage>) {
-    const forModel = messages.filter((message) => message.role !== 'activity')
+    // Activity is frontend-only, so it stays local. A decided
+    // `sandbox.approval` row is the exception: the server reads the user's
+    // decision from it.
+    const isDecidedApproval = (message: UIMessage) =>
+      message.parts.some(
+        (part) =>
+          sandboxApprovalActivity.is(part) && part.content.status !== 'pending',
+      )
+    const forModel = messages.filter(
+      (message) => message.role !== 'activity' || isDecidedApproval(message),
+    )
     if (this.historyPageSize === undefined) {
       return forModel
     }
     const unknownMessages: Array<UIMessage> = []
     for (const message of forModel) {
       const isKnown = this.knownServerMessageIds.has(message.id)
-      if (isKnown) {
+      if (isKnown && !isDecidedApproval(message)) {
         continue
       }
       unknownMessages.push(message)
