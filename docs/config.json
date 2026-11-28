@@ -421,7 +421,8 @@
         {
           "label": "Tool Result Metadata",
           "to": "tools/tool-result-metadata",
-          "addedAt": "2026-11-18"
+          "addedAt": "2026-11-18",
+          "updatedAt": "2026-11-25"
         },
         {
           "label": "Client Tools",
@@ -1391,7 +1392,7 @@
           "label": "Build your own UI",
           "to": "harness/custom-ui",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-25"
         },
         {
           "label": "Code mode in a harness",

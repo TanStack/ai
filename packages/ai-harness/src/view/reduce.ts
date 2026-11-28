@@ -112,6 +112,15 @@ function recordOf(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {}
 }
 
+/**
+ * The app keys of a tool result's metadata, as `useChat` shows them. The
+ * harness also reserves `harness` (a handoff result has it).
+ */
+function resultMetadataOf(metadata: unknown) {
+  const { tanstack: _tanstack, harness: _harness, ...app } = recordOf(metadata)
+  return Object.keys(app).length > 0 ? app : undefined
+}
+
 /** The fields of a media part that come from its record. */
 type MediaInfo = Omit<MediaPart, 'type' | 'url' | 'load'>
 
@@ -311,19 +320,25 @@ function applyOwn(parts: Array<ViewPart>, event: StreamChunk): Array<ViewPart> {
           : parseJson(call.argsText),
     }))
   if (event.type === EventType.TOOL_CALL_RESULT)
-    return mapToolCall(parts, event.toolCallId, (call) => ({
-      ...call,
-      // A failed call shows as failed live too, as it does from the transcript.
-      status:
-        recordOf(recordOf(event.metadata).tanstack).state === 'output-error'
-          ? 'failed'
-          : 'done',
-      // Content parts (a multimodal result) stay as they are.
-      result:
-        typeof event.content === 'string'
-          ? parseJson(event.content)
-          : event.content,
-    }))
+    return mapToolCall(parts, event.toolCallId, (call) => {
+      const resultMetadata = resultMetadataOf(event.metadata)
+      // A later result replaces the result metadata of an earlier one.
+      const { resultMetadata: _earlier, ...rest } = call
+      return {
+        ...rest,
+        // A failed call shows as failed live too, as it does from the transcript.
+        status:
+          recordOf(recordOf(event.metadata).tanstack).state === 'output-error'
+            ? 'failed'
+            : 'done',
+        // Content parts (a multimodal result) stay as they are.
+        result:
+          typeof event.content === 'string'
+            ? parseJson(event.content)
+            : event.content,
+        ...(resultMetadata !== undefined ? { resultMetadata } : {}),
+      }
+    })
   return parts
 }
 
@@ -1109,6 +1124,9 @@ export function messagesFromTranscript(
     if (!call) return
     call.status = message.error ? 'failed' : 'done'
     call.result = parseJson(textOf(message.content))
+    const resultMetadata = resultMetadataOf(message.metadata)
+    if (resultMetadata !== undefined) call.resultMetadata = resultMetadata
+    else delete call.resultMetadata
     // An agent tool result names its child run. The view loads the child's
     // own messages into this part.
     const outcome = recordOf(call.result)
