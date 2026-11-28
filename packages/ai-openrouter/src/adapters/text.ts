@@ -83,6 +83,16 @@ export interface OpenRouterConfig extends SDKOptions {
 }
 export type OpenRouterTextModels = (typeof OPENROUTER_CHAT_MODELS)[number]
 
+/** `OpenRouterConfig` plus the text adapter's own options. */
+export type OpenRouterTextConfig<TModel extends string> = OpenRouterConfig & {
+  /**
+   * Default `modelOptions` for every call, e.g. provider routing. `chat()`
+   * merges them under the call's `modelOptions`. A key the call sets
+   * replaces the default key in full.
+   */
+  defaultModelOptions?: ResolveProviderOptions<TModel>
+}
+
 export type OpenRouterTextModelOptions = ExternalTextProviderOptions
 
 type ResolveProviderOptions<TModel extends string> =
@@ -172,13 +182,15 @@ export class OpenRouterTextAdapter<
   protected orClient: Pick<OpenRouterClient, 'chat'>
   private readonly sdkOptions: SDKOptions
   private readonly retryCodes: Array<string> | undefined
+  readonly defaultModelOptions: ResolveProviderOptions<TModel> | undefined
 
-  constructor(config: OpenRouterConfig, model: TModel) {
+  constructor(config: OpenRouterTextConfig<TModel>, model: TModel) {
     super({}, model)
-    const { retryCodes, ...sdkOptions } = config
+    const { retryCodes, defaultModelOptions, ...sdkOptions } = config
     this.sdkOptions = sdkOptions
     this.orClient = createOpenRouterChatClient(sdkOptions)
     this.retryCodes = retryCodes
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async *chatStream(
@@ -1770,14 +1782,14 @@ function extractReasoningText(chunk: ChatStreamChunk): string {
 export function createOpenRouterText<TModel extends OpenRouterTextModels>(
   model: TModel,
   apiKey: string,
-  config?: Omit<OpenRouterConfig, 'apiKey'>,
+  config?: Omit<OpenRouterTextConfig<TModel>, 'apiKey'>,
 ): OpenRouterTextAdapter<TModel, ResolveToolCapabilities<TModel>> {
   return new OpenRouterTextAdapter({ apiKey, ...config }, model)
 }
 
 export function openRouterText<TModel extends OpenRouterTextModels>(
   model: TModel,
-  config?: Omit<OpenRouterConfig, 'apiKey'>,
+  config?: Omit<OpenRouterTextConfig<TModel>, 'apiKey'>,
 ): OpenRouterTextAdapter<TModel, ResolveToolCapabilities<TModel>> {
   const apiKey = getOpenRouterApiKeyFromEnv()
   return createOpenRouterText(model, apiKey, config)

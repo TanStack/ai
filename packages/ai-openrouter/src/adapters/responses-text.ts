@@ -98,7 +98,14 @@ interface StreamedFunctionCallMetadata {
   pendingArguments?: string
 }
 
-export interface OpenRouterResponsesConfig extends SDKOptions {}
+export interface OpenRouterResponsesConfig extends SDKOptions {
+  /**
+   * Default `modelOptions` for every call, e.g. provider routing. `chat()`
+   * merges them under the call's `modelOptions`. A key the call sets
+   * replaces the default key in full.
+   */
+  defaultModelOptions?: OpenRouterResponsesTextProviderOptions
+}
 export type OpenRouterResponsesTextModels =
   (typeof OPENROUTER_CHAT_MODELS)[number]
 export type OpenRouterResponsesTextProviderOptions =
@@ -180,11 +187,16 @@ export class OpenRouterResponsesTextAdapter<
 
   protected orClient: Pick<OpenRouterClient, 'beta'>
   private readonly sdkOptions: SDKOptions
+  readonly defaultModelOptions:
+    | OpenRouterResponsesTextProviderOptions
+    | undefined
 
   constructor(config: OpenRouterResponsesConfig, model: TModel) {
     super({}, model)
-    this.sdkOptions = config
-    this.orClient = createOpenRouterResponsesClient(config)
+    const { defaultModelOptions, ...sdkOptions } = config
+    this.sdkOptions = sdkOptions
+    this.orClient = createOpenRouterResponsesClient(sdkOptions)
+    this.defaultModelOptions = defaultModelOptions
   }
 
   async *chatStream(
@@ -2548,7 +2560,7 @@ export function createOpenRouterResponsesText<
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<SDKOptions, 'apiKey'>,
+  config?: Omit<OpenRouterResponsesConfig, 'apiKey'>,
 ): OpenRouterResponsesTextAdapter<TModel, ResolveToolCapabilities<TModel>> {
   return new OpenRouterResponsesTextAdapter({ apiKey, ...config }, model)
 }
@@ -2557,7 +2569,7 @@ export function openRouterResponsesText<
   TModel extends OpenRouterResponsesTextModels,
 >(
   model: TModel,
-  config?: Omit<SDKOptions, 'apiKey'>,
+  config?: Omit<OpenRouterResponsesConfig, 'apiKey'>,
 ): OpenRouterResponsesTextAdapter<TModel, ResolveToolCapabilities<TModel>> {
   const apiKey = getOpenRouterApiKeyFromEnv()
   return createOpenRouterResponsesText(model, apiKey, config)

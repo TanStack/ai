@@ -6601,9 +6601,15 @@ function toRuntimeTextActivityOptions<
   overrides: { outputSchema: TOutputSchema; stream: TOutputStream },
 ): RuntimeTextActivityOptions<TAdapter, TOutputSchema, TOutputStream> {
   const { middleware, ...rest } = options
+  const defaultModelOptions = rest.adapter.defaultModelOptions
   return {
     ...rest,
     ...overrides,
+    // Merged once here, so the engine, middleware and adapter all read the
+    // same value. One level deep, like TanStack Query's `defaultOptions`.
+    ...(defaultModelOptions
+      ? { modelOptions: { ...defaultModelOptions, ...rest.modelOptions } }
+      : {}),
     promptCache: resolvePromptCache(rest),
     ...(middleware === undefined
       ? {}

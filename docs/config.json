@@ -1768,7 +1768,7 @@
           "label": "Typed Pre-Configured Options",
           "to": "advanced/typed-options",
           "addedAt": "2026-05-25",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-23"
         },
         {
           "label": "Test with a Fake Model",
@@ -1964,7 +1964,7 @@
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-23"
         },
         {
           "label": "OpenRouter: Advanced",
